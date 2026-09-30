@@ -1,5 +1,6 @@
 import React from 'react';
 import { UploadQueueItem } from '../../../types/showcase';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   UploadCloud,
   CheckCircle2,
@@ -24,6 +25,7 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
   onRemove,
   onClearCompleted,
 }) => {
+  const { t } = useLocalization();
   if (queue.length === 0) return null;
 
   const completedCount = queue.filter((i) => i.status === 'completed').length;
@@ -48,12 +50,12 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
           </div>
           <div>
             <h4 className="text-xs font-bold text-slate-200">
-              Media Upload Queue ({queue.length})
+              {t('showcase.uploadQueue')} ({queue.length})
             </h4>
             <div className="flex items-center gap-2 text-[11px] text-slate-400">
-              {inProgressCount > 0 && <span className="text-amber-400 font-medium">{inProgressCount} uploading...</span>}
-              {completedCount > 0 && <span className="text-emerald-400 font-medium">{completedCount} finished</span>}
-              {errorCount > 0 && <span className="text-red-400 font-medium">{errorCount} failed</span>}
+              {inProgressCount > 0 && <span className="text-amber-400 font-medium">{t('showcase.uploadingCount', { count: inProgressCount })}</span>}
+              {completedCount > 0 && <span className="text-emerald-400 font-medium">{t('showcase.finishedCount', { count: completedCount })}</span>}
+              {errorCount > 0 && <span className="text-red-400 font-medium">{t('showcase.failedCount', { count: errorCount })}</span>}
             </div>
           </div>
         </div>
@@ -64,7 +66,7 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
             onClick={onClearCompleted}
             className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 transition-colors"
           >
-            Clear Completed
+            {t('showcase.clearCompleted')}
           </button>
         )}
       </div>
@@ -145,25 +147,25 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
                   <div className="flex items-center justify-between text-[10px]">
                     {item.status === 'uploading' && (
                       <span className="text-amber-400 font-medium flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" /> Uploading {item.progress}%
+                        <Loader2 className="w-3 h-3 animate-spin" /> {t('common.uploading', undefined, 'Uploading')} {item.progress}%
                       </span>
                     )}
                     {item.status === 'saving' && (
                       <span className="text-amber-400 font-medium flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" /> Saving metadata...
+                        <Loader2 className="w-3 h-3 animate-spin" /> {t('common.saving', undefined, 'Saving metadata...')}
                       </span>
                     )}
                     {item.status === 'completed' && (
                       <span className="text-emerald-400 font-medium flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Upload complete
+                        <CheckCircle2 className="w-3 h-3" /> {t('common.success', undefined, 'Upload complete')}
                       </span>
                     )}
                     {item.status === 'pending' && (
-                      <span className="text-slate-400">Queued for upload...</span>
+                      <span className="text-slate-400">{t('showcase.queuedForUpload', undefined, 'Queued for upload...')}</span>
                     )}
                     {item.status === 'error' && (
                       <span className="text-red-400 font-medium flex items-center gap-1 truncate" title={item.errorMessage}>
-                        <AlertCircle className="w-3 h-3 shrink-0" /> {item.errorMessage || 'Upload failed'}
+                        <AlertCircle className="w-3 h-3 shrink-0" /> {item.errorMessage || t('errors.uploadFailed', undefined, 'Upload failed')}
                       </span>
                     )}
                   </div>
@@ -177,7 +179,7 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
                     type="button"
                     onClick={() => onRetry(item.id)}
                     className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors"
-                    title="Retry Upload"
+                    title={t('common.retry')}
                   >
                     <RotateCw className="w-3.5 h-3.5" />
                   </button>
@@ -188,7 +190,7 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
                     type="button"
                     onClick={() => onRemove(item.id)}
                     className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-                    title="Dismiss"
+                    title={t('common.dismiss')}
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

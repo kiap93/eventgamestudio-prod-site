@@ -6,6 +6,7 @@ import { getPageSeo, SEO_PAGE_CONFIGS, PageSeoConfig } from '../../lib/seo';
 import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Gamepad2,
   Sparkles,
@@ -517,6 +518,7 @@ const SOLUTION_DETAILS: Record<
 };
 
 export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
   const pageSeo = getPageSeo(pathname);
   const details = SOLUTION_DETAILS[pathname] || SOLUTION_DETAILS['/interactive-event-games'];
@@ -555,7 +557,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
                 href="/"
                 className="hover:text-amber-600 transition-colors"
               >
-                Home
+                {t('nav.home')}
               </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-slate-900 font-semibold">{pageSeo.h1}</span>
@@ -589,7 +591,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
                   onClick={handleGetStarted}
                   className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition-all shadow-lg shadow-amber-500/25 hover:shadow-amber-500/35 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <span>Create Your Event</span>
+                  <span>{t('landing.finalCtaPrimary')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
@@ -597,7 +599,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
                   className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm border border-slate-300 transition-all hover:border-slate-400 active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                 >
                   <Gamepad2 className="w-4 h-4 text-amber-600" />
-                  <span>Try Interactive Demo</span>
+                  <span>{t('seoSolutions.viewInteractiveDemo')}</span>
                 </button>
               </div>
 
@@ -605,15 +607,15 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
               <div className="pt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-500 font-medium">
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>No App Install Required</span>
+                  <span>{t('landing.finalCtaTrust1')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Live Stage Leaderboards</span>
+                  <span>{t('landing.finalCtaTrust2')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Full Brand Customization</span>
+                  <span>{t('landing.finalCtaTrust3')}</span>
                 </div>
               </div>
             </div>
@@ -717,12 +719,12 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
         <section className="py-16 md:py-24 bg-slate-900 text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Playable Engines</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">{t('seoSolutions.recommendedGames')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-                Available Event Game Engines
+                {t('seoSolutions.recommendedGames')}
               </h2>
               <p className="text-sm sm:text-base text-slate-300">
-                Ready-to-deploy, fully brandable interactive mini-games available in our studio.
+                {t('seoSolutions.solutionsSubtitle', undefined, 'Ready-to-deploy, fully brandable interactive mini-games available in our studio.')}
               </p>
             </div>
 
@@ -746,13 +748,13 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
                       onClick={() => handleLaunchDemo(game.id)}
                       className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer text-center"
                     >
-                      Play Demo
+                      {t('gamesCatalog.launchDemo')}
                     </button>
                     <InternalLink
                       href={game.slug}
                       className="py-2.5 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition-colors text-center flex items-center gap-1"
                     >
-                      <span>Details</span>
+                      <span>{t('gamesCatalog.viewGameDetails')}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </InternalLink>
                   </div>
@@ -765,7 +767,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
                 href="/game-showcase"
                 className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-4"
               >
-                <span>View Full Event Games Catalog</span>
+                <span>{t('seoSolutions.exploreAllGames')}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </InternalLink>
             </div>
@@ -777,9 +779,9 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
           <section className="py-16 md:py-24 bg-white border-b border-slate-100">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Frequently Asked</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('seoSolutions.faqTitle')}</span>
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  Common Questions
+                  {t('seoSolutions.faqTitle')}
                 </h2>
               </div>
 
@@ -821,7 +823,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="space-y-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">
-                Explore Related Event Solutions
+                {t('seoSolutions.exploreRelatedSolutions')}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {details.relatedSolutions.map((sol, idx) => (
@@ -846,10 +848,10 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
         <section className="py-16 md:py-20 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-slate-950">
-              Ready to Make Your Event Playable?
+              {t('landing.finalCtaHeadline')}
             </h2>
             <p className="text-base sm:text-lg text-slate-900/80 max-w-2xl mx-auto font-medium">
-              Join leading corporate event agencies, brand managers, and exhibition organizers creating unforgettable interactive activations.
+              {t('landing.finalCtaSubtitle')}
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <button
@@ -857,13 +859,13 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
                 onClick={handleGetStarted}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-black text-sm transition-all shadow-xl shadow-slate-950/20 active:scale-95 cursor-pointer"
               >
-                Create Event Now
+                {t('event.createEvent')}
               </button>
               <InternalLink
                 href="/contact"
                 className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-sm transition-all active:scale-95 text-center inline-block"
               >
-                Speak to Event Specialist
+                {t('nav.contact')}
               </InternalLink>
             </div>
           </div>

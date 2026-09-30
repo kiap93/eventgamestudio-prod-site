@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PlatformGame, PlatformStats } from '../../types/developer';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { CreateGameModal } from './CreateGameModal';
 import { getGameTypeIcon } from '../../games';
 import { GAME_REGISTRY } from '../../games/registry';
@@ -42,6 +43,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
   onUpdateGame,
   onDeleteGame,
 }) => {
+  const { t } = useLocalization();
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -104,7 +106,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
             onClick={() => setActionError(null)}
             className="text-slate-400 hover:text-white p-1 rounded"
           >
-            Dismiss
+            {t('common.dismiss')}
           </button>
         </div>
       )}
@@ -112,11 +114,11 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Registered Games</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('developer.totalGames')}</p>
             <p className="text-2xl font-black text-white mt-1">{stats?.totalGames ?? games.length}</p>
             <span className="text-[11px] text-emerald-400 font-medium flex items-center mt-1">
               <CheckCircle className="w-3 h-3 mr-1 inline" />
-              {stats?.activeGames ?? games.filter((g) => g.status === 'active').length} active in catalog
+              {stats?.activeGames ?? games.filter((g) => g.status === 'active').length} {t('developer.activeGames')}
             </span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
@@ -126,11 +128,11 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
 
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Default Themes</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('developer.themeTemplates')}</p>
             <p className="text-2xl font-black text-white mt-1">{stats?.totalDefaultThemes ?? 0}</p>
             <span className="text-[11px] text-amber-400 font-medium flex items-center mt-1">
               <Sparkles className="w-3 h-3 mr-1 inline" />
-              {stats?.activeThemes ?? 0} published presets
+              {stats?.activeThemes ?? 0} {t('developer.activeThemesCount')}
             </span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
@@ -140,8 +142,8 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
 
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Architecture</p>
-            <p className="text-base font-bold text-slate-200 mt-1">System Hierarchy</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('developer.architecture', undefined, 'Architecture')}</p>
+            <p className="text-base font-bold text-slate-200 mt-1">{t('developer.systemHierarchy', undefined, 'System Hierarchy')}</p>
             <span className="text-[11px] text-slate-400 font-mono flex items-center mt-1">
               Game → Themes
             </span>
@@ -153,11 +155,11 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
 
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Developer Security</p>
-            <p className="text-base font-bold text-emerald-400 mt-1">Developer Admin</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('developer.developerSecurity', undefined, 'Developer Security')}</p>
+            <p className="text-base font-bold text-emerald-400 mt-1">{t('developer.title')}</p>
             <span className="text-[11px] text-slate-400 font-medium flex items-center mt-1">
               <ShieldCheck className="w-3 h-3 mr-1 text-emerald-400 inline" />
-              Direct Platform Access
+              {t('developer.directPlatformAccess', undefined, 'Direct Platform Access')}
             </span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center">
@@ -175,7 +177,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search games by title, slug, or engine type..."
+              placeholder={t('developer.searchGamesPlaceholder')}
               className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
             />
           </div>
@@ -185,10 +187,10 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
           >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="archived">Archived</option>
+            <option value="all">{t('developer.allGames')}</option>
+            <option value="active">{t('developer.activeGames')}</option>
+            <option value="draft">{t('developer.draftStaging')}</option>
+            <option value="archived">{t('common.archived', undefined, 'Archived')}</option>
           </select>
         </div>
 
@@ -200,7 +202,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
           className="flex items-center justify-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-950/40 transition-colors shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>Register New Game</span>
+          <span>{t('developer.registerNewGame')}</span>
         </button>
       </div>
 
@@ -212,9 +214,9 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
       ) : filteredGames.length === 0 ? (
         <div className="text-center py-16 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8">
           <Gamepad2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-white mb-1">No Games Found</h3>
+          <h3 className="text-base font-bold text-white mb-1">{t('developer.noGamesFound')}</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-            {searchTerm ? 'No games match your search query.' : 'Get started by registering a platform game.'}
+            {searchTerm ? t('developer.noGamesFoundDesc') : t('developer.noGamesFoundDesc')}
           </p>
           <button
             onClick={() => {
@@ -224,7 +226,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
             className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Game</span>
+            <span>{t('developer.registerNewGame')}</span>
           </button>
         </div>
       ) : (
@@ -268,22 +270,22 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                   {/* Engine Specs Box */}
                   <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 mb-3 space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 text-[11px]">Game Type:</span>
+                      <span className="text-slate-400 text-[11px]">{t('developer.gameId')}:</span>
                       <span className="text-[11px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                         {game.game_type}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 text-[11px]">Slug:</span>
+                      <span className="text-slate-400 text-[11px]">{t('developer.gameSlug')}:</span>
                       <span className="text-[11px] font-mono text-slate-300">/{game.slug}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400 text-[11px] flex items-center">
                         <Sparkles className="w-3 h-3 mr-1 text-amber-400" />
-                        Themes:
+                        {t('developer.tabThemes')}:
                       </span>
                       <span className="font-bold text-white font-mono bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700">
-                        {themeCount} Default {themeCount === 1 ? 'Theme' : 'Themes'}
+                        {themeCount} {t('developer.themeTemplates')}
                       </span>
                     </div>
                   </div>
@@ -306,7 +308,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                             className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border bg-slate-800/60 text-slate-500 border-slate-700/60 cursor-not-allowed"
                             title="Cannot activate: Game engine is under development"
                           >
-                            Unavailable
+                            {t('common.unavailable', undefined, 'Unavailable')}
                           </button>
                         );
                       }
@@ -319,9 +321,9 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                               ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
                               : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
                           }`}
-                          title={isActive ? 'Deactivate game' : 'Activate game'}
+                          title={isActive ? t('common.deactivate') : t('common.activate')}
                         >
-                          {isActive ? 'Deactivate' : 'Activate'}
+                          {isActive ? t('common.deactivate') : t('common.activate')}
                         </button>
                       );
                     })()}
@@ -331,14 +333,14 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                         setIsCreateModalOpen(true);
                       }}
                       className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                      title="Edit Game Metadata"
+                      title={t('developer.editInfo')}
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(game)}
                       className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                      title="Delete Game (Blocked if events exist)"
+                      title={t('common.delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -348,16 +350,16 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                     <button
                       onClick={() => navigateTo(`/developer/pricing`)}
                       className="flex items-center space-x-1 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer"
-                      title="Manage Duration Pricing Tiers"
+                      title={t('developer.configurePricing')}
                     >
                       <Coins className="w-3.5 h-3.5" />
-                      <span>Pricing</span>
+                      <span>{t('developer.tabPricing')}</span>
                     </button>
                     <button
                       onClick={() => navigateTo(`/developer/games/${game.id}`)}
                       className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500 text-xs font-semibold rounded-xl transition-all"
                     >
-                      <span>Themes</span>
+                      <span>{t('developer.tabThemes')}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>

@@ -6,6 +6,7 @@ import { getPageSeo } from '../../lib/seo';
 import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Gamepad2,
   Sparkles,
@@ -220,6 +221,7 @@ interface PublicGameDetailPageProps {
 }
 
 export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slugKey }) => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
   
   // Normalize slug to match game specs
@@ -252,11 +254,11 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
               <InternalLink href="/" className="hover:text-amber-600 transition-colors">
-                Home
+                {t('nav.home')}
               </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <InternalLink href="/game-showcase" className="hover:text-amber-600 transition-colors">
-                Games
+                {t('nav.games')}
               </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-slate-900 font-semibold">{spec.name}</span>
@@ -276,12 +278,12 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
                 {spec.isAvailable ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Live Game Engine</span>
+                    <span>{t('event.statusLive')}</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold">
                     <Clock className="w-3 h-3 text-amber-600" />
-                    <span>Platform Roadmap</span>
+                    <span>{t('gamesCatalog.comingSoon')}</span>
                   </span>
                 )}
               </div>
@@ -305,13 +307,13 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
                       className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition-all shadow-lg shadow-amber-500/25 hover:shadow-amber-500/35 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                     >
                       <Play className="w-4 h-4 fill-current" />
-                      <span>Launch Live Demo</span>
+                      <span>{t('gamesCatalog.launchDemo')}</span>
                     </button>
                     <button
                       onClick={handleGetStarted}
                       className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                     >
-                      <span>Create Branded Event</span>
+                      <span>{t('event.createEvent')}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </>
@@ -320,7 +322,7 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
                     onClick={() => navigateTo('/contact')}
                     className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-slate-900 text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
-                    <span>Inquire About Roadmap Access</span>
+                    <span>{t('landing.preOrderEnquire')}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
@@ -334,20 +336,20 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-xs">
               <div className="space-y-1">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block">Round Duration</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider block">{t('gameDetail.defaultDuration')}</span>
                 <span className="text-slate-900 font-bold text-sm">{spec.defaultDuration}</span>
               </div>
               <div className="space-y-1">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block">Input Controls</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider block">{t('gameDetail.controls')}</span>
                 <span className="text-slate-900 font-bold text-sm">{spec.inputTypes.join(', ')}</span>
               </div>
               <div className="space-y-1">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block">Screen Support</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider block">{t('gameDetail.orientations')}</span>
                 <span className="text-slate-900 font-bold text-sm">{spec.orientations.join(' / ')}</span>
               </div>
               <div className="space-y-1">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block">Leaderboard</span>
-                <span className="text-slate-900 font-bold text-sm">Real-time stage & player display</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider block">{t('event.leaderboard')}</span>
+                <span className="text-slate-900 font-bold text-sm">{t('seoSolutions.heroBadge')}</span>
               </div>
             </div>
           </div>
@@ -357,9 +359,9 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
         <section className="py-16 md:py-24 bg-white border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             <div className="text-center max-w-2xl mx-auto space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Gameplay Mechanics</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('gameDetail.howItWorks')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                How Gameplay Works
+                {t('gameDetail.howItWorks')}
               </h2>
             </div>
 
@@ -379,13 +381,10 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
         <section className="py-16 md:py-24 bg-slate-50/70 border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             <div className="text-center max-w-2xl mx-auto space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Visual Customizer</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('gameDetail.customizationOptions')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                Branding & Customization Options
+                {t('gameDetail.customizationOptions')}
               </h2>
-              <p className="text-sm text-slate-600">
-                Transform standard game elements into bespoke brand marketing assets with no code.
-              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -406,9 +405,9 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
         <section className="py-16 md:py-24 bg-white border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             <div className="text-center max-w-2xl mx-auto space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Ideal Applications</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('gameDetail.suitableEvents')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                Recommended Event Types
+                {t('gameDetail.suitableEvents')}
               </h2>
             </div>
 
@@ -428,7 +427,7 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
             <div className="space-y-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">
-                Explore Other Event Games
+                {t('gameDetail.exploreOtherGames')}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {spec.relatedGames.map((rg, idx) => (
@@ -451,7 +450,7 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
 
             <div className="pt-4 border-t border-slate-200 space-y-3">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
-                Related Solutions
+                {t('gameDetail.relatedSolutions')}
               </span>
               <div className="flex flex-wrap gap-2 text-xs">
                 {spec.relatedSolutions.map((sol, idx) => (
@@ -472,10 +471,10 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
         <section className="py-14 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-center">
           <div className="max-w-3xl mx-auto px-4 space-y-4">
             <h2 className="text-2xl sm:text-4xl font-black">
-              Launch {spec.name} at Your Next Event
+              Launch {spec.name}
             </h2>
             <p className="text-sm sm:text-base font-medium text-slate-900/80">
-              Create an event workspace, personalize branding assets in minutes, and activate real-time leaderboards on event day.
+              {t('seoSolutions.readyToEngageSubtitle')}
             </p>
             <div className="pt-2 flex justify-center gap-3">
               <button
@@ -483,13 +482,13 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
                 onClick={handleGetStarted}
                 className="px-7 py-3.5 rounded-2xl bg-slate-950 text-white font-black text-xs hover:bg-slate-900 transition-colors shadow-lg cursor-pointer"
               >
-                Create Event Now
+                {t('event.createEvent')}
               </button>
               <InternalLink
                 href="/contact"
                 className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors inline-block text-center"
               >
-                Contact Sales
+                {t('nav.contact')}
               </InternalLink>
             </div>
           </div>

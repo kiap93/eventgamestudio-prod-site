@@ -8,6 +8,7 @@ import {
   POPULAR_COUNTRY_CODES,
 } from '../../lib/countryUtils';
 import { Globe, Search, ChevronDown, Check, X, Clock, AlertCircle } from 'lucide-react';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface CountrySelectProps {
   value: string;
@@ -32,6 +33,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
   label,
   helperText,
 }) => {
+  const { t } = useLocalization();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -149,7 +151,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
           ) : (
             <div className="flex items-center gap-2 text-slate-500">
               <Globe className="w-4 h-4 text-slate-600" />
-              <span>Select your organization&apos;s country...</span>
+              <span>{t('common.selectCountryPrompt')}</span>
             </div>
           )}
         </div>
@@ -161,7 +163,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
                 e.stopPropagation();
                 onChange('');
               }}
-              title="Clear selection"
+              title={t('common.clearSelection')}
               className="p-1 text-slate-500 hover:text-slate-300 rounded-md hover:bg-slate-800 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
@@ -190,7 +192,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by country name, code, or currency..."
+              placeholder={t('common.searchCountryPlaceholder')}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/80 transition-colors"
             />
             {searchQuery && (
@@ -208,7 +210,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
           {!searchQuery && (
             <div className="mb-2.5 pb-2.5 border-b border-slate-800/80">
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5">
-                Popular &amp; Regional
+                {t('common.popularAndRegional')}
               </div>
               <div className="flex flex-wrap gap-1 px-1">
                 {popularCountries.map((c) => {
@@ -237,7 +239,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
           <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5">
             {filteredCountries.length === 0 ? (
               <div className="py-6 text-center text-xs text-slate-500">
-                No matching countries found for &ldquo;{searchQuery}&rdquo;
+                {t('common.noMatchingCountries', { query: searchQuery })}
               </div>
             ) : (
               filteredCountries.map((c) => {
@@ -290,7 +292,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
       {/* Helper text or Timezone preview */}
       {!error && (helperText || (showTimezonePreview && selectedCountry)) && (
         <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-          <span>{helperText || 'Used for business registration, default timezone, currency, and tax.'}</span>
+          <span>{helperText || t('common.countrySelectHelper')}</span>
           {showTimezonePreview && selectedCountry && defaultTz && (
             <span className="flex items-center gap-1 text-slate-300 font-mono shrink-0 ml-2">
               <Clock className="w-3 h-3 text-amber-400" />

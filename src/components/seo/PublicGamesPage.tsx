@@ -6,6 +6,7 @@ import { getPageSeo } from '../../lib/seo';
 import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Gamepad2,
   Sparkles,
@@ -106,6 +107,7 @@ const PUBLIC_GAMES: PublicGameCard[] = [
 ];
 
 export const PublicGamesPage: React.FC = () => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
   const pageSeo = getPageSeo('/game-showcase');
   const [demoModalOpen, setDemoModalOpen] = useState(false);
@@ -136,10 +138,10 @@ export const PublicGamesPage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
               <InternalLink href="/" className="hover:text-amber-600 transition-colors">
-                Home
+                {t('nav.home')}
               </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-slate-900 font-semibold">Games</span>
+              <span className="text-slate-900 font-semibold">{t('nav.games')}</span>
             </nav>
           </div>
         </div>
@@ -149,13 +151,13 @@ export const PublicGamesPage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-800 text-xs font-bold uppercase tracking-wider">
               <Gamepad2 className="w-3.5 h-3.5 text-amber-600" />
-              <span>Interactive Game Engines</span>
+              <span>{t('gamesCatalog.heroTitle')}</span>
             </div>
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight">
-              Interactive Event Games
+              {t('gamesCatalog.catalogHeading', undefined, 'Interactive Event Games')}
             </h1>
             <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              Explore our proven collection of interactive mini-games engineered for live crowd excitement, instant QR play, and real-time big-screen leaderboards.
+              {t('gamesCatalog.heroSubtitle')}
             </p>
           </div>
         </section>
@@ -183,12 +185,12 @@ export const PublicGamesPage: React.FC = () => {
                         {game.isAvailable ? (
                           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>Live & Available</span>
+                            <span>{t('event.statusLive')}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
                             <Clock className="w-3 h-3 text-amber-600" />
-                            <span>In Development</span>
+                            <span>{t('gamesCatalog.comingSoon')}</span>
                           </span>
                         )}
                       </div>
@@ -214,7 +216,7 @@ export const PublicGamesPage: React.FC = () => {
                       {/* Feature Checklist */}
                       <div className="space-y-2 pt-2 border-t border-slate-100">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          Key Capabilities
+                          {t('gamesCatalog.keyFeatures')}
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
                           {game.features.map((feat, fIdx) => (
@@ -246,13 +248,13 @@ export const PublicGamesPage: React.FC = () => {
                             className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
                           >
                             <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>Play Instant Demo</span>
+                            <span>{t('gamesCatalog.launchDemo')}</span>
                           </button>
                           <InternalLink
                             href={game.slug}
                             className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center gap-1.5"
                           >
-                            <span>Game Guide</span>
+                            <span>{t('gamesCatalog.viewGameDetails')}</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </InternalLink>
                         </>
@@ -261,7 +263,7 @@ export const PublicGamesPage: React.FC = () => {
                           href={game.slug}
                           className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 text-center"
                         >
-                          <span>View Roadmap Details</span>
+                          <span>{t('landing.preOrderEnquire')}</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </InternalLink>
                       )}
@@ -278,10 +280,10 @@ export const PublicGamesPage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             <div className="text-center max-w-2xl mx-auto space-y-2">
               <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                Match These Games With Your Event Use Case
+                {t('seoSolutions.provenUseCases')}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600">
-                Explore tailored guides for specific corporate, exhibition, and brand activation requirements.
+                {t('seoSolutions.exploreRelatedSolutions')}
               </p>
             </div>
 
@@ -322,10 +324,10 @@ export const PublicGamesPage: React.FC = () => {
         <section className="py-14 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-center">
           <div className="max-w-4xl mx-auto px-4 space-y-4">
             <h2 className="text-2xl sm:text-4xl font-black">
-              Ready to Customize Games for Your Event?
+              {t('landing.finalCtaHeadline')}
             </h2>
             <p className="text-sm sm:text-base font-medium max-w-xl mx-auto text-slate-900/80">
-              Create an event workspace, personalize branding assets in minutes, and activate real-time leaderboards on event day.
+              {t('landing.finalCtaSubtitle')}
             </p>
             <div className="pt-2 flex justify-center gap-3">
               <button
@@ -333,13 +335,13 @@ export const PublicGamesPage: React.FC = () => {
                 onClick={handleGetStarted}
                 className="px-7 py-3.5 rounded-2xl bg-slate-950 text-white font-black text-xs hover:bg-slate-900 transition-colors shadow-lg cursor-pointer"
               >
-                Get Started Now
+                {t('event.createEvent')}
               </button>
               <InternalLink
                 href="/contact"
                 className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors inline-block text-center"
               >
-                Contact Sales
+                {t('nav.contact')}
               </InternalLink>
             </div>
           </div>

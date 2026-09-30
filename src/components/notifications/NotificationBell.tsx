@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, CheckCheck, ArrowRight } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { formatNotificationTime, resolveNotificationUrl } from '../../lib/notifications/formatters';
 import { NotificationRecord } from '../../lib/notifications/types';
 import { navigateTo } from '../../hooks/useRouteContext';
 
 export const NotificationBell: React.FC = () => {
+  const { t } = useLocalization();
   const {
     notifications,
     unreadCount,
@@ -70,8 +72,8 @@ export const NotificationBell: React.FC = () => {
           }
           setIsOpen(!isOpen);
         }}
-        title="Notifications"
-        aria-label="Notifications"
+        title={t('notification.title')}
+        aria-label={t('notification.title')}
         className={`relative p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 ${
           isOpen
             ? 'bg-slate-800 text-amber-400 ring-1 ring-amber-500/40 shadow-sm'
@@ -98,10 +100,10 @@ export const NotificationBell: React.FC = () => {
           {/* Header: [Notifications (unread badge)]   [View all →] */}
           <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/95 backdrop-blur-sm shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-100">Notifications</span>
+              <span className="text-sm font-bold text-slate-100">{t('notification.title')}</span>
               {unreadCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  {unreadCount} unread
+                  {unreadCount} {t('notification.unread')}
                 </span>
               )}
             </div>
@@ -111,7 +113,7 @@ export const NotificationBell: React.FC = () => {
               onClick={handleViewAllClick}
               className="text-xs font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <span>View all</span>
+              <span>{t('common.viewAll', undefined, 'View all')}</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
@@ -121,7 +123,7 @@ export const NotificationBell: React.FC = () => {
             {loading && notifications.length === 0 ? (
               <div className="py-12 flex flex-col items-center justify-center text-slate-500 gap-2">
                 <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs">Loading notifications...</span>
+                <span className="text-xs">{t('common.loading')}</span>
               </div>
             ) : notifications.length === 0 ? (
               <div className="py-12 px-4 text-center">
@@ -129,10 +131,10 @@ export const NotificationBell: React.FC = () => {
                   <CheckCheck className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div className="text-xs font-semibold text-slate-200">
-                  No notifications yet
+                  {t('notification.noNotifications')}
                 </div>
                 <div className="text-[11px] text-slate-400 mt-0.5">
-                  You're all caught up.
+                  {t('notification.allCaughtUp', undefined, "You're all caught up.")}
                 </div>
               </div>
             ) : (
@@ -194,7 +196,7 @@ export const NotificationBell: React.FC = () => {
               }`}
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              <span>Mark all as read</span>
+              <span>{t('notification.markAllRead')}</span>
             </button>
           </div>
         </div>

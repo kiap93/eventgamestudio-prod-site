@@ -300,7 +300,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-4 shadow-lg animate-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Language</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('common.language')}</span>
             <LanguageSelector variant="compact" />
           </div>
 

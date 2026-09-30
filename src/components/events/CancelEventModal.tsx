@@ -14,6 +14,7 @@ import {
 import { apiFetch } from '../../lib/api';
 import { EventCancellationEligibility, EventRecord, EventWithDetails } from '../../types';
 import { getNormalizedEventDates, formatDateOnly } from '../../lib/dateUtils';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface CancelEventModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useLocalization();
   const [eligibility, setEligibility] = useState<EventCancellationEligibility | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -111,7 +113,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
               <Ban className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Cancel & Refund Event?</h2>
+              <h2 className="text-lg font-bold text-slate-100">{t('event.cancelModalTitle')}</h2>
               <p className="text-xs text-slate-400 font-mono truncate max-w-[280px]">
                 {event.name}
               </p>
@@ -120,6 +122,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            title={t('common.close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -137,7 +140,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
           {loading ? (
             <div className="py-8 flex flex-col items-center justify-center gap-3 text-slate-400">
               <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
-              <p className="text-xs">Evaluating cancellation rules and refund eligibility...</p>
+              <p className="text-xs">{t('common.loading')}</p>
             </div>
           ) : (
             <>
@@ -155,14 +158,14 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                   )}
                   <div>
                     <h4 className="font-bold text-sm text-slate-100 mb-1">
-                      {isEligible ? 'Eligible for Cancellation & Refund' : 'Cancellation & Refund Not Allowed'}
+                      {isEligible ? t('event.cancelModalTitle') : t('event.cancelEventConfirmation')}
                     </h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      {eligibility?.reason || 'Once Setup Day starts, cancellation and refunds are not allowed.'}
+                      {eligibility?.reason || t('event.cancelModalDesc')}
                     </p>
                     {isEligible && (
                       <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                        This will cancel the event and refund the eligible payment according to the existing refund policy. This action cannot be undone.
+                        {t('event.cancelWarning')}
                       </p>
                     )}
                   </div>
@@ -174,7 +177,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                 <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-900">
                   <span className="flex items-center gap-1.5 font-medium">
                     <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                    Event Start Date:
+                    {t('event.startDate')}:
                   </span>
                   <span className="font-mono text-slate-200">
                     {formatDateOnly(startDateStr)}
@@ -184,11 +187,11 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                 <div className="flex items-center justify-between text-slate-400">
                   <span className="flex items-center gap-1.5 font-medium">
                     <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                    Setup Day (Start Date - 1 Day):
+                    {t('event.statusSetupDay')} ({t('event.startDate')} - 1 Day):
                   </span>
                   <span className={`font-mono font-semibold ${eligibility?.setupDayStarted ? 'text-red-400' : 'text-emerald-400'}`}>
                     {formatDateOnly(liveOpenDateStr)}
-                    {eligibility?.setupDayStarted ? ' (Started)' : ' (Upcoming)'}
+                    {eligibility?.setupDayStarted ? ` (${t('event.statusLive')})` : ` (${t('event.statusUpcoming')})`}
                   </span>
                 </div>
               </div>
@@ -199,17 +202,17 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-200 flex items-center gap-1.5">
                       <DollarSign className="w-4 h-4 text-emerald-400" />
-                      Refund Determination
+                      {t('payment.walletBalance')}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                      {canRefund ? 'Refund Applicable' : 'No Payment'}
+                      {canRefund ? t('payment.statusCompleted') : t('common.none')}
                     </span>
                   </div>
 
                   {canRefund ? (
                     <div className="space-y-2 pt-1 border-t border-slate-900">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Paid Balance Refund:</span>
+                        <span className="text-slate-400">{t('payment.purchasedBalance')}:</span>
                         <span className="font-mono font-bold text-emerald-400">
                           + RM {(Number(paidAmount) || 0).toFixed(2)}
                         </span>
@@ -217,20 +220,16 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
 
                       {discountAmount > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Promotional Credit Reversal:</span>
+                          <span className="text-slate-400">{t('payment.promotionalCredits')}:</span>
                           <span className="font-mono text-amber-400">
                             - RM {(Number(discountAmount) || 0).toFixed(2)} ({eligibility?.creditType || 'Promo Credit'})
                           </span>
                         </div>
                       )}
-
-                      <p className="text-[11px] text-slate-400 pt-1">
-                        Funds will be instantly returned to your organization's Paid Balance ledger upon confirmation.
-                      </p>
                     </div>
                   ) : (
                     <p className="text-slate-400 text-xs">
-                      No monetary reversal needed for this event.
+                      {t('common.noData')}
                     </p>
                   )}
                 </div>
@@ -240,13 +239,13 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
               {isEligible && (
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-300">
-                    Reason for Cancellation (Optional)
+                    {t('common.reason', undefined, 'Reason for Cancellation')}
                   </label>
                   <input
                     type="text"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="e.g., Rescheduling event, client request"
+                    placeholder={t('common.optional', undefined, 'Optional')}
                     className="w-full bg-slate-950 border border-slate-800 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all"
                   />
                 </div>
@@ -261,9 +260,9 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            {isEligible ? 'Keep Event' : 'Close'}
+            {isEligible ? t('common.cancel') : t('common.close')}
           </button>
 
           {isEligible && (
@@ -276,12 +275,12 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
               {submitting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Processing...</span>
+                  <span>{t('common.loading')}</span>
                 </>
               ) : (
                 <>
                   <Ban className="w-3.5 h-3.5" />
-                  <span>Cancel & Refund</span>
+                  <span>{t('event.confirmCancel')}</span>
                 </>
               )}
             </button>

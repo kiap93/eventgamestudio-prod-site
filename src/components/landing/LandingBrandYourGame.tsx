@@ -162,7 +162,7 @@ export const LandingBrandYourGame: React.FC = () => {
             {/* Sprites Row */}
             <div className="pt-2">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                Active Theme Sprites
+                {t('landing.activeThemeSprites')}
               </div>
               <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
@@ -207,7 +207,7 @@ export const LandingBrandYourGame: React.FC = () => {
               {/* Mock HUD */}
               <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-white z-10">
                 <span className="px-3 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700 font-mono font-bold">
-                  Score: 12,500
+                  {t('game.score')}: 12,500
                 </span>
                 <span className="px-3 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700 font-mono font-bold text-amber-400">
                   00:24

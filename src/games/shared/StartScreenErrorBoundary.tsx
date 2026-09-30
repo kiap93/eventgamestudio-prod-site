@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Play, AlertTriangle } from 'lucide-react';
+import { translate, getCurrentLanguage } from '../../lib/i18n/i18n';
 
 export interface StartScreenErrorBoundaryProps {
   children: ReactNode;
@@ -36,6 +37,7 @@ export class StartScreenErrorBoundary extends React.Component<StartScreenErrorBo
 
   public render() {
     if (this.state.hasError) {
+      const lang = getCurrentLanguage();
       const title = this.props.gameTitle || 'EVENT GAME';
       const subtitle =
         this.props.gameSubtitle ||
@@ -46,7 +48,7 @@ export class StartScreenErrorBoundary extends React.Component<StartScreenErrorBo
           <div className="max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-3xl p-6 sm:p-8 text-center shadow-2xl relative space-y-5">
             <div className="flex items-center justify-center gap-1.5 text-amber-400 text-xs font-mono uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 py-1 px-3 rounded-full mx-auto w-fit">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Safe Start Mode</span>
+              <span>{translate(lang, 'common.safeStartMode', undefined, 'Safe Start Mode')}</span>
             </div>
 
             <div className="space-y-2">
@@ -65,7 +67,7 @@ export class StartScreenErrorBoundary extends React.Component<StartScreenErrorBo
                 className="w-full py-3.5 px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-lg sm:text-xl rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Play className="w-5 h-5 fill-slate-950" />
-                <span>START GAME</span>
+                <span>{translate(lang, 'common.startGame', undefined, 'START GAME')}</span>
               </button>
             </div>
 
@@ -77,7 +79,7 @@ export class StartScreenErrorBoundary extends React.Component<StartScreenErrorBo
                     onClick={this.props.onShowLeaderboard}
                     className="hover:underline cursor-pointer"
                   >
-                    High Scores
+                    {translate(lang, 'event.leaderboard', undefined, 'High Scores')}
                   </button>
                 )}
                 {this.props.onShowGuide && (
@@ -86,7 +88,7 @@ export class StartScreenErrorBoundary extends React.Component<StartScreenErrorBo
                     onClick={this.props.onShowGuide}
                     className="hover:underline cursor-pointer"
                   >
-                    Game Guide
+                    {translate(lang, 'common.guide', undefined, 'Game Guide')}
                   </button>
                 )}
               </div>

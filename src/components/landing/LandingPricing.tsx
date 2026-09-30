@@ -359,7 +359,7 @@ export const LandingPricing: React.FC = () => {
         {/* Included Features Row */}
         <div className="pt-4 border-t border-slate-100 max-w-4xl mx-auto">
           <div className="text-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-6">
-            Included with every activation license
+            {t('landing.includedWithEveryLicense')}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             {includedFeatures.map((feat, idx) => (

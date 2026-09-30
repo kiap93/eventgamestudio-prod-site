@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Trash2, AlertTriangle, X, Loader2 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { EventRecord, EventWithDetails } from '../../types';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface DeleteEventModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useLocalization();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +56,7 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Delete Event?</h2>
+              <h2 className="text-lg font-bold text-slate-100">{t('event.deleteModalTitle')}</h2>
               <p className="text-xs text-slate-400 font-mono truncate max-w-[240px]">
                 {event.name}
               </p>
@@ -79,7 +81,7 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
           )}
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            This unpaid event will be permanently deleted. This action cannot be undone.
+            {t('event.deleteModalDesc')}
           </p>
         </div>
 
@@ -91,7 +93,7 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
             disabled={submitting}
             className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
 
           <button
@@ -103,12 +105,12 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
             {submitting ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Deleting...</span>
+                <span>{t('common.deleting', undefined, 'Deleting...')}</span>
               </>
             ) : (
               <>
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete Event</span>
+                <span>{t('event.confirmDelete')}</span>
               </>
             )}
           </button>

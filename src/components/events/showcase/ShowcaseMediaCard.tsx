@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { EventShowcaseMedia } from '../../../types/showcase';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   Film,
   Image as ImageIcon,
@@ -34,6 +35,7 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
   onMoveUp,
   onMoveDown,
 }) => {
+  const { t } = useLocalization();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
@@ -147,7 +149,7 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
                 onClick={() => onMoveUp(index)}
                 disabled={index === 0}
                 className="p-1 rounded-lg hover:bg-slate-800 disabled:opacity-30 text-slate-400 hover:text-slate-200 transition-colors"
-                title="Move earlier"
+                title={t('showcase.moveUp')}
               >
                 <ChevronUp className="w-3.5 h-3.5" />
               </button>
@@ -156,7 +158,7 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
                 onClick={() => onMoveDown(index)}
                 disabled={index === totalCount - 1}
                 className="p-1 rounded-lg hover:bg-slate-800 disabled:opacity-30 text-slate-400 hover:text-slate-200 transition-colors"
-                title="Move later"
+                title={t('showcase.moveDown')}
               >
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
@@ -171,7 +173,7 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
               type="button"
               onClick={() => onPreview(media)}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-              title="Preview / Details"
+              title={t('showcase.previewMedia')}
             >
               <Eye className="w-3.5 h-3.5" />
             </button>
@@ -180,21 +182,21 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
               <>
                 {showConfirmDelete ? (
                   <div className="flex items-center gap-1 bg-red-950/80 px-2 py-0.5 rounded-lg border border-red-800">
-                    <span className="text-[10px] text-red-300 font-semibold">Delete?</span>
+                    <span className="text-[10px] text-red-300 font-semibold">{t('showcase.deleteMediaTitle')}</span>
                     <button
                       type="button"
                       onClick={handleDelete}
                       disabled={isDeleting}
                       className="text-[10px] font-bold text-red-400 hover:text-red-200 disabled:opacity-50"
                     >
-                      Yes
+                      {t('common.confirm')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowConfirmDelete(false)}
                       className="text-[10px] text-slate-400 hover:text-slate-200 ml-1"
                     >
-                      No
+                      {t('common.cancel')}
                     </button>
                   </div>
                 ) : (
@@ -202,7 +204,7 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
                     type="button"
                     onClick={() => setShowConfirmDelete(true)}
                     className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors"
-                    title="Delete Media"
+                    title={t('showcase.removeMedia')}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { CountrySelect } from '../common/CountrySelect';
 import { getCountryByCode, getDefaultTimezoneForCountry } from '../../lib/countryUtils';
@@ -43,6 +44,7 @@ interface Invitation {
 }
 
 export const TeamMembersPage: React.FC = () => {
+  const { t } = useLocalization();
   const { currentOrganization, token, updateOrganizationCountry } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -278,9 +280,9 @@ export const TeamMembersPage: React.FC = () => {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Team Members & Access</h1>
+              <h1 className="text-2xl font-bold tracking-tight">{t('team.title')}</h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Collaborate with staff on game design, custom assets, and settings for {currentOrganization?.name}
+                {t('team.desc')}
               </p>
             </div>
           </div>
@@ -288,7 +290,7 @@ export const TeamMembersPage: React.FC = () => {
 
         <div className="flex items-center gap-2 text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
           <Shield className="w-4 h-4 text-amber-400" />
-          <span className="text-slate-400">Your Role:</span>
+          <span className="text-slate-400">{t('auth.role', undefined, 'Your Role')}:</span>
           <span className="uppercase font-bold text-amber-300">{userRole}</span>
         </div>
       </div>
@@ -316,9 +318,9 @@ export const TeamMembersPage: React.FC = () => {
               <Globe className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100">Organization Business Profile</h2>
+              <h2 className="text-base font-bold text-slate-100">{t('common.businessProfile', undefined, 'Organization Business Profile')}</h2>
               <p className="text-xs text-slate-400">
-                Primary business country, regional localization, and default timezone
+                {t('common.businessProfileDesc', undefined, 'Primary business country, regional localization, and default timezone')}
               </p>
             </div>
           </div>
@@ -333,7 +335,7 @@ export const TeamMembersPage: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer self-start sm:self-auto"
             >
               <Edit2 className="w-3.5 h-3.5" />
-              <span>Change Country</span>
+              <span>{t('common.changeCountry', undefined, 'Change Country')}</span>
             </button>
           )}
         </div>
@@ -342,7 +344,7 @@ export const TeamMembersPage: React.FC = () => {
           <form onSubmit={handleSaveCountry} className="space-y-4">
             <CountrySelect
               id="team-org-country"
-              label="Business Country / Region"
+              label={t('common.businessCountry', undefined, 'Business Country / Region')}
               required
               value={selectedCountryCode}
               onChange={(code) => {
@@ -350,7 +352,7 @@ export const TeamMembersPage: React.FC = () => {
                 if (countryError && code) setCountryError(null);
               }}
               error={countryError}
-              helperText="Determines your organization's default timezone, regional currency, and tax profile."
+              helperText={t('common.businessCountryHelp', undefined, "Determines your organization's default timezone, regional currency, and tax profile.")}
             />
             <div className="flex items-center gap-2 justify-end pt-1">
               <button
@@ -363,14 +365,14 @@ export const TeamMembersPage: React.FC = () => {
                 }}
                 className="px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={savingCountry || !selectedCountryCode.trim()}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-md disabled:opacity-50 cursor-pointer"
               >
-                {savingCountry ? 'Saving...' : 'Save Country'}
+                {savingCountry ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </form>
@@ -378,7 +380,7 @@ export const TeamMembersPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Country / Region
+                {t('common.countryRegion', undefined, 'Country / Region')}
               </span>
               <div className="flex items-center gap-2 pt-0.5">
                 {currentOrganization?.country_code ? (
@@ -394,14 +396,14 @@ export const TeamMembersPage: React.FC = () => {
                     </span>
                   </>
                 ) : (
-                  <span className="text-xs text-amber-400 italic">Not set</span>
+                  <span className="text-xs text-amber-400 italic">{t('common.notSet', undefined, 'Not set')}</span>
                 )}
               </div>
             </div>
 
             <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Default Timezone
+                {t('common.defaultTimezone', undefined, 'Default Timezone')}
               </span>
               <div className="flex items-center gap-2 pt-0.5 text-xs text-slate-300 font-mono">
                 <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -415,14 +417,14 @@ export const TeamMembersPage: React.FC = () => {
 
             <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Role Permissions
+                {t('common.rolePermissions', undefined, 'Role Permissions')}
               </span>
               <div className="flex items-center gap-2 pt-0.5 text-xs text-slate-300">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>
                   {isOwnerOrAdmin
-                    ? 'Full access to update organization settings'
-                    : 'View only (Owners & Admins can edit)'}
+                    ? t('common.fullAccessSettings', undefined, 'Full access to update organization settings')
+                    : t('common.viewOnlySettings', undefined, 'View only (Owners & Admins can edit)')}
                 </span>
               </div>
             </div>
@@ -435,32 +437,32 @@ export const TeamMembersPage: React.FC = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
           <div className="flex items-center gap-2 font-semibold text-slate-200">
             <UserPlus className="w-5 h-5 text-amber-400" />
-            <span>Invite Company Staff Member</span>
+            <span>{t('team.inviteMember')}</span>
           </div>
 
           <form onSubmit={handleSendInvite} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
             <div className="sm:col-span-6">
-              <label className="block text-xs font-medium text-slate-400 mb-1">Staff Email Address</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">{t('auth.email')}</label>
               <input
                 type="email"
                 required
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="colleague@company.com"
+                placeholder={t('team.emailPlaceholder')}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label className="block text-xs font-medium text-slate-400 mb-1">Assign Role</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">{t('team.selectRole')}</label>
               <select
                 value={inviteRole}
                 onChange={(e: any) => setInviteRole(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
               >
-                <option value="admin">Admin (Full Control)</option>
-                <option value="designer">Designer (Edit Assets & Physics)</option>
-                <option value="viewer">Viewer (Read-only)</option>
+                <option value="admin">{t('team.roleAdmin')}</option>
+                <option value="designer">{t('team.roleDesigner')}</option>
+                <option value="viewer">{t('team.roleViewer')}</option>
               </select>
             </div>
 
@@ -468,35 +470,31 @@ export const TeamMembersPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={sendingInvite || !inviteEmail.trim()}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-all disabled:opacity-50"
+                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-all disabled:opacity-50 cursor-pointer"
               >
-                {sendingInvite ? 'Generating...' : 'Send Invitation'}
+                {sendingInvite ? t('team.sendingInvite') : t('team.inviteMember')}
               </button>
             </div>
           </form>
-
-          <p className="text-[11px] text-slate-500">
-            Invitations create an expiring token valid for 7 days. The staff member must sign in with their matching Google account email to accept.
-          </p>
         </div>
       )}
 
       {/* Active Members Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-        <h2 className="text-lg font-bold text-slate-200">Active Organization Members ({members.length})</h2>
+        <h2 className="text-lg font-bold text-slate-200">{t('team.activeMembers')} ({members.length})</h2>
 
         {loading ? (
-          <div className="py-8 text-center text-slate-500 text-sm">Loading team members...</div>
+          <div className="py-8 text-center text-slate-500 text-sm">{t('common.loading')}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="border-b border-slate-800 text-slate-500 font-medium uppercase tracking-wider">
                 <tr>
-                  <th className="pb-3 pl-2">User</th>
-                  <th className="pb-3">Email</th>
-                  <th className="pb-3">Role</th>
-                  <th className="pb-3">Joined</th>
-                  {isOwnerOrAdmin && <th className="pb-3 text-right pr-2">Action</th>}
+                  <th className="pb-3 pl-2">{t('common.user', undefined, 'User')}</th>
+                  <th className="pb-3">{t('auth.email')}</th>
+                  <th className="pb-3">{t('auth.role', undefined, 'Role')}</th>
+                  <th className="pb-3">{t('common.joined', undefined, 'Joined')}</th>
+                  {isOwnerOrAdmin && <th className="pb-3 text-right pr-2">{t('common.action', undefined, 'Action')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -568,10 +566,10 @@ export const TeamMembersPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
               <Clock className="w-5 h-5 text-amber-400" />
-              <span>Pending Invitations ({invitations.length})</span>
+              <span>{t('team.pendingInvites')} ({invitations.length})</span>
             </h2>
             <span className="text-xs text-slate-500 hidden sm:inline">
-              Invited members sign in with their Google account to accept
+              {t('common.inviteAcceptNotice', undefined, 'Invited members sign in with their Google account to accept')}
             </span>
           </div>
 
@@ -594,7 +592,7 @@ export const TeamMembersPage: React.FC = () => {
                       {inv.email_status === 'sent' && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
                           <CheckCircle2 className="w-3 h-3" />
-                          Mail Sent
+                          {t('common.mailSent', undefined, 'Mail Sent')}
                         </span>
                       )}
                       {inv.email_status === 'failed' && (
@@ -603,12 +601,12 @@ export const TeamMembersPage: React.FC = () => {
                           title={inv.email_error || undefined}
                         >
                           <AlertCircle className="w-3 h-3" />
-                          Mail Failed
+                          {t('common.mailFailed', undefined, 'Mail Failed')}
                         </span>
                       )}
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      Expires: {new Date(inv.expires_at).toLocaleString()}
+                      {t('common.expires', undefined, 'Expires')}: {new Date(inv.expires_at).toLocaleString()}
                     </p>
                   </div>
 
@@ -618,18 +616,18 @@ export const TeamMembersPage: React.FC = () => {
                       <button
                         onClick={() => handleResendInvite(inv.id, inv.email)}
                         disabled={isResending || isRevoking}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 rounded-lg transition-all disabled:opacity-50"
-                        title="Resend invitation email with a fresh 7-day token"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                        title={t('common.resendInviteTooltip', undefined, 'Resend invitation email with a fresh 7-day token')}
                       >
                         {isResending ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Resending...</span>
+                            <span>{t('common.loading')}</span>
                           </>
                         ) : (
                           <>
                             <Mail className="w-3.5 h-3.5" />
-                            <span>Resend Invitation Mail</span>
+                            <span>{t('common.resendInvite', undefined, 'Resend Invitation Mail')}</span>
                           </>
                         )}
                       </button>
@@ -638,8 +636,8 @@ export const TeamMembersPage: React.FC = () => {
                       <button
                         onClick={() => handleRevokeInvite(inv.id, inv.email)}
                         disabled={isResending || isRevoking}
-                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 rounded-lg transition-all disabled:opacity-50"
-                        title="Revoke invitation"
+                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                        title={t('common.revoke', undefined, 'Revoke invitation')}
                       >
                         {isRevoking ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                       </button>

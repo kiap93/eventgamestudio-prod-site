@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, X, RefreshCw } from 'lucide-react';
+import { translate, getCurrentLanguage } from '../../../../lib/i18n/i18n';
 
 export interface StartScreenEditorErrorBoundaryProps {
   children: ReactNode;
@@ -43,6 +44,7 @@ export class StartScreenEditorErrorBoundary extends React.Component<StartScreenE
 
   public render() {
     if (this.state.hasError) {
+      const lang = getCurrentLanguage();
       return (
         <div className="flex flex-col items-center justify-center w-full h-full min-h-[500px] p-6 bg-slate-950 text-slate-100 select-none">
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
@@ -51,9 +53,11 @@ export class StartScreenEditorErrorBoundary extends React.Component<StartScreenE
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-white">Start Screen Editor Notice</h3>
+              <h3 className="text-base font-bold text-white">
+                {translate(lang, 'studio.editorNotice', undefined, 'Start Screen Editor Notice')}
+              </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                The visual editor encountered an unexpected issue while rendering this layout. You can reset to the recommended default layout or close the editor.
+                {translate(lang, 'studio.editorNoticeDesc', undefined, 'The visual editor encountered an unexpected issue while rendering this layout. You can reset to the recommended default layout or close the editor.')}
               </p>
               {this.state.error && (
                 <div className="mt-2 p-2 bg-slate-950 border border-slate-800 rounded-lg text-left overflow-x-auto max-h-24">
@@ -71,7 +75,7 @@ export class StartScreenEditorErrorBoundary extends React.Component<StartScreenE
                 className="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Retry</span>
+                <span>{translate(lang, 'common.retry')}</span>
               </button>
 
               {this.props.onResetLayout && (
@@ -81,7 +85,7 @@ export class StartScreenEditorErrorBoundary extends React.Component<StartScreenE
                   className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/10"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset to Defaults</span>
+                  <span>{translate(lang, 'common.resetToDefaults', undefined, 'Reset to Defaults')}</span>
                 </button>
               )}
 
@@ -92,7 +96,7 @@ export class StartScreenEditorErrorBoundary extends React.Component<StartScreenE
                   className="w-full sm:w-auto px-4 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl border border-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span>Close Editor</span>
+                  <span>{translate(lang, 'studio.closeEditor', undefined, 'Close Editor')}</span>
                 </button>
               )}
             </div>

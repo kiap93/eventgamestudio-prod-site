@@ -13,22 +13,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { formatNotificationTime, CATEGORY_VISUALS, PRIORITY_VISUALS, resolveNotificationUrl } from '../../lib/notifications/formatters';
 import { NotificationRecord, NotificationCategory } from '../../lib/notifications/types';
 import { navigateTo } from '../../hooks/useRouteContext';
 
-const CATEGORIES: { key: NotificationCategory | 'all'; label: string }[] = [
-  { key: 'all', label: 'All Notifications' },
-  { key: 'event', label: 'Events' },
-  { key: 'billing', label: 'Billing' },
-  { key: 'wallet', label: 'Wallet' },
-  { key: 'theme', label: 'Themes' },
-  { key: 'leaderboard', label: 'Leaderboard' },
-  { key: 'showcase', label: 'Showcase' },
-  { key: 'security', label: 'Security' },
-];
-
 export const NotificationCenterModal: React.FC = () => {
+  const { t } = useLocalization();
   const {
     isOpenCenter,
     setIsOpenCenter,
@@ -39,6 +30,17 @@ export const NotificationCenterModal: React.FC = () => {
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
+
+  const CATEGORIES: { key: NotificationCategory | 'all'; label: string }[] = useMemo(() => [
+    { key: 'all', label: t('notification.all', undefined, 'All Notifications') },
+    { key: 'event', label: t('nav.events') },
+    { key: 'billing', label: t('nav.wallet', undefined, 'Billing') },
+    { key: 'wallet', label: t('nav.wallet') },
+    { key: 'theme', label: t('studio.title', undefined, 'Themes') },
+    { key: 'leaderboard', label: t('event.leaderboard') },
+    { key: 'showcase', label: t('showcase.title') },
+    { key: 'security', label: t('common.security', undefined, 'Security') },
+  ], [t]);
 
   const [activeCategory, setActiveCategory] = useState<NotificationCategory | 'all'>('all');
   const [unreadOnly, setUnreadOnly] = useState<boolean>(false);
@@ -93,15 +95,15 @@ export const NotificationCenterModal: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-white">Notification Center</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-white">{t('notification.title')}</h2>
                 {unreadCount > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {unreadCount} unread
+                    {unreadCount} {t('notification.unread')}
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-400">
-                Manage all your account, event, billing, and showcase activity alerts.
+                {t('notification.description', undefined, 'Manage all your account, event, billing, and showcase activity alerts.')}
               </p>
             </div>
           </div>
@@ -114,7 +116,7 @@ export const NotificationCenterModal: React.FC = () => {
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-xs font-semibold text-amber-300 hover:text-amber-200 transition-colors border border-slate-700/60 cursor-pointer"
               >
                 <CheckCheck className="w-4 h-4" />
-                <span>Mark all as read</span>
+                <span>{t('notification.markAllRead')}</span>
               </button>
             )}
 
@@ -137,7 +139,7 @@ export const NotificationCenterModal: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notifications..."
+                placeholder={t('notification.searchPlaceholder')}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
               />
               {searchQuery && (
@@ -170,7 +172,7 @@ export const NotificationCenterModal: React.FC = () => {
                 >
                   {unreadOnly && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
-                <span>Unread Only</span>
+                <span>{t('notification.unreadOnly')}</span>
               </button>
             </div>
           </div>
@@ -221,7 +223,7 @@ export const NotificationCenterModal: React.FC = () => {
           {loading && notifications.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3">
               <div className="w-7 h-7 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs">Loading notifications...</p>
+              <p className="text-xs">{t('common.loading')}</p>
             </div>
           ) : filteredNotifications.length === 0 ? (
             <div className="py-20 text-center space-y-3">
@@ -230,15 +232,15 @@ export const NotificationCenterModal: React.FC = () => {
               </div>
               <h3 className="text-sm font-bold text-slate-200">
                 {unreadOnly
-                  ? 'No unread notifications'
+                  ? t('notification.noNotificationsFound', undefined, 'No unread notifications')
                   : searchQuery
-                  ? 'No matching notifications found'
-                  : 'No notifications in this category'}
+                  ? t('notification.noNotificationsFound', undefined, 'No matching notifications found')
+                  : t('notification.noNotifications', undefined, 'No notifications in this category')}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {unreadOnly
-                  ? 'You are all caught up! Switch off the unread filter to see your full history.'
-                  : 'When relevant activity happens in your workspace, notifications will be archived here.'}
+                  ? t('notification.allCaughtUp', undefined, 'You are all caught up! Switch off the unread filter to see your full history.')
+                  : t('notification.historyArchive', undefined, 'When relevant activity happens in your workspace, notifications will be archived here.')}
               </p>
             </div>
           ) : (
@@ -309,7 +311,7 @@ export const NotificationCenterModal: React.FC = () => {
                         onClick={() => handleActionClick(notif)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-colors cursor-pointer shadow-sm shadow-amber-500/20"
                       >
-                        <span>View</span>
+                        <span>{t('common.view')}</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -317,21 +319,21 @@ export const NotificationCenterModal: React.FC = () => {
                     {!notif.is_read ? (
                       <button
                         onClick={() => markAsRead(notif.id)}
-                        title="Mark as read"
+                        title={t('notification.markAllRead')}
                         className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-xs font-medium text-slate-300 hover:text-white transition-colors border border-slate-700/60 cursor-pointer"
                       >
-                        Mark read
+                        {t('notification.markAsRead', undefined, 'Mark read')}
                       </button>
                     ) : (
                       <span className="text-[11px] text-slate-400 px-2 py-1 flex items-center gap-1">
                         <Check className="w-3 h-3 text-emerald-400" />
-                        <span>Read</span>
+                        <span>{t('notification.read', undefined, 'Read')}</span>
                       </span>
                     )}
 
                     <button
                       onClick={() => deleteNotification(notif.id)}
-                      title="Delete notification"
+                      title={t('common.delete')}
                       className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -346,14 +348,14 @@ export const NotificationCenterModal: React.FC = () => {
         {/* Footer */}
         <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between text-xs text-slate-400 shrink-0">
           <span className="text-[11px] font-mono">
-            Showing {filteredNotifications.length} of {notifications.length} notifications
+            {t('common.showing', undefined, 'Showing')} {filteredNotifications.length} {t('common.of', undefined, 'of')} {notifications.length} {t('notification.title', undefined, 'notifications')}
           </span>
 
           <button
             onClick={() => setIsOpenCenter(false)}
             className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

@@ -65,7 +65,7 @@ export const LandingTopUpPromotion: React.FC = () => {
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Total Spending Power
+                  {t('landing.totalSpendingPower')}
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-white font-mono mt-0.5">
                   {t('landing.topUpTier1Total')}
@@ -101,7 +101,7 @@ export const LandingTopUpPromotion: React.FC = () => {
           <div className="relative flex flex-col justify-between p-7 sm:p-9 rounded-3xl bg-slate-850 border-2 border-amber-500 shadow-2xl space-y-6 group">
             {/* Top Recommended Tag */}
             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] sm:text-xs tracking-wider uppercase shadow-md">
-              BEST VALUE FOR AGENCIES
+              {t('landing.bestValueAgencies')}
             </div>
 
             <div className="space-y-5">
@@ -125,7 +125,7 @@ export const LandingTopUpPromotion: React.FC = () => {
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-amber-500/30">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400/80">
-                  Total Spending Power
+                  {t('landing.totalSpendingPower')}
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-amber-300 font-mono mt-0.5">
                   {t('landing.topUpTier2Total')}

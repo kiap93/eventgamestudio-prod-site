@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { AlignmentType } from './types';
 import { ElementCategoryGroup } from './LayerTreePanel';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import {
   AlignLeft,
   AlignCenterHorizontal,
@@ -100,6 +101,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   onUndo,
   onRedo,
 }) => {
+  const { t } = useLocalization();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const hasSelection = selectedIds.length > 0;
 
@@ -150,7 +152,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               title="Apply preset layout template"
             >
               <LayoutTemplate className="w-3.5 h-3.5 text-amber-400" />
-              <span>Presets</span>
+              <span>{t('studio.presets', undefined, 'Presets')}</span>
             </button>
           )}
 
@@ -161,7 +163,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               title="Save current layout as a custom template"
             >
               <BookmarkPlus className="w-3.5 h-3.5 text-amber-400" />
-              <span>Save Template</span>
+              <span>{t('studio.saveTemplate', undefined, 'Save Template')}</span>
             </button>
           )}
         </div>
@@ -229,7 +231,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={selectedIds.length < 3 || !onAlignSelected}
           onClick={() => onAlignSelected?.('distribute-h')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Distribute Horizontally (Requires 3+ items)"
+          title="Distribute Horizontally"
         >
           <AlignHorizontalDistributeCenter className="w-4 h-4" />
         </button>
@@ -237,7 +239,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={selectedIds.length < 3 || !onAlignSelected}
           onClick={() => onAlignSelected?.('distribute-v')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Distribute Vertically (Requires 3+ items)"
+          title="Distribute Vertically"
         >
           <AlignVerticalDistributeCenter className="w-4 h-4" />
         </button>
@@ -249,7 +251,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || !onDuplicateSelected}
           onClick={onDuplicateSelected}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Duplicate Selected (Cmd D)"
+          title={t('common.duplicate', undefined, 'Duplicate')}
         >
           <Copy className="w-4 h-4" />
         </button>
@@ -257,7 +259,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || !onDeleteSelected}
           onClick={onDeleteSelected}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-rose-400 hover:text-rose-300 disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Delete Selected"
+          title={t('common.delete')}
         >
           <Trash2 className="w-4 h-4" />
         </button>
@@ -277,7 +279,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             title="Toggle Live Screen Preview"
           >
             {isPreviewMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            <span>{isPreviewMode ? 'Exit Preview' : 'Live Preview'}</span>
+            <span>{isPreviewMode ? t('event.exitPreview') : t('event.previewGame')}</span>
           </button>
         )}
 
@@ -286,7 +288,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           <button
             onClick={onResetLayout}
             className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
-            title="Reset layout to default"
+            title={t('common.reset')}
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -300,7 +302,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow transition-colors cursor-pointer disabled:opacity-50"
           >
             <Check className="w-3.5 h-3.5" />
-            <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
+            <span>{isSaving ? t('common.saving') : t('common.save')}</span>
           </button>
         )}
 
@@ -309,7 +311,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-            title="Close Editor"
+            title={t('common.close')}
           >
             <X className="w-5 h-5" />
           </button>

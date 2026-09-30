@@ -6,6 +6,7 @@ import { getGameSettings, mapServerSettingsToGameSettings, setActiveGameSettings
 import { useAuth } from '../../context/AuthContext';
 import { getGameDefinition, DEFAULT_GAME_TYPE } from '../../games/registry';
 import { GameTypeId } from '../../games/types';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export interface GameShellProps {
   gameType?: GameTypeId | string;
@@ -40,6 +41,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   isFullscreen: controlledFullscreen,
   onToggleFullscreen: controlledToggleFullscreen,
 }) => {
+  const { t } = useLocalization();
   const effectiveThemeProp = customTheme || theme;
   const { activeGame, activeTheme: contextActiveTheme } = useAuth();
   const [internalFullscreen, setInternalFullscreen] = useState<boolean>(false);
@@ -210,7 +212,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           <span className="text-slate-600">•</span>
           <span className="text-slate-400 font-semibold">{gameDef.name}</span>
           <span className="text-slate-600">•</span>
-          <span>MULTI-GAME PLATFORM</span>
+          <span>{t('landing.multiGamePlatform')}</span>
         </footer>
       )}
     </div>

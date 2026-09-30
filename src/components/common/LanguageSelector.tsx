@@ -14,7 +14,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   className = '',
   onLanguageChange,
 }) => {
-  const { language, setLanguage, supportedLanguages, currentLanguageConfig } = useLocalization();
+  const { language, setLanguage, supportedLanguages, currentLanguageConfig, t } = useLocalization();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +53,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          aria-label="Change language"
+          aria-label={t('common.changeLanguage')}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 transition-all cursor-pointer"
         >
           <Globe className="w-3.5 h-3.5 text-slate-400" />
@@ -96,7 +96,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        aria-label="Select language"
+        aria-label={t('common.selectLanguage')}
         className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/60 hover:bg-slate-700/60 text-slate-200 border border-slate-700/60 hover:border-slate-600 transition-all cursor-pointer"
       >
         <span className="text-sm">{currentLanguageConfig.flag}</span>

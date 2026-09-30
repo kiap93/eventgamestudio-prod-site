@@ -293,7 +293,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                       to="/contact"
                       className="w-full py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
                     >
-                      <span>Pre-Order / Enquire</span>
+                      <span>{t('landing.preOrderEnquire')}</span>
                     </InternalLink>
                   )}
                 </div>

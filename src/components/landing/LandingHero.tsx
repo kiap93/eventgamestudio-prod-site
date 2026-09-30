@@ -166,7 +166,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames, onLaun
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    STAGE READY 60 FPS
+                    {t('landing.stageReady', { fps: 60 })}
                   </span>
                 </div>
               </div>
@@ -188,14 +188,14 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames, onLaun
                   <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-1.5 flex items-center gap-2.5 shadow-md">
                     <Trophy className="w-4 h-4 text-amber-400" />
                     <div className="text-left">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Score</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('game.score')}</div>
                       <div className="text-sm sm:text-base font-black text-white font-mono leading-none">18,450</div>
                     </div>
                   </div>
 
                   <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-1.5 flex items-center gap-2.5 shadow-md">
                     <div className="text-right">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Time Left</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('landing.timeLeft')}</div>
                       <div className="text-sm sm:text-base font-black text-amber-400 font-mono leading-none">00:18</div>
                     </div>
                   </div>

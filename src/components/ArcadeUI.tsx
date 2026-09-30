@@ -485,21 +485,21 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             <button
               onClick={() => setShowSettingsModal(true)}
               className="p-2.5 rounded-xl bg-[#0f2d18]/90 border-2 border-[#d4e157] hover:border-[#ffee58] text-[#ffee58] shadow-lg transition-all"
-              title="Game Settings"
+              title={t('common.settings')}
             >
               <Settings className="w-4 h-4" />
             </button>
             <button
               onClick={onToggleMute}
               className="p-2.5 rounded-xl bg-[#0f2d18]/90 border-2 border-[#d4e157] hover:border-[#ffee58] text-[#ffee58] shadow-lg transition-all"
-              title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+              title={isMuted ? t('game.soundOn') : t('game.soundOff')}
             >
               {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
             <button
               onClick={onToggleFullscreen}
               className="p-2.5 rounded-xl bg-[#0f2d18]/90 border-2 border-[#d4e157] hover:border-[#ffee58] text-[#ffee58] shadow-lg transition-all flex items-center justify-center font-black"
-              title={isFullscreen ? 'Exit Fullscreen (⛶)' : 'Toggle Fullscreen (⛶)'}
+              title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
             >
               <span className="text-base leading-none font-bold">⛶</span>
             </button>
@@ -516,7 +516,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               isMuted={isMuted}
               isPaused={gameState === 'PAUSED'}
               isFullscreen={isFullscreen}
-              settingsTooltip="Game Settings"
+              settingsTooltip={t('common.settings')}
               onSettingsClick={() => setShowSettingsModal(true)}
               onToggleMute={onToggleMute}
               onPauseResume={gameState === 'PLAYING' ? onPauseGame : onResumeGame}
@@ -938,7 +938,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm pointer-events-auto flex flex-col items-center justify-center p-3 sm:p-6 text-center z-40">
             <div className="pause-container max-w-xs w-full bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 sm:p-6 shadow-2xl my-auto">
               <h2 className="text-2xl font-black text-amber-400 tracking-wider mb-3 sm:mb-4">
-                GAME PAUSED
+                {t('game.pause')}
               </h2>
 
               <div className="space-y-2.5 sm:space-y-3">
@@ -946,28 +946,28 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   onClick={onResumeGame}
                   className="w-full py-2 sm:py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg transition-all flex items-center justify-center gap-2"
                 >
-                  <Play className="w-4 h-4 fill-slate-950" /> RESUME
+                  <Play className="w-4 h-4 fill-slate-950" /> {t('game.resume')}
                 </button>
 
                 <button
                   onClick={onRestartGame}
                   className="w-full py-2 sm:py-2.5 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold rounded-lg transition-all flex items-center justify-center gap-2"
                 >
-                  <RotateCcw className="w-4 h-4" /> RESTART
+                  <RotateCcw className="w-4 h-4" /> {t('common.restart')}
                 </button>
 
                 <button
                   onClick={() => setShowSettingsModal(true)}
                   className="w-full py-2 sm:py-2.5 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold rounded-lg transition-all flex items-center justify-center gap-2"
                 >
-                  <Settings className="w-4 h-4" /> SETTINGS
+                  <Settings className="w-4 h-4" /> {t('common.settings')}
                 </button>
 
                 <button
                   onClick={handleRequestStop}
                   className="w-full py-2 sm:py-2.5 px-4 bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 text-rose-200 font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
                 >
-                  <Square className="w-4 h-4 fill-rose-300" /> STOP GAME (MAIN MENU)
+                  <Square className="w-4 h-4 fill-rose-300" /> {t('game.quit')} ({t('common.menu')})
                 </button>
               </div>
             </div>
@@ -983,11 +983,11 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               </div>
 
               <h3 className="text-xl font-black text-rose-400 tracking-wider mb-2">
-                STOP GAME?
+                {t('game.quit')}?
               </h3>
 
               <p className="text-xs text-slate-300 mb-6 leading-relaxed">
-                Are you sure you want to stop the game and return to the main menu? Your current session progress will be lost.
+                {t('common.confirm')} {t('game.quit').toLowerCase()}?
               </p>
 
               <div className="flex items-center gap-3">
@@ -998,7 +998,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   }}
                   className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white font-black text-sm rounded-xl border border-rose-400 shadow-md transition-all flex items-center justify-center gap-1.5"
                 >
-                  <Square className="w-4 h-4 fill-white" /> YES, STOP
+                  <Square className="w-4 h-4 fill-white" /> {t('common.confirm')}
                 </button>
 
                 <button
@@ -1007,7 +1007,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   }}
                   className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-xl border border-slate-700 transition-all"
                 >
-                  CANCEL
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -1074,13 +1074,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                 <div className="flex items-center gap-2">
                   <Settings className="w-5 h-5 text-amber-400" />
                   <h3 className="text-xl font-black text-amber-400 tracking-wider">
-                    GAME SETTINGS
+                    {t('common.settings')}
                   </h3>
                 </div>
                 <button
                   onClick={() => setShowSettingsModal(false)}
                   className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
-                  title="Close Settings"
+                  title={t('common.close')}
                 >
                   ✕
                 </button>
@@ -1092,7 +1092,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
                   <div className="flex justify-between items-center font-bold">
                     <span className="text-slate-200 flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-emerald-400" /> Master Volume
+                      <Volume2 className="w-4 h-4 text-emerald-400" /> {t('studio.volume')}
                     </span>
                     <span className="text-amber-400 font-mono font-black text-base">
                       {Math.round((settings.volume ?? 1) * 100)}%
@@ -1201,13 +1201,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                 {loadingLeaderboard ? (
                   <div className="py-12 text-slate-400 text-xs flex flex-col items-center gap-2">
                     <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                    <span>Loading Event Scores...</span>
+                    <span>{t('common.loading')}</span>
                   </div>
                 ) : leaderboardScores.length === 0 ? (
                   <div className="py-12 text-center text-slate-400 text-xs">
                     <Trophy className="w-10 h-10 text-slate-600 mx-auto mb-2 opacity-50" />
-                    <p className="font-bold text-slate-300">No High Scores Recorded Yet</p>
-                    <p className="text-[11px] text-slate-500 mt-1">Play a round to get your name on the board!</p>
+                    <p className="font-bold text-slate-300">{t('game.noScoresYet')}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">{t('game.beFirstToPlay')}</p>
                   </div>
                 ) : (
                   leaderboardScores.map((entry) => {
