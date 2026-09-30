@@ -46,6 +46,7 @@ interface FormState {
   eventDate: string;
   expectedAttendees: string;
   message: string;
+  website: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -57,6 +58,7 @@ const INITIAL_FORM: FormState = {
   eventDate: '',
   expectedAttendees: '',
   message: '',
+  website: '',
 };
 
 interface FormErrors {
@@ -157,16 +159,14 @@ export const ContactPage: React.FC = () => {
           data?.error ||
           data?.message ||
           (res.status === 429
-            ? 'Too many enquiry submissions from this connection. Please wait a few minutes before submitting again.'
-            : 'Unable to submit your enquiry at this time. Please try again or reach out to us directly via WhatsApp.');
+            ? t('contact.errRateLimit')
+            : t('contact.errSubmitFailed'));
         setSubmitError(errorMessage);
         setIsSuccess(false);
         setTicketId('');
       }
     } catch (networkErr: any) {
-      setSubmitError(
-        'Network connection error. We could not reach the server. Please check your internet connection or contact us via WhatsApp.'
-      );
+      setSubmitError(t('contact.errNetwork'));
       setIsSuccess(false);
       setTicketId('');
     } finally {
@@ -389,7 +389,7 @@ export const ContactPage: React.FC = () => {
               <div className="rounded-3xl p-6 sm:p-8 bg-slate-900 text-white space-y-4">
                 <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
                   <Gamepad2 className="w-4 h-4" />
-                  <span>24/7 Self-Serve Access</span>
+                  <span>{t('contact.selfServeBadge')}</span>
                 </div>
                 <h3 className="text-lg font-bold text-white tracking-tight">
                   {t('contact.createEventCtaTitle')}
@@ -420,6 +420,10 @@ export const ContactPage: React.FC = () => {
                       className="border border-slate-200 rounded-xl overflow-hidden transition-colors"
                     >
                       <button
+                        type="button"
+                        id={`faq-header-${index}`}
+                        aria-expanded={openFaq === index}
+                        aria-controls={`faq-body-${index}`}
                         onClick={() => setOpenFaq(openFaq === index ? null : index)}
                         className="w-full text-left p-3 font-semibold text-slate-800 flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
@@ -431,7 +435,12 @@ export const ContactPage: React.FC = () => {
                         />
                       </button>
                       {openFaq === index && (
-                        <div className="px-3 pb-3 text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/50">
+                        <div
+                          id={`faq-body-${index}`}
+                          role="region"
+                          aria-labelledby={`faq-header-${index}`}
+                          className="px-3 pb-3 text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/50"
+                        >
                           {faq.a}
                         </div>
                       )}
@@ -498,7 +507,7 @@ export const ContactPage: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <form onSubmit={handleSubmit} className="space-y-6" noValidate>
                     <div>
                       <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
                         {t('contact.formTitle')}
@@ -508,8 +517,22 @@ export const ContactPage: React.FC = () => {
                       </p>
                     </div>
 
+                    {/* Anti-bot Honeypot field - hidden from humans */}
+                    <div className="hidden" aria-hidden="true">
+                      <label htmlFor="contact-website">Website</label>
+                      <input
+                        type="text"
+                        id="contact-website"
+                        name="website"
+                        value={form.website}
+                        tabIndex={-1}
+                        autoComplete="off"
+                        onChange={(e) => setForm({ ...form, website: e.target.value })}
+                      />
+                    </div>
+
                     {submitError && (
-                      <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                      <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <span>{submitError}</span>
                       </div>
@@ -517,13 +540,19 @@ export const ContactPage: React.FC = () => {
 
                     {/* Category Selection Chips */}
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                      <label id="category-group-label" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                         {t('contact.categoryLabel')} <span className="text-amber-500">*</span>
                       </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div
+                        role="radiogroup"
+                        aria-labelledby="category-group-label"
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                      >
                         {categories.map((cat) => (
                           <button
                             type="button"
+                            role="radio"
+                            aria-checked={form.category === cat.id}
                             key={cat.id}
                             onClick={() => setForm({ ...form, category: cat.id })}
                             className={`p-2.5 rounded-xl text-xs font-medium text-left border transition-all cursor-pointer ${
@@ -541,11 +570,17 @@ export const ContactPage: React.FC = () => {
                     {/* Full Name & Work Email */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-fullName" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.fullName')} <span className="text-amber-500">*</span>
                         </label>
                         <input
+                          id="contact-fullName"
+                          name="fullName"
                           type="text"
+                          required
+                          aria-required="true"
+                          aria-invalid={!!errors.fullName}
+                          aria-describedby={errors.fullName ? 'contact-fullName-error' : undefined}
                           value={form.fullName}
                           onChange={(e) => setForm({ ...form, fullName: e.target.value })}
                           placeholder={t('contact.namePlaceholder')}
@@ -554,16 +589,24 @@ export const ContactPage: React.FC = () => {
                           }`}
                         />
                         {errors.fullName && (
-                          <p className="text-[11px] text-rose-600">{errors.fullName}</p>
+                          <p id="contact-fullName-error" role="alert" className="text-[11px] text-rose-600 font-medium">
+                            {errors.fullName}
+                          </p>
                         )}
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.workEmail')} <span className="text-amber-500">*</span>
                         </label>
                         <input
+                          id="contact-email"
+                          name="email"
                           type="email"
+                          required
+                          aria-required="true"
+                          aria-invalid={!!errors.email}
+                          aria-describedby={errors.email ? 'contact-email-error' : undefined}
                           value={form.email}
                           onChange={(e) => setForm({ ...form, email: e.target.value })}
                           placeholder={t('contact.emailPlaceholder')}
@@ -572,7 +615,9 @@ export const ContactPage: React.FC = () => {
                           }`}
                         />
                         {errors.email && (
-                          <p className="text-[11px] text-rose-600">{errors.email}</p>
+                          <p id="contact-email-error" role="alert" className="text-[11px] text-rose-600 font-medium">
+                            {errors.email}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -580,12 +625,14 @@ export const ContactPage: React.FC = () => {
                     {/* Phone & Company Name */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-phone" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.phone')}
                         </label>
                         <div className="relative">
-                          <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                          <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
                           <input
+                            id="contact-phone"
+                            name="phone"
                             type="tel"
                             value={form.phone}
                             onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -596,12 +643,14 @@ export const ContactPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-company" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.company')}
                         </label>
                         <div className="relative">
-                          <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                          <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
                           <input
+                            id="contact-company"
+                            name="company"
                             type="text"
                             value={form.company}
                             onChange={(e) => setForm({ ...form, company: e.target.value })}
@@ -615,12 +664,14 @@ export const ContactPage: React.FC = () => {
                     {/* Optional Event Details (Date & Attendees) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-eventDate" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.eventDate')}
                         </label>
                         <div className="relative">
                           <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
                           <input
+                            id="contact-eventDate"
+                            name="eventDate"
                             type="date"
                             value={form.eventDate}
                             onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
@@ -630,12 +681,14 @@ export const ContactPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-expectedAttendees" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.audienceSize')}
                         </label>
                         <div className="relative">
                           <Users className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
                           <select
+                            id="contact-expectedAttendees"
+                            name="expectedAttendees"
                             value={form.expectedAttendees}
                             onChange={(e) => setForm({ ...form, expectedAttendees: e.target.value })}
                             className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
@@ -653,16 +706,22 @@ export const ContactPage: React.FC = () => {
                     {/* Message Box */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <label htmlFor="contact-message" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.message')} <span className="text-amber-500">*</span>
                         </label>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-slate-400 font-mono">
                           {form.message.length}/500
                         </span>
                       </div>
                       <textarea
+                        id="contact-message"
+                        name="message"
                         rows={4}
                         maxLength={500}
+                        required
+                        aria-required="true"
+                        aria-invalid={!!errors.message}
+                        aria-describedby={errors.message ? 'contact-message-error' : undefined}
                         value={form.message}
                         onChange={(e) => setForm({ ...form, message: e.target.value })}
                         placeholder={t('contact.messagePlaceholder')}
@@ -671,7 +730,9 @@ export const ContactPage: React.FC = () => {
                         }`}
                       />
                       {errors.message && (
-                        <p className="text-[11px] text-rose-600">{errors.message}</p>
+                        <p id="contact-message-error" role="alert" className="text-[11px] text-rose-600 font-medium">
+                          {errors.message}
+                        </p>
                       )}
                     </div>
 

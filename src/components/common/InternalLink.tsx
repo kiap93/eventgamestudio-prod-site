@@ -2,7 +2,8 @@ import React from 'react';
 import { navigateTo } from '../../hooks/useRouteContext';
 
 export interface InternalLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  href: string;
+  href?: string;
+  to?: string;
   children: React.ReactNode;
   className?: string;
   onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
@@ -12,14 +13,18 @@ export interface InternalLinkProps extends React.AnchorHTMLAttributes<HTMLAnchor
  * Crawlable internal link component that renders a genuine `<a href="...">`
  * for search engine spiders while preserving seamless client-side SPA navigation
  * for standard clicks. Supports Cmd/Ctrl/Shift/middle-click for opening new tabs.
+ * Accepts either `to` or `href` prop interchangeably.
  */
 export const InternalLink: React.FC<InternalLinkProps> = ({
   href,
+  to,
   children,
   className = '',
   onClick,
   ...props
 }) => {
+  const targetUrl = to || href || '/';
+
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (onClick) {
       onClick(e);
@@ -38,12 +43,20 @@ export const InternalLink: React.FC<InternalLinkProps> = ({
     }
 
     e.preventDefault();
-    navigateTo(href);
+    if (targetUrl) {
+      navigateTo(targetUrl);
+    }
   };
 
   return (
-    <a href={href} onClick={handleClick} className={className} {...props}>
+    <a
+      href={targetUrl}
+      onClick={handleClick}
+      className={`cursor-pointer ${className}`}
+      {...props}
+    >
       {children}
     </a>
   );
 };
+

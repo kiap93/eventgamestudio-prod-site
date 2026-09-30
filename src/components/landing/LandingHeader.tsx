@@ -213,8 +213,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
           {/* Contact */}
           <InternalLink
+            href="/contact"
             to="/contact"
-            className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
               isContactPage ? 'text-amber-600 bg-amber-50/80' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
             }`}
           >
@@ -323,9 +324,10 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               {t('landing.navPricing')}
             </button>
             <InternalLink
+              href="/contact"
               to="/contact"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl"
+              className="block px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl cursor-pointer"
             >
               {t('landing.navContact')}
             </InternalLink>

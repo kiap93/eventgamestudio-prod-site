@@ -391,7 +391,12 @@ export function parseRoute(pathname: string): RouteContext {
   }
 
   // 4.5. Check for Public Contact Page: /contact
-  if (cleanPath === '/contact' || cleanPath.startsWith('/contact/')) {
+  if (
+    cleanPath === '/contact' ||
+    cleanPath.startsWith('/contact?') ||
+    cleanPath.startsWith('/contact/') ||
+    (parts.length >= 1 && parts[0].toLowerCase() === 'contact')
+  ) {
     return {
       mode: 'contact',
       isPublicGameRoute: false,

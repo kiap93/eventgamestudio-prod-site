@@ -211,14 +211,19 @@ export const LandingFooter: React.FC = () => {
 
           {/* 5. Contact & Support */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-white">
+            <InternalLink
+              href="/contact"
+              to="/contact"
+              className="text-[11px] uppercase tracking-wider font-bold text-white hover:text-amber-400 transition-colors inline-block cursor-pointer"
+            >
               {t('landing.contact')}
-            </div>
+            </InternalLink>
             <ul className="space-y-2.5 text-xs">
               <li>
                 <InternalLink
+                  href="/contact"
                   to="/contact"
-                  className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                  className="hover:text-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
                   <span>{t('landing.contactForm')}</span>

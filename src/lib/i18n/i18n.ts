@@ -35,7 +35,7 @@ export function getNestedValue(obj: any, path: string): any {
  */
 export function interpolate(template: string, params?: InterpolationParams): string {
   if (!params) return template;
-  return template.replace(/\{\{\s*([a-zA-Z0-9_-]+)\s*\}\}/g, (_, key) => {
+  return template.replace(/\{{1,2}\s*([a-zA-Z0-9_-]+)\s*\}{1,2}/g, (_, key) => {
     const val = params[key];
     if (val === undefined || val === null) {
       return '';
