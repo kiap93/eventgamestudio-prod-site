@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Settings,
   Volume2,
@@ -51,6 +52,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
   fullscreenTooltip,
   className = '',
 }) => {
+  const { t } = useLocalization();
   const [activeTooltip, setActiveTooltip] = useState<ControlKey | null>(null);
 
   // Proportional scaling when uiScale is provided (clamped for optimal usability)
@@ -67,38 +69,38 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
   const resolvedSettingsTooltip =
     settingsTooltip ||
     (disabled
-      ? 'Game settings are configured in the Studio editor. Adjust the Timer setting in the game editor to change the game duration.'
-      : 'Game Settings & Themes');
+      ? t('studio.timerSettingTip', undefined, 'Game settings are configured in the Studio editor. Adjust the Timer setting in the game editor to change the game duration.')
+      : t('studio.gameSettings', undefined, 'Game Settings & Themes'));
 
   const resolvedSoundTooltip =
     soundTooltip ||
     (disabled
-      ? 'Sound control (preview only / disabled in simulation)'
+      ? t('studio.soundControlPreview', undefined, 'Sound control (preview only / disabled in simulation)')
       : isMuted
-      ? 'Unmute Sound'
-      : 'Mute Sound');
+      ? t('studio.clickToUnmute', undefined, 'Unmute Sound')
+      : t('studio.clickToMute', undefined, 'Mute Sound'));
 
   const resolvedPauseTooltip =
     pauseTooltip ||
     (disabled
-      ? 'Pause game (preview only / disabled in simulation)'
+      ? t('studio.pausePreview', undefined, 'Pause game (preview only / disabled in simulation)')
       : isPaused
-      ? 'Resume Game'
-      : 'Pause Game');
+      ? t('game.resume')
+      : t('game.pause'));
 
   const resolvedStopTooltip =
     stopTooltip ||
     (disabled
-      ? 'Stop game (preview only / disabled in simulation)'
-      : 'Stop Game / Return to Main Menu');
+      ? t('studio.stopPreview', undefined, 'Stop game (preview only / disabled in simulation)')
+      : t('game.stopGame'));
 
   const resolvedFullscreenTooltip =
     fullscreenTooltip ||
     (disabled
-      ? 'Fullscreen (preview only / disabled in simulation)'
+      ? t('studio.fullscreenPreview', undefined, 'Fullscreen (preview only / disabled in simulation)')
       : isFullscreen
-      ? 'Exit Fullscreen'
-      : 'Toggle Fullscreen');
+      ? t('common.exitFullscreen')
+      : t('common.fullscreen'));
 
   return (
     <div
@@ -121,7 +123,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
         className.includes('absolute') || className.includes('fixed') ? '' : 'relative'
       } ${className}`}
       role="toolbar"
-      aria-label="Game Controls"
+      aria-label={t('studio.gameControls', undefined, 'Game Controls')}
     >
       {/* 1. SETTINGS BUTTON */}
       <div className="relative">
@@ -160,7 +162,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] hover:text-[#e2f84c] active:scale-95 cursor-pointer shadow-sm'
           }`}
-          aria-label="Game Settings"
+          aria-label={t('studio.gameSettings', undefined, 'Game Settings')}
         >
           <Settings
             style={
@@ -181,20 +183,20 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
             <div className="flex items-center justify-between gap-1.5 text-xs font-bold text-[#c8e038] mb-1">
               <div className="flex items-center gap-1.5">
                 <Settings className="w-3.5 h-3.5 text-[#c8e038]" />
-                <span>Game Settings</span>
+                <span>{t('studio.gameSettings', undefined, 'Game Settings')}</span>
               </div>
               {disabled && (
                 <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase font-semibold">
-                  Preview Only
+                  {t('common.preview', undefined, 'Preview')}
                 </span>
               )}
             </div>
             <p className="text-[11px] text-slate-300 leading-snug">
-              Game settings are configured in the Studio editor.
+              {t('studio.gameSettings', undefined, 'Game settings are configured in the Studio editor.')}
             </p>
             <div className="mt-1.5 pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 leading-snug flex items-start gap-1.5">
               <span className="shrink-0 text-amber-400 font-bold">⏱</span>
-              <span>Adjust the Timer setting in the game editor to change the game duration.</span>
+              <span>{t('studio.timerSettingTip', undefined, 'Adjust the Timer setting in the game editor to change the game duration.')}</span>
             </div>
           </div>
         )}
@@ -237,7 +239,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] active:scale-95 cursor-pointer shadow-sm'
           }`}
-          aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+          aria-label={isMuted ? t('studio.clickToUnmute', undefined, 'Unmute Sound') : t('studio.clickToMute', undefined, 'Mute Sound')}
         >
           {isMuted ? (
             <VolumeX
@@ -268,14 +270,14 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           >
             <div className="flex items-center gap-1.5 text-xs font-bold text-[#c8e038] mb-0.5">
               <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Sound Control</span>
+              <span>{t('studio.soundControl', undefined, 'Sound Control')}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-snug">
               {disabled
-                ? 'Sound control (preview only / disabled in simulation)'
+                ? t('studio.soundControlPreview', undefined, 'Sound control (preview only / disabled in simulation)')
                 : isMuted
-                ? 'Click to unmute sound'
-                : 'Click to mute sound'}
+                ? t('studio.clickToUnmute', undefined, 'Click to unmute sound')
+                : t('studio.clickToMute', undefined, 'Click to mute sound')}
             </p>
           </div>
         )}
@@ -320,7 +322,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
               ? 'bg-amber-400 text-slate-950 border-amber-300 hover:bg-amber-300 font-bold active:scale-95 cursor-pointer shadow-md'
               : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] active:scale-95 cursor-pointer shadow-sm'
           }`}
-          aria-label={isPaused ? 'Resume Game' : 'Pause Game'}
+          aria-label={isPaused ? t('game.resume') : t('game.pause')}
         >
           {isPaused && !disabled ? (
             <Play
@@ -351,14 +353,14 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           >
             <div className="flex items-center gap-1.5 text-xs font-bold text-[#c8e038] mb-0.5">
               <Pause className="w-3.5 h-3.5" />
-              <span>Pause Game</span>
+              <span>{t('game.pause')}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-snug">
               {disabled
-                ? 'Pause game (preview only / disabled in simulation)'
+                ? t('studio.pausePreview', undefined, 'Pause game (preview only / disabled in simulation)')
                 : isPaused
-                ? 'Resume active gameplay'
-                : 'Pause active gameplay'}
+                ? t('game.resume')
+                : t('game.pause')}
             </p>
           </div>
         )}
@@ -401,7 +403,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
               ? 'bg-[#0c2012]/80 border-rose-500/50 text-rose-400/80 cursor-not-allowed opacity-90'
               : 'bg-[#0c2012]/90 border-rose-500/80 text-rose-400 hover:bg-rose-950/80 hover:border-rose-400 active:scale-95 cursor-pointer shadow-sm'
           }`}
-          aria-label="Stop Game"
+          aria-label={t('game.stopGame')}
         >
           <Square
             style={
@@ -421,12 +423,12 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           >
             <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400 mb-0.5">
               <Square className="w-3.5 h-3.5 fill-rose-400" />
-              <span>Stop Game</span>
+              <span>{t('game.stopGame')}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-snug">
               {disabled
-                ? 'Stop game (preview only / disabled in simulation)'
-                : 'Stop game and reset simulation'}
+                ? t('studio.stopPreview', undefined, 'Stop game (preview only / disabled in simulation)')
+                : t('game.stopGame')}
             </p>
           </div>
         )}
@@ -469,7 +471,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] hover:text-[#e2f84c] active:scale-95 cursor-pointer shadow-sm'
           }`}
-          aria-label={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+          aria-label={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
         >
           {isFullscreen ? (
             <Minimize2
@@ -485,7 +487,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
               style={
                 scaled
                   ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
-                  : undefined
+                : undefined
               }
               className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
             />
@@ -500,14 +502,14 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           >
             <div className="flex items-center gap-1.5 text-xs font-bold text-[#c8e038] mb-0.5">
               <span className="font-mono text-xs">⛶</span>
-              <span>Fullscreen</span>
+              <span>{t('common.fullscreen')}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-snug">
               {disabled
-                ? 'Fullscreen (preview only / disabled in simulation)'
+                ? t('studio.fullscreenPreview', undefined, 'Fullscreen (preview only / disabled in simulation)')
                 : isFullscreen
-                ? 'Exit fullscreen mode'
-                : 'Toggle fullscreen game mode'}
+                ? t('common.exitFullscreen')
+                : t('common.fullscreen')}
             </p>
           </div>
         )}

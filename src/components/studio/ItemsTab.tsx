@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   GameTheme,
   ThemeDropItem,
@@ -48,6 +49,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
   onRemove,
   isUploading,
 }) => {
+  const { t } = useLocalization();
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [imgDims, setImgDims] = useState<{
@@ -255,6 +257,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const isMemoryMatch = isMemoryMatchTheme(theme);
 
   if (isReactionTheme(theme)) {
@@ -264,9 +267,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
           <Sparkles className="w-6 h-6" />
         </div>
         <div className="max-w-md mx-auto space-y-1.5">
-          <h3 className="text-base font-bold text-slate-100">Reaction Gantry Sequence</h3>
+          <h3 className="text-base font-bold text-slate-100">{t('studio.reactionGantrySequence')}</h3>
           <p className="text-xs text-slate-400 leading-relaxed">
-            The Reaction Game uses high-precision F1-style starting gantry lights and reflex timing rather than collectible items or card pairs. Configure light sequences, bulb designs, delay windows, and penalty rules in the <span className="text-amber-400 font-semibold">Gameplay</span> and <span className="text-amber-400 font-semibold">Screens</span> tabs.
+            {t('studio.gantryAndLights')}
           </p>
         </div>
       </div>
@@ -399,10 +402,10 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               <button
                 type="button"
                 onClick={handleResetDefaultPairs}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3 h-3" />
-                <span>Reset 8 Pairs</span>
+                <span>{t('studio.reset8Pairs')}</span>
               </button>
               <span
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
@@ -417,20 +420,20 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                 type="button"
                 onClick={handleAddItem}
                 disabled={items.length >= 12}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Pair</span>
+                <span>{t('studio.addPair')}</span>
               </button>
             </>
           ) : (
             <button
               type="button"
               onClick={handleAddItem}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Item</span>
+              <span>{t('studio.addItem')}</span>
             </button>
           )}
         </div>
@@ -441,9 +444,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-xs text-amber-300">
           <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 space-y-1">
-            <span className="font-bold">4x4 Grid Board Requirement:</span>
+            <span className="font-bold">{t('studio.gridBoardRequirement')}</span>
             <p className="text-amber-300/90">
-              Memory Match requires at least 8 unique card pairs to fill the 16 cards on the 4×4 grid. Click &quot;Reset 8 Pairs&quot; or add more pairs so all 8 slots have custom designs.
+              {t('studio.cardPairs')}
             </p>
           </div>
         </div>

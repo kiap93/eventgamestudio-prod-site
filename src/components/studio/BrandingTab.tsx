@@ -1,6 +1,7 @@
 import React from 'react';
 import { GameTheme } from '../../themes/types';
 import { getDefaultUILayout } from '../../themes/layout';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Palette,
   Upload,
@@ -32,6 +33,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const branding = theme.branding || {
     gameTitle: theme.name || 'Custom Theme',
     subtitle: 'Catch items, avoid hazards!',
@@ -117,16 +119,16 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
             <Type className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Game Title & Copy</h3>
+            <h3 className="text-sm font-bold text-slate-100">{t('studio.gameTitleAndCopy')}</h3>
             <p className="text-xs text-slate-400">
-              Customize title headings, promotional subtitles, and event descriptions
+              {t('studio.customizeThemeSettings')}
             </p>
           </div>
         </div>
 
         <div className="space-y-3 pt-1">
           <div>
-            <label className="text-xs font-semibold text-slate-300">Game Title</label>
+            <label className="text-xs font-semibold text-slate-300">{t('studio.gameTitle')}</label>
             <input
               type="text"
               value={branding.gameTitle || theme.name || ''}
@@ -145,7 +147,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-300">Tagline / Subtitle</label>
+            <label className="text-xs font-semibold text-slate-300">{t('studio.taglineSubtitle')}</label>
             <input
               type="text"
               value={branding.subtitle || theme.subtitle || ''}
@@ -156,7 +158,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-300">Theme Description (Internal Notes)</label>
+            <label className="text-xs font-semibold text-slate-300">{t('studio.themeDescriptionNotes')}</label>
             <textarea
               rows={2}
               value={theme.description || ''}
@@ -177,9 +179,9 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               <ImageIcon className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Event / Client Logo</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('studio.eventClientLogo')}</h3>
               <p className="text-xs text-slate-400">
-                Displays in the secondary row below the score HUD
+                {t('studio.clientLogo')}
               </p>
             </div>
           </div>
@@ -215,7 +217,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               />
               <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-all border border-slate-700 shrink-0">
                 <Upload className="w-3.5 h-3.5" />
-                <span>{uploadingAsset === 'logo' ? '...' : 'Upload'}</span>
+                <span>{uploadingAsset === 'logo' ? '...' : t('common.upload')}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -241,14 +243,14 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                       ) : (
                         <EyeOff className="w-3.5 h-3.5 text-slate-400" />
                       )}
-                      <span>Display Client Logo in Game</span>
+                      <span>{t('studio.displayClientLogoInGame')}</span>
                     </div>
                     <p className="text-[11px] text-slate-400">
                       {isConfigured
                         ? isVisible
-                          ? 'Active: displayed in secondary row below score HUD'
-                          : 'Hidden: logo element hidden from game HUD'
-                        : 'No logo configured. Upload or enter a URL first.'}
+                          ? t('common.visible')
+                          : t('common.hidden')
+                        : t('studio.clientLogo')}
                     </p>
                   </div>
 
@@ -315,7 +317,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                       },
                     });
                   }}
-                  className="absolute top-2 right-2 p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all opacity-80 hover:opacity-100"
+                  className="absolute top-2 right-2 p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all opacity-80 hover:opacity-100 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -331,16 +333,16 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               <Palette className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Color Palette & HUD</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('studio.colorPaletteAndHud')}</h3>
               <p className="text-xs text-slate-400">
-                Theme accent tones and arcade score glow colors
+                {t('studio.color')}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-1">
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-2">
-              <label className="text-[11px] font-semibold text-slate-300">Accent Color</label>
+              <label className="text-[11px] font-semibold text-slate-300">{t('studio.accentColor')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -358,7 +360,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-2">
-              <label className="text-[11px] font-semibold text-slate-300">HUD Score Color</label>
+              <label className="text-[11px] font-semibold text-slate-300">{t('studio.hudScoreColor')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -382,9 +384,9 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
             <Sparkles className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Ambient Weather & Particles</h3>
+            <h3 className="text-sm font-bold text-slate-100">{t('studio.ambientWeatherAndParticles')}</h3>
             <p className="text-xs text-slate-400">
-              Atmospheric falling particles rendered over the gameplay arena
+              {t('studio.visuals')}
             </p>
           </div>
         </div>

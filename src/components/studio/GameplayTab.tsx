@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme, isReactionTheme } from '../../themes';
+import { useLocalization } from '../../context/LocalizationContext';
 import { MemoryMatchGameplayCustomizer } from './games/MemoryMatchCustomizer';
 import { ReactionGameGameplayCustomizer } from './games/ReactionGameCustomizer';
 import {
@@ -21,6 +22,7 @@ interface GameplayTabProps {
 }
 
 export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => {
+  const { t } = useLocalization();
   const isReaction = isReactionTheme(theme);
   if (isReaction) {
     return <ReactionGameGameplayCustomizer theme={theme} onChange={onChange} />;
@@ -75,9 +77,9 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
               <Zap className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Match Dynamics & Speed</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('studio.matchDynamicsAndSpeed')}</h3>
               <p className="text-xs text-slate-400">
-                Adjust game session duration, falling velocity, and catcher responsiveness
+                {t('studio.customizeThemeSettings')}
               </p>
             </div>
           </div>
@@ -89,7 +91,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-amber-400" />
-                Match Duration
+                {t('studio.gameplayDuration')}
               </span>
               <span className="text-amber-400 font-bold font-mono text-sm">
                 {physics.gameDurationSeconds || 20}s
@@ -109,7 +111,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
               className="w-full accent-amber-500 cursor-pointer"
             />
             <p className="text-[11px] text-slate-500">
-              Session length before time expires
+              {t('studio.timerSettingTip')}
             </p>
           </div>
 
@@ -118,7 +120,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-                Fall Velocity
+                {t('studio.speed')}
               </span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 {(Number(physics?.fallSpeedMultiplier) || 0.7).toFixed(2)}x
@@ -138,7 +140,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
               className="w-full accent-emerald-500 cursor-pointer"
             />
             <p className="text-[11px] text-slate-500">
-              Global gravity and falling acceleration
+              {t('studio.difficulty')}
             </p>
           </div>
 
@@ -147,7 +149,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-sky-400" />
-                Catcher Speed
+                {t('studio.catcherBasket')}
               </span>
               <span className="text-sky-400 font-bold font-mono text-sm">
                 {physics.basketSpeed || 600} px/s
@@ -167,7 +169,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
               className="w-full accent-sky-500 cursor-pointer"
             />
             <p className="text-[11px] text-slate-500">
-              Player horizontal responsiveness
+              {t('studio.gameControls')}
             </p>
           </div>
         </div>
@@ -176,9 +178,9 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
       {/* 2. PROGRESSIVE DIFFICULTY ESCALATION */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
         <div>
-          <h3 className="text-sm font-bold text-slate-100">Progressive Difficulty Escalation</h3>
+          <h3 className="text-sm font-bold text-slate-100">{t('studio.progressiveDifficultyEscalation')}</h3>
           <p className="text-xs text-slate-400">
-            As the match countdown ticks down, the game smoothly ramps up speed and spawn rates
+            {t('studio.difficulty')}
           </p>
         </div>
 
@@ -208,16 +210,16 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
 
               <div className="space-y-2 text-[11px] text-slate-400 pt-1 border-t border-slate-800/80">
                 <div className="flex justify-between">
-                  <span>Spawn Delay:</span>
+                  <span>{t('studio.spawnDelay')}</span>
                   <span className="text-slate-200 font-mono font-bold">{stage.spawnInterval}ms</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Item Speed Range:</span>
+                  <span>{t('studio.itemSpeedRange')}</span>
                   <span className="text-slate-200 font-mono">{stage.speedMin} - {stage.speedMax} px/s</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-1 text-rose-400">
-                    <Flame className="w-3 h-3" /> Hazard Ratio:
+                    <Flame className="w-3 h-3" /> {t('studio.hazardBomb')}:
                   </span>
                   <span className="text-rose-400 font-mono font-bold">
                     {Math.round((stage.hazardRatio || 0.2) * 100)}%
@@ -225,7 +227,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-1 text-amber-400">
-                    <Star className="w-3 h-3" /> Bonus Ratio:
+                    <Star className="w-3 h-3" /> {t('studio.bonusSpecial')}:
                   </span>
                   <span className="text-amber-400 font-mono font-bold">
                     {Math.round((stage.bonusRatio || 0.05) * 100)}%
@@ -242,15 +244,15 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
         <button
           type="button"
           onClick={() => setShowAdvancedPhysics(!showAdvancedPhysics)}
-          className="w-full px-4 py-3 bg-slate-950 hover:bg-slate-900/80 flex items-center justify-between text-xs font-bold text-slate-300 transition-colors"
+          className="w-full px-4 py-3 bg-slate-950 hover:bg-slate-900/80 flex items-center justify-between text-xs font-bold text-slate-300 transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <Sliders className="w-3.5 h-3.5 text-amber-400" />
-            <span>Advanced Physics & Stage Interval Overrides</span>
+            <span>{t('studio.advancedPhysicsAndStageIntervalOverrides')}</span>
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <span className="text-[10px] font-normal">
-              {showAdvancedPhysics ? 'Hide' : 'Show Advanced'}
+              {showAdvancedPhysics ? t('common.hide') : t('common.show')}
             </span>
             {showAdvancedPhysics ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
@@ -261,13 +263,13 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
             <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex items-start gap-2.5 text-slate-400 text-[11px]">
               <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
-                Override base velocities and spawn bounds directly for custom game modes.
+                {t('studio.gameSettings')}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-slate-400">Base Fall Velocity (px/s)</label>
+                <label className="text-[11px] font-semibold text-slate-400">{t('studio.baseFallVelocity')}</label>
                 <input
                   type="number"
                   value={physics.baseFallSpeed || 500}
@@ -279,7 +281,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400">Min Spawn Interval (ms)</label>
+                <label className="text-[11px] font-semibold text-slate-400">{t('studio.minSpawnInterval')}</label>
                 <input
                   type="number"
                   value={physics.spawnIntervalMin || 550}
@@ -291,7 +293,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400">Max Spawn Interval (ms)</label>
+                <label className="text-[11px] font-semibold text-slate-400">{t('studio.maxSpawnInterval')}</label>
                 <input
                   type="number"
                   value={physics.spawnIntervalMax || 1000}

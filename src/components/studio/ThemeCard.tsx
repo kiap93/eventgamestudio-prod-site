@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GameTheme } from '../../themes';
 import { getThemeGameType } from '../../themes/types';
 import { getGameTypeIcon, formatGameTypeName } from '../../games';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Palette,
   Edit3,
@@ -45,6 +46,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   isViewer = false,
   isOnlyTheme = false,
 }) => {
+  const { t } = useLocalization();
   const [showMenu, setShowMenu] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -130,8 +132,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 p-4 bg-gradient-to-br from-slate-900 to-slate-950">
             <ImageOff className="w-8 h-8 mb-2 opacity-50 text-slate-400" />
-            <span className="text-xs font-semibold text-slate-400">No background</span>
-            <span className="text-[10px] text-slate-500 mt-0.5">Upload custom image in editor</span>
+            <span className="text-xs font-semibold text-slate-400">{t('studio.noBackground')}</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">{t('studio.uploadCustomImageInEditor')}</span>
           </div>
         )}
 
@@ -140,28 +142,28 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
           {isSystemTheme ? (
             <span className="px-2.5 py-1 rounded-full bg-indigo-950/90 text-indigo-300 border border-indigo-500/50 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md backdrop-blur-md">
               <Sparkles className="w-3 h-3 text-indigo-400" />
-              <span>SYSTEM / DEFAULT THEME</span>
+              <span>{t('studio.systemDefaultThemeBadge')}</span>
             </span>
           ) : (
             <span className="px-2.5 py-1 rounded-full bg-slate-950/90 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md backdrop-blur-md">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span>MY THEME</span>
+              <span>{t('studio.myThemeBadge')}</span>
             </span>
           )}
 
           {theme.status === 'draft' && !isSystemTheme && (
             <span className="px-2 py-0.5 rounded-full bg-slate-950/80 text-amber-300 border border-amber-500/40 text-[10px] font-semibold">
-              Draft
+              {t('common.draft', undefined, 'Draft')}
             </span>
           )}
           {theme.status === 'archived' && (
             <span className="px-2 py-0.5 rounded-full bg-slate-950/80 text-slate-400 border border-slate-700/80 text-[10px] font-semibold">
-              Archived
+              {t('common.archived', undefined, 'Archived')}
             </span>
           )}
           {(theme as any).is_default && (
             <span className="px-2 py-0.5 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-              Default
+              {t('common.default', undefined, 'Default')}
             </span>
           )}
         </div>
@@ -178,7 +180,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
         <div
           onClick={() => onPlay(theme)}
           className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer backdrop-blur-[2px] z-10"
-          title="Click to preview game"
+          title={t('studio.clickToPreviewGame')}
         >
           <div className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform active:scale-95">
             <Play className="w-5 h-5 fill-current ml-0.5" />
@@ -231,8 +233,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                     onRename(theme);
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-all shrink-0 cursor-pointer"
-                  title="Rename Theme"
-                  aria-label="Rename Theme"
+                  title={t('studio.renameTheme')}
+                  aria-label={t('studio.renameTheme')}
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
@@ -247,7 +249,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                   type="button"
                   onClick={handleToggleMenu}
                   className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors"
-                  title="Theme Actions"
+                  title={t('studio.themeActions')}
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -267,7 +269,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 rounded-xl transition-colors text-left"
                     >
                       <Play className="w-3.5 h-3.5 fill-current shrink-0" />
-                      <span className="whitespace-nowrap">Preview</span>
+                      <span className="whitespace-nowrap">{t('common.preview')}</span>
                     </button>
 
                     {onEdit && (
@@ -280,7 +282,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 rounded-xl transition-colors text-left"
                       >
                         <Edit3 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span className="whitespace-nowrap">Edit Theme</span>
+                        <span className="whitespace-nowrap">{t('studio.editTheme')}</span>
                       </button>
                     )}
 
@@ -296,7 +298,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 rounded-xl transition-colors text-left disabled:opacity-50 cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span className="whitespace-nowrap">Rename</span>
+                        <span className="whitespace-nowrap">{t('common.rename')}</span>
                       </button>
                     )}
 
@@ -311,7 +313,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 rounded-xl transition-colors text-left disabled:opacity-50"
                       >
                         <Copy className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                        <span className="whitespace-nowrap">Duplicate</span>
+                        <span className="whitespace-nowrap">{t('studio.duplicateTheme')}</span>
                       </button>
                     )}
 
@@ -327,7 +329,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                           className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors text-left disabled:opacity-50"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                          <span className="whitespace-nowrap">Delete Theme</span>
+                          <span className="whitespace-nowrap">{t('studio.deleteTheme')}</span>
                         </button>
                       </div>
                     )}
@@ -338,7 +340,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
           </div>
 
           <p className="text-xs text-slate-400 line-clamp-1">
-            {theme.branding?.gameTitle || theme.description || (isSystemTheme ? 'System default preset theme' : 'Event game theme customization')}
+            {theme.branding?.gameTitle || theme.description || (isSystemTheme ? t('studio.systemTheme') : t('studio.themeCustomizationDesc'))}
           </p>
 
           {/* Theme Meta Pills */}
@@ -351,18 +353,18 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
             ) : isMemoryTheme ? (
               <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
                 {getGameTypeIcon('memory-match', 'w-3 h-3 text-indigo-400')}
-                <span>{theme.items_config?.length || 0} Card Pairs</span>
+                <span>{theme.items_config?.length || 0} {t('studio.cardPairs')}</span>
               </span>
             ) : (
               <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>{itemsCount} Collectibles</span>
+                <span>{itemsCount} {t('studio.items')}</span>
               </span>
             )}
 
             <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
               <Layers className="w-3 h-3 text-sky-400" />
-              <span>{duration}s Round</span>
+              <span>{duration}s {t('studio.round', undefined, 'Round')}</span>
             </span>
 
             {formattedDate && (
@@ -383,10 +385,10 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                 type="button"
                 onClick={() => onPlay(theme)}
                 className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 hover:text-white font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-1.5 shadow-sm"
-                title="Preview game with this system theme"
+                title={t('studio.previewGameWithSystemTheme')}
               >
                 <Play className="w-3.5 h-3.5 fill-current text-emerald-400" />
-                <span>Preview</span>
+                <span>{t('common.preview')}</span>
               </button>
 
               <button
@@ -398,17 +400,17 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                 }}
                 disabled={isViewer || isCloning}
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Clone this system theme into your organization"
+                title={t('studio.cloneSystemThemeDesc')}
               >
                 {isCloning ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Cloning...</span>
+                    <span>{t('common.cloning', undefined, 'Cloning...')}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Clone</span>
+                    <span>{t('common.clone')}</span>
                   </>
                 )}
               </button>
@@ -420,10 +422,10 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                 type="button"
                 onClick={() => onPlay(theme)}
                 className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-emerald-500/10 flex items-center justify-center gap-1.5"
-                title="Preview game with this theme"
+                title={t('studio.previewGameWithTheme')}
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Preview</span>
+                <span>{t('common.preview')}</span>
               </button>
 
               {onEdit && (
@@ -431,10 +433,10 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                   type="button"
                   onClick={() => onEdit(theme.id)}
                   className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 hover:text-white font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-1.5"
-                  title="Customize theme settings"
+                  title={t('studio.customizeThemeSettings')}
                 >
                   <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Edit</span>
+                  <span>{t('common.edit')}</span>
                 </button>
               )}
             </>

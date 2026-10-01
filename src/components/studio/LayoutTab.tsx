@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { GameTheme, getThemeGameType, GameOrientation } from '../../themes/types';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   GameLayoutConfig,
   LayoutElementKey,
@@ -51,6 +52,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
   activeOrientation: controlledOrientation,
   onOrientationChange,
 }) => {
+  const { t } = useLocalization();
   const gameType = getThemeGameType(theme);
   const elementKeys = getLayoutElementKeys(gameType);
   const defaultLayout = getDefaultUILayout(gameType);
@@ -385,7 +387,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
           <button
             type="button"
             onClick={() => handleSetOrientation('landscape')}
-            className={`p-3 rounded-xl border text-left font-bold text-xs flex items-center justify-between transition-all ${
+            className={`p-3 rounded-xl border text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
               !isPortraitMode
                 ? 'bg-sky-500/15 border-sky-400 text-sky-200 shadow-md ring-1 ring-sky-400/40'
                 : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -394,13 +396,13 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             <div className="flex items-center gap-2.5">
               <Monitor className="w-4 h-4 text-sky-400" />
               <div>
-                <div>Landscape Layout</div>
-                <div className="text-[10px] font-normal text-slate-400">1024 × 576 base layout</div>
+                <div>{t('studio.landscapeLayout')}</div>
+                <div className="text-[10px] font-normal text-slate-400">{t('studio.landscapeLayoutDesc')}</div>
               </div>
             </div>
             {!isPortraitMode && (
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded font-semibold border border-sky-500/30">
-                Active
+                {t('common.active')}
               </span>
             )}
           </button>
@@ -408,7 +410,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
           <button
             type="button"
             onClick={() => handleSetOrientation('portrait')}
-            className={`p-3 rounded-xl border text-left font-bold text-xs flex items-center justify-between transition-all ${
+            className={`p-3 rounded-xl border text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
               isPortraitMode
                 ? 'bg-amber-500/15 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/40'
                 : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -417,13 +419,13 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             <div className="flex items-center gap-2.5">
               <Smartphone className="w-4 h-4 text-amber-400" />
               <div>
-                <div>Portrait Layout</div>
-                <div className="text-[10px] font-normal text-slate-400">576 × 1024 vertical layout</div>
+                <div>{t('studio.portraitLayout')}</div>
+                <div className="text-[10px] font-normal text-slate-400">{t('studio.portraitLayoutDesc')}</div>
               </div>
             </div>
             {isPortraitMode && (
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded font-semibold border border-amber-500/30">
-                Active
+                {t('common.active')}
               </span>
             )}
           </button>
@@ -519,11 +521,11 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             <button
               type="button"
               onClick={handleResetActiveElement}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition-all"
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
               title="Reset this element to default position"
             >
               <RotateCcw className="w-3 h-3 text-slate-400" />
-              <span>Reset</span>
+              <span>{t('common.reset')}</span>
             </button>
           </div>
         </div>
@@ -537,24 +539,24 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
               <EyeOff className="w-4 h-4 text-slate-500" />
             )}
             <div>
-              <div className="text-xs font-bold text-slate-200">Element Visibility</div>
+              <div className="text-xs font-bold text-slate-200">{t('studio.elementVisibility')}</div>
               <div className="text-[11px] text-slate-400">
                 {activeElement.visible
-                  ? 'Element is active and displayed in the game'
-                  : 'Element is hidden from the game viewport'}
+                  ? t('common.visible')
+                  : t('common.hidden')}
               </div>
             </div>
           </div>
           <button
             type="button"
             onClick={() => handleUpdateElementField('visible', !activeElement.visible)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
               activeElement.visible
                 ? 'bg-emerald-500 text-slate-950 shadow-md ring-1 ring-emerald-400'
                 : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
             }`}
           >
-            {activeElement.visible ? 'VISIBLE' : 'HIDDEN'}
+            {activeElement.visible ? t('common.visible').toUpperCase() : t('common.hidden').toUpperCase()}
           </button>
         </div>
 
@@ -569,7 +571,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Move className="w-3.5 h-3.5 text-amber-400" />
-                <span>Horizontal X (%)</span>
+                <span>{t('studio.horizontalX')}</span>
               </label>
               <div className="flex items-center gap-1">
                 <input
@@ -609,7 +611,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Move className="w-3.5 h-3.5 text-teal-400" />
-                <span>Vertical Y (%)</span>
+                <span>{t('studio.verticalY')}</span>
               </label>
               <div className="flex items-center gap-1">
                 <input
@@ -650,7 +652,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                   <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Width Size (%)</span>
+                  <span>{t('studio.widthSize')}</span>
                 </label>
                 <div className="flex items-center gap-1">
                   <input
@@ -698,9 +700,9 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
               <Grid className="w-3.5 h-3.5 text-amber-400" />
-              <span>Quick 9-Point Alignment Grid</span>
+              <span>{t('studio.quickAlignmentGrid')}</span>
             </label>
-            <span className="text-[11px] text-slate-500">1-click snap to preset position</span>
+            <span className="text-[11px] text-slate-500">{t('studio.oneClickSnap')}</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto sm:mx-0">

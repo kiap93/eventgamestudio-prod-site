@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   GameTheme,
   ThemeDropItem,
@@ -129,6 +130,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   forcedOrientation,
   onOrientationChange,
 }) => {
+  const { t } = useLocalization();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1609,7 +1611,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               >
                 <div className="bg-slate-950/95 border-2 border-amber-400 px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2.5 text-amber-400 font-black tracking-widest text-sm sm:text-base uppercase">
                   <Pause className="w-4 h-4 fill-amber-400" />
-                  <span>Simulation Paused</span>
+                  <span>{t('studio.simulationPaused')}</span>
                 </div>
                 <p className="text-[11px] text-slate-300 font-mono bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800">
                   Click Resume (▶) or Settings to continue

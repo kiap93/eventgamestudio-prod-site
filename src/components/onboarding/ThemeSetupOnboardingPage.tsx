@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -20,6 +21,7 @@ import {
 
 export const ThemeSetupOnboardingPage: React.FC = () => {
   const { currentOrganization, fetchThemes } = useAuth();
+  const { t } = useLocalization();
   const [loading, setLoading] = useState(true);
   const [startingCustomization, setStartingCustomization] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
             </div>
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-amber-600 block">
-                Workspace Setup
+                {t('onboarding.workspaceSetup')}
               </span>
               <span className="text-sm font-semibold text-slate-800">
                 {currentOrganization?.name || 'My Organization'}
@@ -117,7 +119,7 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
             onClick={handleReturnToDashboard}
             className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
           >
-            Dashboard
+            {t('nav.dashboard')}
           </button>
         </div>
       </header>
@@ -135,8 +137,8 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
               <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-sm shadow-md ring-4 ring-amber-100">
                 1
               </div>
-              <span className="text-xs font-bold text-slate-900 mt-2">Set Up Theme</span>
-              <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Required</span>
+              <span className="text-xs font-bold text-slate-900 mt-2">{t('onboarding.stepTheme')}</span>
+              <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">{t('common.required')}</span>
             </div>
 
             {/* Step 2: Upcoming */}
@@ -144,8 +146,8 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
               <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-300 text-slate-400 font-semibold flex items-center justify-center text-sm">
                 2
               </div>
-              <span className="text-xs font-medium text-slate-500 mt-2">Create Event</span>
-              <span className="text-[10px] text-slate-400">Step 2</span>
+              <span className="text-xs font-medium text-slate-500 mt-2">{t('onboarding.stepEvent')}</span>
+              <span className="text-[10px] text-slate-400">{t('onboarding.step2')}</span>
             </div>
 
             {/* Step 3: Upcoming */}
@@ -153,8 +155,8 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
               <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-300 text-slate-400 font-semibold flex items-center justify-center text-sm">
                 3
               </div>
-              <span className="text-xs font-medium text-slate-500 mt-2">Launch Event</span>
-              <span className="text-[10px] text-slate-400">Step 3</span>
+              <span className="text-xs font-medium text-slate-500 mt-2">{t('onboarding.stepLaunch')}</span>
+              <span className="text-[10px] text-slate-400">{t('onboarding.step3')}</span>
             </div>
           </div>
         </div>
@@ -164,7 +166,7 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
           {/* Card Top Banner */}
           <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent px-8 py-4 border-b border-amber-500/20 flex items-center gap-2 text-amber-800 text-xs font-bold">
             <Sparkles className="w-4 h-4 text-amber-600" />
-            <span>Mandatory Onboarding Step</span>
+            <span>{t('studio.mandatoryThemeSetup')}</span>
           </div>
 
           <div className="p-8 sm:p-12 text-center max-w-2xl mx-auto">
@@ -174,12 +176,11 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-3">
-              Let&apos;s set up your event theme
+              {t('onboarding.heroTitle')}
             </h1>
 
             <p className="text-base text-slate-600 leading-relaxed mb-8">
-              Before creating your first event, customize your theme to match your brand.
-              Every interactive game requires branded visuals, custom colors, and score targets to go live.
+              {t('onboarding.heroSubtitle')}
             </p>
 
             {/* Theme Ready Banner if already created */}
@@ -187,9 +188,9 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
               <div className="mb-8 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-left flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="text-xs">
-                  <p className="font-bold text-emerald-900">Your organization has a customized theme!</p>
+                  <p className="font-bold text-emerald-900">{t('onboarding.themeReady')}</p>
                   <p className="text-emerald-700 mt-0.5">
-                    You can continue directly to event creation or customize your theme further.
+                    {t('onboarding.themeReadyDesc')}
                   </p>
                 </div>
               </div>
@@ -197,9 +198,9 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
               <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left flex items-start gap-3">
                 <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-900">
-                  <p className="font-bold">Theme setup is required</p>
+                  <p className="font-bold">{t('onboarding.themeRequired')}</p>
                   <p className="text-amber-700 mt-0.5">
-                    Event creation is locked until you save your brand theme. Once saved, event creation will automatically unlock.
+                    {t('onboarding.themeRequiredDesc')}
                   </p>
                 </div>
               </div>
@@ -212,8 +213,8 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
                   <Sliders className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-800">Brand Colors</div>
-                  <div className="text-[11px] text-slate-500">Logos & palette</div>
+                  <div className="text-xs font-bold text-slate-800">{t('onboarding.brandColors')}</div>
+                  <div className="text-[11px] text-slate-500">{t('onboarding.brandColorsDesc')}</div>
                 </div>
               </div>
 
@@ -222,8 +223,8 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
                   <ImageIcon className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-800">Game Targets</div>
-                  <div className="text-[11px] text-slate-500">Rewards & hazards</div>
+                  <div className="text-xs font-bold text-slate-800">{t('onboarding.gameTargets')}</div>
+                  <div className="text-[11px] text-slate-500">{t('onboarding.gameTargetsDesc')}</div>
                 </div>
               </div>
 
@@ -232,8 +233,8 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
                   <Layers className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-800">Audio & SFX</div>
-                  <div className="text-[11px] text-slate-500">Catch & win cues</div>
+                  <div className="text-xs font-bold text-slate-800">{t('onboarding.audioSfx')}</div>
+                  <div className="text-[11px] text-slate-500">{t('onboarding.audioSfxDesc')}</div>
                 </div>
               </div>
             </div>
@@ -255,11 +256,11 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
                 {startingCustomization ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Preparing Theme Editor...</span>
+                    <span>{t('onboarding.preparingThemeEditor')}</span>
                   </>
                 ) : (
                   <>
-                    <span>Customize My Theme</span>
+                    <span>{t('onboarding.customizeMyTheme')}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -269,24 +270,24 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigateTo('/events?create=true')}
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Calendar className="w-4 h-4 text-amber-400" />
-                  <span>Create First Event</span>
+                  <span>{t('onboarding.createFirstEvent')}</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={handleReturnToDashboard}
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-sm transition-all"
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-sm transition-all cursor-pointer"
                 >
-                  Return to Dashboard
+                  {t('nav.dashboard')}
                 </button>
               )}
             </div>
 
             <p className="text-[11px] text-slate-400 mt-6">
-              You can return to the dashboard at any time, but event creation will remain locked until a theme is saved.
+              {t('onboarding.returnNotice')}
             </p>
           </div>
         </div>
@@ -294,3 +295,4 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
     </div>
   );
 };
+

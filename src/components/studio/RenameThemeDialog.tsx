@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GameTheme } from '../../themes';
+import { useLocalization } from '../../context/LocalizationContext';
 import { Edit3, AlertCircle, X, Loader2, Check } from 'lucide-react';
 
 export interface RenameThemeDialogProps {
@@ -23,6 +24,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
   existingThemes = [],
   onRename,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState(theme.name || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -52,10 +54,10 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
   const validate = (candidate: string): string | null => {
     const trimmed = candidate.trim();
     if (!trimmed) {
-      return 'Theme name is required';
+      return t('validation.required', undefined, 'Theme name is required');
     }
     if (trimmed.length > 60) {
-      return 'Theme name must not exceed 60 characters';
+      return t('validation.maxLength', { max: 60 }, 'Theme name must not exceed 60 characters');
     }
     // Prevent duplicate name within the organization if different from current theme name
     const isDuplicate = existingThemes.some(
@@ -65,7 +67,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
         t.name.trim().toLowerCase() === trimmed.toLowerCase()
     );
     if (isDuplicate) {
-      return 'A theme with this name already exists in your organization';
+      return t('studio.themeNameExists', undefined, 'A theme with this name already exists in your organization');
     }
     return null;
   };
@@ -137,10 +139,10 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
             </div>
             <div>
               <h3 id="rename-theme-title" className="text-lg font-black text-slate-100 tracking-tight">
-                Rename Theme
+                {t('studio.renameTheme')}
               </h3>
               <p className="text-xs text-slate-400">
-                Update the display name of your theme
+                {t('studio.renameThemeDesc', undefined, 'Update the display name of your theme')}
               </p>
             </div>
           </div>
@@ -149,7 +151,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
             onClick={onClose}
             disabled={isSubmitting}
             className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
-            aria-label="Close dialog"
+            aria-label={t('common.close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -157,9 +159,9 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
 
         {/* Current Theme Information */}
         <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl px-4 py-3 flex items-center justify-between gap-2">
-          <span className="text-xs text-slate-400 font-medium shrink-0">Current Name:</span>
+          <span className="text-xs text-slate-400 font-medium shrink-0">{t('studio.currentName')}:</span>
           <span className="text-xs font-bold text-slate-200 truncate text-right font-mono">
-            {theme.name || 'Untitled Theme'}
+            {theme.name || t('studio.untitledTheme', undefined, 'Untitled Theme')}
           </span>
         </div>
 
@@ -168,7 +170,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="rename-theme-input" className="text-xs font-bold text-slate-300">
-                New Theme Name
+                {t('studio.newThemeName')}
               </label>
               <span
                 className={`text-[11px] font-mono ${
@@ -190,7 +192,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
               onChange={handleNameChange}
               maxLength={60}
               disabled={isSubmitting}
-              placeholder="e.g. Neon Horizon, Summer Carnival"
+              placeholder={t('studio.themeNamePlaceholder')}
               className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 rounded-2xl px-4 py-3 text-slate-100 font-semibold text-sm outline-none transition-all placeholder:text-slate-600 disabled:opacity-60"
             />
           </div>
@@ -210,7 +212,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
           {isSuccess && (
             <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-400 animate-in fade-in">
               <Check className="w-4 h-4 shrink-0" />
-              <span className="font-semibold">Theme renamed successfully!</span>
+              <span className="font-semibold">{t('studio.themeRenamedSuccess')}</span>
             </div>
           )}
 
@@ -223,7 +225,7 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
               disabled={isSubmitting}
               className="px-5 py-2.5 rounded-2xl border border-slate-800 bg-slate-950/60 text-slate-300 hover:bg-slate-800 font-semibold text-xs transition-colors disabled:opacity-50 cursor-pointer"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -234,15 +236,15 @@ export const RenameThemeDialog: React.FC<RenameThemeDialogProps> = ({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
+                  <span>{t('common.saving')}</span>
                 </>
               ) : isSuccess ? (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Saved!</span>
+                  <span>{t('common.saved')}</span>
                 </>
               ) : (
-                <span>Save Name</span>
+                <span>{t('studio.saveName')}</span>
               )}
             </button>
           </div>

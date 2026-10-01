@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GameTheme, isMemoryMatchTheme } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchAudioTester } from './games/MemoryMatchCustomizer';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Volume2,
   VolumeX,
@@ -22,6 +23,7 @@ interface AudioTabProps {
 }
 
 export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
+  const { t } = useLocalization();
   const isMemoryMatch = isMemoryMatchTheme(theme);
 
   const [isPlayingBgmSample, setIsPlayingBgmSample] = useState(false);
@@ -69,9 +71,9 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
               <Volume2 className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Audio & Soundscapes</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('studio.audioAndSoundscapes', undefined, 'Audio & Soundscapes')}</h3>
               <p className="text-xs text-slate-400">
-                Procedural Web Audio synthesis and retro 8-bit sound effects (no heavy audio files required)
+                {t('studio.audioAndSoundscapesDesc', undefined, 'Procedural Web Audio synthesis and retro 8-bit sound effects (no heavy audio files required)')}
               </p>
             </div>
           </div>
@@ -87,7 +89,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
               }`}
             >
               {sounds.soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-              <span>{sounds.soundEnabled ? 'Audio Enabled' : 'Muted'}</span>
+              <span>{sounds.soundEnabled ? t('studio.audioEnabled') : t('common.muted', undefined, 'Muted')}</span>
             </button>
           </div>
         </div>
@@ -96,7 +98,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-slate-300">Master Sound Volume</span>
+              <span className="font-semibold text-slate-300">{t('studio.masterSoundVolume', undefined, 'Master Sound Volume')}</span>
               <span className="text-amber-400 font-bold font-mono">
                 {Math.round((sounds.soundVolume ?? 0.8) * 100)}%
               </span>
@@ -120,7 +122,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
             <div className="flex justify-between items-center text-xs">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                 <Music className="w-3.5 h-3.5 text-amber-400" />
-                BGM Background Arpeggiator
+                {t('studio.bgmArpeggiator', undefined, 'BGM Background Arpeggiator')}
               </span>
               <button
                 type="button"
@@ -132,11 +134,11 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 }`}
               >
                 {isPlayingBgmSample ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                <span>{isPlayingBgmSample ? 'Stop Music' : 'Test Music'}</span>
+                <span>{isPlayingBgmSample ? t('studio.stopMusic', undefined, 'Stop Music') : t('studio.testMusic', undefined, 'Test Music')}</span>
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Procedural chip tunes synthesize dynamic chord arpeggios live in browser memory
+              {t('studio.proceduralChiptunesDesc', undefined, 'Procedural chip tunes synthesize dynamic chord arpeggios live in browser memory')}
             </p>
           </div>
         </div>

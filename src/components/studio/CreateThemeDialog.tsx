@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { GameTheme, memoryMatchTheme, reactionTheme, defaultCatchBrandTheme, getDefaultThemeForGameType } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
+import { useLocalization } from '../../context/LocalizationContext';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
 
 interface CreateThemeDialogProps {
@@ -28,6 +29,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
   gameSlug,
   gameType,
 }) => {
+  const { t } = useLocalization();
   const [creationMode, setCreationMode] = useState<'scratch' | 'duplicate'>('scratch');
   const [themeName, setThemeName] = useState('');
   const [sourceThemeId, setSourceThemeId] = useState<string>(() => {
@@ -44,7 +46,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
     if (isSubmitting || isSubmittingRef.current) return;
 
     if (!themeName.trim()) {
-      setErrorMessage('Please enter a theme name');
+      setErrorMessage(t('validation.required', undefined, 'Please enter a theme name'));
       return;
     }
 
@@ -56,7 +58,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
       if (creationMode === 'duplicate') {
         const targetSource = sourceThemeId || existingThemes[0]?.id;
         if (!targetSource) {
-          throw new Error('Please select a source theme to duplicate');
+          throw new Error(t('studio.selectSourceTheme', undefined, 'Please select a source theme to duplicate'));
         }
         const newTheme = await onDuplicate(targetSource, themeName.trim());
         onCreated(newTheme.id);
@@ -158,15 +160,16 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
               <Plus className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-100 tracking-tight">Create New Theme</h3>
+              <h3 className="text-lg font-black text-slate-100 tracking-tight">{t('studio.createTheme')}</h3>
               <p className="text-xs text-slate-400">
-                {gameName ? `Set up a custom theme for ${gameName}` : 'Choose how you want to set up your game theme'}
+                {gameName ? `${t('studio.themeCustomizationDesc')}: ${gameName}` : t('studio.themeCustomizationDesc')}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label={t('common.close')}
             className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors"
           >
             <X className="w-4 h-4" />
@@ -198,9 +201,9 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
                 />
               </div>
               <div>
-                <h4 className="text-xs font-black text-slate-200">Start from scratch</h4>
+                <h4 className="text-xs font-black text-slate-200">{t('studio.startFromScratch')}</h4>
                 <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
-                  Clean baseline template ready for custom graphics & physics.
+                  {t('studio.startFromScratchDesc', undefined, 'Clean baseline template ready for custom graphics & physics.')}
                 </p>
               </div>
             </div>
@@ -227,9 +230,9 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
                 />
               </div>
               <div>
-                <h4 className="text-xs font-black text-slate-200">Duplicate existing theme</h4>
+                <h4 className="text-xs font-black text-slate-200">{t('studio.duplicateExistingTheme')}</h4>
                 <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
-                  Copy items, physics, audio, and branding from an existing theme.
+                  {t('studio.duplicateExistingThemeDesc', undefined, 'Copy items, physics, audio, and branding from an existing theme.')}
                 </p>
               </div>
             </div>
@@ -240,7 +243,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-2xl space-y-2">
               <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-blue-400" />
-                <span>Select Theme to Duplicate</span>
+                <span>{t('studio.selectThemeToDuplicate')}</span>
               </label>
               <select
                 value={sourceThemeId}
@@ -258,10 +261,10 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
 
           {/* Theme Name Input */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300">Theme Name</label>
+            <label className="text-xs font-bold text-slate-300">{t('studio.newThemeName')}</label>
             <input
               type="text"
-              placeholder="e.g. Summer Festival 2026, Neon Cyberpunk, Fruit Carnival"
+              placeholder={t('studio.themeNamePlaceholder')}
               value={themeName}
               onChange={(e) => setThemeName(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 placeholder:text-slate-600"
@@ -285,7 +288,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
               disabled={isSubmitting}
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold rounded-xl transition-all"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -295,12 +298,12 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                  <span>Creating...</span>
+                  <span>{t('common.creating')}</span>
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Continue</span>
+                  <span>{t('common.continue')}</span>
                 </>
               )}
             </button>

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   GameTheme,
   isMemoryMatchTheme,
@@ -48,6 +49,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const [showAdvancedBasket, setShowAdvancedBasket] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -283,9 +285,9 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
               <Layers className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Game Background Canvas</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('studio.gameBackgroundCanvas')}</h3>
               <p className="text-xs text-slate-400">
-                Upload a custom background banner for the game stage (16:9 aspect ratio, 1024×576 recommended)
+                {t('studio.visualEditor')}
               </p>
             </div>
           </div>
@@ -321,7 +323,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
               {/* Status Badge */}
               <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-slate-700/80 text-[11px] font-semibold text-slate-200 backdrop-blur-sm">
                 <ImageIcon className="w-3 h-3 text-amber-400" />
-                <span>Active Background</span>
+                <span>{t('studio.activeBackground')}</span>
               </div>
 
               {/* Dimensions hint badge */}
@@ -333,7 +335,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
               {uploadingAsset === 'background' && (
                 <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-amber-400">
                   <RefreshCw className="w-6 h-6 animate-spin" />
-                  <span className="text-xs font-bold text-slate-200">Uploading new background...</span>
+                  <span className="text-xs font-bold text-slate-200">{t('studio.uploadingNewBackground')}</span>
                 </div>
               )}
             </div>
@@ -356,20 +358,20 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                   type="button"
                   onClick={() => replaceFileInputRef.current?.click()}
                   disabled={uploadingAsset === 'background'}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all"
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'background' ? 'animate-spin' : ''}`} />
-                  <span>{uploadingAsset === 'background' ? 'Uploading...' : 'Replace Image'}</span>
+                  <span>{uploadingAsset === 'background' ? '...' : t('studio.uploadImage')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleRemoveBackground}
                   disabled={uploadingAsset === 'background'}
-                  className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/20 flex items-center gap-2 transition-all"
+                  className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/20 flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remove</span>
+                  <span>{t('common.remove')}</span>
                 </button>
               </div>
             </div>
@@ -439,9 +441,9 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                 <Sparkles className="w-4 h-4" />
               </span>
               <div>
-                <h3 className="text-sm font-bold text-slate-100">Card Back Artwork & Deck Styling</h3>
+                <h3 className="text-sm font-bold text-slate-100">{t('studio.cardBackArtworkAndDeckStyling')}</h3>
                 <p className="text-xs text-slate-400">
-                  Upload a custom card back sprite or pattern and configure card color palettes
+                  {t('studio.cardPairs')}
                 </p>
               </div>
             </div>
@@ -449,7 +451,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
 
           {/* Card Back Visual Upload / Preview Section */}
           <div className="space-y-2.5">
-            <label className="text-xs font-semibold text-slate-300">Card Back Face Artwork</label>
+            <label className="text-xs font-semibold text-slate-300">{t('studio.cardBackFaceArtwork')}</label>
 
             {catcherUploadError && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-rose-300">
@@ -1105,9 +1107,9 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                 <Sparkles className="w-4 h-4" />
               </span>
               <div>
-                <h3 className="text-sm font-bold text-slate-100">Catcher / Basket</h3>
+                <h3 className="text-sm font-bold text-slate-100">{t('studio.catcherBasket')}</h3>
                 <p className="text-xs text-slate-400">
-                  Configure the player-controlled catcher artwork, width, and catch opening
+                  {t('studio.gameControls')}
                 </p>
               </div>
             </div>
@@ -1115,7 +1117,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
 
           {/* Catcher Name */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">Catcher Name</label>
+            <label className="text-xs font-semibold text-slate-300">{t('studio.catcherName')}</label>
             <input
               type="text"
               value={theme.basket_config?.name || theme.basketName || 'Basket'}
@@ -1136,7 +1138,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
 
           {/* Catcher Artwork Visual Upload / Preview Section */}
           <div className="space-y-2.5">
-            <label className="text-xs font-semibold text-slate-300">Catcher Artwork</label>
+            <label className="text-xs font-semibold text-slate-300">{t('studio.catcherArtwork')}</label>
 
             {catcherUploadError && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-rose-300">
