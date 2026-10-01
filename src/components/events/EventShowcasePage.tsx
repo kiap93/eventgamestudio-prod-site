@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -58,6 +59,7 @@ const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
 
 export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId }) => {
+  const { t } = useLocalization();
   const { currentOrganization } = useAuth();
   const userRole = currentOrganization?.role || 'viewer';
   const isViewer = userRole === 'viewer';
@@ -719,7 +721,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16 text-center space-y-3">
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-slate-400 font-medium">Loading Event Showcase...</p>
+        <p className="text-xs text-slate-400 font-medium">{t('showcase.loadingShowcase')}</p>
       </div>
     );
   }
@@ -732,14 +734,14 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           onClick={() => navigateTo('/events')}
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Events
+          <ArrowLeft className="w-4 h-4" /> {t('event.backToEvents')}
         </button>
         <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-8 text-center space-y-4">
           <div className="w-14 h-14 bg-slate-800/80 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
             <Lock className="w-7 h-7" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-lg font-bold text-slate-100">Showcase Not Available</h2>
+            <h2 className="text-lg font-bold text-slate-100">{t('showcase.showcaseNotAvailable')}</h2>
             <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
               {eligibility.reason || 'Event Showcases can be created and published once the event starts.'}
             </p>
@@ -780,7 +782,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             onClick={() => setError(null)}
             className="text-[11px] text-red-400 hover:text-red-200 underline cursor-pointer"
           >
-            Dismiss
+            {t('common.dismiss')}
           </button>
         </div>
       )}
@@ -802,7 +804,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors py-1 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Events</span>
+            <span>{t('event.backToEvents')}</span>
           </button>
         </div>
 
@@ -815,10 +817,10 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
-                  Event Showcase
+                  {t('showcase.title')}
                 </h1>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                  <span>For Event:</span>
+                  <span>{t('showcase.forEvent')}</span>
                   <span className="font-semibold text-slate-200">{eventData?.name}</span>
                   {eventData?.public_token && (
                     <span className="font-mono text-[11px] text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
@@ -847,27 +849,27 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                   type="button"
                   onClick={() => window.open(`/showcase/${showcase?.id || eventId}`, '_blank')}
                   className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
-                  title="View Public Showcase in New Tab"
+                  title={t('showcase.viewPublicShowcaseTab')}
                 >
                   <Eye className="w-4 h-4 text-emerald-400" />
-                  <span>View Public Showcase</span>
+                  <span>{t('showcase.viewPublicShowcase')}</span>
                   <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                 </button>
                 <button
                   type="button"
                   onClick={handleShareShowcase}
                   className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
-                  title="Share Public Showcase URL"
+                  title={t('showcase.sharePublicShowcaseUrl')}
                 >
                   {copiedShowcase ? (
                     <>
                       <Check className="w-4 h-4 text-emerald-400" />
-                      <span className="text-emerald-400 font-bold">Link copied</span>
+                      <span className="text-emerald-400 font-bold">{t('common.copied')}</span>
                     </>
                   ) : (
                     <>
                       <Share2 className="w-4 h-4 text-amber-400" />
-                      <span>Share</span>
+                      <span>{t('common.share')}</span>
                     </>
                   )}
                 </button>
@@ -880,28 +882,28 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                 {(rewardSubmission?.status === 'APPROVED' || showcase?.reward_review_status === 'REWARDED' || rewardEligibility?.alreadyClaimed || rewardEligibility?.userRewardStatus === 'REWARDED' || rewardEligibility?.hasReceivedReward || userActiveSubmission?.status === 'APPROVED') ? (
                   <div
                     className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-sm"
-                    title="RM300 Showcase Reward has already been claimed for this account."
+                    title={t('showcase.rewardClaimedTitle', undefined, 'RM300 Showcase Reward has already been claimed for this account.')}
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>RM300 Reward Approved</span>
+                    <span>{t('showcase.rewardApproved')}</span>
                   </div>
                 ) : rewardSubmission?.status === 'PENDING' ? (
                   <button
                     type="button"
                     disabled
                     className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 opacity-90 cursor-not-allowed shadow-sm"
-                    title="Your RM300 reward submission is waiting for admin approval."
+                    title={t('showcase.rewardPendingDesc', undefined, 'Your RM300 reward submission is waiting for admin approval.')}
                   >
                     <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
-                    <span>Reward Submission Pending</span>
+                    <span>{t('showcase.rewardPending')}</span>
                   </button>
                 ) : (!rewardSubmission && (userActiveSubmission?.status === 'PENDING' || rewardEligibility?.hasPendingSubmission)) ? (
                   <div
                     className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 opacity-90 shadow-sm"
-                    title="You already have an RM300 showcase reward submission pending review for your account. Only one active claim is allowed at a time."
+                    title={t('showcase.rewardPendingAnotherEventTitle', undefined, 'You already have an RM300 showcase reward submission pending review for your account. Only one active claim is allowed at a time.')}
                   >
                     <Clock className="w-4 h-4 text-amber-400" />
-                    <span>Reward Claim Pending on Another Event</span>
+                    <span>{t('showcase.rewardPendingAnotherEvent')}</span>
                   </div>
                 ) : (
                   <>
@@ -911,7 +913,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                         title={rewardSubmission.rejection_reason || 'Reward submission rejected'}
                       >
                         <XCircle className="w-4 h-4 text-rose-400" />
-                        <span>Reward Submission Rejected</span>
+                        <span>{t('showcase.rewardRejected')}</span>
                       </div>
                     )}
 
@@ -923,10 +925,10 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                           onClick={handleSubmitReward}
                           disabled={submittingReward || saving}
                           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
-                          title="Submit this first-event showcase for RM300 Reward"
+                          title={t('showcase.submitForReward')}
                         >
                           <Gift className="w-4 h-4 text-slate-950" />
-                          <span>{submittingReward ? 'Submitting...' : rewardSubmission?.status === 'REJECTED' ? 'Resubmit for RM300 Reward' : 'Submit for RM300 Reward'}</span>
+                          <span>{submittingReward ? t('common.saving') : rewardSubmission?.status === 'REJECTED' ? t('showcase.resubmitForReward', undefined, 'Resubmit for RM300 Reward') : t('showcase.submitForRewardButton', undefined, 'Submit for RM300 Reward')}</span>
                         </button>
                       ) : rewardEligibility?.reason ? (
                         <div
@@ -983,7 +985,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="flex items-center gap-2.5">
               <Clock className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
               <span>
-                <strong>Reward Submission Pending:</strong> Your RM300 reward submission is waiting for admin approval.
+                <strong>{t('showcase.rewardPending')}:</strong> {t('showcase.rewardPendingDesc')}
               </span>
             </div>
             {rewardSubmission.submitted_at && (
@@ -999,7 +1001,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="space-y-1">
               <div className="flex items-center gap-2 font-bold text-rose-200">
                 <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>Reward Submission Rejected</span>
+                <span>{t('showcase.rewardRejected')}</span>
               </div>
               {rewardSubmission.rejection_reason && (
                 <p className="text-slate-300 text-xs pl-6">
@@ -1014,7 +1016,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-300">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>
-              <strong>RM300 Reward Approved:</strong> RM300 promotional credit has been granted to your account organization wallet.
+              <strong>{t('showcase.rewardApproved')}:</strong> {t('showcase.ownerRewardNotice')}
             </span>
           </div>
         )}
@@ -1037,7 +1039,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 space-y-6 shadow-lg">
         <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
           <FileText className="w-5 h-5 text-amber-400" />
-          <h2 className="text-base font-bold text-slate-100">Basic Information</h2>
+          <h2 className="text-base font-bold text-slate-100">{t('showcase.basicInfo')}</h2>
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
@@ -1106,7 +1108,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           {/* Client Logo Preview */}
           {clientLogoUrl && (
             <div className="flex items-center gap-3 p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
-              <span className="text-[11px] font-semibold text-slate-400">Client Logo Preview:</span>
+              <span className="text-[11px] font-semibold text-slate-400">{t('showcase.clientLogoPreview', undefined, 'Client Logo Preview:')}</span>
               <img
                 src={clientLogoUrl}
                 alt="Client Logo"
@@ -1124,7 +1126,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 space-y-4 shadow-lg">
         <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
           <ImageIcon className="w-5 h-5 text-emerald-400" />
-          <h2 className="text-base font-bold text-slate-100">Cover Image</h2>
+          <h2 className="text-base font-bold text-slate-100">{t('showcase.coverImage', undefined, 'Cover Image')}</h2>
         </div>
 
         <div className="space-y-4">
@@ -1182,7 +1184,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
             <ImageIcon className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-slate-100">Photos</h2>
+            <h2 className="text-base font-bold text-slate-100">{t('showcase.photos')}</h2>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
               {photos.length}
             </span>
@@ -1195,7 +1197,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Upload Photos</span>
+              <span>{t('showcase.uploadPhotos')}</span>
             </button>
           )}
         </div>
@@ -1228,7 +1230,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="flex flex-col items-center justify-center space-y-2">
               <UploadCloud className="w-6 h-6 text-emerald-400" />
               <p className="text-xs font-semibold text-slate-200">
-                Drag & Drop Photos here, or <span className="text-emerald-400 underline">Browse Files</span>
+                Drag & Drop Photos here, or <span className="text-emerald-400 underline">{t('common.browseFiles')}</span>
               </p>
               <span className="text-[11px] text-slate-500">
                 Supported formats: JPG, PNG, WEBP (Max 25MB each)
@@ -1268,7 +1270,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
             <Film className="w-5 h-5 text-purple-400" />
-            <h2 className="text-base font-bold text-slate-100">Videos</h2>
+            <h2 className="text-base font-bold text-slate-100">{t('showcase.videos')}</h2>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/10 border border-purple-500/30 text-purple-400">
               {videos.length}
             </span>
@@ -1281,7 +1283,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md shadow-purple-600/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Upload Videos</span>
+              <span>{t('showcase.uploadVideos')}</span>
             </button>
           )}
         </div>
@@ -1314,7 +1316,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="flex flex-col items-center justify-center space-y-2">
               <UploadCloud className="w-6 h-6 text-purple-400" />
               <p className="text-xs font-semibold text-slate-200">
-                Drag & Drop Videos here, or <span className="text-purple-400 underline">Browse Files</span>
+                Drag & Drop Videos here, or <span className="text-purple-400 underline">{t('common.browseFiles')}</span>
               </p>
               <span className="text-[11px] text-slate-500">
                 Supported formats: MP4, WEBM, MOV (Max 200MB each with direct upload)

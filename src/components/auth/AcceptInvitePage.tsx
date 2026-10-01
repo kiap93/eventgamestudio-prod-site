@@ -237,10 +237,10 @@ export const AcceptInvitePage: React.FC = () => {
             <div className="w-full p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-2 text-center">
               <div className="flex items-center justify-center gap-2 text-amber-400 font-bold">
                 <KeyRound className="w-4 h-4" />
-                <span>Google OAuth Client ID Needed</span>
+                <span>{t('auth.googleClientIdNeeded', undefined, 'Google OAuth Client ID Needed')}</span>
               </div>
               <p className="text-slate-300 leading-relaxed text-[11px]">
-                Please configure <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300">VITE_GOOGLE_CLIENT_ID</code> in your <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300">.env</code> file.
+                {t('auth.googleOauthOptionalDesc', undefined, 'Google OAuth client ID is not configured. Email & password registration and login are fully available!')}
               </p>
             </div>
           )}

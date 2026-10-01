@@ -303,7 +303,7 @@ export const PublicEventGameView: React.FC = () => {
           <Sparkles className="w-5 h-5 text-amber-400 absolute inset-0 m-auto animate-pulse" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-slate-200">Connecting to Event...</p>
+          <p className="text-sm font-semibold text-slate-200">{t('event.connectingToEvent')}</p>
           <p className="text-xs text-slate-500 font-mono">Token: {publicToken}</p>
         </div>
       </div>
@@ -489,7 +489,7 @@ export const PublicEventGameView: React.FC = () => {
               {formatDateOnly(liveOpenDate)}
             </div>
             <div className="text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-              {t('event.dateRange')}: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(endDate)}</span>
+              {t('event.dateRange')}: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> {t('common.to')} <span className="font-semibold text-slate-200">{formatDateOnly(endDate)}</span>
             </div>
             <p className="text-[11px] text-slate-500">
               {t('event.livePlayWillActivate')}

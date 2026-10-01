@@ -162,9 +162,9 @@ export const VerifyEmailPage: React.FC = () => {
             <div className="inline-flex items-center justify-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
               <RefreshCw className="w-8 h-8 animate-spin" />
             </div>
-            <h1 className="text-xl font-bold text-white">Verifying your email...</h1>
+            <h1 className="text-xl font-bold text-white">{t('auth.verifyingEmail')}</h1>
             <p className="text-sm text-slate-400">
-              Please wait while we confirm your email address and activate your account.
+              {t('auth.confirmingEmailDesc')}
             </p>
           </div>
         )}
@@ -179,25 +179,25 @@ export const VerifyEmailPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-white tracking-tight">Email Verified!</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">{t('auth.emailVerified')}</h1>
               <p className="text-sm text-slate-300 leading-relaxed">
-                {message || 'Your email has been verified successfully. Your account is now fully active.'}
+                {message || t('auth.emailVerifiedSuccess')}
               </p>
             </div>
 
             <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 text-xs text-slate-400 text-left space-y-1.5">
               <div className="text-slate-200 font-semibold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Account Activated</span>
+                <span>{t('auth.accountActivated')}</span>
               </div>
-              <p>You can now create organizations, configure branded games, and launch live event tournaments.</p>
+              <p>{t('auth.accountActivatedDesc')}</p>
             </div>
 
             <button
               onClick={handleContinue}
               className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
             >
-              <span>{isAuthenticated ? 'Continue to Event Game Studio' : t('common.signInToAccount')}</span>
+              <span>{isAuthenticated ? t('auth.continueToPlatform') : t('common.signInToAccount')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -212,7 +212,7 @@ export const VerifyEmailPage: React.FC = () => {
               <div className="inline-flex items-center justify-center p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-400">
                 <AlertTriangle className="w-8 h-8" />
               </div>
-              <h1 className="text-xl font-bold text-white">Verification Failed</h1>
+              <h1 className="text-xl font-bold text-white">{t('auth.verificationFailed')}</h1>
               <p className="text-xs text-rose-300 bg-rose-950/40 border border-rose-900/50 p-3 rounded-xl leading-relaxed">
                 {errorMessage}
               </p>
@@ -222,7 +222,7 @@ export const VerifyEmailPage: React.FC = () => {
             <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
               <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <Mail className="w-4 h-4 text-amber-400" />
-                <span>Request a new verification link</span>
+                <span>{t('auth.requestNewVerificationLink')}</span>
               </div>
 
               {resendSuccessMessage && (
@@ -242,7 +242,7 @@ export const VerifyEmailPage: React.FC = () => {
               <form onSubmit={handleResend} className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                    Email Address
+                    {t('auth.email')}
                   </label>
                   <input
                     type="email"
@@ -256,7 +256,7 @@ export const VerifyEmailPage: React.FC = () => {
 
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
                   <Info className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                  <span>Please also check your Spam/Junk folder.</span>
+                  <span>{t('auth.checkSpamFolder')}</span>
                 </div>
 
                 <button
@@ -267,7 +267,7 @@ export const VerifyEmailPage: React.FC = () => {
                   {resending ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Sending...</span>
+                      <span>{t('auth.sending')}</span>
                     </>
                   ) : resendCooldown > 0 ? (
                     <>
@@ -305,7 +305,7 @@ export const VerifyEmailPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight text-white">Check your email</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-white">{t('auth.checkYourEmail')}</h1>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {maskedDisplayEmail ? (
                   <>
@@ -322,14 +322,14 @@ export const VerifyEmailPage: React.FC = () => {
             <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-left text-xs text-slate-400 space-y-2.5">
               <div className="text-slate-300 font-semibold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Mandatory Email Verification</span>
+                <span>{t('auth.mandatoryEmailVerification')}</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                For security, accounts and promotional benefits remain inactive until your email address is verified.
+                {t('auth.mandatoryEmailVerificationDesc')}
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <span className="leading-relaxed">Please also check your Spam/Junk folder.</span>
+                <span className="leading-relaxed">{t('auth.checkSpamFolder')}</span>
               </div>
             </div>
 
@@ -339,12 +339,12 @@ export const VerifyEmailPage: React.FC = () => {
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
                 <div className="space-y-0.5">
                   <div className="font-semibold text-emerald-200">
-                    {alreadyVerified ? 'Already Verified' : 'Verification email sent.'}
+                    {alreadyVerified ? t('auth.alreadyVerified') : t('auth.verificationEmailSent')}
                   </div>
                   <div className="text-[11px] text-emerald-300/90 leading-relaxed">
                     {alreadyVerified
-                      ? 'This email is already verified. Please sign in to your account.'
-                      : 'Please check your inbox and Spam/Junk folder.'}
+                      ? t('auth.alreadyVerifiedDesc')
+                      : t('auth.checkSpamFolder')}
                   </div>
                 </div>
               </div>
@@ -364,7 +364,7 @@ export const VerifyEmailPage: React.FC = () => {
               <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/20 text-left">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
                 <div className="space-y-0.5">
-                  <div className="font-semibold text-rose-200">Unable to send verification email</div>
+                  <div className="font-semibold text-rose-200">{t('auth.unableToSendVerificationEmail')}</div>
                   <div className="text-[11px] text-rose-300/90 leading-relaxed">{resendError}</div>
                 </div>
               </div>
@@ -373,7 +373,7 @@ export const VerifyEmailPage: React.FC = () => {
             {/* Resend Action Card */}
             {!alreadyVerified && (
               <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
-                <p className="text-xs text-slate-300 font-medium">Didn't receive the email?</p>
+                <p className="text-xs text-slate-300 font-medium">{t('auth.didntReceiveEmail')}</p>
 
                 {/* If email wasn't preserved, provide an input field */}
                 {!resendEmail && (
@@ -382,7 +382,7 @@ export const VerifyEmailPage: React.FC = () => {
                       type="email"
                       value={resendEmail}
                       onChange={(e) => setResendEmail(e.target.value)}
-                      placeholder="Enter your email address"
+                      placeholder={t('auth.enterEmailAddress')}
                       className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none transition-colors mb-2 text-center"
                     />
                   </div>
@@ -397,7 +397,7 @@ export const VerifyEmailPage: React.FC = () => {
                   {resending ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Sending...</span>
+                      <span>{t('auth.sending')}</span>
                     </>
                   ) : resendCooldown > 0 ? (
                     <>
@@ -413,7 +413,7 @@ export const VerifyEmailPage: React.FC = () => {
                 </button>
 
                 <p className="text-[11px] text-slate-400">
-                  Please also check your Spam/Junk folder.
+                  {t('auth.checkSpamFolder')}
                 </p>
               </div>
             )}

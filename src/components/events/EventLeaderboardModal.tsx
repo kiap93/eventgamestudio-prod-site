@@ -267,7 +267,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
         {/* Extended Gameplay Metrics (if available) */}
         {(stats?.completionRate !== undefined || stats?.averageMoves !== null || stats?.averageDuration !== null) && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-slate-950/50 border-b border-slate-800 text-xs text-slate-400">
-            <span className="font-semibold text-slate-300">Gameplay Metrics:</span>
+            <span className="font-semibold text-slate-300">{t('game.gameplayMetrics')}</span>
             {stats?.completionRate !== undefined && (
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-medium">
                 {stats.completionRate}% Completion Rate
@@ -314,7 +314,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-slate-100">Test Scores</span>
+                  <span className="text-sm font-bold text-slate-100">{t('game.testScores')}</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 border border-purple-500/30 text-purple-300">
                     Pre-Event
                   </span>
@@ -336,10 +336,10 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                     ? 'bg-slate-800/40 text-slate-500 border border-slate-800/80 cursor-not-allowed'
                     : 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 hover:border-purple-400 active:scale-95'
                 }`}
-                title={displayTestScoresCount === 0 ? 'No test scores to clear' : 'Clear all test scores'}
+                title={displayTestScoresCount === 0 ? t('event.noTestScoresToClear', undefined, 'No test scores to clear') : t('event.clearTestScores')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Clear Test Scores</span>
+                <span>{t('event.clearTestScores')}</span>
               </button>
             )}
           </div>
@@ -351,7 +351,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search player nickname..."
+              placeholder={t('game.searchPlayerNickname')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition-colors"
@@ -361,7 +361,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                 onClick={() => setSearchTerm('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
               >
-                Clear
+                {t('common.clear', undefined, 'Clear')}
               </button>
             )}
           </div>
@@ -372,7 +372,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
               className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shrink-0"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Reset Board</span>
+              <span>{t('game.resetBoard')}</span>
             </button>
           )}
         </div>
@@ -388,7 +388,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
           {loading ? (
             <div className="py-16 text-center text-slate-400 flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Loading Event High Scores...</span>
+              <span className="text-xs">{t('game.loadingHighScores')}</span>
             </div>
           ) : filteredScores.length === 0 ? (
             <div className="py-16 text-center text-slate-400">
@@ -481,7 +481,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                           onClick={() => handleDeleteScore(entry.id)}
                           disabled={deletingId === entry.id}
                           className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                          title="Delete Score Entry"
+                          title={t('game.deleteScoreEntry')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -500,7 +500,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
             <div className="flex items-center gap-2 text-left">
               <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
               <div className="text-xs">
-                <span className="font-bold text-red-300 block">Reset entire leaderboard?</span>
+                <span className="font-bold text-red-300 block">{t('game.resetBoardConfirm')}</span>
                 <span className="text-red-400/80">This will permanently delete all {scores.length} scores for this event.</span>
               </div>
             </div>
@@ -531,7 +531,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                   <AlertTriangle className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Clear all test scores?</h3>
+                  <h3 className="text-base font-bold text-white">{t('game.clearTestScoresConfirm')}</h3>
                   <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
                     This will permanently remove all TEST scores for this event. LIVE scores will not be affected.
                   </p>
@@ -558,12 +558,12 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                   {isClearingTestScores ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Clearing...</span>
+                      <span>{t('common.clearing')}</span>
                     </>
                   ) : (
                     <>
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Clear Test Scores</span>
+                      <span>{t('event.clearTestScores')}</span>
                     </>
                   )}
                 </button>

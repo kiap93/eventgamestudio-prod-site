@@ -485,7 +485,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
             <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
             <div className="space-y-1">
               <h3 className="text-sm font-bold text-slate-200">{t('common.loading', undefined, 'Loading your events...')}</h3>
-              <p className="text-xs text-slate-400">Retrieving your event deployments. This may take a moment.</p>
+              <p className="text-xs text-slate-400">{t('event.retrievingDeployments')}</p>
             </div>
             <div className="h-96 bg-slate-950/40 rounded-2xl border border-slate-800/60 animate-pulse mt-6" />
           </div>
@@ -562,7 +562,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                 <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
                 <div className="space-y-1">
                   <h3 className="text-sm font-bold text-slate-200">{t('common.loading', undefined, 'Loading your events...')}</h3>
-                  <p className="text-xs text-slate-400">Retrieving your event deployments. This may take a moment.</p>
+                  <p className="text-xs text-slate-400">{t('event.retrievingDeployments')}</p>
                 </div>
               </div>
 

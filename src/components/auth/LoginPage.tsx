@@ -346,7 +346,7 @@ export const LoginPage: React.FC = () => {
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors py-2 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/30 group cursor-pointer shadow-md"
         >
           <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform text-amber-400" />
-          <span>Back to EventGameStudio</span>
+          <span>{t('auth.backToEventGameStudio')}</span>
         </button>
       </div>
 
@@ -360,7 +360,7 @@ export const LoginPage: React.FC = () => {
             Event Game Studio
           </h1>
           <p className="text-slate-400 text-xs mt-1">
-            Multi-Tenant Custom Game Platform for Enterprise & Brands
+            {t('auth.platformTagline')}
           </p>
         </div>
 
@@ -416,12 +416,12 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-white tracking-tight">Email verification required</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">{t('auth.emailVerificationRequired')}</h2>
               <p className="text-xs text-amber-300 font-semibold leading-relaxed">
-                Your email address has not been verified.
+                {t('auth.emailUnverifiedNotice')}
               </p>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Please check your inbox and Spam/Junk folder.
+                {t('auth.checkSpamFolder')}
               </p>
               {unverifiedEmail && (
                 <div className="inline-block bg-slate-950/80 border border-slate-800 px-3.5 py-1.5 rounded-lg text-amber-400 font-mono text-xs mt-1 shadow-inner">
@@ -433,14 +433,14 @@ export const LoginPage: React.FC = () => {
             <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-left text-xs text-slate-400 space-y-2.5">
               <div className="text-slate-300 font-semibold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Mandatory Email Verification</span>
+                <span>{t('auth.mandatoryEmailVerification')}</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                For security, accounts and promotional benefits remain inactive until your email address is verified.
+                {t('auth.mandatoryEmailVerificationDesc')}
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <span className="leading-relaxed">Please check your inbox and Spam/Junk folder.</span>
+                <span className="leading-relaxed">{t('auth.checkSpamFolder')}</span>
               </div>
             </div>
 
@@ -448,9 +448,9 @@ export const LoginPage: React.FC = () => {
               <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-start gap-2.5 shadow-lg shadow-emerald-950/20 text-left">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
                 <div className="space-y-0.5">
-                  <div className="font-semibold text-emerald-200">Verification email sent.</div>
+                  <div className="font-semibold text-emerald-200">{t('auth.verificationEmailSent')}</div>
                   <div className="text-[11px] text-emerald-300/90 leading-relaxed">
-                    Please check your inbox and spam folder.
+                    {t('auth.checkSpamFolder')}
                   </div>
                 </div>
               </div>
@@ -460,7 +460,7 @@ export const LoginPage: React.FC = () => {
               <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/20 text-left">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
                 <div className="space-y-0.5">
-                  <div className="font-semibold text-rose-200">Unable to send verification email</div>
+                  <div className="font-semibold text-rose-200">{t('auth.unableToSendVerificationEmail')}</div>
                   <div className="text-[11px] text-rose-300/90 leading-relaxed">{resendErrorMessage}</div>
                 </div>
               </div>
@@ -476,7 +476,7 @@ export const LoginPage: React.FC = () => {
                 {resendingVerification ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Sending...</span>
+                    <span>{t('auth.sending')}</span>
                   </>
                 ) : resendCooldown > 0 ? (
                   <>
@@ -491,7 +491,7 @@ export const LoginPage: React.FC = () => {
                 )}
               </button>
               <p className="text-[11px] text-slate-400">
-                Please also check your Spam/Junk folder.
+                {t('auth.checkSpamFolder')}
               </p>
             </div>
 
@@ -508,7 +508,7 @@ export const LoginPage: React.FC = () => {
                 className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Sign In</span>
+                <span>{t('auth.backToSignIn')}</span>
               </button>
             </div>
           </div>
@@ -522,15 +522,15 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-white tracking-tight">Check your email</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">{t('auth.checkYourEmail')}</h2>
               {unverifiedEmail ? (
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  We sent a verification link to{' '}
+                  {t('auth.sentVerificationTo')}{' '}
                   <span className="font-mono text-amber-400 font-semibold">{maskEmail(unverifiedEmail)}</span>.
                 </p>
               ) : (
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Account created. Please check your email and click the verification link to continue.
+                  {t('auth.accountCreatedCheckEmail')}
                 </p>
               )}
             </div>
@@ -538,14 +538,14 @@ export const LoginPage: React.FC = () => {
             <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-left text-xs text-slate-400 space-y-2.5">
               <div className="text-slate-300 font-semibold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Mandatory Email Verification</span>
+                <span>{t('auth.mandatoryEmailVerification')}</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                For security, accounts and promotional benefits remain inactive until your email address is verified.
+                {t('auth.mandatoryEmailVerificationDesc')}
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <span className="leading-relaxed">Please also check your Spam/Junk folder.</span>
+                <span className="leading-relaxed">{t('auth.checkSpamFolder')}</span>
               </div>
             </div>
 
@@ -553,9 +553,9 @@ export const LoginPage: React.FC = () => {
               <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-start gap-2.5 shadow-lg shadow-emerald-950/20 text-left">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
                 <div className="space-y-0.5">
-                  <div className="font-semibold text-emerald-200">Verification email sent.</div>
+                  <div className="font-semibold text-emerald-200">{t('auth.verificationEmailSent')}</div>
                   <div className="text-[11px] text-emerald-300/90 leading-relaxed">
-                    Please check your inbox and spam folder.
+                    {t('auth.checkSpamFolder')}
                   </div>
                 </div>
               </div>
@@ -565,14 +565,14 @@ export const LoginPage: React.FC = () => {
               <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/20 text-left">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
                 <div className="space-y-0.5">
-                  <div className="font-semibold text-rose-200">Unable to send verification email</div>
+                  <div className="font-semibold text-rose-200">{t('auth.unableToSendVerificationEmail')}</div>
                   <div className="text-[11px] text-rose-300/90 leading-relaxed">{resendErrorMessage}</div>
                 </div>
               </div>
             )}
 
             <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
-              <p className="text-xs text-slate-300 font-medium">Didn't receive the email?</p>
+              <p className="text-xs text-slate-300 font-medium">{t('auth.didntReceiveEmail')}</p>
               {unverifiedEmail && (
                 <button
                   type="button"
@@ -583,7 +583,7 @@ export const LoginPage: React.FC = () => {
                   {resendingVerification ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Sending...</span>
+                      <span>{t('auth.sending')}</span>
                     </>
                   ) : resendCooldown > 0 ? (
                     <>
@@ -599,7 +599,7 @@ export const LoginPage: React.FC = () => {
                 </button>
               )}
               <p className="text-[11px] text-slate-400">
-                Please also check your Spam/Junk folder.
+                {t('auth.checkSpamFolder')}
               </p>
             </div>
 
@@ -626,9 +626,9 @@ export const LoginPage: React.FC = () => {
           /* ========================================================================= */
           <div className="space-y-5">
             <div className="text-center space-y-1">
-              <h2 className="text-lg font-bold text-white">Reset Password</h2>
+              <h2 className="text-lg font-bold text-white">{t('auth.resetPassword')}</h2>
               <p className="text-xs text-slate-400">
-                Enter your account email to receive a password reset link.
+                {t('auth.enterEmailToReset')}
               </p>
             </div>
 
@@ -654,7 +654,7 @@ export const LoginPage: React.FC = () => {
               <form onSubmit={handleForgotPassword} className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    Email Address
+                    {t('auth.email')}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -664,7 +664,7 @@ export const LoginPage: React.FC = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@company.com"
+                      placeholder={t('auth.emailPlaceholder')}
                       className="w-full bg-slate-950/80 border border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl pl-9 pr-3 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600"
                       required
                     />
@@ -679,10 +679,10 @@ export const LoginPage: React.FC = () => {
                   {loading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Sending link...</span>
+                      <span>{t('auth.sendingLink')}</span>
                     </>
                   ) : (
-                    <span>Send Reset Link</span>
+                    <span>{t('auth.sendResetLink')}</span>
                   )}
                 </button>
 
@@ -695,7 +695,7 @@ export const LoginPage: React.FC = () => {
                     }}
                     className="text-xs text-slate-400 hover:text-amber-400 underline transition-colors"
                   >
-                    Back to Sign In
+                    {t('auth.backToSignIn')}
                   </button>
                 </div>
               </form>
@@ -720,7 +720,7 @@ export const LoginPage: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Sign In
+                {t('auth.signIn')}
               </button>
               <button
                 type="button"
@@ -734,7 +734,7 @@ export const LoginPage: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Create Account
+                {t('auth.createAccount')}
               </button>
             </div>
 
@@ -742,7 +742,7 @@ export const LoginPage: React.FC = () => {
             <form onSubmit={authMode === 'signin' ? handleSignIn : handleSignUp} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Email Address
+                  {t('auth.email')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -752,7 +752,7 @@ export const LoginPage: React.FC = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     className="w-full bg-slate-950/80 border border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl pl-9 pr-3 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600"
                     required
                   />
@@ -762,7 +762,7 @@ export const LoginPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-medium text-slate-300">
-                    Password
+                    {t('auth.password')}
                   </label>
                   {authMode === 'signin' && (
                     <button
@@ -773,7 +773,7 @@ export const LoginPage: React.FC = () => {
                       }}
                       className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
                     >
-                      Forgot password?
+                      {t('auth.forgotPassword')}
                     </button>
                   )}
                 </div>
@@ -803,7 +803,7 @@ export const LoginPage: React.FC = () => {
               {authMode === 'signup' && (
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    Confirm Password
+                    {t('auth.confirmPassword')}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -831,23 +831,23 @@ export const LoginPage: React.FC = () => {
               {/* Password checklist for Sign Up */}
               {authMode === 'signup' && (
                 <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 text-[11px] space-y-1">
-                  <div className="text-slate-400 font-semibold mb-0.5">Password requirements:</div>
+                  <div className="text-slate-400 font-semibold mb-0.5">{t('auth.passwordRequirements')}</div>
                   <div className={`flex items-center gap-1.5 ${hasMinLength ? 'text-emerald-400' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${hasMinLength ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                    <span>8+ characters</span>
+                    <span>{t('auth.atLeast8Chars')}</span>
                   </div>
                   <div className={`flex items-center gap-1.5 ${hasLetter ? 'text-emerald-400' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${hasLetter ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                    <span>At least one letter</span>
+                    <span>{t('auth.atLeastOneLetter')}</span>
                   </div>
                   <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-emerald-400' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${hasNumber ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                    <span>At least one number</span>
+                    <span>{t('auth.atLeastOneNumber')}</span>
                   </div>
                   {confirmPassword.length > 0 && (
                     <div className={`flex items-center gap-1.5 ${passwordsMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
                       <div className={`w-1.5 h-1.5 rounded-full ${passwordsMatch ? 'bg-emerald-400' : 'bg-rose-500'}`} />
-                      <span>{passwordsMatch ? 'Passwords match' : 'Passwords do not match'}</span>
+                      <span>{passwordsMatch ? t('auth.passwordsMatch') : t('auth.passwordMismatch')}</span>
                     </div>
                   )}
                 </div>
@@ -861,10 +861,10 @@ export const LoginPage: React.FC = () => {
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    <span>{authMode === 'signin' ? 'Signing in...' : 'Creating account...'}</span>
+                    <span>{authMode === 'signin' ? t('auth.signingIn') : t('auth.creatingAccount')}</span>
                   </>
                 ) : (
-                  <span>{authMode === 'signin' ? 'Sign In with Email' : 'Create Account'}</span>
+                  <span>{authMode === 'signin' ? t('auth.signIn') : t('auth.createAccount')}</span>
                 )}
               </button>
             </form>
@@ -875,7 +875,7 @@ export const LoginPage: React.FC = () => {
                 <div className="w-full border-t border-slate-800" />
               </div>
               <div className="relative flex justify-center text-[10px] uppercase font-bold text-slate-500">
-                <span className="bg-slate-900 px-3">Or continue with</span>
+                <span className="bg-slate-900 px-3">{t('auth.orContinueWith')}</span>
               </div>
             </div>
 
@@ -886,7 +886,7 @@ export const LoginPage: React.FC = () => {
                   <div ref={googleBtnRef} className="flex justify-center min-h-[44px]" />
                   {!gsiLoaded && (
                     <div className="text-xs text-slate-500 animate-pulse">
-                      Loading Google Sign-In SDK...
+                      {t('auth.loadingGoogleSdk')}
                     </div>
                   )}
                   <button
@@ -894,17 +894,17 @@ export const LoginPage: React.FC = () => {
                     onClick={triggerGooglePrompt}
                     className="text-xs text-slate-400 hover:text-amber-400 underline transition-colors pt-0.5"
                   >
-                    Or click here for Google One Tap Prompt
+                    {t('auth.googleOneTap')}
                   </button>
                 </div>
               ) : (
                 <div className="w-full p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1.5">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
                     <KeyRound className="w-3.5 h-3.5" />
-                    <span>Google OAuth Optional</span>
+                    <span>{t('auth.googleOAuthOptional')}</span>
                   </div>
                   <p className="text-slate-300 leading-relaxed text-[10px]">
-                    Google OAuth client ID is not configured. Email & password registration and login are fully available!
+                    {t('auth.googleOauthOptionalDesc')}
                   </p>
                 </div>
               )}
@@ -943,7 +943,7 @@ export const LoginPage: React.FC = () => {
         <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Encrypted Authentication</span>
+            <span>{t('auth.encryptedAuth')}</span>
           </div>
           <span>Event Game Studio</span>
         </div>

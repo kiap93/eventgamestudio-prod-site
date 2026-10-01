@@ -542,7 +542,7 @@ export const TeamMembersPage: React.FC = () => {
                           <button
                             onClick={() => handleRemoveMember(m.id, m.email)}
                             className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                            title="Remove member"
+                            title={t('team.removeMember')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

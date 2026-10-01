@@ -292,29 +292,29 @@ export const PublicGamesPage: React.FC = () => {
                 href="/corporate-event-games"
                 className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
-                <span className="text-slate-900 block">Corporate Event Games</span>
-                <span className="text-[11px] text-slate-500 font-normal">Annual Dinners & Galas →</span>
+                <span className="text-slate-900 block">{t('seoSolutions.corporateGamesTitle')}</span>
+                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.corporateGamesSubtitle')}</span>
               </InternalLink>
               <InternalLink
                 href="/brand-activation-games"
                 className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
-                <span className="text-slate-900 block">Brand Activations</span>
-                <span className="text-[11px] text-slate-500 font-normal">Pop-Ups & Retail Tours →</span>
+                <span className="text-slate-900 block">{t('seoSolutions.brandActivationsTitle')}</span>
+                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.brandActivationsSubtitle')}</span>
               </InternalLink>
               <InternalLink
                 href="/roadshow-games"
                 className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
-                <span className="text-slate-900 block">Roadshow Games</span>
-                <span className="text-[11px] text-slate-500 font-normal">Mall Kiosks & Touchscreens →</span>
+                <span className="text-slate-900 block">{t('seoSolutions.roadshowGamesTitle')}</span>
+                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.roadshowGamesSubtitle')}</span>
               </InternalLink>
               <InternalLink
                 href="/exhibition-games"
                 className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
-                <span className="text-slate-900 block">Exhibition Games</span>
-                <span className="text-[11px] text-slate-500 font-normal">Trade Booth Crowd Magnets →</span>
+                <span className="text-slate-900 block">{t('seoSolutions.exhibitionGamesTitle')}</span>
+                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.exhibitionGamesSubtitle')}</span>
               </InternalLink>
             </div>
           </div>

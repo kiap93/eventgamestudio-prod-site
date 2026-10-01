@@ -179,7 +179,7 @@ export const EventTranslationsModal: React.FC<EventTranslationsModalProps> = ({
 
       setStatusMessage({
         type: 'success',
-        text: `AI translation generated for ${currentLangConfig.nativeName}. Review and click "Save Translation" to commit.`,
+        text: t('translations.aiTranslationGenerated', { language: currentLangConfig.nativeName }, `AI translation generated for ${currentLangConfig.nativeName}. Review and click "Save Translation" to commit.`),
       });
     } catch (err: any) {
       setStatusMessage({
@@ -483,7 +483,7 @@ export const EventTranslationsModal: React.FC<EventTranslationsModalProps> = ({
                   rows={4}
                   value={formFields.description}
                   onChange={(e) => setFormFields((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="Enter localized event description..."
+                  placeholder={t('translations.enterDescriptionPlaceholder', undefined, 'Enter localized event description...')}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors resize-none leading-relaxed"
                 />
               </div>
@@ -496,7 +496,7 @@ export const EventTranslationsModal: React.FC<EventTranslationsModalProps> = ({
                   rows={3}
                   value={formFields.game_instructions}
                   onChange={(e) => setFormFields((prev) => ({ ...prev, game_instructions: e.target.value }))}
-                  placeholder="Enter localized gameplay instructions..."
+                  placeholder={t('translations.enterInstructionsPlaceholder', undefined, 'Enter localized gameplay instructions...')}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors resize-none leading-relaxed"
                 />
               </div>

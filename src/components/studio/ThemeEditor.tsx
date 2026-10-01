@@ -14,6 +14,7 @@ import { GameShell } from '../shell/GameShell';
 import { LayoutElementKey, GameLayoutConfig, getDefaultUILayout } from '../../themes/layout';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { RenameThemeDialog } from './RenameThemeDialog';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   ArrowLeft,
   Palette,
@@ -52,6 +53,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
     activeGame,
     fetchThemes,
   } = useAuth();
+  const { t } = useLocalization();
 
   const role = currentOrganization?.role || 'viewer';
   const isViewer = role === 'viewer';
@@ -314,13 +316,13 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400 space-y-4">
         <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="font-bold text-xs tracking-wider uppercase">Loading Theme Configuration...</p>
+        <p className="font-bold text-xs tracking-wider uppercase">{t('studio.loadingThemeConfig')}</p>
         <button
           onClick={onBack}
           className="text-xs text-amber-400 hover:underline inline-flex items-center gap-1 mt-2"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Return to Themes</span>
+          <span>{t('studio.returnToThemes')}</span>
         </button>
       </div>
     );
@@ -352,7 +354,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                 className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 text-amber-400" />
-                <span>Back to Editor</span>
+                <span>{t('studio.backToEditor')}</span>
               </button>
 
               <div className="h-5 w-px bg-slate-800 hidden sm:block shrink-0" />
@@ -364,7 +366,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                   {draftTheme.name}
                 </h1>
                 <span className="text-[11px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800 hidden md:inline-block shrink-0">
-                  Live Game Mode
+                  {t('studio.liveGameMode')}
                 </span>
               </div>
             </div>
@@ -375,24 +377,24 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                 type="button"
                 onClick={() => setRestartKey((prev) => prev + 1)}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title="Restart game"
+                title={t('studio.restartGame')}
               >
                 <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                <span>Restart</span>
+                <span>{t('common.restart')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleToggleFullscreen}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+                title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
               >
                 {isFullscreen ? (
                   <Minimize2 className="w-3.5 h-3.5 text-slate-300" />
                 ) : (
                   <Maximize2 className="w-3.5 h-3.5 text-slate-300" />
                 )}
-                <span className="hidden sm:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+                <span className="hidden sm:inline">{isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}</span>
               </button>
             </div>
           </header>
@@ -422,10 +424,10 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             type="button"
             onClick={handleCloseFullscreen}
             className="fixed top-4 right-4 z-[100000] flex items-center gap-2 px-4 py-2 bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-2xl backdrop-blur-md cursor-pointer"
-            title="Exit Fullscreen Mode (Esc)"
+            title={t('studio.closeFullscreen')}
           >
             <Minimize2 className="w-4 h-4 text-amber-400" />
-            <span>Close Fullscreen</span>
+            <span>{t('studio.closeFullscreen')}</span>
             <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
               ESC
             </span>
@@ -451,7 +453,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-2xl text-xs font-bold transition-all shadow-sm shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-amber-400" />
-            <span>Back to Themes</span>
+            <span>{t('studio.returnToThemes')}</span>
           </button>
 
           <div className="space-y-1">
@@ -467,11 +469,11 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                   id="theme-editor-rename-button"
                   onClick={() => setShowRenameModal(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700/80 active:scale-95 text-slate-300 hover:text-amber-400 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
-                  title="Rename Theme"
-                  aria-label="Rename Theme"
+                  title={t('studio.renameTheme')}
+                  aria-label={t('studio.renameTheme')}
                 >
                   <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Rename</span>
+                  <span>{t('common.rename')}</span>
                 </button>
               )}
 
@@ -479,13 +481,13 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               {draftTheme.status === 'draft' && (
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Draft</span>
+                  <span>{t('common.draft')}</span>
                 </span>
               )}
               {draftTheme.status === 'archived' && (
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                  <span>Archived</span>
+                  <span>{t('common.archived')}</span>
                 </span>
               )}
 
@@ -493,17 +495,17 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               {hasUnsavedChanges ? (
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  Unsaved changes
+                  {t('studio.unsavedChanges')}
                 </span>
               ) : (
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/80 text-[11px] font-semibold flex items-center gap-1">
                   <Check className="w-3 h-3 text-emerald-400" />
-                  All changes saved
+                  {t('studio.allChangesSaved')}
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-400">
-              Customize visuals, drop collectibles, physics tuning, layout positioning, and audio for this theme.
+              {t('studio.themeCustomizationDesc')}
             </p>
           </div>
         </div>
@@ -517,10 +519,10 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               onClick={handleResetDraft}
               disabled={saving}
               className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700"
-              title="Discard unsaved edits and restore last saved state"
+              title={t('studio.discardEditsDesc')}
             >
               <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-              <span>Reset</span>
+              <span>{t('common.reset')}</span>
             </button>
           )}
 
@@ -529,10 +531,10 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             type="button"
             onClick={() => setIsPlayingLiveGame(true)}
             className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-md"
-            title="Play live game in clean full-page mode with the current draft theme"
+            title={t('studio.playLiveGameDesc')}
           >
             <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Play Live Game</span>
+            <span>{t('studio.playLiveGame')}</span>
           </button>
 
           {/* PRIMARY ACTION: SAVE THEME */}
@@ -585,20 +587,20 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
           <div className="flex items-center gap-2.5">
             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
             <div>
-              <span className="font-bold text-amber-300">Mandatory Theme Setup (Step 1 of 3):</span>{' '}
+              <span className="font-bold text-amber-300">{t('studio.mandatoryThemeSetup')}</span>{' '}
               <span className="text-slate-300">
-                Customize your brand theme, then click &apos;Save &amp; Continue&apos; to unlock event creation.
+                {t('studio.mandatoryThemeDesc')}
               </span>
             </div>
           </div>
           {saveSuccess && !hasUnsavedChanges ? (
             <span className="font-bold text-emerald-400 shrink-0 flex items-center gap-1.5 animate-pulse">
               <Check className="w-4 h-4 text-emerald-400" />
-              Theme setup complete! Redirecting to create event...
+              {t('studio.themeSetupCompleteRedirect')}
             </span>
           ) : (
             <span className="text-[11px] text-amber-300/80 shrink-0 bg-amber-500/20 px-2.5 py-1 rounded-full font-semibold">
-              Event creation unlocks on save
+              {t('studio.eventCreationUnlocksOnSave')}
             </span>
           )}
         </div>
@@ -613,10 +615,10 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             </div>
             <div>
               <h4 className="text-sm font-black text-slate-100 flex items-center gap-2">
-                <span>Theme saved successfully</span>
+                <span>{t('studio.themeSaved')}</span>
               </h4>
               <p className="text-xs text-emerald-300/80 font-medium mt-0.5">
-                Your theme changes have been saved and are ready to be used in events.
+                {t('studio.themeSavedDesc')}
               </p>
             </div>
           </div>
@@ -628,7 +630,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"
             >
               <Gamepad2 className="w-4 h-4" />
-              <span>Play Live Game</span>
+              <span>{t('studio.playLiveGame')}</span>
             </button>
 
             <button
@@ -637,7 +639,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 active:scale-95"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
-              <span>Back to Themes</span>
+              <span>{t('studio.returnToThemes')}</span>
             </button>
           </div>
         </div>

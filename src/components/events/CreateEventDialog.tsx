@@ -697,7 +697,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. ABC Company Annual Summit 2026"
+                  placeholder={t('event.namePlaceholder')}
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-sm focus:outline-none transition-all placeholder:text-slate-600"
                 />
               </div>
@@ -911,7 +911,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 {isEndDateBeforeStartDate && (
                   <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2 text-xs text-rose-400">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                    <span>The event end date cannot be earlier than the start date. Please select a valid date range.</span>
+                    <span>{t('event.dateRangeInvalid')}</span>
                   </div>
                 )}
 
@@ -927,7 +927,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       {t('event.timezone', undefined, 'Event Timezone')}
                     </label>
                     <span className="text-[10px] text-slate-500">
-                      Evaluates setup day & midnight cutoffs
+                      {t('event.evaluatesTimezone')}
                     </span>
                   </div>
                   <div className="relative">
@@ -951,10 +951,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-1.5 text-xs text-slate-400">
                 <div className="flex items-center gap-2 text-slate-200 font-semibold">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Instant URL Creation</span>
+                  <span>{t('event.instantUrlCreation')}</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Your event will be created and receive its permanent URL immediately. You can test and inspect the game before completing payment & activation.
+                  {t('event.instantUrlCreationDesc')}
                 </p>
               </div>
             </div>
@@ -1061,7 +1061,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
                   <span>{t('event.previewGame', undefined, 'Private Preview URL')}</span>
                 </span>
-                <span className="text-[10px] text-purple-400 font-medium">Owner & Tester Access Only</span>
+                <span className="text-[10px] text-purple-400 font-medium">{t('event.ownerTesterOnly')}</span>
               </label>
               <div className="flex items-center gap-2 bg-slate-950 border border-purple-500/30 rounded-xl p-2.5">
                 <span className="font-mono text-xs text-purple-200 truncate flex-1 pl-1">
@@ -1091,9 +1091,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-bold text-amber-300">Public player link is generated ONLY after payment confirmation</p>
+                <p className="font-bold text-amber-300">{t('event.publicUrlAfterPayment')}</p>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  You can test gameplay and verify theme configurations via the preview link above. To publish the event to the public and start live leaderboard scoring, proceed to payment and activation.
+                  {t('event.publicUrlAfterPaymentDesc')}
                 </p>
               </div>
             </div>
@@ -1214,7 +1214,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-300">{t('payment.credits', undefined, 'Apply Credits')}</label>
-                      <span className="text-[11px] text-slate-400">Select the credits you want to use for this event.</span>
+                      <span className="text-[11px] text-slate-400">{t('payment.selectCreditsNotice')}</span>
                     </div>
 
                     <div className="space-y-2">
@@ -1265,7 +1265,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                               {useWelcomeCredit ? `-${formatCurrency(eligibleWelcomeCredit)}` : 'Deselected'}
                             </div>
                             <div className="text-[10px] text-slate-400">
-                              {useWelcomeCredit ? 'Applied to price' : 'Click to apply'}
+                              {useWelcomeCredit ? t('payment.appliedToPrice') : t('payment.clickToApply')}
                             </div>
                           </div>
                         </div>
@@ -1275,7 +1275,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <Sparkles className="w-3.5 h-3.5 text-slate-400" />
                             {t('payment.welcomeCredits', undefined, 'Welcome Credit')}
                           </span>
-                          <span className="text-[11px]">RM0.00 Available</span>
+                          <span className="text-[11px]">{formatCurrency(0)} {t('common.available')}</span>
                         </div>
                       )}
 
@@ -1326,7 +1326,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                               {useEventCredit ? `-${formatCurrency(eligibleEventCredit)}` : 'Deselected'}
                             </div>
                             <div className="text-[10px] text-slate-400">
-                              {useEventCredit ? 'Applied to price' : 'Click to apply'}
+                              {useEventCredit ? t('payment.appliedToPrice') : t('payment.clickToApply')}
                             </div>
                           </div>
                         </div>
@@ -1336,7 +1336,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <Sparkles className="w-3.5 h-3.5 text-slate-400" />
                             {t('payment.credits', undefined, 'Event Credit')}
                           </span>
-                          <span className="text-[11px]">RM0.00 Available</span>
+                          <span className="text-[11px]">{formatCurrency(0)} {t('common.available')}</span>
                         </div>
                       )}
                     </div>
@@ -1481,7 +1481,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
             <div className="space-y-1.5">
               <h2 className="text-2xl font-black text-slate-100">{t('payment.paymentSuccessful', undefined, 'Event Activated & Live!')}</h2>
-              <p className="text-xs text-slate-400">Payment confirmed. Your event is now LIVE and the public player URL is ready.</p>
+              <p className="text-xs text-slate-400">{t('event.paymentConfirmedLive')}</p>
             </div>
 
             {/* Public Link Box */}

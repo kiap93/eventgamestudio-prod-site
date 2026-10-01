@@ -125,15 +125,15 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
             <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div className="text-xs text-amber-200/90 leading-relaxed space-y-1">
-                <p className="font-semibold text-amber-300">Country Setup Pending</p>
+                <p className="font-semibold text-amber-300">{t('auth.countrySetupPending')}</p>
                 <p className="text-[11px]">
-                  Your organization does not have a business country configured yet. Only an organization <strong className="text-amber-200">Owner</strong> or <strong className="text-amber-200">Admin</strong> can set the country.
+                  {t('auth.countrySetupPendingDesc')}
                 </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-400">
-              Please contact your organization administrator to complete the country profile setup.
+              {t('auth.contactAdminCountry')}
             </p>
           </div>
         )}

@@ -305,7 +305,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                 : 'Created'}
             </span>
           ) : (
-            <span className="text-slate-500">Not Created</span>
+            <span className="text-slate-500">{t('showcase.notCreated')}</span>
           )}
         </div>
 
@@ -319,7 +319,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                   navigateTo(`/events/${event.id}/showcase`);
                 }}
                 className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                title="Manage Event Showcase"
+                title={t('showcase.manageShowcase')}
               >
                 <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>{t('common.manage', undefined, 'Manage')}</span>
@@ -335,7 +335,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                     window.open(`/showcase/${targetShowcaseId}`, '_blank');
                   }}
                   className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                  title="View Public Showcase"
+                  title={t('showcase.viewPublicShowcase')}
                 >
                   <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span>{t('common.view', undefined, 'View')}</span>
@@ -344,7 +344,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                   type="button"
                   onClick={handleShareShowcase}
                   className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                  title="Share Public Showcase URL"
+                  title={t('showcase.sharePublicShowcaseUrl')}
                 >
                   {copiedShowcase ? (
                     <>
@@ -367,7 +367,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                   window.open(`/showcase/${targetShowcaseId}`, '_blank');
                 }}
                 className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                title="Preview Showcase"
+                title={t('showcase.previewShowcase')}
               >
                 <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>{t('common.preview', undefined, 'Preview')}</span>

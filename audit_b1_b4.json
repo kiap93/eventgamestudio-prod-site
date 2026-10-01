@@ -1,0 +1,1147 @@
+{
+  "Batch 1 (Shared)": {
+    "src/components/common/SEO.tsx": [
+      {
+        "lineNum": 25,
+        "type": "JSX_TEXT",
+        "text": "| Record"
+      }
+    ],
+    "src/components/layout/DashboardLayout.tsx": [
+      {
+        "lineNum": 439,
+        "type": "TITLE_ATTR",
+        "text": "Account profile and settings"
+      }
+    ]
+  },
+  "Batch 2 (Landing/SEO)": {
+    "src/components/landing/LandingHeader.tsx": [
+      {
+        "lineNum": 129,
+        "type": "ARIA_LABEL",
+        "text": "EventGameStudio Home"
+      },
+      {
+        "lineNum": 135,
+        "type": "JSX_TEXT",
+        "text": "Studio"
+      },
+      {
+        "lineNum": 292,
+        "type": "ARIA_LABEL",
+        "text": "Toggle navigation menu"
+      }
+    ],
+    "src/components/landing/LandingEventShowcase.tsx": [
+      {
+        "lineNum": 118,
+        "type": "JSX_TEXT",
+        "text": "60 FPS Sync"
+      }
+    ],
+    "src/components/landing/LandingPricing.tsx": [
+      {
+        "lineNum": 218,
+        "type": "JSX_TEXT",
+        "text": "= 4 && selectedDays"
+      },
+      {
+        "lineNum": 219,
+        "type": "JSX_TEXT",
+        "text": "= 8 && selectedDays"
+      },
+      {
+        "lineNum": 220,
+        "type": "JSX_TEXT",
+        "text": "= 15 && selectedDays"
+      },
+      {
+        "lineNum": 328,
+        "type": "JSX_TEXT",
+        "text": "90) || !tier || tier.price"
+      }
+    ],
+    "src/components/landing/LandingFooter.tsx": [
+      {
+        "lineNum": 27,
+        "type": "JSX_TEXT",
+        "text": "Studio"
+      }
+    ],
+    "src/components/seo/PublicGamesPage.tsx": [
+      {
+        "lineNum": 295,
+        "type": "JSX_TEXT",
+        "text": "Corporate Event Games"
+      },
+      {
+        "lineNum": 296,
+        "type": "JSX_TEXT",
+        "text": "Annual Dinners & Galas →"
+      },
+      {
+        "lineNum": 302,
+        "type": "JSX_TEXT",
+        "text": "Brand Activations"
+      },
+      {
+        "lineNum": 303,
+        "type": "JSX_TEXT",
+        "text": "Pop-Ups & Retail Tours →"
+      },
+      {
+        "lineNum": 309,
+        "type": "JSX_TEXT",
+        "text": "Roadshow Games"
+      },
+      {
+        "lineNum": 310,
+        "type": "JSX_TEXT",
+        "text": "Mall Kiosks & Touchscreens →"
+      },
+      {
+        "lineNum": 316,
+        "type": "JSX_TEXT",
+        "text": "Exhibition Games"
+      },
+      {
+        "lineNum": 317,
+        "type": "JSX_TEXT",
+        "text": "Trade Booth Crowd Magnets →"
+      }
+    ],
+    "src/components/seo/SeoLandingPage.tsx": [
+      {
+        "lineNum": 629,
+        "type": "JSX_TEXT",
+        "text": "Why Event Game Studio"
+      },
+      {
+        "lineNum": 664,
+        "type": "JSX_TEXT",
+        "text": "Seamless Execution"
+      },
+      {
+        "lineNum": 692,
+        "type": "JSX_TEXT",
+        "text": "Proven Formats"
+      }
+    ]
+  },
+  "Batch 3 (Auth/Contact)": {
+    "src/components/auth/LoginPage.tsx": [
+      {
+        "lineNum": 349,
+        "type": "JSX_TEXT",
+        "text": "Back to EventGameStudio"
+      },
+      {
+        "lineNum": 419,
+        "type": "JSX_TEXT",
+        "text": "Email verification required"
+      },
+      {
+        "lineNum": 436,
+        "type": "JSX_TEXT",
+        "text": "Mandatory Email Verification"
+      },
+      {
+        "lineNum": 443,
+        "type": "JSX_TEXT",
+        "text": "Please check your inbox and Spam/Junk folder."
+      },
+      {
+        "lineNum": 451,
+        "type": "JSX_TEXT",
+        "text": "Verification email sent."
+      },
+      {
+        "lineNum": 463,
+        "type": "JSX_TEXT",
+        "text": "Unable to send verification email"
+      },
+      {
+        "lineNum": 479,
+        "type": "JSX_TEXT",
+        "text": "Sending..."
+      },
+      {
+        "lineNum": 511,
+        "type": "JSX_TEXT",
+        "text": "Back to Sign In"
+      },
+      {
+        "lineNum": 525,
+        "type": "JSX_TEXT",
+        "text": "Check your email"
+      },
+      {
+        "lineNum": 541,
+        "type": "JSX_TEXT",
+        "text": "Mandatory Email Verification"
+      },
+      {
+        "lineNum": 548,
+        "type": "JSX_TEXT",
+        "text": "Please also check your Spam/Junk folder."
+      },
+      {
+        "lineNum": 556,
+        "type": "JSX_TEXT",
+        "text": "Verification email sent."
+      },
+      {
+        "lineNum": 568,
+        "type": "JSX_TEXT",
+        "text": "Unable to send verification email"
+      },
+      {
+        "lineNum": 575,
+        "type": "JSX_TEXT",
+        "text": "Didn't receive the email?"
+      },
+      {
+        "lineNum": 586,
+        "type": "JSX_TEXT",
+        "text": "Sending..."
+      },
+      {
+        "lineNum": 629,
+        "type": "JSX_TEXT",
+        "text": "Reset Password"
+      },
+      {
+        "lineNum": 667,
+        "type": "PLACEHOLDER",
+        "text": "you@company.com"
+      },
+      {
+        "lineNum": 682,
+        "type": "JSX_TEXT",
+        "text": "Sending link..."
+      },
+      {
+        "lineNum": 685,
+        "type": "JSX_TEXT",
+        "text": "Send Reset Link"
+      },
+      {
+        "lineNum": 755,
+        "type": "PLACEHOLDER",
+        "text": "you@company.com"
+      },
+      {
+        "lineNum": 788,
+        "type": "PLACEHOLDER",
+        "text": "••••••••"
+      },
+      {
+        "lineNum": 816,
+        "type": "PLACEHOLDER",
+        "text": "••••••••"
+      },
+      {
+        "lineNum": 834,
+        "type": "JSX_TEXT",
+        "text": "Password requirements:"
+      },
+      {
+        "lineNum": 837,
+        "type": "JSX_TEXT",
+        "text": "8+ characters"
+      },
+      {
+        "lineNum": 841,
+        "type": "JSX_TEXT",
+        "text": "At least one letter"
+      },
+      {
+        "lineNum": 845,
+        "type": "JSX_TEXT",
+        "text": "At least one number"
+      },
+      {
+        "lineNum": 878,
+        "type": "JSX_TEXT",
+        "text": "Or continue with"
+      },
+      {
+        "lineNum": 904,
+        "type": "JSX_TEXT",
+        "text": "Google OAuth Optional"
+      },
+      {
+        "lineNum": 946,
+        "type": "JSX_TEXT",
+        "text": "Encrypted Authentication"
+      }
+    ],
+    "src/components/auth/CreateOrganizationPage.tsx": [
+      {
+        "lineNum": 125,
+        "type": "JSX_TEXT",
+        "text": "Organization Limit Reached (5 / 5)"
+      },
+      {
+        "lineNum": 149,
+        "type": "PLACEHOLDER",
+        "text": "e.g. Acme Games Studio, Apex Events"
+      },
+      {
+        "lineNum": 176,
+        "type": "PLACEHOLDER",
+        "text": "https://example.com/logo.png"
+      },
+      {
+        "lineNum": 184,
+        "type": "JSX_TEXT",
+        "text": "You will be assigned as Organization Owner"
+      }
+    ],
+    "src/components/auth/AcceptInvitePage.tsx": [
+      {
+        "lineNum": 240,
+        "type": "JSX_TEXT",
+        "text": "Google OAuth Client ID Needed"
+      },
+      {
+        "lineNum": 243,
+        "type": "JSX_TEXT",
+        "text": "VITE_GOOGLE_CLIENT_ID"
+      },
+      {
+        "lineNum": 243,
+        "type": "JSX_TEXT",
+        "text": "in your"
+      },
+      {
+        "lineNum": 243,
+        "type": "JSX_TEXT",
+        "text": ".env"
+      }
+    ],
+    "src/components/auth/ResetPasswordPage.tsx": [
+      {
+        "lineNum": 111,
+        "type": "JSX_TEXT",
+        "text": "Back to Sign In"
+      },
+      {
+        "lineNum": 124,
+        "type": "JSX_TEXT",
+        "text": "Password Reset Complete"
+      },
+      {
+        "lineNum": 134,
+        "type": "JSX_TEXT",
+        "text": "Sign In with New Password"
+      },
+      {
+        "lineNum": 144,
+        "type": "JSX_TEXT",
+        "text": "Invalid Reset Link"
+      },
+      {
+        "lineNum": 162,
+        "type": "JSX_TEXT",
+        "text": "Reset Your Password"
+      },
+      {
+        "lineNum": 188,
+        "type": "PLACEHOLDER",
+        "text": "Enter new password"
+      },
+      {
+        "lineNum": 214,
+        "type": "PLACEHOLDER",
+        "text": "Re-enter new password"
+      },
+      {
+        "lineNum": 230,
+        "type": "JSX_TEXT",
+        "text": "Password requirements:"
+      },
+      {
+        "lineNum": 233,
+        "type": "JSX_TEXT",
+        "text": "At least 8 characters"
+      },
+      {
+        "lineNum": 237,
+        "type": "JSX_TEXT",
+        "text": "At least one letter (a-z, A-Z)"
+      },
+      {
+        "lineNum": 241,
+        "type": "JSX_TEXT",
+        "text": "At least one number (0-9)"
+      },
+      {
+        "lineNum": 259,
+        "type": "JSX_TEXT",
+        "text": "Resetting Password..."
+      },
+      {
+        "lineNum": 283,
+        "type": "PLACEHOLDER",
+        "text": "Enter your email"
+      }
+    ],
+    "src/components/auth/SetOrganizationCountryModal.tsx": [
+      {
+        "lineNum": 128,
+        "type": "JSX_TEXT",
+        "text": "Country Setup Pending"
+      },
+      {
+        "lineNum": 130,
+        "type": "JSX_TEXT",
+        "text": "Owner"
+      },
+      {
+        "lineNum": 130,
+        "type": "JSX_TEXT",
+        "text": "or"
+      },
+      {
+        "lineNum": 130,
+        "type": "JSX_TEXT",
+        "text": "Admin"
+      }
+    ],
+    "src/components/auth/VerifyEmailPage.tsx": [
+      {
+        "lineNum": 165,
+        "type": "JSX_TEXT",
+        "text": "Verifying your email..."
+      },
+      {
+        "lineNum": 182,
+        "type": "JSX_TEXT",
+        "text": "Email Verified!"
+      },
+      {
+        "lineNum": 191,
+        "type": "JSX_TEXT",
+        "text": "Account Activated"
+      },
+      {
+        "lineNum": 193,
+        "type": "JSX_TEXT",
+        "text": "You can now create organizations, configure branded games, and launch live event tournaments."
+      },
+      {
+        "lineNum": 215,
+        "type": "JSX_TEXT",
+        "text": "Verification Failed"
+      },
+      {
+        "lineNum": 225,
+        "type": "JSX_TEXT",
+        "text": "Request a new verification link"
+      },
+      {
+        "lineNum": 251,
+        "type": "PLACEHOLDER",
+        "text": "you@company.com"
+      },
+      {
+        "lineNum": 259,
+        "type": "JSX_TEXT",
+        "text": "Please also check your Spam/Junk folder."
+      },
+      {
+        "lineNum": 270,
+        "type": "JSX_TEXT",
+        "text": "Sending..."
+      },
+      {
+        "lineNum": 308,
+        "type": "JSX_TEXT",
+        "text": "Check your email"
+      },
+      {
+        "lineNum": 325,
+        "type": "JSX_TEXT",
+        "text": "Mandatory Email Verification"
+      },
+      {
+        "lineNum": 332,
+        "type": "JSX_TEXT",
+        "text": "Please also check your Spam/Junk folder."
+      },
+      {
+        "lineNum": 367,
+        "type": "JSX_TEXT",
+        "text": "Unable to send verification email"
+      },
+      {
+        "lineNum": 376,
+        "type": "JSX_TEXT",
+        "text": "Didn't receive the email?"
+      },
+      {
+        "lineNum": 385,
+        "type": "PLACEHOLDER",
+        "text": "Enter your email address"
+      },
+      {
+        "lineNum": 400,
+        "type": "JSX_TEXT",
+        "text": "Sending..."
+      }
+    ],
+    "src/components/contact/ContactPage.tsx": [
+      {
+        "lineNum": 522,
+        "type": "JSX_TEXT",
+        "text": "Website"
+      }
+    ]
+  },
+  "Batch 4 (Events/Showcases)": {
+    "src/components/events/EventsPage.tsx": [
+      {
+        "lineNum": 488,
+        "type": "JSX_TEXT",
+        "text": "Retrieving your event deployments. This may take a moment."
+      },
+      {
+        "lineNum": 565,
+        "type": "JSX_TEXT",
+        "text": "Retrieving your event deployments. This may take a moment."
+      }
+    ],
+    "src/components/events/CreateEventDialog.tsx": [
+      {
+        "lineNum": 700,
+        "type": "PLACEHOLDER",
+        "text": "e.g. ABC Company Annual Summit 2026"
+      },
+      {
+        "lineNum": 914,
+        "type": "JSX_TEXT",
+        "text": "The event end date cannot be earlier than the start date. Please select a valid date range."
+      },
+      {
+        "lineNum": 954,
+        "type": "JSX_TEXT",
+        "text": "Instant URL Creation"
+      },
+      {
+        "lineNum": 1064,
+        "type": "JSX_TEXT",
+        "text": "Owner & Tester Access Only"
+      },
+      {
+        "lineNum": 1094,
+        "type": "JSX_TEXT",
+        "text": "Public player link is generated ONLY after payment confirmation"
+      },
+      {
+        "lineNum": 1217,
+        "type": "JSX_TEXT",
+        "text": "Select the credits you want to use for this event."
+      },
+      {
+        "lineNum": 1278,
+        "type": "JSX_TEXT",
+        "text": "RM0.00 Available"
+      },
+      {
+        "lineNum": 1339,
+        "type": "JSX_TEXT",
+        "text": "RM0.00 Available"
+      },
+      {
+        "lineNum": 1484,
+        "type": "JSX_TEXT",
+        "text": "Payment confirmed. Your event is now LIVE and the public player URL is ready."
+      }
+    ],
+    "src/components/events/EditEventDialog.tsx": [
+      {
+        "lineNum": 381,
+        "type": "JSX_TEXT",
+        "text": "Start Date"
+      }
+    ],
+    "src/components/events/EventCalendarView.tsx": [
+      {
+        "lineNum": 75,
+        "type": "JSX_TEXT",
+        "text": "= start && target"
+      }
+    ],
+    "src/components/events/EventCard.tsx": [
+      {
+        "lineNum": 308,
+        "type": "JSX_TEXT",
+        "text": "Not Created"
+      },
+      {
+        "lineNum": 322,
+        "type": "TITLE_ATTR",
+        "text": "Manage Event Showcase"
+      },
+      {
+        "lineNum": 338,
+        "type": "TITLE_ATTR",
+        "text": "View Public Showcase"
+      },
+      {
+        "lineNum": 347,
+        "type": "TITLE_ATTR",
+        "text": "Share Public Showcase URL"
+      },
+      {
+        "lineNum": 370,
+        "type": "TITLE_ATTR",
+        "text": "Preview Showcase"
+      }
+    ],
+    "src/components/events/EventLeaderboardModal.tsx": [
+      {
+        "lineNum": 270,
+        "type": "JSX_TEXT",
+        "text": "Gameplay Metrics:"
+      },
+      {
+        "lineNum": 317,
+        "type": "JSX_TEXT",
+        "text": "Test Scores"
+      },
+      {
+        "lineNum": 342,
+        "type": "JSX_TEXT",
+        "text": "Clear Test Scores"
+      },
+      {
+        "lineNum": 354,
+        "type": "PLACEHOLDER",
+        "text": "Search player nickname..."
+      },
+      {
+        "lineNum": 375,
+        "type": "JSX_TEXT",
+        "text": "Reset Board"
+      },
+      {
+        "lineNum": 391,
+        "type": "JSX_TEXT",
+        "text": "Loading Event High Scores..."
+      },
+      {
+        "lineNum": 484,
+        "type": "TITLE_ATTR",
+        "text": "Delete Score Entry"
+      },
+      {
+        "lineNum": 503,
+        "type": "JSX_TEXT",
+        "text": "Reset entire leaderboard?"
+      },
+      {
+        "lineNum": 534,
+        "type": "JSX_TEXT",
+        "text": "Clear all test scores?"
+      },
+      {
+        "lineNum": 561,
+        "type": "JSX_TEXT",
+        "text": "Clearing..."
+      },
+      {
+        "lineNum": 566,
+        "type": "JSX_TEXT",
+        "text": "Clear Test Scores"
+      }
+    ],
+    "src/components/events/EventPreviewGameView.tsx": [
+      {
+        "lineNum": 198,
+        "type": "JSX_TEXT",
+        "text": "Loading Event Preview..."
+      },
+      {
+        "lineNum": 221,
+        "type": "JSX_TEXT",
+        "text": "Event Cancelled"
+      },
+      {
+        "lineNum": 237,
+        "type": "JSX_TEXT",
+        "text": "Back to Events"
+      },
+      {
+        "lineNum": 254,
+        "type": "JSX_TEXT",
+        "text": "Preview Unavailable"
+      },
+      {
+        "lineNum": 265,
+        "type": "JSX_TEXT",
+        "text": "Back to Events"
+      },
+      {
+        "lineNum": 282,
+        "type": "JSX_TEXT",
+        "text": "Preview Unavailable"
+      },
+      {
+        "lineNum": 293,
+        "type": "JSX_TEXT",
+        "text": "Back to Events"
+      },
+      {
+        "lineNum": 300,
+        "type": "JSX_TEXT",
+        "text": "Retry"
+      },
+      {
+        "lineNum": 334,
+        "type": "ARIA_LABEL",
+        "text": "Testing Preview Banner"
+      },
+      {
+        "lineNum": 402,
+        "type": "JSX_TEXT",
+        "text": "TEST PREVIEW"
+      }
+    ],
+    "src/components/events/EventShowcasePage.tsx": [
+      {
+        "lineNum": 520,
+        "type": "JSX_TEXT",
+        "text": "= 200 && xhr.status"
+      },
+      {
+        "lineNum": 722,
+        "type": "JSX_TEXT",
+        "text": "Loading Event Showcase..."
+      },
+      {
+        "lineNum": 742,
+        "type": "JSX_TEXT",
+        "text": "Showcase Not Available"
+      },
+      {
+        "lineNum": 805,
+        "type": "JSX_TEXT",
+        "text": "Back to Events"
+      },
+      {
+        "lineNum": 821,
+        "type": "JSX_TEXT",
+        "text": "For Event:"
+      },
+      {
+        "lineNum": 850,
+        "type": "TITLE_ATTR",
+        "text": "View Public Showcase in New Tab"
+      },
+      {
+        "lineNum": 853,
+        "type": "JSX_TEXT",
+        "text": "View Public Showcase"
+      },
+      {
+        "lineNum": 860,
+        "type": "TITLE_ATTR",
+        "text": "Share Public Showcase URL"
+      },
+      {
+        "lineNum": 865,
+        "type": "JSX_TEXT",
+        "text": "Link copied"
+      },
+      {
+        "lineNum": 870,
+        "type": "JSX_TEXT",
+        "text": "Share"
+      },
+      {
+        "lineNum": 883,
+        "type": "TITLE_ATTR",
+        "text": "RM300 Showcase Reward has already been claimed for this account."
+      },
+      {
+        "lineNum": 886,
+        "type": "JSX_TEXT",
+        "text": "RM300 Reward Approved"
+      },
+      {
+        "lineNum": 893,
+        "type": "TITLE_ATTR",
+        "text": "Your RM300 reward submission is waiting for admin approval."
+      },
+      {
+        "lineNum": 896,
+        "type": "JSX_TEXT",
+        "text": "Reward Submission Pending"
+      },
+      {
+        "lineNum": 901,
+        "type": "TITLE_ATTR",
+        "text": "You already have an RM300 showcase reward submission pending review for your account. Only one active claim is allowed at a time."
+      },
+      {
+        "lineNum": 904,
+        "type": "JSX_TEXT",
+        "text": "Reward Claim Pending on Another Event"
+      },
+      {
+        "lineNum": 914,
+        "type": "JSX_TEXT",
+        "text": "Reward Submission Rejected"
+      },
+      {
+        "lineNum": 926,
+        "type": "TITLE_ATTR",
+        "text": "Submit this first-event showcase for RM300 Reward"
+      },
+      {
+        "lineNum": 986,
+        "type": "JSX_TEXT",
+        "text": "Reward Submission Pending:"
+      },
+      {
+        "lineNum": 1002,
+        "type": "JSX_TEXT",
+        "text": "Reward Submission Rejected"
+      },
+      {
+        "lineNum": 1017,
+        "type": "JSX_TEXT",
+        "text": "RM300 Reward Approved:"
+      },
+      {
+        "lineNum": 1040,
+        "type": "JSX_TEXT",
+        "text": "Basic Information"
+      },
+      {
+        "lineNum": 1053,
+        "type": "PLACEHOLDER",
+        "text": "e.g. Acme Tech Summit Game Activation"
+      },
+      {
+        "lineNum": 1069,
+        "type": "PLACEHOLDER",
+        "text": "Detail the activation goals, attendee engagement, leaderboard performance, and key highlights..."
+      },
+      {
+        "lineNum": 1085,
+        "type": "PLACEHOLDER",
+        "text": "e.g. Acme Corporation"
+      },
+      {
+        "lineNum": 1099,
+        "type": "PLACEHOLDER",
+        "text": "https://.../client-logo.png"
+      },
+      {
+        "lineNum": 1109,
+        "type": "JSX_TEXT",
+        "text": "Client Logo Preview:"
+      },
+      {
+        "lineNum": 1127,
+        "type": "JSX_TEXT",
+        "text": "Cover Image"
+      },
+      {
+        "lineNum": 1139,
+        "type": "PLACEHOLDER",
+        "text": "https://.../showcase-hero-banner.jpg"
+      },
+      {
+        "lineNum": 1185,
+        "type": "JSX_TEXT",
+        "text": "Photos"
+      },
+      {
+        "lineNum": 1198,
+        "type": "JSX_TEXT",
+        "text": "Upload Photos"
+      },
+      {
+        "lineNum": 1231,
+        "type": "JSX_TEXT",
+        "text": "Browse Files"
+      },
+      {
+        "lineNum": 1271,
+        "type": "JSX_TEXT",
+        "text": "Videos"
+      },
+      {
+        "lineNum": 1284,
+        "type": "JSX_TEXT",
+        "text": "Upload Videos"
+      },
+      {
+        "lineNum": 1317,
+        "type": "JSX_TEXT",
+        "text": "Browse Files"
+      }
+    ],
+    "src/components/events/EventShowcaseTab.tsx": [
+      {
+        "lineNum": 371,
+        "type": "JSX_TEXT",
+        "text": "Showcase Blocked by Moderation"
+      },
+      {
+        "lineNum": 373,
+        "type": "JSX_TEXT",
+        "text": "Moderator Note:"
+      },
+      {
+        "lineNum": 388,
+        "type": "JSX_TEXT",
+        "text": "Showcase Not Available"
+      },
+      {
+        "lineNum": 402,
+        "type": "JSX_TEXT",
+        "text": "No Showcase Created Yet"
+      },
+      {
+        "lineNum": 425,
+        "type": "PLACEHOLDER",
+        "text": "e.g. Acme Corp Summer Festival Activation"
+      },
+      {
+        "lineNum": 441,
+        "type": "PLACEHOLDER",
+        "text": "e.g. Acme Corporation"
+      },
+      {
+        "lineNum": 454,
+        "type": "PLACEHOLDER",
+        "text": "https://.../logo.png"
+      },
+      {
+        "lineNum": 469,
+        "type": "PLACEHOLDER",
+        "text": "https://.../cover-banner.jpg"
+      },
+      {
+        "lineNum": 483,
+        "type": "PLACEHOLDER",
+        "text": "Describe the campaign objectives, activation context, and performance..."
+      },
+      {
+        "lineNum": 510,
+        "type": "JSX_TEXT",
+        "text": "Visibility:"
+      },
+      {
+        "lineNum": 522,
+        "type": "TITLE_ATTR",
+        "text": "View Public Showcase in New Tab"
+      },
+      {
+        "lineNum": 525,
+        "type": "JSX_TEXT",
+        "text": "View Public Showcase"
+      },
+      {
+        "lineNum": 532,
+        "type": "TITLE_ATTR",
+        "text": "Share Public Showcase URL"
+      },
+      {
+        "lineNum": 537,
+        "type": "JSX_TEXT",
+        "text": "Link copied"
+      },
+      {
+        "lineNum": 542,
+        "type": "JSX_TEXT",
+        "text": "Share"
+      },
+      {
+        "lineNum": 601,
+        "type": "JSX_TEXT",
+        "text": "Overview & Branding"
+      },
+      {
+        "lineNum": 614,
+        "type": "JSX_TEXT",
+        "text": "Photos & Videos Gallery"
+      },
+      {
+        "lineNum": 647,
+        "type": "PLACEHOLDER",
+        "text": "Showcase title"
+      },
+      {
+        "lineNum": 664,
+        "type": "PLACEHOLDER",
+        "text": "e.g. Acme Corporation"
+      },
+      {
+        "lineNum": 678,
+        "type": "PLACEHOLDER",
+        "text": "https://.../logo.png"
+      },
+      {
+        "lineNum": 688,
+        "type": "JSX_TEXT",
+        "text": "Client Logo Preview:"
+      },
+      {
+        "lineNum": 707,
+        "type": "PLACEHOLDER",
+        "text": "https://.../cover.jpg"
+      },
+      {
+        "lineNum": 737,
+        "type": "PLACEHOLDER",
+        "text": "Campaign background, goals, highlights..."
+      }
+    ],
+    "src/components/events/EventTranslationsModal.tsx": [
+      {
+        "lineNum": 486,
+        "type": "PLACEHOLDER",
+        "text": "Enter localized event description..."
+      },
+      {
+        "lineNum": 499,
+        "type": "PLACEHOLDER",
+        "text": "Enter localized gameplay instructions..."
+      }
+    ],
+    "src/components/events/PublicEventGameView.tsx": [
+      {
+        "lineNum": 306,
+        "type": "JSX_TEXT",
+        "text": "Connecting to Event..."
+      },
+      {
+        "lineNum": 492,
+        "type": "JSX_TEXT",
+        "text": "to"
+      }
+    ],
+    "src/components/events/PublicShowcaseView.tsx": [
+      {
+        "lineNum": 218,
+        "type": "JSX_TEXT",
+        "text": "(prev !== null && prev"
+      },
+      {
+        "lineNum": 287,
+        "type": "ARIA_LABEL",
+        "text": "EventGameStudio Home"
+      },
+      {
+        "lineNum": 294,
+        "type": "JSX_TEXT",
+        "text": "Studio"
+      },
+      {
+        "lineNum": 350,
+        "type": "ARIA_LABEL",
+        "text": "Showcase preview mode"
+      },
+      {
+        "lineNum": 355,
+        "type": "JSX_TEXT",
+        "text": "Showcase Preview:"
+      },
+      {
+        "lineNum": 761,
+        "type": "ARIA_LABEL",
+        "text": "Close media preview"
+      },
+      {
+        "lineNum": 798,
+        "type": "ARIA_LABEL",
+        "text": "Previous item"
+      },
+      {
+        "lineNum": 810,
+        "type": "ARIA_LABEL",
+        "text": "Next item"
+      },
+      {
+        "lineNum": 827,
+        "type": "JSX_TEXT",
+        "text": "View Full Quality"
+      }
+    ],
+    "src/components/events/showcase/ShowcaseMediaCard.tsx": [
+      {
+        "lineNum": 23,
+        "type": "JSX_TEXT",
+        "text": "Promise"
+      }
+    ],
+    "src/components/events/showcase/ShowcaseMediaManager.tsx": [
+      {
+        "lineNum": 179,
+        "type": "JSX_TEXT",
+        "text": "= 200 && xhr.status"
+      },
+      {
+        "lineNum": 445,
+        "type": "JSX_TEXT",
+        "text": "Browse Files"
+      },
+      {
+        "lineNum": 525,
+        "type": "TITLE_ATTR",
+        "text": "Refresh media"
+      },
+      {
+        "lineNum": 537,
+        "type": "JSX_TEXT",
+        "text": "Add Media"
+      },
+      {
+        "lineNum": 547,
+        "type": "JSX_TEXT",
+        "text": "Loading showcase media..."
+      }
+    ],
+    "src/components/events/showcase/ShowcaseMediaPreviewModal.tsx": [
+      {
+        "lineNum": 22,
+        "type": "JSX_TEXT",
+        "text": "Promise"
+      },
+      {
+        "lineNum": 126,
+        "type": "TITLE_ATTR",
+        "text": "Open full size / Download"
+      },
+      {
+        "lineNum": 162,
+        "type": "JSX_TEXT",
+        "text": "Video Poster / Thumbnail:"
+      },
+      {
+        "lineNum": 168,
+        "type": "JSX_TEXT",
+        "text": "Auto default"
+      },
+      {
+        "lineNum": 204,
+        "type": "PLACEHOLDER",
+        "text": "https://.../video-poster.jpg"
+      }
+    ],
+    "src/components/org/TeamMembersPage.tsx": [
+      {
+        "lineNum": 545,
+        "type": "TITLE_ATTR",
+        "text": "Remove member"
+      }
+    ]
+  }
+}

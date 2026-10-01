@@ -289,7 +289,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Toggle navigation menu"
+            aria-label={t('nav.toggleMenu')}
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>

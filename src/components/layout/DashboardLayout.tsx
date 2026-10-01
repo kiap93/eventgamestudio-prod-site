@@ -436,7 +436,7 @@ export const DashboardLayout: React.FC = () => {
                   setShowUserDropdown(!showUserDropdown);
                   setShowOrgDropdown(false);
                 }}
-                title="Account profile and settings"
+                title={t('nav.accountProfileSettings')}
                 className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
                   showUserDropdown ? 'border-amber-500/50 bg-slate-850' : 'border-slate-800'
                 } px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-200 transition-colors cursor-pointer`}

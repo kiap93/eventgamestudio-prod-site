@@ -6,6 +6,7 @@ import { RenameThemeDialog } from './RenameThemeDialog';
 import { GameCatalogModal } from './GameCatalogModal';
 import { GameShell } from '../shell/GameShell';
 import { GameTheme } from '../../themes';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Palette,
   Plus,
@@ -35,6 +36,7 @@ interface ThemeListProps {
 }
 
 export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
+  const { t } = useLocalization();
   const {
     themes,
     createTheme,
@@ -294,10 +296,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 type="button"
                 onClick={() => setPlayingTheme(null)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title="Back to Themes"
+                title={t('studio.returnToThemes')}
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back to Themes</span>
+                <span>{t('studio.returnToThemes')}</span>
               </button>
 
               <div className="hidden sm:block">
@@ -308,7 +310,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                       ? 'text-indigo-300 bg-indigo-500/10 border border-indigo-500/30'
                       : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
                   }`}>
-                    {isSystemPlaying ? 'System Theme Preview' : 'Play Mode'}
+                    {isSystemPlaying ? t('studio.systemTheme') : t('event.testMode')}
                   </span>
                 </h2>
               </div>
@@ -321,10 +323,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   type="button"
                   onClick={() => onEditTheme(playingTheme.id)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                  title="Edit Theme"
+                  title={t('studio.editTheme')}
                 >
                   <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Edit Theme</span>
+                  <span className="hidden sm:inline">{t('studio.editTheme')}</span>
                 </button>
               ) : (
                 <button
@@ -335,10 +337,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   }}
                   disabled={isViewer}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black rounded-xl text-xs transition-all shadow-sm disabled:opacity-50 cursor-pointer"
-                  title="Clone this system theme into your organization"
+                  title={t('studio.cloneTheme')}
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Clone Theme</span>
+                  <span>{t('studio.cloneTheme')}</span>
                 </button>
               )}
 
@@ -346,17 +348,17 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 type="button"
                 onClick={() => setRestartKey((prev) => prev + 1)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title="Restart game"
+                title={t('common.restart')}
               >
                 <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                <span>Restart</span>
+                <span>{t('common.restart')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleToggleFullscreen}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+                title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
               >
                 {isFullscreen ? (
                   <Minimize2 className="w-3.5 h-3.5 text-slate-300" />
@@ -425,7 +427,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>My Themes</span>
+            <span>{t('studio.myThemes')}</span>
             <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
               activeTab === 'my-themes'
                 ? 'bg-amber-400/20 text-amber-300'
@@ -446,7 +448,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>System Themes</span>
+            <span>{t('studio.systemThemes')}</span>
             <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
               activeTab === 'system-themes'
                 ? 'bg-indigo-400/20 text-indigo-300'
@@ -467,7 +469,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             className="px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Create Theme</span>
+            <span>+ {t('studio.createTheme')}</span>
           </button>
         </div>
       </div>
@@ -504,9 +506,9 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3.5 py-2 focus:outline-none focus:border-amber-500 cursor-pointer"
             >
-              <option value="all">All Status ▼</option>
-              <option value="draft">Drafts Only</option>
-              <option value="archived">Archived</option>
+              <option value="all">{t('common.allStatus')} ▼</option>
+              <option value="draft">{t('common.draft')}</option>
+              <option value="archived">{t('common.archived')}</option>
             </select>
           </div>
 
@@ -515,10 +517,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             type="button"
             onClick={() => setShowCatalogModal(true)}
             className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0"
-            title="Explore Multi-Game Catalog"
+            title={t('game.gameEngines')}
           >
             <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">Engines</span>
+            <span className="hidden md:inline">{t('game.gameEngines')}</span>
           </button>
         </div>
       </div>
@@ -569,7 +571,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 <FolderOpen className="w-8 h-8" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-black text-slate-100">No custom themes yet</h3>
+                <h3 className="text-lg font-black text-slate-100">{t('studio.noThemesYet')}</h3>
                 <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
                   Create your first custom theme from scratch,<br />
                   or start with one of our System Themes.
@@ -583,7 +585,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Browse System Themes</span>
+                  <span>{t('studio.browseSystemThemes')}</span>
                 </button>
                 <button
                   id="btn-create-theme-empty"
@@ -593,7 +595,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Create Theme</span>
+                  <span>+ {t('studio.createTheme')}</span>
                 </button>
               </div>
             </div>
@@ -604,7 +606,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 <Search className="w-5 h-5" />
               </div>
               <div className="space-y-0.5">
-                <h3 className="text-xs font-bold text-slate-200">No matching custom themes</h3>
+                <h3 className="text-xs font-bold text-slate-200">{t('studio.noMatchingThemes')}</h3>
                 <p className="text-[11px] text-slate-400">
                   No themes in My Themes match your current search or filter criteria.
                 </p>
@@ -654,10 +656,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   onClick={() => setShowCloneAllModal(true)}
                   disabled={isViewer || isCloningAll}
                   className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
-                  title="Clone all active system themes to your organization"
+                  title={t('studio.cloneAllDefaultThemes')}
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Clone All Default Themes</span>
+                  <span>{t('studio.cloneAllDefaultThemes')}</span>
                 </button>
               )}
             </div>
@@ -677,7 +679,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             <div className="bg-rose-950/25 border border-rose-800/50 rounded-2xl p-6 text-center space-y-3">
               <div className="flex items-center justify-center gap-2 text-rose-400 text-sm font-semibold">
                 <AlertTriangle className="w-4 h-4" />
-                <span>Unable to load system themes.</span>
+                <span>{t('studio.unableToLoadThemes')}</span>
               </div>
               <p className="text-xs text-rose-300/70 max-w-md mx-auto">{systemThemeError}</p>
               <button
@@ -686,7 +688,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 className="px-4 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Retry</span>
+                <span>{t('common.retry')}</span>
               </button>
             </div>
           ) : filteredSystemThemes.length > 0 ? (
@@ -708,20 +710,20 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
               {isLoadingSystem ? (
                 <div className="flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  <span>Loading system themes...</span>
+                  <span>{t('studio.loadingSystemThemes')}</span>
                 </div>
               ) : searchQuery ? (
                 'No system themes match your search query.'
               ) : (
                 <div className="space-y-2">
-                  <p>No active system themes available for this game engine.</p>
+                  <p>{t('studio.noActiveSystemThemes')}</p>
                   <button
                     type="button"
                     onClick={loadSystemThemes}
                     className="text-xs text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 cursor-pointer"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Refresh</span>
+                    <span>{t('common.refresh')}</span>
                   </button>
                 </div>
               )}
@@ -774,11 +776,11 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
 
             <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 text-xs text-slate-300 space-y-1.5">
               <div className="font-bold text-slate-400 flex items-center justify-between">
-                <span>Selected Game:</span>
+                <span>{t('studio.selectedGame')}</span>
                 <span className="text-slate-200">{activeGame?.name || 'Current Game'}</span>
               </div>
               <div className="font-bold text-slate-400 flex items-center justify-between">
-                <span>Themes to Clone:</span>
+                <span>{t('studio.themesToClone')}</span>
                 <span className="text-indigo-400 font-black">{filteredSystemThemes.length} active themes</span>
               </div>
             </div>
@@ -790,7 +792,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 disabled={isCloningAll}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all disabled:opacity-50"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -801,12 +803,12 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 {isCloningAll ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Cloning All...</span>
+                    <span>{t('studio.cloningAll')}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-4 h-4" />
-                    <span>Clone All</span>
+                    <span>{t('studio.cloneAll')}</span>
                   </>
                 )}
               </button>

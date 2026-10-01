@@ -195,7 +195,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           <Sparkles className="w-5 h-5 text-amber-400 absolute inset-0 m-auto animate-pulse" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-slate-200">Loading Event Preview...</p>
+          <p className="text-sm font-semibold text-slate-200">{t('event.loadingPreview')}</p>
           <p className="text-xs text-slate-500 font-mono">Event ID: {eventId}</p>
         </div>
       </div>
@@ -218,13 +218,13 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
 
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-xs font-semibold text-red-300">
-              <span>Event Cancelled</span>
+              <span>{t('event.statusCancelled')}</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-100">
-              Event Has Been Cancelled
+              {t('event.eventHasBeenCancelled')}
             </h1>
             <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
-              This event was cancelled and is no longer accessible for test play preview.
+              {t('event.cancelledPreviewDesc')}
             </p>
           </div>
 
@@ -234,7 +234,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Events</span>
+              <span>{t('event.backToEvents')}</span>
             </button>
           </div>
         </div>
@@ -251,9 +251,9 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             <AlertCircle className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">Preview Unavailable</h1>
+            <h1 className="text-xl font-bold text-slate-100">{t('event.eventNotAvailable')}</h1>
             <p className="text-xs text-slate-400 leading-relaxed">
-              The requested event preview is not available.
+              {t('event.eventNotAvailableDesc')}
             </p>
           </div>
           <div className="flex items-center justify-center gap-3 pt-2">
@@ -262,7 +262,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Events</span>
+              <span>{t('event.backToEvents')}</span>
             </button>
           </div>
         </div>
@@ -279,9 +279,9 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             <AlertCircle className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">Preview Unavailable</h1>
+            <h1 className="text-xl font-bold text-slate-100">{t('event.eventNotAvailable')}</h1>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {error || 'The requested event preview could not be found or access is restricted.'}
+              {error || t('event.eventNotAvailableDesc')}
             </p>
           </div>
           <div className="flex items-center justify-center gap-3 pt-2">
@@ -290,14 +290,14 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Events</span>
+              <span>{t('event.backToEvents')}</span>
             </button>
             <button
               onClick={fetchEvent}
               className="inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
+              <span>{t('common.tryAgain')}</span>
             </button>
           </div>
         </div>
@@ -331,7 +331,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           id="preview-testing-overlay"
           className="preview-testing-overlay sticky top-0 w-full bg-slate-950/95 backdrop-blur-md border-b-2 border-amber-500/60 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all shadow-xl shadow-black/80"
           role="banner"
-          aria-label="Testing Preview Banner"
+          aria-label={t('event.previewModeBanner')}
         >
           {/* Left: Navigation & Context */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -399,7 +399,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           {/* Subtle floating watermark tag on top of the game canvas */}
           <div className="absolute top-2 right-2 pointer-events-none z-40 hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/80 border border-amber-500/40 text-[10px] font-mono text-amber-300 backdrop-blur-sm shadow-md">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            <span className="font-bold uppercase tracking-wider">TEST PREVIEW</span>
+            <span className="font-bold uppercase tracking-wider">{t('event.testPreviewTag')}</span>
           </div>
 
           <GameContainer

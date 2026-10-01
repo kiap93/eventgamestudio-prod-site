@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { EventShowcaseMedia } from '../../../types/showcase';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   X,
   Play,
@@ -29,6 +30,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
   onUpdateThumbnail,
   canEdit = false,
 }) => {
+  const { t } = useLocalization();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isCapturingPoster, setIsCapturingPoster] = useState(false);
@@ -123,7 +125,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
               rel="noopener noreferrer"
               download={media.file_name}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-              title="Open full size / Download"
+              title={t('common.download', undefined, 'Download')}
             >
               <Download className="w-4 h-4" />
             </a>
@@ -159,13 +161,13 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
                 <div className="w-full mt-4 p-3 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 text-slate-300">
                     <Camera className="w-4 h-4 text-purple-400" />
-                    <span>Video Poster / Thumbnail:</span>
+                    <span>{t('showcase.videoPosterThumbnail')}</span>
                     {media.thumbnail_url ? (
                       <span className="text-emerald-400 font-semibold flex items-center gap-1">
                         <Check className="w-3.5 h-3.5" /> Set
                       </span>
                     ) : (
-                      <span className="text-slate-500">Auto default</span>
+                      <span className="text-slate-500">{t('showcase.autoDefault')}</span>
                     )}
                   </div>
 
@@ -210,7 +212,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
                     disabled={isCapturingPoster}
                     className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-colors cursor-pointer"
                   >
-                    Apply
+                    {t('common.apply', undefined, 'Apply')}
                   </button>
                 </form>
               )}

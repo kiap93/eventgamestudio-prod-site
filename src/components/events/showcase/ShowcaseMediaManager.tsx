@@ -4,6 +4,7 @@ import { EventShowcase, EventShowcaseMedia, ShowcaseMediaType, UploadQueueItem }
 import { ShowcaseMediaCard } from './ShowcaseMediaCard';
 import { ShowcaseMediaUploadQueue } from './ShowcaseMediaUploadQueue';
 import { ShowcaseMediaPreviewModal } from './ShowcaseMediaPreviewModal';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   UploadCloud,
   Film,
@@ -36,6 +37,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
   userRole,
   onMediaChanged,
 }) => {
+  const { t } = useLocalization();
   const [mediaList, setMediaList] = useState<EventShowcaseMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -442,7 +444,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
 
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-slate-100">
-                Drag & Drop Photos and Videos, or <span className="text-amber-400 underline">Browse Files</span>
+                Drag & Drop Photos and Videos, or <span className="text-amber-400 underline">{t('common.browseFiles')}</span>
               </h4>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
                 Upload campaign photography, live activation clips, and attendee highlights for the event showcase.
@@ -522,7 +524,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
             onClick={fetchMedia}
             disabled={loading}
             className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors"
-            title="Refresh media"
+            title={t('common.refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -534,7 +536,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
               className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Media</span>
+              <span>{t('showcase.addMedia')}</span>
             </button>
           )}
         </div>
@@ -544,7 +546,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
       {loading && mediaList.length === 0 ? (
         <div className="py-16 text-center space-y-3">
           <div className="w-7 h-7 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">Loading showcase media...</p>
+          <p className="text-xs text-slate-400">{t('showcase.loadingMedia')}</p>
         </div>
       ) : filteredMedia.length === 0 ? (
         <div className="bg-slate-950/40 border border-slate-800/80 rounded-3xl p-10 text-center space-y-3">

@@ -626,12 +626,12 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
         <section className="py-16 md:py-24 bg-white border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Why Event Game Studio</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('seoSolutions.whyEventGameStudio')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                Engineered for Live Crowd Engagement
+                {t('seoSolutions.engineeredForCrowd')}
               </h2>
               <p className="text-sm sm:text-base text-slate-600">
-                Traditional event marketing creates passive spectators. Interactive event games create active brand advocates.
+                {t('seoSolutions.engineeredDesc')}
               </p>
             </div>
 
@@ -661,12 +661,12 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
         <section className="py-16 md:py-24 bg-slate-50/70 border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Seamless Execution</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('seoSolutions.seamlessExecution')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                How It Works on Event Day
+                {t('seoSolutions.howItWorksDay')}
               </h2>
               <p className="text-sm sm:text-base text-slate-600">
-                From initial brand setup to live stage prize presentations in four simple steps.
+                {t('seoSolutions.howItWorksDesc')}
               </p>
             </div>
 
@@ -689,12 +689,12 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
         <section className="py-16 md:py-24 bg-white border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Proven Formats</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">{t('seoSolutions.provenFormats')}</span>
               <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                Where These Games Excel
+                {t('seoSolutions.whereGamesExcel')}
               </h2>
               <p className="text-sm sm:text-base text-slate-600">
-                Tailored for event organizers, experiential marketing agencies, and corporate brand teams.
+                {t('seoSolutions.whereGamesDesc')}
               </p>
             </div>
 

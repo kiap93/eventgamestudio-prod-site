@@ -263,17 +263,17 @@ export const PublicShowcasesIndexPage: React.FC = () => {
         <section className="py-12 bg-slate-50 border-t border-slate-200">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-              Host Your Own Branded Event Activation
+              {t('publicShowcase.hostYourOwn')}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto">
-              Event organizers can publish their completed event showcases and submit for RM300 in promotional showcase rewards.
+              {t('publicShowcase.hostYourOwnDesc')}
             </p>
             <div className="pt-2">
               <button
                 onClick={() => navigateTo(isAuthenticated ? '/events' : '/login')}
                 className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors cursor-pointer shadow-xs"
               >
-                Create Event Activation
+                {t('publicShowcase.createEventActivation')}
               </button>
             </div>
           </div>

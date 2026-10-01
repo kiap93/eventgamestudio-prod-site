@@ -122,10 +122,10 @@ export const CreateOrganizationPage: React.FC = () => {
         {isOrgLimitReached && (
           <div id="org-limit-reached-banner" className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs space-y-1">
             <div className="font-bold flex items-center justify-between">
-              <span>Organization Limit Reached (5 / 5)</span>
+              <span>{t('auth.maxOrgsReached')}</span>
             </div>
             <p className="text-slate-300 text-[11px] leading-relaxed">
-              Each account can own a maximum of 5 organizations. To create another workspace, please manage or transfer ownership of an existing organization.
+              {t('auth.maxOrgsLimitDesc')}
             </p>
           </div>
         )}
@@ -146,7 +146,7 @@ export const CreateOrganizationPage: React.FC = () => {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Acme Games Studio, Apex Events"
+              placeholder={t('auth.orgNamePlaceholder')}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition-colors"
             />
           </div>
@@ -167,13 +167,13 @@ export const CreateOrganizationPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Logo Image URL ({t('common.optional')})
+              {t('auth.logoImageUrl')} ({t('common.optional')})
             </label>
             <input
               type="url"
               value={logoUrl}
               onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://example.com/logo.png"
+              placeholder={t('auth.logoUrlPlaceholder')}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-amber-500 transition-colors"
             />
           </div>
@@ -181,10 +181,10 @@ export const CreateOrganizationPage: React.FC = () => {
           <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-xs text-slate-400 space-y-2">
             <div className="flex items-center gap-2 text-slate-200 font-medium">
               <Shield className="w-4 h-4 text-emerald-400" />
-              <span>You will be assigned as Organization Owner</span>
+              <span>{t('auth.assignedAsOwner')}</span>
             </div>
             <p className="text-slate-400 leading-relaxed text-[11px]">
-              As the organization owner, you have full administrative control over event activations, custom game themes, and live leaderboards.
+              {t('auth.assignedAsOwnerDesc')}
             </p>
           </div>
 

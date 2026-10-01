@@ -347,12 +347,12 @@ export const PublicShowcaseView: React.FC = () => {
 
       {/* 2. PREVIEW MODE BANNER (For Org Members viewing unlisted/draft showcases) */}
       {isPreview && (
-        <aside aria-label="Showcase preview mode" className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 px-4 py-2.5 text-xs sm:text-sm">
+        <aside aria-label={t('showcase.previewShowcase')} className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 px-4 py-2.5 text-xs sm:text-sm">
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span>
-                <strong>Showcase Preview:</strong> You are viewing this showcase as an organization member. It is not currently public.
+                <strong>{t('showcase.previewShowcase')}:</strong> {t('showcase.orgMemberNotice', undefined, 'You are viewing this showcase as an organization member. It is not currently public.')}
               </span>
             </div>
             {event?.id && (
@@ -758,7 +758,7 @@ export const PublicShowcaseView: React.FC = () => {
               <button
                 onClick={() => setLightboxIndex(null)}
                 className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
-                aria-label="Close media preview"
+                aria-label={t('common.close')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -795,7 +795,7 @@ export const PublicShowcaseView: React.FC = () => {
                       );
                     }}
                     className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white backdrop-blur-md flex items-center justify-center border border-slate-700/80 transition-all active:scale-95"
-                    aria-label="Previous item"
+                    aria-label={t('common.previous', undefined, 'Previous item')}
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -807,7 +807,7 @@ export const PublicShowcaseView: React.FC = () => {
                       );
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white backdrop-blur-md flex items-center justify-center border border-slate-700/80 transition-all active:scale-95"
-                    aria-label="Next item"
+                    aria-label={t('common.next', undefined, 'Next item')}
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
@@ -824,7 +824,7 @@ export const PublicShowcaseView: React.FC = () => {
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-semibold"
               >
-                <span>View Full Quality</span>
+                <span>{t('showcase.viewFullQuality')}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>

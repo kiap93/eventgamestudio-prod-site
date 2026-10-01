@@ -114,8 +114,8 @@ export const LandingEventShowcase: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] text-slate-300 bg-slate-950/80 backdrop-blur-sm p-1.5 rounded-lg border border-slate-800">
-                    <span className="font-semibold text-emerald-400">{t('landing.zeroLatencyBrowser')}</span>
-                    <span className="text-slate-400">60 FPS Sync</span>
+                    <span className="font-semibold text-emerald-400">{t('landing.zeroLatencyMode')}</span>
+                    <span className="text-slate-400">{t('landing.fpsSync')}</span>
                   </div>
                 </div>
               </div>
