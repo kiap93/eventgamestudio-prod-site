@@ -76,7 +76,7 @@ const AppContent: React.FC = () => {
   if (routeContext.mode === 'public_event') {
     return (
       <>
-        <SEO robots="noindex, nofollow" title="Event Game | Event Game Studio" />
+        <SEO robots="noindex, nofollow" title={`${t('common.interactiveEventGames', undefined, 'Event Game')} | Event Game Studio`} />
         <PublicEventGameView />
       </>
     );
@@ -111,7 +111,7 @@ const AppContent: React.FC = () => {
   if (routeContext.mode === 'event_preview') {
     return (
       <>
-        <SEO robots="noindex, follow" title="Event Preview | Event Game Studio" />
+        <SEO robots="noindex, follow" title={`${t('common.preview', undefined, 'Event Preview')} | Event Game Studio`} />
         <EventPreviewGameView />
       </>
     );
@@ -121,7 +121,7 @@ const AppContent: React.FC = () => {
   if (routeContext.mode === 'accept_invite') {
     return (
       <>
-        <SEO robots="noindex, follow" title="Accept Invitation | Event Game Studio" />
+        <SEO robots="noindex, follow" title={`${t('auth.acceptInvitation', undefined, 'Accept Invitation')} | Event Game Studio`} />
         <AcceptInvitePage />
       </>
     );
@@ -162,7 +162,7 @@ const AppContent: React.FC = () => {
   if (!isAuthenticated) {
     return (
       <>
-        <SEO robots="noindex, follow" title="Sign In | Event Game Studio" />
+        <SEO robots="noindex, follow" title={`${t('auth.signIn', undefined, 'Sign In')} | Event Game Studio`} />
         <LoginPage />
       </>
     );
@@ -184,7 +184,7 @@ const AppContent: React.FC = () => {
     if (!currentUser?.is_developer) {
       return (
         <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
-          <SEO robots="noindex, follow" title="Access Denied | Event Game Studio" />
+          <SEO robots="noindex, follow" title={`${t('common.accessDenied', undefined, 'Access Denied')} | Event Game Studio`} />
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
               <ShieldAlert className="w-6 h-6" />
@@ -207,7 +207,7 @@ const AppContent: React.FC = () => {
     }
     return (
       <>
-        <SEO robots="noindex, follow" title="Developer Admin | Event Game Studio" />
+        <SEO robots="noindex, follow" title={`${t('developer.adminPortal', undefined, 'Developer Admin')} | Event Game Studio`} />
         <DeveloperAdminPage />
       </>
     );
@@ -218,7 +218,7 @@ const AppContent: React.FC = () => {
   if (!currentOrganization) {
     return (
       <>
-        <SEO robots="noindex, follow" title="Create Workspace | Event Game Studio" />
+        <SEO robots="noindex, follow" title={`${t('auth.createWorkspace', undefined, 'Create Workspace')} | Event Game Studio`} />
         <CreateOrganizationPage />
       </>
     );
@@ -251,7 +251,7 @@ const AppContent: React.FC = () => {
   if (routeContext.mode === 'theme_setup') {
     return (
       <>
-        <SEO robots="noindex, follow" title="Theme Setup | Event Game Studio" />
+        <SEO robots="noindex, follow" title={`${t('onboarding.stepTheme', undefined, 'Theme Setup')} | Event Game Studio`} />
         <ThemeSetupOnboardingPage />
       </>
     );

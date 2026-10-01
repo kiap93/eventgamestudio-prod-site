@@ -150,9 +150,9 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Sound Effects Triggers</h3>
+            <h3 className="text-sm font-bold text-slate-100">{t('studio.tabs.soundEffectsTriggers')}</h3>
             <p className="text-xs text-slate-400">
-              Click any event below to preview its audio feedback tone immediately
+              {t('studio.tabs.soundEffectsTriggersDesc')}
             </p>
           </div>
 
@@ -164,8 +164,8 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                   <Sparkles className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Catch Good Item</h4>
-                  <p className="text-[10px] text-slate-400">High Chime / Pluck</p>
+                  <h4 className="text-xs font-bold text-slate-200">{t('studio.tabs.catchGoodItem')}</h4>
+                  <p className="text-[10px] text-slate-400">{t('studio.tabs.highChimePluck')}</p>
                 </div>
               </div>
               <button
@@ -174,7 +174,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
               >
                 <Play className="w-3 h-3 text-emerald-400" />
-                <span>Test</span>
+                <span>{t('common.test')}</span>
               </button>
             </div>
 
@@ -185,8 +185,8 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                   <Flame className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Catch Hazard Bomb</h4>
-                  <p className="text-[10px] text-slate-400">Sawtooth Low Buzz</p>
+                  <h4 className="text-xs font-bold text-slate-200">{t('studio.tabs.catchHazardBomb')}</h4>
+                  <p className="text-[10px] text-slate-400">{t('studio.tabs.sawtoothLowBuzz')}</p>
                 </div>
               </div>
               <button
@@ -195,7 +195,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
               >
                 <Play className="w-3 h-3 text-rose-400" />
-                <span>Test</span>
+                <span>{t('common.test')}</span>
               </button>
             </div>
 
@@ -206,8 +206,8 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                   <Star className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Catch Bonus Special</h4>
-                  <p className="text-[10px] text-slate-400">Arpeggiated C-E-G-C</p>
+                  <h4 className="text-xs font-bold text-slate-200">{t('studio.tabs.catchBonusSpecial')}</h4>
+                  <p className="text-[10px] text-slate-400">{t('studio.tabs.arpeggiatedTone')}</p>
                 </div>
               </div>
               <button
@@ -216,7 +216,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
               >
                 <Play className="w-3 h-3 text-amber-400" />
-                <span>Test</span>
+                <span>{t('common.test')}</span>
               </button>
             </div>
 
@@ -227,8 +227,8 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                   <Play className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Start Fanfare</h4>
-                  <p className="text-[10px] text-slate-400">Upbeat 4-Note Chime</p>
+                  <h4 className="text-xs font-bold text-slate-200">{t('studio.tabs.startFanfare')}</h4>
+                  <p className="text-[10px] text-slate-400">{t('studio.tabs.upbeatChime')}</p>
                 </div>
               </div>
               <button
@@ -237,7 +237,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
               >
                 <Play className="w-3 h-3 text-sky-400" />
-                <span>Test</span>
+                <span>{t('common.test')}</span>
               </button>
             </div>
 
@@ -248,8 +248,8 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                   <Music className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Countdown Beep</h4>
-                  <p className="text-[10px] text-slate-400">3... 2... 1... GO!</p>
+                  <h4 className="text-xs font-bold text-slate-200">{t('studio.tabs.countdownBeep')}</h4>
+                  <p className="text-[10px] text-slate-400">{t('studio.tabs.countdownBeepDesc')}</p>
                 </div>
               </div>
               <button
@@ -258,7 +258,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
               >
                 <Play className="w-3 h-3 text-purple-400" />
-                <span>Test</span>
+                <span>{t('common.test')}</span>
               </button>
             </div>
 
@@ -269,8 +269,8 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                   <VolumeX className="w-4 h-4" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Game Over Jingle</h4>
-                  <p className="text-[10px] text-slate-400">Descending Minor Tune</p>
+                  <h4 className="text-xs font-bold text-slate-200">{t('studio.tabs.gameOverJingle')}</h4>
+                  <p className="text-[10px] text-slate-400">{t('studio.tabs.descendingMinorTune')}</p>
                 </div>
               </div>
               <button
@@ -279,7 +279,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
               >
                 <Play className="w-3 h-3 text-orange-400" />
-                <span>Test</span>
+                <span>{t('common.test')}</span>
               </button>
             </div>
           </div>
@@ -295,11 +295,11 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
         >
           <div className="flex items-center gap-2">
             <Sliders className="w-3.5 h-3.5 text-amber-400" />
-            <span>Custom Audio URLs & External Sound Files (Optional)</span>
+            <span>{t('studio.tabs.customAudioUrls')}</span>
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <span className="text-[10px] font-normal">
-              {showCustomAudioUrls ? 'Hide' : 'Show Advanced'}
+              {showCustomAudioUrls ? t('common.hide') : t('common.showAdvanced')}
             </span>
             {showCustomAudioUrls ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
@@ -310,7 +310,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-400">
-                  Custom Catch Good Sound URL
+                  {t('studio.tabs.customCatchGoodSound')}
                 </label>
                 <input
                   type="text"
@@ -323,7 +323,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-400">
-                  Custom Catch Hazard Sound URL
+                  {t('studio.tabs.customCatchHazardSound')}
                 </label>
                 <input
                   type="text"

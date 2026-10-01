@@ -118,7 +118,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="text-[11px] font-semibold text-slate-400">Sprite Artwork</label>
+      <label className="text-[11px] font-semibold text-slate-400">{t('studio.tabs.spriteArtwork')}</label>
 
       {uploadError && (
         <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 text-xs text-rose-300">
@@ -152,7 +152,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
             {isUploading && (
               <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-1.5 text-amber-400 z-20">
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                <span className="text-[11px] font-bold text-slate-200">Uploading sprite...</span>
+                <span className="text-[11px] font-bold text-slate-200">{t('studio.tabs.uploadingSprite')}</span>
               </div>
             )}
           </div>
@@ -160,8 +160,8 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
           {/* Intrinsic Artwork Dimensions & In-Game Proportional Sizing Badge */}
           {imgDims && (
             <div className="flex items-center justify-between px-3 py-1.5 bg-slate-950/90 border border-slate-800 rounded-xl text-[10px] font-mono text-slate-400 shadow-inner">
-              <span>Artwork: <strong className="text-slate-200">{imgDims.naturalW}×{imgDims.naturalH}px</strong></span>
-              <span className="text-emerald-400 font-semibold">Game Size: <strong>{imgDims.displayW}×{imgDims.displayH}px</strong></span>
+              <span>{t('studio.tabs.artwork')} <strong className="text-slate-200">{imgDims.naturalW}×{imgDims.naturalH}px</strong></span>
+              <span className="text-emerald-400 font-semibold">{t('studio.tabs.gameSize')} <strong>{imgDims.displayW}×{imgDims.displayH}px</strong></span>
             </div>
           )}
 
@@ -181,7 +181,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isUploading ? 'animate-spin' : ''}`} />
-              <span>{isUploading ? 'Uploading...' : 'Replace Image'}</span>
+              <span>{isUploading ? t('common.uploading') : t('customizers.replaceGraphic', undefined, 'Replace Image')}</span>
             </button>
 
             <button
@@ -194,7 +194,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
               className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/20 flex items-center gap-1.5 transition-all disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Remove</span>
+              <span>{t('common.remove')}</span>
             </button>
           </div>
         </div>
@@ -231,7 +231,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
 
           <div className="space-y-0.5">
             <p className="text-xs font-bold text-slate-200">
-              {isUploading ? 'Uploading sprite...' : dragActive ? 'Drop sprite image here' : 'Upload Image'}
+              {isUploading ? t('studio.tabs.uploadingSprite') : dragActive ? 'Drop sprite image here' : t('studio.tabs.uploadImage')}
             </p>
             <p className="text-[10px] text-slate-400">
               PNG / WebP recommended
@@ -243,7 +243,7 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
             className="mt-0.5 px-3 py-1 bg-slate-800 text-slate-200 text-[11px] font-bold rounded-lg border border-slate-700 flex items-center gap-1.5 pointer-events-none"
           >
             <Upload className="w-3 h-3 text-emerald-400" />
-            <span>Upload Image</span>
+            <span>{t('studio.tabs.uploadImage')}</span>
           </button>
         </div>
       )}
@@ -456,7 +456,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
       {!isMemoryMatch && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
-            <span>Relative Spawn Chance Distribution</span>
+            <span>{t('studio.tabs.relativeSpawnChanceDistribution')}</span>
             <span className="text-slate-400 font-mono text-[11px]">
               {items.filter((i) => i.enabled).length} active items
             </span>
@@ -489,15 +489,15 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span>Positive Item (+Pts)</span>
+              <span>{t('studio.tabs.positiveItem')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span>Hazard / Bomb (-Pts)</span>
+              <span>{t('studio.tabs.hazardBomb')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span>Bonus Special (+50 Pts)</span>
+              <span>{t('studio.tabs.bonusSpecial')}</span>
             </div>
           </div>
         </div>
@@ -549,7 +549,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                     type="button"
                     onClick={() => handleDuplicateItem(index)}
                     className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-                    title="Duplicate item"
+                    title={t('common.duplicate', undefined, 'Duplicate item')}
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
@@ -557,7 +557,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                     type="button"
                     onClick={() => handleRemoveItem(index)}
                     className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                    title="Delete item"
+                    title={t('common.delete', undefined, 'Delete item')}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -568,7 +568,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2 space-y-1">
                   <label className="text-[11px] font-semibold text-slate-400">
-                    {isMemoryMatch ? 'Card Pair Title' : 'Item Name'}
+                    {isMemoryMatch ? t('customizers.cardLibrary', undefined, 'Card Pair Title') : t('customizers.itemName', undefined, 'Item Name')}
                   </label>
                   <input
                     type="text"
@@ -579,7 +579,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-400">
-                    {isMemoryMatch ? 'Pair Points' : 'Score Points'}
+                    {isMemoryMatch ? t('customizers.baseMatchPoints', undefined, 'Pair Points') : t('customizers.pointsValue', undefined, 'Score Points')}
                   </label>
                   <input
                     type="number"
@@ -609,7 +609,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                 <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-800/80">
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                      <span>Speed</span>
+                      <span>{t('studio.tabs.speed')}</span>
                       <span className="text-amber-400 font-mono">
                         {(Number(item.speedMultiplier) || 1.0).toFixed(1)}x
                       </span>
@@ -631,7 +631,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                      <span>Weight</span>
+                      <span>{t('studio.tabs.weight')}</span>
                       <span className="text-amber-400 font-mono">
                         {item.spawnWeight || 10} ({spawnPct}%)
                       </span>
@@ -653,7 +653,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                      <span>Scale</span>
+                      <span>{t('studio.tabs.scale')}</span>
                       <span className="text-emerald-400 font-mono">
                         {(Number(item.scale) || 1.0).toFixed(1)}x
                       </span>

@@ -445,7 +445,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>Create Theme from Scratch</span>
+                    <span>{t('studio.createThemeFromScratch', undefined, 'Create Theme from Scratch')}</span>
                   </button>
                   {systemThemes.length > 0 && (
                     <button
@@ -567,7 +567,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-400 hidden sm:block">
-                    Interactive playable test mode. Catch items, test hazards, and preview layout.
+                    {t('gamesCatalog.interactiveEngineTest', undefined, 'Interactive playable test mode. Catch items, test hazards, and preview layout.')}
                   </p>
                 </div>
               </div>
@@ -576,16 +576,16 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 <button
                   onClick={() => setRestartKey((k) => k + 1)}
                   className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title="Restart game"
+                  title={t('common.restart', undefined, 'Restart game')}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Restart</span>
+                  <span className="hidden sm:inline">{t('common.restart', undefined, 'Restart')}</span>
                 </button>
 
                 <button
                   onClick={handleToggleFullscreen}
                   className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer"
-                  title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  title={isFullscreen ? t('common.exitFullscreen', undefined, 'Exit Fullscreen') : t('common.fullscreen', undefined, 'Fullscreen')}
                 >
                   {isFullscreen ? (
                     <Minimize2 className="w-4 h-4" />

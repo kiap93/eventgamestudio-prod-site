@@ -422,7 +422,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Acme Corp Summer Festival Activation"
+                    placeholder={t('showcase.titlePlaceholder', undefined, 'e.g. Acme Corp Summer Festival Activation')}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none"
                     required
                   />
@@ -432,20 +432,20 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Client / Sponsor Name
+                      {t('showcase.clientName', undefined, 'Client / Sponsor Name')}
                     </label>
                     <input
                       type="text"
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
-                      placeholder="e.g. Acme Corporation"
+                      placeholder={t('showcase.clientNamePlaceholder', undefined, 'e.g. Acme Corporation')}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Client Logo URL
+                      {t('showcase.clientLogo', undefined, 'Client Logo URL')}
                     </label>
                     <input
                       type="url"
@@ -460,7 +460,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                 {/* Cover Image URL */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Cover Image URL
+                    {t('showcase.coverImage', undefined, 'Cover Image URL')}
                   </label>
                   <input
                     type="url"
@@ -474,7 +474,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                 {/* Description */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Description & Highlights
+                    {t('showcase.eventHighlights', undefined, 'Description & Highlights')}
                   </label>
                   <textarea
                     value={description}
@@ -661,7 +661,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                     type="text"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    placeholder="e.g. Acme Corporation"
+                    placeholder={t('showcase.clientNamePlaceholder', undefined, 'e.g. Acme Corporation')}
                     disabled={isLocked}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   />
@@ -669,7 +669,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Client Logo URL
+                    {t('showcase.clientLogo', undefined, 'Client Logo URL')}
                   </label>
                   <input
                     type="url"
@@ -698,7 +698,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               {/* Cover Image URL */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Cover Image URL
+                  {t('showcase.coverImage', undefined, 'Cover Image URL')}
                 </label>
                 <input
                   type="url"
