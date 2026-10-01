@@ -256,7 +256,6 @@ export const PublicShowcasesIndexPage: React.FC = () => {
                 })}
               </div>
             )}
-            )}
           </div>
         </section>
 
