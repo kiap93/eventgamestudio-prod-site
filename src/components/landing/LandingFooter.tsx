@@ -260,7 +260,7 @@ export const LandingFooter: React.FC = () => {
         {/* Bottom Bar: Copyright, Language, Version */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
           <div>
-            &copy; {new Date().getFullYear()} EventGameStudio. All rights reserved.
+            &copy; {new Date().getFullYear()} EventGameStudio (202603258324). All rights reserved.
           </div>
 
           <div className="flex items-center gap-4">
