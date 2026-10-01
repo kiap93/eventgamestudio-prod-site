@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import { useDeveloperAdmin } from '../../hooks/useDeveloperAdmin';
@@ -16,6 +17,7 @@ import { DeveloperContactSettings } from './DeveloperContactSettings';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
+  const { t } = useLocalization();
   const { currentUser } = useAuth();
   const route = useRouteContext();
   const {
@@ -43,16 +45,16 @@ export const DeveloperAdminPage: React.FC = () => {
           <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
             <ShieldAlert className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-bold text-white">Access Denied</h1>
+          <h1 className="text-xl font-bold text-white">{t('auth.accessDenied', undefined, 'Access Denied')}</h1>
           <p className="text-sm text-slate-400 leading-relaxed">
-            You do not have developer permissions to access the Developer Admin portal.
+            {t('auth.accessDeniedDeveloper', undefined, 'You do not have developer permissions to access the Developer Admin portal.')}
           </p>
           <div className="pt-2">
             <button
               onClick={() => navigateTo('/events')}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-colors cursor-pointer"
             >
-              Return to Events
+              {t('nav.returnToEvents', undefined, 'Return to Events')}
             </button>
           </div>
         </div>

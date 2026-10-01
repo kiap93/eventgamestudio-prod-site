@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -38,6 +39,7 @@ interface TopUpPageProps {
 }
 
 export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigateTab }) => {
+  const { t } = useLocalization();
   const { currentOrganization, currentUser } = useAuth();
 
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
@@ -491,9 +493,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
               <Clock className="w-3.5 h-3.5 animate-pulse" />
-              <span>Payment Gateway Returned • Webhook Pending</span>
+              <span>{t('payment.webhookPending')}</span>
             </div>
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Payment Confirmation Pending</h1>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.confirmationPending')}</h1>
             <p className="text-sm text-slate-400 max-w-md mx-auto">
               We received your return from the payment gateway. We are waiting for authoritative cryptographic confirmation (webhook) from Stripe before updating your wallet balance.
             </p>
@@ -502,20 +504,20 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           {/* Pending Order Value Breakdown */}
           <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-6 space-y-4 text-left font-mono">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-              <span className="text-xs uppercase font-bold text-slate-400">Top Up Amount</span>
+              <span className="text-xs uppercase font-bold text-slate-400">{t('payment.topUpAmount')}</span>
               <span className="text-base font-bold text-slate-100">{formatCurrency(topUpAmount)}</span>
             </div>
 
             <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
               <span className="text-xs uppercase font-bold text-slate-400 flex items-center gap-1.5 font-sans">
                 <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>Promotional Top-up Credit</span>
+                <span>{t('payment.promotionalTopUpCredit')}</span>
               </span>
               <span className="text-base font-bold text-cyan-400">+{formatCurrency(creditAmount)}</span>
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <span className="text-xs uppercase font-bold text-slate-200 font-sans">Total Value to Credit</span>
+              <span className="text-xs uppercase font-bold text-slate-200 font-sans">{t('payment.totalValueToCredit')}</span>
               <span className="text-xl font-black text-amber-400">{formatCurrency(totalAdded)}</span>
             </div>
           </div>
@@ -525,7 +527,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-                <span>Real-Time Status Check</span>
+                <span>{t('payment.realTimeStatusCheck')}</span>
               </span>
               <span className="font-mono text-amber-400 font-semibold text-[11px]">
                 {isPollingStatus ? `Checking... (Check #${pollAttemptCount || 1})` : 'Awaiting Next Poll'}
@@ -533,18 +535,18 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             </div>
             
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Payment webhooks typically arrive within <strong className="text-slate-200">10–30 seconds</strong>. You can safely stay on this page or refresh your browser — your top-up order is safely tracked on the server.
+              Payment webhooks typically arrive within <strong className="text-slate-200">{t('payment.secondsWindow')}</strong>. You can safely stay on this page or refresh your browser — your top-up order is safely tracked on the server.
             </p>
 
             <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-              <span>Order ID: <span className="font-mono text-slate-300">{activeOrder.id.slice(0, 16)}...</span></span>
+              <span>{t('payment.orderId', undefined, 'Order ID')}: <span className="font-mono text-slate-300">{activeOrder.id.slice(0, 16)}...</span></span>
               <button
                 type="button"
                 onClick={() => handleCopyOrderId(activeOrder.id)}
                 className="hover:text-amber-400 flex items-center gap-1 transition-colors cursor-pointer text-[10px]"
               >
                 {copiedOrderId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedOrderId ? 'Copied' : 'Copy Full ID'}</span>
+                <span>{copiedOrderId ? t('payment.copied') : t('payment.copyOrderId')}</span>
               </button>
             </div>
           </div>
@@ -558,7 +560,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               className="w-full py-3.5 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
             >
               <RefreshCw className={`w-4 h-4 ${isPollingStatus ? 'animate-spin' : ''}`} />
-              <span>Check Payment Status Now</span>
+              <span>{t('payment.checkPaymentStatusNow')}</span>
             </button>
 
             {/* Developer Sandbox Testing Tools */}
@@ -567,7 +569,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                 <div className="flex items-center justify-between">
                   <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Developer Testing Sandbox (Late Webhook Scenario)</span>
+                    <span>{t('payment.developerTestingSandbox')}</span>
                   </div>
                 </div>
 
@@ -601,7 +603,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                       className="w-full py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <Clock className="w-3.5 h-3.5" />
-                      <span>Simulate 15s Delay</span>
+                      <span>{t('payment.simulate15sDelay')}</span>
                     </button>
 
                     <button
@@ -611,7 +613,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                       className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Simulate Arrived Now</span>
+                      <span>{t('payment.simulateArrivedNow')}</span>
                     </button>
                   </div>
                 )}
@@ -624,7 +626,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                     className="text-rose-400 hover:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer font-medium"
                   >
                     <XCircle className="w-3.5 h-3.5" />
-                    <span>Simulate Webhook Failed</span>
+                    <span>{t('payment.simulateFailed')}</span>
                   </button>
                 </div>
               </div>
@@ -635,7 +637,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               onClick={handleResetForNewTopUp}
               className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs transition-colors cursor-pointer"
             >
-              Cancel and Start New Top-up
+              {t('payment.startNewTopUp')}
             </button>
           </div>
         </div>
@@ -660,7 +662,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Payment Successful</h1>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.paymentSuccessful')}</h1>
             <p className="text-sm text-slate-400">
               Your payment has been verified by the payment provider. Your wallet has been credited with separate ledger entries.
             </p>
@@ -669,20 +671,20 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           {/* Payment Result Breakdown Card */}
           <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-6 space-y-4 text-left font-mono">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-              <span className="text-xs uppercase font-bold text-slate-400">Top Up</span>
+              <span className="text-xs uppercase font-bold text-slate-400">{t('payment.topUp')}</span>
               <span className="text-base font-bold text-slate-100">{formatCurrency(topUpAmount)}</span>
             </div>
 
             <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
               <span className="text-xs uppercase font-bold text-slate-400 flex items-center gap-1.5 font-sans">
                 <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>Top-up Credit</span>
+                <span>{t('payment.topUpCredit')}</span>
               </span>
               <span className="text-base font-bold text-cyan-400">+{formatCurrency(creditAmount)}</span>
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <span className="text-xs uppercase font-bold text-slate-200 font-sans">Wallet Value Added</span>
+              <span className="text-xs uppercase font-bold text-slate-200 font-sans">{t('payment.walletValueAdded')}</span>
               <span className="text-xl font-black text-amber-400">{formatCurrency(totalAdded)}</span>
             </div>
           </div>
@@ -690,17 +692,17 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           {/* Meta Details */}
           <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs space-y-1.5 text-slate-400">
             <div className="flex items-center justify-between">
-              <span>Order Reference</span>
+              <span>{t('payment.orderReference')}</span>
               <span className="font-mono text-slate-200">{activeOrder.id}</span>
             </div>
             {activeOrder.payment_reference && (
               <div className="flex items-center justify-between">
-                <span>Payment Reference</span>
+                <span>{t('payment.paymentReference')}</span>
                 <span className="font-mono text-slate-200">{activeOrder.payment_reference}</span>
               </div>
             )}
             <div className="flex items-center justify-between">
-              <span>Ledger Verification</span>
+              <span>{t('payment.ledgerVerification')}</span>
               <span className="text-emerald-400 font-semibold flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" /> Settled via Webhook
               </span>
@@ -713,7 +715,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               onClick={handleBack}
               className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>Back to Wallet</span>
+              <span>{t('payment.backToWallet', undefined, 'Back to Wallet')}</span>
               <ArrowRight className="w-5 h-5" />
             </button>
 
@@ -721,7 +723,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               onClick={handleResetForNewTopUp}
               className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
             >
-              Make Another Top Up
+              {t('payment.createNewTopUp')}
             </button>
           </div>
         </div>
@@ -739,8 +741,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Top-up Expired</h1>
-            <p className="text-sm font-semibold text-amber-300">Top-up expired. Please create a new top-up.</p>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.topUpExpired')}</h1>
+            <p className="text-sm font-semibold text-amber-300">{t('payment.topUpExpiredDesc')}</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               The payment checkout window for this order has elapsed. Your wallet balance remains untouched and no charges were made.
             </p>
@@ -749,24 +751,24 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           {/* Order Reference Box */}
           <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-left text-xs font-mono space-y-2">
             <div className="flex items-center justify-between text-slate-400">
-              <span>Order ID</span>
+              <span>{t('payment.orderId', undefined, 'Order ID')}</span>
               <div className="flex items-center gap-1.5 text-slate-200">
                 <span>{activeOrder.id.slice(0, 8)}...</span>
                 <button
                   onClick={() => handleCopyOrderId(activeOrder.id)}
                   className="hover:text-amber-400 transition-colors cursor-pointer"
-                  title="Copy full order ID"
+                  title={t('payment.copyOrderId')}
                 >
                   {copiedOrderId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>Status</span>
+              <span>{t('common.status', undefined, 'Status')}</span>
               <span className="text-amber-400 font-bold">{activeOrder.status}</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>Attempted Amount</span>
+              <span>{t('payment.attemptedAmount')}</span>
               <span className="text-slate-200">{formatCurrency(activeOrder.top_up_amount)}</span>
             </div>
           </div>
@@ -778,14 +780,14 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <PlusCircle className="w-5 h-5" />
-              <span>Create New Top-up</span>
+              <span>{t('payment.createNewTopUp')}</span>
             </button>
 
             <button
               onClick={handleBack}
               className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
             >
-              Back to Wallet
+              {t('payment.backToWallet', undefined, 'Back to Wallet')}
             </button>
           </div>
         </div>
@@ -803,8 +805,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Top-up Cancelled</h1>
-            <p className="text-sm font-semibold text-slate-300">Top-up was cancelled. No charges were made.</p>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.topUpCancelled')}</h1>
+            <p className="text-sm font-semibold text-slate-300">{t('payment.topUpCancelledDesc')}</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               You cancelled the payment checkout session before completing the transaction. Your wallet balance remains unchanged.
             </p>
@@ -813,15 +815,15 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           {/* Order Reference Box */}
           <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-left text-xs font-mono space-y-2">
             <div className="flex items-center justify-between text-slate-400">
-              <span>Order ID</span>
+              <span>{t('payment.orderId', undefined, 'Order ID')}</span>
               <span className="text-slate-200">{activeOrder.id.slice(0, 8)}...</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>Status</span>
+              <span>{t('common.status', undefined, 'Status')}</span>
               <span className="text-slate-400 font-bold">{activeOrder.status}</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>Attempted Amount</span>
+              <span>{t('payment.attemptedAmount')}</span>
               <span className="text-slate-200">{formatCurrency(activeOrder.top_up_amount)}</span>
             </div>
           </div>
@@ -833,14 +835,14 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <PlusCircle className="w-5 h-5" />
-              <span>Start New Top-up</span>
+              <span>{t('payment.startNewTopUp')}</span>
             </button>
 
             <button
               onClick={handleBack}
               className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
             >
-              Back to Wallet
+              {t('payment.backToWallet', undefined, 'Back to Wallet')}
             </button>
           </div>
         </div>
@@ -858,8 +860,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Payment Failed</h1>
-            <p className="text-sm font-semibold text-rose-300">Payment could not be completed.</p>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.paymentFailed')}</h1>
+            <p className="text-sm font-semibold text-rose-300">{t('payment.paymentFailedDesc')}</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               Your payment provider did not confirm this transaction. Your wallet balance remains untouched.
             </p>
@@ -868,15 +870,15 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           {/* Order Reference Box */}
           <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-left text-xs font-mono space-y-2">
             <div className="flex items-center justify-between text-slate-400">
-              <span>Order ID</span>
+              <span>{t('payment.orderId', undefined, 'Order ID')}</span>
               <span className="text-slate-200">{activeOrder.id.slice(0, 8)}...</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>Status</span>
+              <span>{t('common.status', undefined, 'Status')}</span>
               <span className="text-rose-400 font-bold">{activeOrder.status}</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>Attempted Amount</span>
+              <span>{t('payment.attemptedAmount')}</span>
               <span className="text-slate-200">{formatCurrency(activeOrder.top_up_amount)}</span>
             </div>
           </div>
@@ -888,14 +890,14 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
-              <span>Try Again</span>
+              <span>{t('payment.tryAgain')}</span>
             </button>
 
             <button
               onClick={handleBack}
               className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
             >
-              Back to Wallet
+              {t('payment.backToWallet', undefined, 'Back to Wallet')}
             </button>
           </div>
         </div>
@@ -917,23 +919,23 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               className="hover:text-amber-400 flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Wallet className="w-3.5 h-3.5" />
-              <span>Organization Wallet</span>
+              <span>{t('payment.organizationWallet')}</span>
             </button>
             <ChevronRight className="w-3 h-3 text-slate-600" />
-            <span className="text-amber-400">Top Up Balance</span>
+            <span className="text-amber-400">{t('payment.topUp')}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={handleBack}
               className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition-colors cursor-pointer"
-              title="Back to Wallet Overview"
+              title={t('payment.backToWalletOverview')}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-100 tracking-tight flex items-center gap-3">
-                <span>Top Up Wallet</span>
+                <span>{t('payment.topUpWallet')}</span>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   {currentOrganization?.name}
                 </span>
@@ -951,7 +953,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <Wallet className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400">Current Usable Balance</div>
+            <div className="text-[10px] uppercase font-bold text-slate-400">{t('payment.currentUsableBalance')}</div>
             <div className="text-sm font-mono font-bold text-amber-400">
               {loadingWallet ? '...' : formatCurrency(wallet?.total_balance)}
             </div>
@@ -969,7 +971,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               <div>
                 <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                   <Coins className="w-5 h-5 text-amber-400" />
-                  <span>Select Top Up Amount</span>
+                  <span>{t('payment.selectTopUpAmount')}</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Choose a recommended package or enter a custom amount.
@@ -1049,9 +1051,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="space-y-3 pt-2 border-t border-slate-800">
               <div className="flex items-center justify-between">
                 <label htmlFor="custom-topup-input" className="text-xs font-bold text-slate-300">
-                  Custom Amount
+                  {t('payment.customAmount')}
                 </label>
-                <span className="text-[11px] text-slate-500">Min: RM 1.00</span>
+                <span className="text-[11px] text-slate-500">{t('payment.minTopUp')}</span>
               </div>
 
               <div className="relative">
@@ -1065,7 +1067,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   value={customAmountInput}
                   onChange={handleCustomAmountChange}
                   onFocus={() => setSelectedPreset('custom')}
-                  placeholder="e.g. 7500.00"
+                  placeholder={t('payment.amountPlaceholder')}
                   className={`w-full pl-14 pr-4 py-3 bg-slate-950 border ${
                     selectedPreset === 'custom'
                       ? 'border-amber-500 ring-2 ring-amber-500/20'
@@ -1087,7 +1089,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 space-y-4">
             <h3 className="text-xs uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span>Wallet Balance Pools & Policy</span>
+              <span>{t('payment.walletBalancePoolsPolicy')}</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1136,7 +1138,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-400" />
-                <span>Order Summary</span>
+                <span>{t('payment.orderSummary')}</span>
               </h2>
               {loadingQuote && <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />}
             </div>
@@ -1144,7 +1146,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             {/* Order Breakdown */}
             <div className="space-y-3.5 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Selected Amount</span>
+                <span className="text-slate-400">{t('payment.selectedAmount', undefined, 'Selected Amount')}</span>
                 <span className="font-mono font-bold text-slate-100 text-sm">
                   {formatCurrency(quote?.amount ?? activeAmount)}
                 </span>
@@ -1153,7 +1155,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Top-up Credit</span>
+                  <span>{t('payment.topUpCredit')}</span>
                   {quote && quote.bonus_percentage > 0 && (
                     <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                       {quote.bonus_percentage}% Bonus
@@ -1169,8 +1171,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
               <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-slate-200 block">Total Wallet Value</span>
-                  <span className="text-[10px] text-slate-500">Purchased funds + Promotional bonus</span>
+                  <span className="font-bold text-slate-200 block">{t('payment.totalWalletValue')}</span>
+                  <span className="text-[10px] text-slate-500">{t('payment.purchasedFundsPromo')}</span>
                 </div>
                 <span className="font-mono font-bold text-amber-400 text-base">
                   {formatCurrency(quote?.total_wallet_value ?? activeAmount)}
@@ -1185,14 +1187,14 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-300">You Pay</span>
+                <span className="text-xs text-slate-300">{t('payment.youPay')}</span>
                 <span className="font-mono text-xl font-black text-slate-100">
                   {formatCurrency(quote?.you_pay ?? activeAmount)}
                 </span>
               </div>
 
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Wallet Value After Top Up</span>
+                <span className="text-slate-400">{t('payment.walletValueAfterTopUp')}</span>
                 <span className="font-mono font-bold text-emerald-400">
                   {formatCurrency(quote?.wallet_value_after_topup.total_balance)}
                 </span>
@@ -1217,11 +1219,11 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               {isSubmittingOrder ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Connecting to Payment Gateway...</span>
+                  <span>{t('payment.connectingPaymentGateway')}</span>
                 </>
               ) : (
                 <>
-                  <span>Continue to Payment</span>
+                  <span>{t('payment.continueToPayment')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -1229,7 +1231,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
             <div className="text-center text-[10px] text-slate-500 flex items-center justify-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-emerald-400" />
-              <span>256-bit Encrypted Payment Gateway • Webhook Verified</span>
+              <span>{t('payment.encryptedPaymentNotice')}</span>
             </div>
           </div>
         </div>
@@ -1248,7 +1250,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   <Lock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-100">Secure Payment Checkout</h3>
+                  <h3 className="text-lg font-black text-slate-100">{t('payment.securePaymentCheckout')}</h3>
                   <p className="text-xs text-slate-400">Order #{activeOrder.id.slice(0, 8)}</p>
                 </div>
               </div>
@@ -1264,8 +1266,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             {/* Payment Amount Card */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Due</span>
-                <span className="text-xs text-slate-300">Top-Up Deposit</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">{t('payment.totalDue')}</span>
+                <span className="text-xs text-slate-300">{t('payment.topUpDeposit')}</span>
               </div>
               <div className="text-right">
                 <span className="font-mono text-2xl font-black text-amber-400">
@@ -1279,15 +1281,15 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
             {/* Payment Method Selection */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300">Payment Method</label>
+              <label className="text-xs font-bold text-slate-300">{t('payment.paymentMethod')}</label>
               <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold block text-slate-100">Credit / Debit Card</span>
-                    <span className="text-[11px] text-slate-400">Visa, Mastercard, American Express</span>
+                    <span className="text-xs font-bold block text-slate-100">{t('payment.cardPaymentMethod')}</span>
+                    <span className="text-[11px] text-slate-400">{t('payment.cardBrands')}</span>
                   </div>
                 </div>
                 <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -1345,12 +1347,12 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                     {isProcessingPayment ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Processing Simulation...</span>
+                        <span>{t('payment.verifyingSimulation')}</span>
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Simulate Webhook: Succeeded</span>
+                        <span>{t('payment.simulateSucceeded')}</span>
                       </>
                     )}
                   </button>
@@ -1362,7 +1364,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                     className="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Simulate Webhook: Failed</span>
+                    <span>{t('payment.simulateFailed')}</span>
                   </button>
                 </div>
               )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { GameTheme, getThemeGameType } from '../../themes/types';
 import {
   GameLayoutConfig,
@@ -221,6 +222,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   className = '',
   uiScale,
 }) => {
+  const { t } = useLocalization();
   const resolvedGameType = explicitGameType || getThemeGameType(theme);
   const isCatch = resolvedGameType === 'catch-brand';
   const effectiveScale = isCatch && uiScale !== undefined
@@ -344,7 +346,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                   style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
                   className="text-amber-400 shrink-0"
                 />{' '}
-                SCORE
+                {t('game.score', undefined, 'SCORE').toUpperCase()}
               </span>
               <span
                 style={{ color: hudColor, fontSize: `${hudMetrics.valFont}px` }}
@@ -358,7 +360,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-xl sm:rounded-2xl px-2 sm:px-3 py-0.5 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden">
             <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0">
-              <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" /> SCORE
+              <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" /> {t('game.score', undefined, 'SCORE').toUpperCase()}
             </span>
             <span
               style={{ color: hudColor }}
@@ -391,7 +393,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                   style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
                   className="text-sky-400 shrink-0"
                 />{' '}
-                MOVES
+                {t('game.moves', undefined, 'MOVES').toUpperCase()}
               </span>
               <span
                 style={{ color: hudColor, fontSize: `${hudMetrics.valFont}px` }}
@@ -405,7 +407,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-xl sm:rounded-2xl px-2 sm:px-3 py-0.5 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden">
             <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0">
-              <Footprints className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-sky-400 shrink-0" /> MOVES
+              <Footprints className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-sky-400 shrink-0" /> {t('game.moves', undefined, 'MOVES').toUpperCase()}
             </span>
             <span
               style={{ color: hudColor }}
@@ -438,7 +440,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                   style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
                   className="text-emerald-400 shrink-0"
                 />{' '}
-                PAIRS
+                {t('game.pairs', undefined, 'PAIRS').toUpperCase()}
               </span>
               <span
                 style={{ color: hudColor, fontSize: `${hudMetrics.valFont}px` }}
@@ -452,7 +454,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-xl sm:rounded-2xl px-2 sm:px-3 py-0.5 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden">
             <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0">
-              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" /> PAIRS
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" /> {t('game.pairs', undefined, 'PAIRS').toUpperCase()}
             </span>
             <span
               style={{ color: hudColor }}
@@ -485,7 +487,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                   style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
                   className="text-teal-400 shrink-0"
                 />{' '}
-                TIME
+                {t('game.time', undefined, 'TIME').toUpperCase()}
               </span>
               <span
                 style={{ fontSize: `${hudMetrics.valFont}px` }}
@@ -501,7 +503,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-xl sm:rounded-2xl px-2 sm:px-3 py-0.5 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden">
             <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0">
-              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-teal-400 shrink-0" /> TIME
+              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-teal-400 shrink-0" /> {t('game.time', undefined, 'TIME').toUpperCase()}
             </span>
             <span
               className={`text-xs sm:text-base font-mono font-black ml-1 shrink-0 ${
@@ -686,7 +688,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                     }
                   }}
                   className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-amber-400 hover:bg-amber-300 border border-slate-900 rounded cursor-ew-resize flex items-center justify-center shadow-lg z-50 transition-transform active:scale-110"
-                  title="Drag to resize width"
+                  title={t('studio.dragToResizeWidth', undefined, 'Drag to resize width')}
                 >
                   <div className="w-0.5 h-3 bg-slate-950 rounded-full" />
                 </div>

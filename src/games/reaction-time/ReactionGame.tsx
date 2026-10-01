@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Volume2,
   VolumeX,
@@ -65,6 +66,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   onGameStateChange,
   onStatsChange,
 }) => {
+  const { t } = useLocalization();
   // Merge authoritative config with defaults
   const reactionConfig: ReactionGameConfig = useMemo(() => {
     const rawConfig = (activeTheme?.game_config as ReactionGameConfig) || config;
@@ -623,7 +625,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-3 py-1.5 rounded-xl text-xs font-mono">
-            <span className="text-slate-400 font-bold">ROUND</span>
+            <span className="text-slate-400 font-bold">{t('game.roundLabel')}</span>
             <span className="text-amber-400 font-black">
               {currentRound}/{reactionConfig.roundsCount}
             </span>
@@ -635,7 +637,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
           {stats.bestMs > 0 && (
             <div className="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-500/40 px-3 py-1.5 rounded-xl font-mono text-xs text-emerald-400">
               <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-              <span>BEST:</span>
+              <span>{t('game.bestLabel')}</span>
               <span className="font-bold">{stats.bestMs}ms</span>
             </div>
           )}
@@ -828,7 +830,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
 
       {/* Bottom Footer Hint */}
       <div className="w-full px-6 pb-4 flex items-center justify-center text-slate-500 text-xs font-mono z-10">
-        <span>Click, tap, or press [SPACE] to react</span>
+        <span>{t('game.clickTapSpaceToReact')}</span>
       </div>
 
       {/* Start Screen Overlay */}
@@ -928,7 +930,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-base">High Scores</h3>
+                <h3 className="font-bold text-base">{t('game.leaderboard')}</h3>
               </div>
               <button
                 onClick={() => setShowLeaderboardModal(false)}
@@ -941,13 +943,13 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
               {loadingLeaderboard ? (
                 <div className="py-8 text-slate-400 text-xs flex flex-col items-center gap-2">
                   <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                  <span>Loading Leaderboard...</span>
+                  <span>{t('game.loadingLeaderboard')}</span>
                 </div>
               ) : leaderboardScores.length === 0 ? (
                 <div className="py-8 text-center text-slate-400 text-xs">
                   <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
-                  <p className="font-bold text-slate-300">No Scores Yet!</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Be the first to submit a high score!</p>
+                  <p className="font-bold text-slate-300">{t('game.noScoresYetTitle')}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{t('game.beFirstToPlay')}</p>
                 </div>
               ) : (
                 leaderboardScores.map((entry) => (

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeCard } from '../studio/ThemeCard';
 import { CreateThemeDialog } from '../studio/CreateThemeDialog';
@@ -41,6 +42,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
   onBack,
   onEditTheme,
 }) => {
+  const { t } = useLocalization();
   const {
     themes,
     createTheme,
@@ -283,10 +285,10 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-850 active:scale-95 text-slate-300 hover:text-slate-100 border border-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm group"
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-855 active:scale-95 text-slate-300 hover:text-slate-100 border border-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to All Games</span>
+          <span>{t('common.back', undefined, 'Back to All Games')}</span>
         </button>
 
         {actionMessage && (
@@ -324,11 +326,11 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 </span>
                 {game.status === 'active' ? (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                    Active
+                    {t('gamesCatalog.statusActive')}
                   </span>
                 ) : (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                    Draft
+                    {t('gamesCatalog.statusDraft')}
                   </span>
                 )}
               </div>
@@ -345,7 +347,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-md hover:shadow-amber-500/20 cursor-pointer"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Create Theme</span>
+                <span>{t('gameDetail.createTheme')}</span>
               </button>
             )}
           </div>
@@ -365,7 +367,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>My Themes ({myGameThemes.length})</span>
+            <span>{t('gameDetail.myThemes')} ({myGameThemes.length})</span>
           </button>
 
           <button
@@ -377,7 +379,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Default Templates ({systemThemes.length})</span>
+            <span>{t('gameDetail.systemThemes')} ({systemThemes.length})</span>
           </button>
         </div>
 
@@ -387,7 +389,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search themes by name or item..."
+              placeholder={t('gameDetail.searchThemes')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
@@ -399,19 +401,19 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-amber-500 cursor-pointer shrink-0"
           >
-            <option value="all">All</option>
-            <option value="draft">Drafts</option>
-            <option value="archived">Archived</option>
+            <option value="all">{t('gameDetail.allStatuses')}</option>
+            <option value="draft">{t('gameDetail.draftOnly')}</option>
+            <option value="archived">{t('gameDetail.archivedOnly')}</option>
           </select>
 
           {activeTab === 'system-themes' && !isViewer && systemThemes.length > 0 && (
             <button
               onClick={() => setShowCloneAllModal(true)}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Clone all default templates into your organization"
+              title={t('gameDetail.cloneAll')}
             >
               <Copy className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Clone All</span>
+              <span className="hidden sm:inline">{t('gameDetail.cloneAll')}</span>
             </button>
           )}
         </div>
@@ -482,20 +484,20 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
           {isLoadingSystem ? (
             <div className="flex flex-col items-center justify-center p-12 text-slate-500 gap-3">
               <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
-              <p className="text-xs font-medium">Loading default templates...</p>
+              <p className="text-xs font-medium">{t('gameDetail.loadingTemplates', undefined, 'Loading default templates...')}</p>
             </div>
           ) : systemThemeError ? (
             <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-6 rounded-2xl text-xs space-y-2">
               <div className="flex items-center gap-2 font-bold">
                 <AlertCircle className="w-4 h-4" />
-                <span>Failed to load default templates</span>
+                <span>{t('gameDetail.failedTemplates', undefined, 'Failed to load default templates')}</span>
               </div>
               <p>{systemThemeError}</p>
               <button
                 onClick={loadSystemThemes}
                 className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 rounded-lg font-bold transition-colors cursor-pointer"
               >
-                Retry
+                {t('common.retry')}
               </button>
             </div>
           ) : filteredSystemThemes.length === 0 ? (
@@ -504,9 +506,9 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 <Sparkles className="w-7 h-7" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-slate-200">No system templates found</h3>
+                <h3 className="text-base font-bold text-slate-200">{t('gameDetail.noThemesFound')}</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  No default templates are currently configured for this game type.
+                  {t('gameDetail.noThemesFoundDesc')}
                 </p>
               </div>
             </div>
@@ -515,7 +517,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 flex items-center gap-3 text-xs text-amber-300">
                 <Info className="w-4 h-4 shrink-0 text-amber-400" />
                 <span>
-                  System templates are read-only baseline themes for <strong>{game.name}</strong>. Clone any template into <strong>My Themes</strong> to customize drop items, branding logos, speed multipliers, and audio.
+                  {t('gameDetail.systemTemplatesNotice')}
                 </span>
               </div>
 
@@ -645,13 +647,13 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 <Copy className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-black text-slate-100">Clone Default Templates</h3>
-                <p className="text-xs text-slate-400">Copy all system themes for {game.name}</p>
+                <h3 className="text-base font-black text-slate-100">{t('gameDetail.cloneAll')}</h3>
+                <p className="text-xs text-slate-400">{t('gameDetail.cloneAllDesc', { name: game.name }, `Copy all system themes for ${game.name}`)}</p>
               </div>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              This will create custom copies of all <strong>{systemThemes.length} default themes</strong> into your organization workspace so you can freely edit graphics, scoring, and branding.
+              {t('gameDetail.cloneAllNotice', { count: systemThemes.length }, `This will create custom copies of all ${systemThemes.length} default themes into your organization workspace so you can freely edit graphics, scoring, and branding.`)}
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -661,7 +663,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 disabled={isCloningAll}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -672,12 +674,12 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 {isCloningAll ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Cloning...</span>
+                    <span>{t('common.saving', undefined, 'Cloning...')}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Clone All Templates</span>
+                    <span>{t('gameDetail.cloneAll')}</span>
                   </>
                 )}
               </button>

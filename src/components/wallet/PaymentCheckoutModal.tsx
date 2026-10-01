@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { TopupOrderRecord, PaymentCheckoutSession } from '../../types';
@@ -34,6 +35,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
   onPaymentFailed,
   onPaymentCancelled,
 }) => {
+  const { t } = useLocalization();
   const { currentUser } = useAuth();
   const selectedPaymentMethod = 'card';
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -190,8 +192,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-100">Secure Payment Checkout</h3>
-              <p className="text-xs text-slate-400">Order #{order.id.slice(0, 8)}</p>
+              <h3 className="text-lg font-black text-slate-100">{t('payment.securePaymentCheckout')}</h3>
+              <p className="text-xs text-slate-400">{t('payment.orderId')}: #{order.id.slice(0, 8)}</p>
             </div>
           </div>
 
@@ -208,8 +210,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
         {/* Payment Amount Card */}
         <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Due</span>
-            <span className="text-xs text-slate-300">Top-Up Deposit</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">{t('payment.totalDue')}</span>
+            <span className="text-xs text-slate-300">{t('payment.topUpDeposit')}</span>
           </div>
           <div className="text-right">
             <span className="font-mono text-2xl font-black text-amber-400">
@@ -217,7 +219,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
             </span>
             {order.expected_credit_amount > 0 && (
               <span className="block text-[10px] text-cyan-400">
-                +{formatCurrency(order.expected_credit_amount, order.currency)} Bonus Included
+                +{formatCurrency(order.expected_credit_amount, order.currency)} {t('payment.promotionalBonusValue')}
               </span>
             )}
           </div>
@@ -225,19 +227,19 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
 
         {/* Payment Method */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-300">Payment Method</label>
+          <label className="text-xs font-bold text-slate-300">{t('payment.paymentMethod')}</label>
           <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xs font-bold block text-slate-100">Credit / Debit Card</span>
-                <span className="text-[11px] text-slate-400">Visa, Mastercard, American Express</span>
+                <span className="text-xs font-bold block text-slate-100">{t('payment.creditOrDebit')}</span>
+                <span className="text-[11px] text-slate-400">{t('payment.cardBrands')}</span>
               </div>
             </div>
             <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              Active
+              {t('common.active')}
             </span>
           </div>
         </div>
@@ -266,7 +268,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
                   onClick={onClose}
                   className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors cursor-pointer"
                 >
-                  Create New Top-up
+                  {t('payment.createNewTopUp')}
                 </button>
               </div>
             )}
@@ -277,10 +279,10 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
         <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
           <strong className="text-slate-300 block flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            Cryptographic Webhook Settlement
+            {t('payment.immutableLedger')}
           </strong>
           <p>
-            Funds are credited strictly after verified HMAC webhook confirmation from the payment gateway.
+            {t('payment.encryptedPaymentNotice')}
           </p>
         </div>
 
@@ -295,7 +297,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
               className="w-full py-3.5 px-4 rounded-xl bg-[#635BFF] hover:bg-[#5851DF] text-white font-bold text-sm shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <CreditCard className="w-4 h-4" />
-              <span>Open Payment Gateway ({formatCurrency(order.top_up_amount, order.currency)})</span>
+              <span>{t('payment.continueToPayment')} ({formatCurrency(order.top_up_amount, order.currency)})</span>
             </a>
           )}
 
@@ -314,12 +316,12 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
                 {isProcessingPayment || isPollingStatus ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Verifying Simulation...</span>
+                    <span>{t('payment.verifyingSimulation')}</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Simulate Webhook: Succeeded</span>
+                    <span>{t('payment.simulateSucceeded')}</span>
                   </>
                 )}
               </button>
@@ -332,7 +334,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
                   className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Simulate: Expired</span>
+                  <span>{t('payment.simulateExpired')}</span>
                 </button>
 
                 <button
@@ -342,7 +344,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
                   className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Simulate: Failed</span>
+                  <span>{t('payment.simulateFailed')}</span>
                 </button>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Gamepad2,
   Search,
@@ -32,6 +33,7 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
   onPlayDemo,
   onRefresh,
 }) => {
+  const { t } = useLocalization();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
@@ -110,13 +112,13 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider">
               <Gamepad2 className="w-3.5 h-3.5" />
-              <span>Platform Game Catalog</span>
+              <span>{t('gamesCatalog.platformGameCatalog')}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-100 tracking-tight">
-              Interactive Event Games
+              {t('gamesCatalog.heroTitle', undefined, 'Interactive Event Games')}
             </h1>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Explore available game engines, manage branded themes, customize physics and visuals, and configure games for your live promotional events.
+              {t('gamesCatalog.heroSubtitle', undefined, 'Explore available game engines, manage branded themes, customize physics and visuals, and configure games for your live promotional events.')}
             </p>
           </div>
 
@@ -127,7 +129,7 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
               className="px-3.5 py-2 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-slate-300 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
+              <span>{t('common.refresh', undefined, 'Refresh')}</span>
             </button>
           </div>
         </div>
@@ -140,7 +142,7 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search games by title, type, or tags..."
+            placeholder={t('gamesCatalog.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
@@ -156,10 +158,10 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
               onChange={(e) => setTypeFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 cursor-pointer shrink-0"
             >
-              <option value="all">All Game Types</option>
-              {availableGameTypes.map((t) => (
-                <option key={t} value={t}>
-                  {formatGameTypeName(t)}
+              <option value="all">{t('gamesCatalog.allGameTypes')}</option>
+              {availableGameTypes.map((tType) => (
+                <option key={tType} value={tType}>
+                  {formatGameTypeName(tType)}
                 </option>
               ))}
             </select>
@@ -171,9 +173,9 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 cursor-pointer shrink-0"
           >
-            <option value="all">All Statuses</option>
-            <option value="active">Active Only</option>
-            <option value="draft">Draft Only</option>
+            <option value="all">{t('gamesCatalog.allStatuses')}</option>
+            <option value="active">{t('gamesCatalog.activeOnly')}</option>
+            <option value="draft">{t('gamesCatalog.draftOnly')}</option>
           </select>
         </div>
       </div>
@@ -201,11 +203,11 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
             <Gamepad2 className="w-8 h-8" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-bold text-slate-200">No games found</h3>
+            <h3 className="text-base font-bold text-slate-200">{t('gamesCatalog.noGamesFound')}</h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               {searchQuery || typeFilter !== 'all' || statusFilter !== 'all'
-                ? 'No games match your active filters. Try adjusting your search query.'
-                : 'No games are available in this catalog yet.'}
+                ? t('gamesCatalog.noGamesMatchFilter')
+                : t('gamesCatalog.noGamesInCatalog')}
             </p>
           </div>
           {(searchQuery || typeFilter !== 'all' || statusFilter !== 'all') && (
@@ -217,7 +219,7 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
               }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
             >
-              Clear Filters
+              {t('gamesCatalog.clearFilters')}
             </button>
           )}
         </div>
@@ -246,11 +248,11 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
                       </span>
                       {game.status === 'active' ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                          Active
+                          {t('gamesCatalog.statusActive')}
                         </span>
                       ) : (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                          Draft
+                          {t('gamesCatalog.statusDraft')}
                         </span>
                       )}
                     </div>
@@ -275,9 +277,9 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
                       </div>
                       <div>
                         <div className="text-xs font-black text-slate-200">
-                          {themeCount} {themeCount === 1 ? 'Theme' : 'Themes'}
+                          {themeCount === 1 ? t('gamesCatalog.themeCount', { count: themeCount }) : t('gamesCatalog.themesCount', { count: themeCount })}
                         </div>
-                        <div className="text-[10px] text-slate-500 font-medium">Configured</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{t('gamesCatalog.configured')}</div>
                       </div>
                     </div>
 
@@ -287,9 +289,9 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
                       </div>
                       <div>
                         <div className="text-xs font-black text-slate-200">
-                          {eventCount} {eventCount === 1 ? 'Event' : 'Events'}
+                          {eventCount === 1 ? t('gamesCatalog.eventCount', { count: eventCount }) : t('gamesCatalog.eventsCount', { count: eventCount })}
                         </div>
-                        <div className="text-[10px] text-slate-500 font-medium">Linked</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{t('gamesCatalog.linked')}</div>
                       </div>
                     </div>
                   </div>
@@ -298,18 +300,18 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-800/70">
                     <button
                       onClick={() => onPlayDemo(game)}
-                      title="Quick play test demo"
+                      title={t('gamesCatalog.launchDemo', undefined, 'Quick play test demo')}
                       className="px-3.5 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-slate-100 border border-slate-700/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-current text-amber-400" />
-                      <span>Demo</span>
+                      <span>{t('gamesCatalog.demo')}</span>
                     </button>
 
                     <button
                       onClick={() => onSelectGame(game)}
                       className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-amber-500/20 cursor-pointer"
                     >
-                      <span>Manage Game</span>
+                      <span>{t('gamesCatalog.manageGame')}</span>
                       <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
                     </button>
                   </div>

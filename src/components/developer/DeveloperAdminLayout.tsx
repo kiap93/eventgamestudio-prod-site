@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -33,6 +34,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
   children,
   activeSection = 'games',
 }) => {
+  const { t } = useLocalization();
   const { currentUser, currentOrganization, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
@@ -46,11 +48,11 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
           <span className="text-emerald-400 font-bold uppercase tracking-wider text-[10px]">
-            DEVELOPER ADMIN PLATFORM
+            {t('developer.devAdminPlatform')}
           </span>
           <span className="hidden sm:inline text-slate-500">|</span>
           <span className="hidden sm:inline text-slate-400 text-[11px]">
-            Game Catalog, Themes & Showcase Reviews
+            {t('developer.platformTopNotification')}
           </span>
         </div>
 
@@ -60,7 +62,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] hover:underline cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Studio Workspace</span>
+            <span>{t('developer.returnToStudio')}</span>
           </button>
         </div>
       </div>
@@ -82,7 +84,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                   DevAdmin <span className="text-emerald-400 ml-1">Platform</span>
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 block -mt-0.5">
-                  GAMES, THEMES & REVIEWS
+                  {t('developer.gamesThemesReviews')}
                 </span>
               </div>
             </div>
@@ -98,7 +100,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <Gamepad2 className="w-4 h-4" />
-                <span>Games & System Themes</span>
+                <span>{t('developer.gamesAndSystemThemes')}</span>
               </button>
 
               <button
@@ -110,7 +112,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <Building2 className="w-4 h-4 text-emerald-400" />
-                <span>Organizations</span>
+                <span>{t('nav.organizations', undefined, 'Organizations')}</span>
               </button>
 
               <button
@@ -122,7 +124,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <Gift className="w-4 h-4 text-amber-400" />
-                <span>Showcase Reviews</span>
+                <span>{t('nav.showcaseReviews', undefined, 'Showcase Reviews')}</span>
               </button>
 
               <button
@@ -134,7 +136,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <Coins className="w-4 h-4 text-cyan-400" />
-                <span>Event Pricing Control</span>
+                <span>{t('developer.eventPricingControl')}</span>
               </button>
 
               <button
@@ -146,7 +148,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <Mail className="w-4 h-4 text-indigo-400" />
-                <span>Gmail API Email</span>
+                <span>{t('developer.gmailApiEmail')}</span>
               </button>
 
               <button
@@ -158,7 +160,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <AlertOctagon className="w-4 h-4 text-rose-400" />
-                <span>API Error Logs</span>
+                <span>{t('developer.errorLogs')}</span>
               </button>
 
               <button
@@ -170,7 +172,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <MessageSquare className="w-4 h-4 text-emerald-400" />
-                <span>Contact Settings</span>
+                <span>{t('developer.contactSupportSettings')}</span>
               </button>
             </nav>
           </div>
@@ -248,7 +250,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               }`}
             >
               <Building2 className="w-4 h-4 text-emerald-400" />
-              <span>Organizations</span>
+              <span>{t('nav.organizations', undefined, 'Organizations')}</span>
             </button>
 
             <button
@@ -263,7 +265,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               }`}
             >
               <Gift className="w-4 h-4 text-amber-400" />
-              <span>Showcase Reviews</span>
+              <span>{t('nav.showcaseReviews', undefined, 'Showcase Reviews')}</span>
             </button>
 
             <button
@@ -278,7 +280,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               }`}
             >
               <Coins className="w-4 h-4 text-cyan-400" />
-              <span>Event Pricing Control</span>
+              <span>{t('developer.eventPricingControl')}</span>
             </button>
 
             <button
@@ -293,7 +295,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               }`}
             >
               <Mail className="w-4 h-4 text-indigo-400" />
-              <span>Gmail API Email</span>
+              <span>{t('developer.gmailApiEmail')}</span>
             </button>
 
             <button
@@ -308,7 +310,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               }`}
             >
               <AlertOctagon className="w-4 h-4 text-rose-400" />
-              <span>API Error Logs</span>
+              <span>{t('developer.errorLogs')}</span>
             </button>
 
             <button
@@ -323,7 +325,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               }`}
             >
               <MessageSquare className="w-4 h-4 text-emerald-400" />
-              <span>Contact Settings</span>
+              <span>{t('developer.contactSupportSettings')}</span>
             </button>
 
             <button
@@ -334,7 +336,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Return to Studio</span>
+              <span>{t('developer.returnToStudio')}</span>
             </button>
           </div>
         )}

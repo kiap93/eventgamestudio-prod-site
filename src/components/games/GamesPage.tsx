@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
 import { apiFetch } from '../../lib/api';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const GamesPage: React.FC = () => {
+  const { t } = useLocalization();
   const { currentOrganization, fetchThemes } = useAuth();
   const routeContext = useRouteContext();
 
@@ -269,13 +271,13 @@ export const GamesPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-xs sm:text-sm font-black text-slate-100 flex items-center gap-2">
-                    <span>Demo Engine: {demoPlayingGame.name}</span>
+                    <span>{t('gamesCatalog.demoEngine', { name: demoPlayingGame.name })}</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 text-slate-400 rounded-full">
                       {demoPlayingGame.game_type || 'catch-brand'}
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-400 hidden sm:block">
-                    Interactive engine test. Click &apos;Manage Game&apos; to customize themes, visuals, and audio.
+                    {t('gamesCatalog.interactiveEngineTest')}
                   </p>
                 </div>
               </div>
@@ -284,16 +286,16 @@ export const GamesPage: React.FC = () => {
                 <button
                   onClick={() => setDemoRestartKey((k) => k + 1)}
                   className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title="Restart demo"
+                  title={t('gamesCatalog.restart')}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Restart</span>
+                  <span className="hidden sm:inline">{t('gamesCatalog.restart')}</span>
                 </button>
 
                 <button
                   onClick={handleToggleDemoFullscreen}
                   className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer"
-                  title={isDemoFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  title={isDemoFullscreen ? t('gamesCatalog.exitFullscreen') : t('gamesCatalog.fullscreen')}
                 >
                   {isDemoFullscreen ? (
                     <Minimize2 className="w-4 h-4" />
@@ -306,7 +308,7 @@ export const GamesPage: React.FC = () => {
                   onClick={() => setDemoPlayingGame(null)}
                   className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                 >
-                  Close
+                  {t('gamesCatalog.close')}
                 </button>
               </div>
             </div>

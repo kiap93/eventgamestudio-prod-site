@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Trophy,
   RotateCcw,
@@ -152,6 +153,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   onElementPointerDown,
   onStopGame,
 }) => {
+  const { t } = useLocalization();
   const viewportRef = useRef<HTMLDivElement>(null);
   const orientationPreference = activeTheme?.layout?.orientation || 'auto';
   const responsive = useResponsiveLayout(viewportRef, orientationPreference, overrideOrientation);
@@ -2021,11 +2023,11 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             <button
               onClick={stopGame}
               className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg bg-rose-950/80 border border-rose-600/70 text-rose-300 hover:bg-rose-900 hover:text-white transition-all font-mono text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
-              title="Stop Game (Return to Start Screen)"
-              aria-label="Stop Game"
+              title={t('game.stopGame')}
+              aria-label={t('game.stopGame')}
             >
               <Square className="w-3.5 h-3.5 fill-current text-rose-400" />
-              <span className="hidden sm:inline">Stop</span>
+              <span className="hidden sm:inline">{t('game.stopGame')}</span>
             </button>
           )}
 
@@ -2033,7 +2035,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             <button
               onClick={handlePause}
               className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
-              title="Pause Game"
+              title={t('game.pause')}
             >
               <Pause className="w-3.5 h-3.5" />
             </button>
@@ -2043,7 +2045,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             <button
               onClick={handleResume}
               className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all font-mono text-xs font-bold"
-              title="Resume Game"
+              title={t('game.resume')}
             >
               <Play className="w-3.5 h-3.5" />
             </button>
@@ -2053,7 +2055,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             <button
               onClick={handleRestart}
               className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-all font-mono text-xs font-bold"
-              title="Restart Board"
+              title={t('game.restartBoard')}
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -2062,7 +2064,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           <button
             onClick={onToggleMute}
             className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-            title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            title={isMuted ? t('game.soundOn') : t('game.soundOff')}
           >
             {isMuted ? (
               <VolumeX className="w-3.5 h-3.5 text-rose-400" />
@@ -2075,7 +2077,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             <button
               onClick={onToggleFullscreen}
               className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+              title={isFullscreen ? t('gamesCatalog.exitFullscreen') : t('gamesCatalog.fullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
@@ -2105,15 +2107,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               {countdown}
             </div>
             <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mt-4">
-              Get Ready!
+              {t('game.ready')}
             </p>
             <button
               onClick={stopGame}
               className="mt-6 px-3.5 py-1.5 bg-rose-950/70 hover:bg-rose-900 border border-rose-700/70 text-rose-300 hover:text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer pointer-events-auto"
-              title="Stop Countdown"
+              title={t('game.stopGame')}
             >
               <Square className="w-3 h-3 fill-current text-rose-400" />
-              <span>Stop Game</span>
+              <span>{t('game.stopGame')}</span>
             </button>
           </div>
         )}

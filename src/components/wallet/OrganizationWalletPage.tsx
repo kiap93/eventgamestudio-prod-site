@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { WalletBalanceSummary, WalletTransactionRecord, TopupOrderRecord } from '../../types';
@@ -59,6 +60,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
   onNavigateTab,
   onNavigateToTopUp,
 }) => {
+  const { t } = useLocalization();
   const { currentOrganization } = useAuth();
 
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
@@ -446,27 +448,27 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     if (s === 'COMPLETED' || s === 'PAID') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Completed
+          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> {t('common.completed', undefined, 'Completed')}
         </span>
       );
     }
     if (s === 'PENDING') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-          <Clock className="w-3 h-3 text-amber-400" /> Pending
+          <Clock className="w-3 h-3 text-amber-400" /> {t('common.pending', undefined, 'Pending')}
         </span>
       );
     }
     if (s === 'REVERSED') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-          <RotateCcw className="w-3 h-3 text-slate-400" /> Reversed
+          <RotateCcw className="w-3 h-3 text-slate-400" /> {t('common.reversed', undefined, 'Reversed')}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-        <AlertCircle className="w-3 h-3 text-rose-400" /> {status || 'Failed'}
+        <AlertCircle className="w-3 h-3 text-rose-400" /> {status || t('common.failed', undefined, 'Failed')}
       </span>
     );
   };
@@ -511,7 +513,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-100">
-                Organization Wallet
+                {t('payment.organizationWallet')}
               </h1>
             </div>
           </div>
@@ -541,10 +543,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoadingWallet}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors cursor-pointer disabled:opacity-50"
-            title="Refresh Wallet Balances and Ledger"
+            title={t('payment.refreshBalances')}
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">{t('common.refresh')}</span>
           </button>
         </div>
       </div>
@@ -561,7 +563,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Total Available Balance
+                  <Sparkles className="w-3.5 h-3.5" /> {t('payment.totalWalletValue')}
                 </span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                   {currencyCode}
@@ -569,13 +571,13 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               </div>
               <div className="text-3xl sm:text-5xl font-mono font-black tracking-tight text-amber-400">
                 {isLoadingWallet && !wallet ? (
-                  <span className="animate-pulse text-slate-600">Loading...</span>
+                  <span className="animate-pulse text-slate-600">{t('common.loading')}</span>
                 ) : (
                   formatCurrency(wallet?.total_balance)
                 )}
               </div>
               <p className="text-xs text-slate-400 max-w-xl pt-1">
-                Total usable funds across cash Paid Balance and eligible promotional credits ready for event launches.
+                {t('payment.totalSpendingPower')}
               </p>
             </div>
 
@@ -589,7 +591,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Top Up Balance</span>
+                <span>{t('payment.topUp')}</span>
               </button>
 
               {onNavigateTab && (
@@ -598,12 +600,12 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
                 >
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>Deploy An Event</span>
+                  <span>{t('payment.deployAnEvent', undefined, 'Deploy An Event')}</span>
                 </button>
               )}
               <div className="text-[11px] text-slate-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Standard Event Price: <strong>RM1,400</strong></span>
+                <span>{t('payment.standardEventPrice')} <strong>RM1,400</strong></span>
               </div>
             </div>
           </div>
@@ -624,11 +626,11 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 }}
                 className="text-[10px] uppercase font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full transition-colors cursor-pointer flex items-center gap-1"
               >
-                <Plus className="w-3 h-3" /> Top Up
+                <Plus className="w-3 h-3" /> {t('payment.topUp')}
               </button>
             </div>
             <div>
-              <div className="text-xs text-slate-400 font-medium">Paid Balance</div>
+              <div className="text-xs text-slate-400 font-medium">{t('payment.paidBalance')}</div>
               <div className="text-xl sm:text-2xl font-mono font-bold text-emerald-400 mt-0.5">
                 {isLoadingWallet && !wallet ? '...' : formatCurrency(wallet?.paid_balance)}
               </div>
@@ -650,7 +652,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </span>
           </div>
           <div>
-            <div className="text-xs text-slate-400 font-medium">Top-up Credit</div>
+            <div className="text-xs text-slate-400 font-medium">{t('payment.topUpCredit')}</div>
             <div className="text-xl sm:text-2xl font-mono font-bold text-cyan-400 mt-0.5">
               {isLoadingWallet && !wallet ? '...' : formatCurrency(wallet?.topup_credit)}
             </div>
@@ -676,14 +678,14 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               }`}
             >
               {wallet?.can_use_welcome_credit
-                ? 'Ready to Use'
+                ? t('payment.readyToUse', undefined, 'Ready to Use')
                 : wallet?.welcome_credit_granted
-                ? 'Claimed'
-                : 'Promotional'}
+                ? t('payment.claimed', undefined, 'Claimed')
+                : t('payment.promotional', undefined, 'Promotional')}
             </span>
           </div>
           <div>
-            <div className="text-xs text-slate-400 font-medium">Welcome Credit</div>
+            <div className="text-xs text-slate-400 font-medium">{t('payment.welcomeCredit')}</div>
             <div className="text-xl sm:text-2xl font-mono font-bold text-purple-400 mt-0.5">
               {isLoadingWallet && !wallet ? '...' : formatCurrency(wallet?.welcome_credit)}
             </div>
@@ -713,16 +715,16 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               }`}
             >
               {wallet?.can_use_showcase_credit
-                ? 'Available'
+                ? t('common.available', undefined, 'Available')
                 : wallet?.showcase_credit_granted
-                ? 'Claimed'
+                ? t('payment.claimed', undefined, 'Claimed')
                 : userLifetimeShowcaseRewardClaimed
-                ? 'Claimed (Account)'
+                ? t('payment.claimedAccount', undefined, 'Claimed (Account)')
                 : 'Earn RM300'}
             </span>
           </div>
           <div>
-            <div className="text-xs text-slate-400 font-medium">Showcase Credit</div>
+            <div className="text-xs text-slate-400 font-medium">{t('payment.showcaseCredit')}</div>
             <div className="text-xl sm:text-2xl font-mono font-bold text-amber-400 mt-0.5">
               {isLoadingWallet && !wallet ? '...' : formatCurrency(wallet?.showcase_credit)}
             </div>
@@ -740,7 +742,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           <div>
             <h2 className="text-lg sm:text-xl font-black text-slate-100 flex items-center gap-2">
               <Coins className="w-5 h-5 text-amber-400" />
-              <span>Transaction History</span>
+              <span>{t('payment.transactionHistory')}</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Complete read-only transaction ledger scoped to <strong className="text-slate-300">{currentOrganization?.name}</strong>.
@@ -753,7 +755,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search description, reference, ID..."
+                placeholder={t('payment.searchLedgerPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 w-full sm:w-64"
@@ -781,18 +783,18 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
                 <span>
                   {datePreset === 'ALL_TIME'
-                    ? 'All Dates'
+                    ? t('payment.allTime')
                     : datePreset === 'TODAY'
-                    ? 'Today'
+                    ? t('payment.today')
                     : datePreset === 'LAST_7_DAYS'
-                    ? 'Last 7 Days'
+                    ? t('payment.last7Days')
                     : datePreset === 'LAST_30_DAYS'
-                    ? 'Last 30 Days'
+                    ? t('payment.last30Days')
                     : datePreset === 'LAST_90_DAYS'
-                    ? 'Last 90 Days'
+                    ? t('payment.last90Days')
                     : datePreset === 'THIS_MONTH'
-                    ? 'This Month'
-                    : 'Custom Range'}
+                    ? t('payment.thisMonth')
+                    : t('payment.customRange')}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
               </button>
@@ -802,7 +804,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 <div className="absolute right-0 top-full mt-2 w-72 p-4 bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl z-30 space-y-3 animate-in fade-in zoom-in-95 duration-150">
                   <div className="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-slate-800 pb-2">
                     <span className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> Filter by Date
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('common.filterByDate', undefined, 'Filter by Date')}
                     </span>
                     <button
                       onClick={() => setShowDatePicker(false)}
@@ -815,12 +817,12 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   {/* Preset Pills */}
                   <div className="grid grid-cols-2 gap-1.5">
                     {[
-                      { id: 'ALL_TIME', label: 'All Time' },
-                      { id: 'TODAY', label: 'Today' },
-                      { id: 'LAST_7_DAYS', label: 'Last 7 Days' },
-                      { id: 'LAST_30_DAYS', label: 'Last 30 Days' },
-                      { id: 'LAST_90_DAYS', label: 'Last 90 Days' },
-                      { id: 'THIS_MONTH', label: 'This Month' },
+                      { id: 'ALL_TIME', label: t('payment.allTime') },
+                      { id: 'TODAY', label: t('payment.today') },
+                      { id: 'LAST_7_DAYS', label: t('payment.last7Days') },
+                      { id: 'LAST_30_DAYS', label: t('payment.last30Days') },
+                      { id: 'LAST_90_DAYS', label: t('payment.last90Days') },
+                      { id: 'THIS_MONTH', label: t('payment.thisMonth') },
                     ].map((preset) => (
                       <button
                         key={preset.id}
@@ -845,10 +847,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
                   {/* Custom Date Range Inputs */}
                   <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                    <span className="text-[11px] font-semibold text-slate-400 block">Custom Range</span>
+                    <span className="text-[11px] font-semibold text-slate-400 block">{t('payment.customRange')}</span>
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500 w-10">Start:</span>
+                        <span className="text-[10px] text-slate-500 w-10">{t('payment.startDate')}</span>
                         <input
                           type="date"
                           value={startDate}
@@ -860,7 +862,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500 w-10">End:</span>
+                        <span className="text-[10px] text-slate-500 w-10">{t('payment.endDate')}</span>
                         <input
                           type="date"
                           value={endDate}
@@ -884,13 +886,13 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                       }}
                       className="text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer"
                     >
-                      Reset Date
+                      {t('common.reset', undefined, 'Reset Date')}
                     </button>
                     <button
                       onClick={() => setShowDatePicker(false)}
                       className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg cursor-pointer"
                     >
-                      Apply
+                      {t('common.apply', undefined, 'Apply')}
                     </button>
                   </div>
                 </div>
@@ -902,10 +904,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <button
                 onClick={handleClearAllFilters}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-                title="Clear all active filters"
+                title={t('payment.clearFilters')}
               >
                 <RotateCcw className="w-3 h-3 text-amber-400" />
-                <span>Clear Filters</span>
+                <span>{t('payment.clearFilters')}</span>
               </button>
             )}
           </div>
@@ -914,11 +916,11 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         {/* Filter Group Tabs Row (All, Top Ups, Event Usage, Credits, Refunds) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {[
-            { id: 'ALL', label: 'All' },
-            { id: 'TOPUP', label: 'Top Ups' },
-            { id: 'EVENT_USAGE', label: 'Event Usage' },
-            { id: 'CREDITS', label: 'Credits' },
-            { id: 'REFUNDS', label: 'Refunds' },
+            { id: 'ALL', label: t('payment.allTypes') },
+            { id: 'TOPUP', label: t('payment.topUpsFilter') },
+            { id: 'EVENT_USAGE', label: t('payment.eventUsageFilter') },
+            { id: 'CREDITS', label: t('payment.creditsFilter') },
+            { id: 'REFUNDS', label: t('payment.refundsFilter') },
           ].map((tab) => {
             const isActive = filterGroup === tab.id;
             return (
@@ -942,7 +944,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           {isLoadingTxns ? (
             <div className="py-20 text-center space-y-3">
               <div className="w-9 h-9 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs text-slate-400 font-medium">Loading transaction ledger...</p>
+              <p className="text-xs text-slate-400 font-medium">{t('payment.loadingLedger')}</p>
             </div>
           ) : displayTransactions.length === 0 ? (
             <div className="py-20 text-center space-y-3 bg-slate-950/40 rounded-2xl border border-slate-800/80">
@@ -950,7 +952,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 <Coins className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <h4 className="text-sm font-bold text-slate-200">No Transactions Found</h4>
+                <h4 className="text-sm font-bold text-slate-200">{t('payment.noTransactionsFound')}</h4>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
                   {hasActiveFilters
                     ? 'No transactions matched your active filters and date selections.'
@@ -962,7 +964,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   onClick={handleClearAllFilters}
                   className="text-xs text-amber-400 hover:underline font-bold cursor-pointer inline-flex items-center gap-1"
                 >
-                  <RotateCcw className="w-3 h-3" /> Clear All Filters
+                  <RotateCcw className="w-3 h-3" /> {t('payment.clearFilters')}
                 </button>
               )}
             </div>
@@ -970,13 +972,13 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950/60">
-                  <th className="py-3 px-4 rounded-l-xl">Date</th>
-                  <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
-                  <th className="py-3 px-4 text-right">Balance Impact</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 rounded-r-xl text-right">Reference</th>
+                  <th className="py-3 px-4 rounded-l-xl">{t('payment.date')}</th>
+                  <th className="py-3 px-4">{t('common.description')}</th>
+                  <th className="py-3 px-4">{t('payment.type')}</th>
+                  <th className="py-3 px-4 text-right">{t('payment.amount')}</th>
+                  <th className="py-3 px-4 text-right">{t('payment.balanceImpact')}</th>
+                  <th className="py-3 px-4 text-center">{t('common.status')}</th>
+                  <th className="py-3 px-4 rounded-r-xl text-right">{t('payment.reference')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -1092,7 +1094,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                               );
                             }}
                             className="text-slate-500 hover:text-slate-300 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
-                            title="Copy Reference"
+                            title={t('payment.copyReference')}
                           >
                             {copiedKey === txn.id ? (
                               <Check className="w-3 h-3 text-emerald-400" />
@@ -1118,7 +1120,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </span>
             <span className="flex items-center gap-1 text-slate-400">
               <Lock className="w-3 h-3 text-emerald-400" />
-              <span>Immutable Ledger Protection</span>
+              <span>{t('payment.immutableLedger')}</span>
             </span>
           </div>
         )}
@@ -1128,13 +1130,13 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
           <Info className="w-4 h-4 text-amber-400" />
-          <span>Wallet Rules & Credit Terms</span>
+          <span>{t('payment.walletRules')}</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-400">
           <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
             <div className="font-bold text-slate-200 flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Full Cancellation Refunds</span>
+              <span>{t('payment.fullCancellationRefunds')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
               Events cancelled prior to setup day receive 100% full refund back to your Paid Balance, and used credits are reversed back to your wallet.
@@ -1144,7 +1146,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
             <div className="font-bold text-slate-200 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Promotional Credit Priority</span>
+              <span>{t('payment.promotionalCreditPriority')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
               Welcome Credit (RM800), Showcase Credit (RM300), or Top-up Credits (5%–7%) can be chosen to offset event deployments instantly.
@@ -1154,7 +1156,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
             <div className="font-bold text-slate-200 flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5 text-amber-400" />
-              <span>Earn Showcase Rewards</span>
+              <span>{t('payment.earnShowcaseRewards')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
               Submit high-quality photos/videos of your live event game activations in the Showcase tab to earn RM300 wallet reward upon review.
@@ -1163,7 +1165,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         </div>
       </div>
 
-      {/* 6. TOP UP DETAIL MODAL (Strictly implementing requested specification) */}
+      {/* 6. TOP UP DETAIL MODAL */}
       {topUpDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-150">
@@ -1174,8 +1176,8 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   <ArrowUpRight className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-100">Top Up Detail</h3>
-                  <p className="text-xs text-slate-400">Order breakdown and wallet credit summary</p>
+                  <h3 className="text-base font-black text-slate-100">{t('payment.topUpDetail')}</h3>
+                  <p className="text-xs text-slate-400">{t('payment.topUpDetailDesc')}</p>
                 </div>
               </div>
               <button
@@ -1189,13 +1191,13 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               </button>
             </div>
 
-            {/* Financial Breakdown Cards matching prompt specification */}
+            {/* Financial Breakdown Cards */}
             <div className="space-y-3 text-xs">
               {/* Top Up Amount */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
                 <div className="space-y-0.5">
-                  <span className="text-slate-400 font-medium block">Top Up</span>
-                  <span className="text-[10px] text-slate-500">Deposited to Paid Balance</span>
+                  <span className="text-slate-400 font-medium block">{t('payment.topUp')}</span>
+                  <span className="text-[10px] text-slate-500">{t('payment.depositedToPaidBalance')}</span>
                 </div>
                 <span className="font-mono font-bold text-base text-slate-100">
                   {formatCurrency(topUpDetail.topUpAmount)}
@@ -1206,9 +1208,9 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/20">
                 <div className="space-y-0.5">
                   <span className="text-cyan-300 font-medium flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Top-up Credit
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> {t('payment.topUpCredit')}
                   </span>
-                  <span className="text-[10px] text-cyan-400/70">Promotional bonus value</span>
+                  <span className="text-[10px] text-cyan-400/70">{t('payment.promotionalBonusValue')}</span>
                 </div>
                 <span className="font-mono font-bold text-base text-cyan-400">
                   {formatCurrency(topUpDetail.topupCreditAmount)}
@@ -1218,8 +1220,8 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               {/* Total Wallet Value Highlight */}
               <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30">
                 <div className="space-y-0.5">
-                  <span className="text-amber-300 font-bold block text-sm">Total Wallet Value</span>
-                  <span className="text-[10px] text-amber-400/80">Total spending power added</span>
+                  <span className="text-amber-300 font-bold block text-sm">{t('payment.totalWalletValue')}</span>
+                  <span className="text-[10px] text-amber-400/80">{t('payment.totalSpendingPower')}</span>
                 </div>
                 <span className="font-mono font-black text-xl text-amber-400">
                   {formatCurrency(topUpDetail.totalWalletValue)}
@@ -1228,7 +1230,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               {/* Status */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
-                <span className="text-slate-400 font-medium">Status</span>
+                <span className="text-slate-400 font-medium">{t('common.status')}</span>
                 <span className="font-bold text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   <span>{topUpDetail.status}</span>
@@ -1237,7 +1239,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               {/* Payment Reference */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
-                <span className="text-slate-400 font-medium">Payment Reference</span>
+                <span className="text-slate-400 font-medium">{t('payment.paymentReference')}</span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-slate-200 text-[11px] truncate max-w-[200px]">
                     {topUpDetail.paymentReference}
@@ -1245,7 +1247,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   <button
                     onClick={() => handleCopy(topUpDetail.paymentReference, 'modal_payment_ref')}
                     className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
-                    title="Copy Payment Reference"
+                    title={t('payment.copyPaymentReference')}
                   >
                     {copiedKey === 'modal_payment_ref' ? (
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -1258,7 +1260,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               {/* Date */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
-                <span className="text-slate-400 font-medium">Date</span>
+                <span className="text-slate-400 font-medium">{t('payment.date')}</span>
                 <span className="font-mono text-slate-200">
                   {topUpDetail.date
                     ? new Date(topUpDetail.date).toLocaleDateString('en-US', {
@@ -1277,7 +1279,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               {/* Top Up Order ID */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
-                <span className="text-slate-400 font-medium">Top Up Order</span>
+                <span className="text-slate-400 font-medium">{t('payment.topUpOrder')}</span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-slate-300 text-[10px] truncate max-w-[200px]">
                     {topUpDetail.topUpOrderId}
@@ -1285,7 +1287,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   <button
                     onClick={() => handleCopy(topUpDetail.topUpOrderId, 'modal_order_id')}
                     className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
-                    title="Copy Order ID"
+                    title={t('payment.copyOrderId')}
                   >
                     {copiedKey === 'modal_order_id' ? (
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -1306,14 +1308,14 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 }}
                 className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
-                Close Detail
+                {t('common.close', undefined, 'Close Detail')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 7. STANDARD TRANSACTION AUDIT MODAL (For non-Top-Up items: Event Usage, Refunds, etc.) */}
+      {/* 7. STANDARD TRANSACTION AUDIT MODAL */}
       {selectedTxn && !topUpDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-150">
@@ -1323,7 +1325,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">Transaction Audit Record</h3>
+                  <h3 className="text-sm font-bold text-slate-100">{t('payment.transactionAuditRecord')}</h3>
                   <p className="text-[10px] font-mono text-slate-500">{selectedTxn.id}</p>
                 </div>
               </div>
@@ -1337,17 +1339,17 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Description</span>
+                <span className="text-slate-400">{t('common.description')}</span>
                 <span className="font-bold text-slate-200">{getTransactionInfo(selectedTxn).displayTitle}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Type</span>
+                <span className="text-slate-400">{t('payment.type')}</span>
                 <span className="font-semibold text-slate-200">{getTransactionInfo(selectedTxn).typeLabel}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Amount</span>
+                <span className="text-slate-400">{t('payment.amount')}</span>
                 <span
                   className={`font-mono font-bold text-base ${
                     Number(selectedTxn.amount) >= 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -1359,12 +1361,12 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Status</span>
+                <span className="text-slate-400">{t('common.status')}</span>
                 {getStatusBadge(selectedTxn.status)}
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Timestamp</span>
+                <span className="text-slate-400">{t('payment.timestamp')}</span>
                 <span className="font-mono text-slate-300">
                   {selectedTxn.created_at
                     ? new Date(selectedTxn.created_at).toLocaleString()
@@ -1374,7 +1376,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               {selectedTxn.reference_id && (
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                  <span className="text-slate-400">Reference ID</span>
+                  <span className="text-slate-400">{t('payment.referenceId')}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-slate-300 text-[11px] truncate max-w-[200px]">
                       {selectedTxn.reference_id}
@@ -1395,7 +1397,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               {selectedTxn.description && (
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                  <span className="text-slate-400 block">Ledger Description</span>
+                  <span className="text-slate-400 block">{t('payment.ledgerDescription')}</span>
                   <span className="text-slate-200 block">{selectedTxn.description}</span>
                 </div>
               )}
@@ -1406,7 +1408,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 onClick={() => setSelectedTxn(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
-                Close Record
+                {t('common.close', undefined, 'Close Record')}
               </button>
             </div>
           </div>
