@@ -12,8 +12,9 @@ let supabaseClient: SupabaseClient | null = null;
 export function getSupabaseClient(): SupabaseClient | null {
   if (supabaseClient) return supabaseClient;
 
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const runtimeEnv = typeof window !== 'undefined' ? (window as any).__ENV__ : undefined;
+  const url = runtimeEnv?.VITE_SUPABASE_URL || runtimeEnv?.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = runtimeEnv?.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
     return null;

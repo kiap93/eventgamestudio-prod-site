@@ -300,6 +300,54 @@ body,
   word-break: break-word;
 }
 
+/* ================= CHINESE TYPOGRAPHY & LAYOUT HARDENING ================= */
+html[lang="zh-CN"],
+html[lang="zh-CN"] body,
+.app-locale-zh-CN,
+.app-locale-zh-CN body {
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+
+/* Selective word-break prevention for Chinese UI controls, buttons, badges, and navigation */
+.app-locale-zh-CN .nav-item,
+.app-locale-zh-CN nav button,
+.app-locale-zh-CN nav a,
+.app-locale-zh-CN nav span,
+.app-locale-zh-CN .btn-label,
+.app-locale-zh-CN .badge,
+.app-locale-zh-CN .status-badge,
+.app-locale-zh-CN .cjk-keep-all {
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+/* Prevent unintended character-by-character vertical wrapping on navigation links */
+.app-locale-zh-CN nav button,
+.app-locale-zh-CN nav a,
+.app-locale-zh-CN .nav-item {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Allow natural line wrapping for long descriptions and body copy in Chinese */
+.app-locale-zh-CN p,
+.app-locale-zh-CN .description,
+.app-locale-zh-CN .card-desc,
+.app-locale-zh-CN .content-body {
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+/* Hide scrollbar utility for sleek horizontal nav bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 
 
 

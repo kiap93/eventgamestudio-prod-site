@@ -44,7 +44,7 @@ export interface RouteContext {
   developerGameId?: string;
   developerThemeId?: string;
   developerOrgId?: string;
-  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact';
+  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations';
   developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
@@ -132,6 +132,8 @@ export function parseRoute(pathname: string): RouteContext {
       }
     } else if (parts[1] === 'errors' || parts[1] === 'error-logs') {
       developerSection = 'errors';
+    } else if (parts[1] === 'customer-invitations' || parts[1] === 'customer-invites' || parts[1] === 'invitations') {
+      developerSection = 'customer-invitations';
     } else if (parts[1] === 'email' || parts[1] === 'mail') {
       developerSection = 'email';
     } else if (parts[1] === 'contact' || parts[1] === 'contacts' || parts[1] === 'contact-settings') {

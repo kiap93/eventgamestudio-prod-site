@@ -1,46 +1,96 @@
 /**
- * Centralized API client helper for sending requests to the Cloudflare Worker API.
- * Base URL defaults to VITE_API_BASE_URL or https://eventgamestudio-api.kiap93-kmj.workers.dev
+ * Centralized API client helper for sending requests to the EventGameStudio API.
+ * Base URL is driven by VITE_API_BASE_URL as the single source of truth.
  */
 
-export const getApiBaseUrl = (): string => {
-  // If in the browser and running in local dev or container preview, use relative URL to route to server.ts
-  if (typeof window !== 'undefined' && window.location) {
-    const hostname = window.location.hostname || '';
-    const port = window.location.port || '';
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      port === '3000' ||
-      hostname.includes('aistudio') ||
-      hostname.includes('googleusercontent.com') ||
-      hostname.includes('usercontent.goog') ||
-      hostname.includes('cloudworkstations.dev') ||
-      hostname.includes('run.app') ||
-      hostname.includes('preview')
-    ) {
-      return '';
-    }
-  }
+export const DEFAULT_API_PLACEHOLDER = 'https://YOUR-NEW-API-URL';
 
-  let url = import.meta.env.VITE_API_BASE_URL;
-  if (!url || typeof url !== 'string' || url.trim() === '') {
-    url = 'https://eventgamestudio-api.kiap93-kmj.workers.dev';
-  } else {
-    url = url.trim();
-  }
-
-  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-    if (url.startsWith('//')) {
-      url = `https:${url}`;
-    } else {
-      url = `https://${url}`;
-    }
-  }
-
-  return url.replace(/\/+$/, '');
+/**
+ * Checks whether a given URL is undefined, empty, or a dummy template placeholder
+ * (e.g. 'https://YOUR-NEW-API-URL').
+ */
+export const isPlaceholderUrl = (url?: string | null): boolean => {
+  if (!url || typeof url !== 'string') return true;
+  const trimmed = url.trim().toLowerCase();
+  return (
+    trimmed === '' ||
+    trimmed === DEFAULT_API_PLACEHOLDER.toLowerCase() ||
+    trimmed.includes('your-new-api-url') ||
+    trimmed === 'undefined' ||
+    trimmed === 'null'
+  );
 };
+
+/**
+ * Resolves the authoritative API base URL:
+ * 1. Checks runtime environment injected by Cloudflare Worker or Express (window.__ENV__.VITE_API_BASE_URL / API_BASE_URL).
+ *    This allows variables configured directly in Cloudflare Worker environment variables or secrets
+ *    to be immediately captured without requiring a frontend static bundle rebuild.
+ * 2. Checks build-time Vite environment variable (import.meta.env.VITE_API_BASE_URL).
+ * 3. If neither is set, or if set to a dummy template placeholder (e.g. 'https://YOUR-NEW-API-URL'),
+ *    falls back safely to empty string ('') for same-origin relative API pathing (/api/*).
+ *    In Cloudflare Worker deployments, the frontend worker handles /api/* routes via run_worker_first.
+ *    In local Express dev, requests are served or proxied seamlessly.
+ */
+export const getApiBaseUrl = (): string => {
+  // 1. Runtime environment variables injected by Cloudflare Worker or server
+  if (typeof window !== 'undefined') {
+    const runtimeEnv = (window as any).__ENV__;
+    const runtimeUrl = runtimeEnv?.VITE_API_BASE_URL || runtimeEnv?.API_BASE_URL;
+
+    if (typeof runtimeUrl === 'string' && !isPlaceholderUrl(runtimeUrl)) {
+      let url = runtimeUrl.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = url.startsWith('//') ? `https:${url}` : `https://${url}`;
+      }
+      return url.replace(/\/+$/, '');
+    }
+  }
+
+  // 2. Build-time Vite environment variable
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL;
+  if (typeof configuredUrl === 'string' && !isPlaceholderUrl(configuredUrl)) {
+    let url = configuredUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = url.startsWith('//') ? `https:${url}` : `https://${url}`;
+    }
+    return url.replace(/\/+$/, '');
+  }
+
+  // 3. Safe fallback: Always return relative path ('') rather than a dummy broken host
+  return '';
+};
+
+/**
+ * Resolves an API endpoint path against the authoritative API base URL.
+ * Handles leading/trailing slashes, prevents duplicate '/api/api' segments,
+ * and passes absolute URLs (http:// or https://) through untouched.
+ */
+export function buildApiUrl(path: string): string {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  const baseUrl = getApiBaseUrl();
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (!baseUrl) {
+    return cleanPath;
+  }
+
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+
+  // Avoid duplicate '/api' segment if baseUrl ends with '/api' and path begins with '/api/'
+  if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
+    return `${cleanBase}${cleanPath.slice(4)}`;
+  }
+  if (cleanBase.endsWith('/api') && cleanPath === '/api') {
+    return cleanBase;
+  }
+
+  return `${cleanBase}${cleanPath}`;
+}
 
 export const API_BASE_URL = getApiBaseUrl();
 
@@ -75,15 +125,7 @@ migrateLegacyAppToken();
  * @returns Promise<Response>
  */
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const baseUrl = getApiBaseUrl();
-  let fullUrl: string;
-
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    fullUrl = path;
-  } else {
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    fullUrl = `${baseUrl}${cleanPath}`;
-  }
+  const fullUrl = buildApiUrl(path);
 
   const headers = new Headers(options.headers || {});
 

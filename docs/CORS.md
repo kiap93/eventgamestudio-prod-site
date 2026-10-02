@@ -26,7 +26,8 @@ In a production deployment, allowing blanket suffix wildcards for multi-tenant h
      - `https://eventgamestudio.com`
      - `https://www.eventgamestudio.com`
      - `https://app.eventgamestudio.com`
-     - `https://eventgamestudio.pages.dev` (Official Cloudflare Pages production frontend)
+     - `https://eventgamestudio.pages.dev` (Official Cloudflare Pages frontend)
+     - `https://eventgamestudio-prod.pages.dev` (Official Cloudflare Pages production frontend)
    - Tenant subdomains: `https://*.eventgamestudio.com` (for branded organization workspaces)
    - Same-origin requests (`originUrl.origin === reqUrl.origin` or `originUrl.host === reqHost`)
    - Custom domains explicitly configured via the `ALLOWED_ORIGINS` environment variable.
@@ -42,7 +43,8 @@ In a production deployment, allowing blanket suffix wildcards for multi-tenant h
 | `https://eventgamestudio.com` | ✅ Allowed | ✅ Allowed | Primary canonical apex production domain. |
 | `https://www.eventgamestudio.com` | ✅ Allowed | ✅ Allowed | Primary canonical www production domain. |
 | `https://app.eventgamestudio.com` | ✅ Allowed | ✅ Allowed | Production app portal. |
-| `https://eventgamestudio.pages.dev` | ✅ Allowed | ✅ Allowed | Official Cloudflare Pages production deployment URL. |
+| `https://eventgamestudio.pages.dev` | ✅ Allowed | ✅ Allowed | Cloudflare Pages deployment URL. |
+| `https://eventgamestudio-prod.pages.dev` | ✅ Allowed | ✅ Allowed | Official Cloudflare Pages production deployment URL. |
 | `https://*.eventgamestudio.com` | ✅ Allowed | ✅ Allowed | Branded tenant organization subdomains. |
 | Specific domain in `ALLOWED_ORIGINS` | ✅ Allowed | ✅ Allowed | Explicit operator-configured whitelist via environment variable. |
 | Same-origin (`origin === host`) | ✅ Allowed | ✅ Allowed | Reverse-proxy and collocated routing. |

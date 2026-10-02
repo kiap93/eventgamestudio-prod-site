@@ -70,6 +70,26 @@ export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
     if (typeof document !== 'undefined') {
       document.documentElement.lang = language;
       document.documentElement.dir = currentLanguageConfig.direction;
+
+      // Sync locale class on documentElement and body for locale-specific CSS rules
+      const root = document.documentElement;
+      const targetClass = `app-locale-${language}`;
+      
+      const updateClassList = (el: HTMLElement) => {
+        const classesToRemove: string[] = [];
+        el.classList.forEach((cls) => {
+          if (cls.startsWith('app-locale-')) {
+            classesToRemove.push(cls);
+          }
+        });
+        classesToRemove.forEach((cls) => el.classList.remove(cls));
+        el.classList.add(targetClass);
+      };
+
+      updateClassList(root);
+      if (document.body) {
+        updateClassList(document.body);
+      }
     }
   }, [language, currentLanguageConfig.direction]);
 

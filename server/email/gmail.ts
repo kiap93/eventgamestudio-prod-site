@@ -167,7 +167,7 @@ export function getGoogleMailConfig(env?: Record<string, any>): GoogleMailConfig
     const apiBaseUrl =
       env?.API_BASE_URL ||
       procEnv.API_BASE_URL ||
-      'https://eventgamestudio-api.kiap93-kmj.workers.dev';
+      'https://YOUR-NEW-API-URL';
     redirectUri = `${apiBaseUrl.trim().replace(/\/+$/, '')}/api/email/google/callback`;
   }
 

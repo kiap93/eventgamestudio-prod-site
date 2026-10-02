@@ -1,4 +1,4 @@
-name = "eventgamestudio-prod"
+name = "eventgamestudio"
 main = "worker.ts"
 compatibility_date = "2026-08-07"
 compatibility_flags = ["nodejs_compat"]
@@ -9,7 +9,7 @@ NODE_ENV = "production"
 [assets]
 directory = "./dist"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/env.js"]
 
 # Cloudflare Workers Globally Distributed Rate Limiting Bindings
 # Synchronized across all global Cloudflare edge Points of Presence (PoPs)

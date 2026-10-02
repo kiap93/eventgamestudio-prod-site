@@ -216,10 +216,20 @@ import {
   upsertShowcaseTranslation,
   deleteShowcaseTranslation,
   getTranslationJob,
+  listCustomerCompanies,
+  createCustomerCompany,
+  getCustomerCompanyById,
+  updateCustomerCompany,
+  deleteCustomerCompany,
+  sendCompanyInvitations,
+  listCustomerInvitationLogs,
+  getCustomerInvitationStats,
+  handleCustomerInvitationWebhook,
 } from './server/db/index.js';
 import { translationService } from './server/translation/service.js';
 import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from './src/lib/i18n/languages.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
+import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
 import {
   handleApiError,
   AppError,
@@ -258,6 +268,7 @@ import {
   authRateLimiter,
   resendRateLimiter,
   invitationRateLimiter,
+  adminInvitationRateLimiter,
   organizationRateLimiter,
   eventRateLimiter,
   eventCreationRateLimiter,
@@ -447,15 +458,33 @@ const mediaUpload = multer({
 // ----------------------------------------------------
 
 /**
+ * GET /env.js
+ * Serves runtime client environment configuration for frontend applications
+ */
+app.get('/env.js', (_req, res) => {
+  const envPayload = {
+    VITE_API_BASE_URL: process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '',
+    VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || '',
+    VITE_GOOGLE_CLIENT_ID: process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+  };
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(`window.__ENV__ = Object.assign(window.__ENV__ || {}, ${JSON.stringify(envPayload)});`);
+});
+
+/**
  * GET /api/config
  * Returns runtime environment configuration for client SDKs
  */
 app.get('/api/config', (_req, res) => {
+  const apiBaseUrl = process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '';
   const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
   const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
   res.json({
+    apiBaseUrl,
     googleClientId,
     supabaseUrl,
     supabaseAnonKey,
@@ -6640,6 +6669,297 @@ const handleUpdateAdminContactSettings = async (req: AuthenticatedRequest, res: 
 app.put('/api/developer/contact-settings', authenticateDeveloperAdmin, handleUpdateAdminContactSettings);
 app.put('/api/admin/contact-settings', authenticateDeveloperAdmin, handleUpdateAdminContactSettings);
 app.post('/api/developer/contact-settings', authenticateDeveloperAdmin, handleUpdateAdminContactSettings);
+
+// ============================================================================
+// CUSTOMER INVITATION MANAGEMENT ENDPOINTS (DEVELOPER ADMIN)
+// ============================================================================
+
+/**
+ * GET /api/developer/customer-invitations/companies
+ * List all customer companies with optional search and invitation status filter
+ */
+const handleListCustomerCompanies = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const statusFilter = (typeof req.query.statusFilter === 'string'
+      ? req.query.statusFilter
+      : typeof req.query.filter === 'string'
+      ? req.query.filter
+      : 'all') as any;
+
+    const { companies, stats } = await listCustomerCompanies({
+      search,
+      statusFilter,
+    });
+
+    res.json({
+      success: true,
+      companies,
+      stats,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/companies', authenticateDeveloperAdmin, handleListCustomerCompanies);
+app.get('/api/admin/customer-invitations/companies', authenticateDeveloperAdmin, handleListCustomerCompanies);
+
+/**
+ * POST /api/developer/customer-invitations/companies
+ * Create a new customer company with one or more recipient email addresses
+ */
+const handleCreateCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { company_name, contact_person, notes, recipients } = req.body || {};
+
+    const company = await createCustomerCompany({
+      company_name,
+      contact_person,
+      notes,
+      recipients: Array.isArray(recipients) ? recipients : [],
+      created_by: req.user?.id,
+    });
+
+    res.status(201).json({
+      success: true,
+      company,
+      message: 'Customer company created successfully',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/customer-invitations/companies', authenticateDeveloperAdmin, handleCreateCustomerCompany);
+app.post('/api/admin/customer-invitations/companies', authenticateDeveloperAdmin, handleCreateCustomerCompany);
+
+/**
+ * GET /api/developer/customer-invitations/companies/:id
+ * Retrieve a specific customer company with recipients and invitation history
+ */
+const handleGetCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const company = await getCustomerCompanyById(id);
+
+    if (!company) {
+      res.status(404).json({ success: false, error: 'Customer company not found' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      company,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/companies/:id', authenticateDeveloperAdmin, handleGetCustomerCompany);
+app.get('/api/admin/customer-invitations/companies/:id', authenticateDeveloperAdmin, handleGetCustomerCompany);
+
+/**
+ * PUT /api/developer/customer-invitations/companies/:id
+ * Update customer company details and recipients
+ */
+const handleUpdateCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const { company_name, contact_person, notes, recipients } = req.body || {};
+
+    const updated = await updateCustomerCompany(id, {
+      company_name,
+      contact_person,
+      notes,
+      recipients,
+    });
+
+    res.json({
+      success: true,
+      company: updated,
+      message: 'Customer company updated successfully',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.put('/api/developer/customer-invitations/companies/:id', authenticateDeveloperAdmin, handleUpdateCustomerCompany);
+app.put('/api/admin/customer-invitations/companies/:id', authenticateDeveloperAdmin, handleUpdateCustomerCompany);
+
+/**
+ * DELETE /api/developer/customer-invitations/companies/:id
+ * Delete a customer company
+ */
+const handleDeleteCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    await deleteCustomerCompany(id);
+
+    res.json({
+      success: true,
+      message: 'Customer company deleted successfully',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.delete('/api/developer/customer-invitations/companies/:id', authenticateDeveloperAdmin, handleDeleteCustomerCompany);
+app.delete('/api/admin/customer-invitations/companies/:id', authenticateDeveloperAdmin, handleDeleteCustomerCompany);
+
+/**
+ * POST /api/developer/customer-invitations/companies/:id/invite
+ * Send invitation emails to recipients. Enforces explicit confirmation if any recipient was previously invited!
+ */
+const handleSendCompanyInvitations = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const { recipient_ids, confirm_reinvite } = req.body || {};
+
+    const result = await sendCompanyInvitations(id, {
+      recipientIds: recipient_ids,
+      confirmReinvite: Boolean(confirm_reinvite),
+      sentByUserId: req.user?.id,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+      message: `Invitations processed: ${result.sent} sent, ${result.failed} failed.`,
+    });
+  } catch (err: any) {
+    if (err.code === 'REINVITATION_CONFIRMATION_REQUIRED') {
+      res.status(409).json({
+        success: false,
+        code: 'REINVITATION_CONFIRMATION_REQUIRED',
+        error: err.message,
+        previously_invited: err.previouslyInvited,
+      });
+      return;
+    }
+    if (err.code === 'INVALID_COMPANY_RECIPIENT') {
+      res.status(400).json({
+        success: false,
+        code: 'INVALID_COMPANY_RECIPIENT',
+        error: err.message,
+      });
+      return;
+    }
+    if (err.code === 'BATCH_LIMIT_EXCEEDED') {
+      res.status(400).json({
+        success: false,
+        code: 'BATCH_LIMIT_EXCEEDED',
+        error: err.message,
+      });
+      return;
+    }
+    if (err.code === 'RECIPIENT_RATE_LIMITED') {
+      res.status(429).json({
+        success: false,
+        code: 'RECIPIENT_RATE_LIMITED',
+        error: err.message,
+      });
+      return;
+    }
+    if (err.code === 'RESEND_CONFIG_MISSING') {
+      res.status(500).json({
+        success: false,
+        code: 'RESEND_CONFIG_MISSING',
+        error: err.message,
+      });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/customer-invitations/companies/:id/invite', authenticateDeveloperAdmin, adminInvitationRateLimiter, handleSendCompanyInvitations);
+app.post('/api/admin/customer-invitations/companies/:id/invite', authenticateDeveloperAdmin, adminInvitationRateLimiter, handleSendCompanyInvitations);
+
+/**
+ * GET /api/developer/customer-invitations/logs
+ * List invitation logs across all companies
+ */
+const handleListCustomerInvitationLogs = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 100;
+    const logs = await listCustomerInvitationLogs(isNaN(limit) ? 100 : limit);
+
+    res.json({
+      success: true,
+      logs,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/logs', authenticateDeveloperAdmin, handleListCustomerInvitationLogs);
+app.get('/api/admin/customer-invitations/logs', authenticateDeveloperAdmin, handleListCustomerInvitationLogs);
+
+/**
+ * GET /api/developer/customer-invitations/stats
+ * Get overall summary stats for customer invitations
+ */
+const handleGetCustomerInvitationStats = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const stats = await getCustomerInvitationStats();
+
+    res.json({
+      success: true,
+      stats,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/stats', authenticateDeveloperAdmin, handleGetCustomerInvitationStats);
+app.get('/api/admin/customer-invitations/stats', authenticateDeveloperAdmin, handleGetCustomerInvitationStats);
+
+/**
+ * GET /api/developer/customer-invitations/preview-email
+ * Render the email template preview with given or sample company name
+ */
+const handlePreviewCustomerInvitationEmail = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const companyName = typeof req.query.company_name === 'string' ? req.query.company_name : 'Sample Company Ltd';
+    const template = generateCustomerInvitationEmail({ companyName });
+
+    res.json({
+      success: true,
+      template,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/preview-email', authenticateDeveloperAdmin, handlePreviewCustomerInvitationEmail);
+app.get('/api/admin/customer-invitations/preview-email', authenticateDeveloperAdmin, handlePreviewCustomerInvitationEmail);
+
+/**
+ * POST /api/developer/customer-invitations/resend-webhook
+ * POST /api/webhooks/resend
+ * Process incoming Resend webhook events for delivery tracking and bounce management
+ */
+const handleResendWebhook = async (req: express.Request, res: express.Response) => {
+  try {
+    const payload = req.body;
+    const result = await handleCustomerInvitationWebhook(payload);
+    res.json({ success: true, result });
+  } catch (err: any) {
+    console.error('[Resend Webhook] Processing error:', err);
+    res.status(400).json({ success: false, error: err?.message || 'Invalid webhook payload' });
+  }
+};
+
+app.post('/api/developer/customer-invitations/resend-webhook', handleResendWebhook);
+app.post('/api/webhooks/resend', handleResendWebhook);
+
 
 /**
  * POST /api/contact

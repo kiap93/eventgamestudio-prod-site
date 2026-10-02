@@ -329,6 +329,19 @@ export const invitationRateLimiter = createRateLimiter({
 });
 
 /**
+ * 2B. Admin Customer Invitation Rate Limiter:
+ * Protects POST /api/developer/customer-invitations/companies/:id/invite from volumetric abuse.
+ * 20 requests per 60 seconds per admin user.
+ */
+export const adminInvitationRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyPrefix: 'admin_customer_invitations',
+  keyGenerator: (req) => (req as any).user?.id || getExpressClientKey(req, 'ip'),
+  message: 'Too many customer invitation batches sent in a short period. Please wait a moment before sending more.',
+});
+
+/**
  * 3. Organizations Creation Rate Limiter:
  * Protects POST /api/organizations.
  * 10 requests per 60 seconds.
@@ -489,6 +502,13 @@ export const WORKER_RESEND_RATE_LIMIT: RateLimitOptions = {
   max: 5,
   keyPrefix: 'resend_email',
   message: 'Too many verification email requests. Please wait a moment before trying again.',
+};
+
+export const WORKER_ADMIN_INVITATION_RATE_LIMIT: RateLimitOptions = {
+  windowMs: 60 * 1000,
+  max: 20,
+  keyPrefix: 'admin_customer_invitations',
+  message: 'Too many customer invitation batches sent in a short period. Please wait a moment before sending more.',
 };
 
 

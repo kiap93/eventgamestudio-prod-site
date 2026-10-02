@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+// Ensure dummy template placeholder is never embedded into build bundles
+if (
+  process.env.VITE_API_BASE_URL &&
+  process.env.VITE_API_BASE_URL.toLowerCase().includes('your-new-api-url')
+) {
+  delete process.env.VITE_API_BASE_URL;
+}
+
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],

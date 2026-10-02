@@ -21,7 +21,14 @@ export const AcceptInvitePage: React.FC = () => {
   const [accepting, setAccepting] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const [clientId, setClientId] = useState<string>(import.meta.env.VITE_GOOGLE_CLIENT_ID || '');
+  const [clientId, setClientId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const runtimeEnv = (window as any).__ENV__;
+      const id = runtimeEnv?.VITE_GOOGLE_CLIENT_ID || runtimeEnv?.GOOGLE_CLIENT_ID;
+      if (typeof id === 'string' && id.trim()) return id.trim();
+    }
+    return import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  });
   const isDev = import.meta.env.DEV;
 
   useEffect(() => {

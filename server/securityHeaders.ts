@@ -68,6 +68,20 @@ export function buildContentSecurityPolicy(options: SecurityHeadersOptions = {})
     // Ignore invalid URL
   }
 
+  // Extract hostname from configured API base URL if present
+  const configuredApiOrigin: string[] = [];
+  try {
+    const apiUrl = typeof process !== 'undefined' && (process.env.VITE_API_BASE_URL || process.env.API_BASE_URL);
+    if (apiUrl) {
+      const parsed = new URL(apiUrl);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        configuredApiOrigin.push(parsed.origin);
+      }
+    }
+  } catch {
+    // Ignore invalid URL
+  }
+
   // Script sources:
   // In production, strictly omit 'unsafe-inline' and 'unsafe-eval'.
   // Only allow self and verified 3P CDNs (Google Identity Services for login, Stripe for checkout).
@@ -117,6 +131,7 @@ export function buildContentSecurityPolicy(options: SecurityHeadersOptions = {})
     "'self'",
     'https://*.supabase.co',
     'wss://*.supabase.co',
+    'https://*.workers.dev',
     'https://accounts.google.com',
     'https://apis.google.com',
     'https://identitytoolkit.googleapis.com',
@@ -126,6 +141,7 @@ export function buildContentSecurityPolicy(options: SecurityHeadersOptions = {})
     'wss://eventgamestudio.com',
     'wss://*.eventgamestudio.com',
     ...configuredSupabaseOrigin,
+    ...configuredApiOrigin,
     ...(options.customConnectSrc || []),
   ];
 

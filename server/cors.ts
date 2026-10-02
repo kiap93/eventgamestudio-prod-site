@@ -15,6 +15,7 @@ export const DEFAULT_ALLOWED_ORIGINS = [
   'https://www.eventgamestudio.com',
   'https://app.eventgamestudio.com',
   'https://eventgamestudio.pages.dev',
+  'https://eventgamestudio-prod.pages.dev',
 ];
 
 export interface CorsOptions {
@@ -164,7 +165,7 @@ export function getCorsHeaders(
 ): CorsHeadersResult {
   const headers: CorsHeadersResult = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': requestHeaders || 'Content-Type, Authorization, X-Organization-ID, Accept',
+    'Access-Control-Allow-Headers': requestHeaders || 'Content-Type, Authorization, X-Organization-ID, Accept, x-correlation-id, x-request-id',
     'Access-Control-Max-Age': '86400',
   };
 

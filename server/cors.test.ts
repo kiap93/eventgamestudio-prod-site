@@ -177,6 +177,7 @@ async function runCorsTests() {
     const arbitraryPages = 'https://malicious-phishing.pages.dev';
     const arbitraryCloudRun = 'https://untrusted-service.run.app';
     const prodPagesOrigin = 'https://eventgamestudio.pages.dev';
+    const prodPagesCustomOrigin = 'https://eventgamestudio-prod.pages.dev';
     const subDomainOrigin = 'https://custom-org.eventgamestudio.com';
     const devCloudRun = 'https://ais-dev-p7yr75yish7jjotmam3wdk-897229651653.asia-southeast1.run.app';
     const stagingWorker = 'https://staging-preview.workers.dev';
@@ -185,6 +186,15 @@ async function runCorsTests() {
     // 1. In PRODUCTION:
     // Required production domains:
     assert(isOriginAllowed(prodPagesOrigin, { isProduction: true }) === true, 'Allows real production frontend https://eventgamestudio.pages.dev in production');
+    assert(isOriginAllowed(prodPagesCustomOrigin, { isProduction: true }) === true, 'Allows official production frontend https://eventgamestudio-prod.pages.dev in production');
+    
+    // Check CORS headers for eventgamestudio-prod.pages.dev:
+    const prodHeaders = getCorsHeaders(prodPagesCustomOrigin, 'Content-Type, Authorization, x-correlation-id', { isProduction: true });
+    assert(prodHeaders['Access-Control-Allow-Origin'] === prodPagesCustomOrigin, 'Emits exact matching Access-Control-Allow-Origin for prod pages');
+    assert(prodHeaders['Access-Control-Allow-Credentials'] === 'true', 'Emits Access-Control-Allow-Credentials for prod pages');
+    assert(prodHeaders['Access-Control-Allow-Headers'].includes('x-correlation-id'), 'Allows x-correlation-id header');
+    assert(prodHeaders['Vary'] === 'Origin', 'Sets Vary: Origin');
+
     assert(isOriginAllowed(subDomainOrigin, { isProduction: true }) === true, 'Allows *.eventgamestudio.com tenant subdomains in production');
 
     // Broad wildcards are strictly rejected in production:

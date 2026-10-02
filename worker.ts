@@ -222,6 +222,19 @@ import {
 } from './server/db/translations.js';
 
 import {
+  listCustomerCompanies,
+  getCustomerCompanyById,
+  createCustomerCompany,
+  updateCustomerCompany,
+  deleteCustomerCompany,
+  sendCompanyInvitations,
+  listCustomerInvitationLogs,
+  getCustomerInvitationStats,
+  handleCustomerInvitationWebhook,
+} from './server/db/customerInvitations.js';
+import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
+
+import {
   buildGoogleAuthUrl,
   exchangeGoogleAuthCode,
   getGoogleMailConfig,
@@ -259,7 +272,7 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, WORKER_RESEND_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, WORKER_RESEND_RATE_LIMIT, WORKER_ADMIN_INVITATION_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
 import { validateUploadedFile } from './server/fileValidation.js';
 
 import {
@@ -292,6 +305,8 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   JWT_SECRET?: string;
   ALLOWED_ORIGINS?: string;
+  VITE_API_BASE_URL?: string;
+  API_BASE_URL?: string;
   GOOGLE_CLIENT_ID?: string;
   VITE_GOOGLE_CLIENT_ID?: string;
   VITE_SUPABASE_URL?: string;
@@ -314,6 +329,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://www.eventgamestudio.com',
   'https://app.eventgamestudio.com',
   'https://eventgamestudio.pages.dev',
+  'https://eventgamestudio-prod.pages.dev',
 ];
 
 export function isAllowedOrigin(origin: string | null | undefined, requestUrl: string, env?: Env): boolean {
@@ -435,7 +451,7 @@ function corsHeaders(request: Request, env?: Env): Record<string, string> {
 
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': reqHeaders || 'Content-Type, Authorization, X-Organization-ID, Accept',
+    'Access-Control-Allow-Headers': reqHeaders || 'Content-Type, Authorization, X-Organization-ID, Accept, x-correlation-id, x-request-id',
     'Access-Control-Max-Age': '86400',
   };
 
@@ -810,11 +826,63 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         });
       }
 
+      // Dynamic client environment configuration script (/env.js)
+      if (pathname === '/env.js' && method === 'GET') {
+        const envScript = `window.__ENV__ = Object.assign(window.__ENV__ || {}, ${JSON.stringify({
+          VITE_API_BASE_URL: env.VITE_API_BASE_URL || env.API_BASE_URL || '',
+          VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
+          VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || '',
+          VITE_GOOGLE_CLIENT_ID: env.VITE_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '',
+        })});`;
+
+        return new Response(envScript, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            ...cors,
+          },
+        });
+      }
+
       // If the request is not an API route and env.ASSETS is available, delegate to Cloudflare Assets with SPA fallback
       if (!pathname.startsWith('/api') && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+        const injectRuntimeEnv = (response: Response): Response => {
+          const contentType = response.headers.get('content-type') || '';
+          if (!contentType.includes('text/html')) {
+            return response;
+          }
+
+          const runtimeConfig = JSON.stringify({
+            VITE_API_BASE_URL: env.VITE_API_BASE_URL || env.API_BASE_URL || '',
+            VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
+            VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || '',
+            VITE_GOOGLE_CLIENT_ID: env.VITE_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '',
+          });
+
+          const HTMLRewriterClass = (globalThis as any).HTMLRewriter;
+          if (typeof HTMLRewriterClass !== 'undefined') {
+            try {
+              return new HTMLRewriterClass()
+                .on('head', {
+                  element(element: any) {
+                    element.prepend(
+                      `<script>window.__ENV__ = Object.assign(window.__ENV__ || {}, ${runtimeConfig});</script>`,
+                      { html: true }
+                    );
+                  },
+                })
+                .transform(response);
+            } catch {
+              return response;
+            }
+          }
+          return response;
+        };
+
         let assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) {
-          return assetResponse;
+          return injectRuntimeEnv(assetResponse);
         }
 
         // If the request was prefixed with /public (e.g. /public/assets/background.png), try stripping /public
@@ -823,7 +891,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           unaliasedUrl.pathname = pathname.replace(/^\/public/, '');
           assetResponse = await env.ASSETS.fetch(new Request(unaliasedUrl.toString(), request));
           if (assetResponse.status !== 404) {
-            return assetResponse;
+            return injectRuntimeEnv(assetResponse);
           }
         }
 
@@ -836,7 +904,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         // Fallback for client-side SPA routing (e.g. /developer, /events, /studio, /e/:token)
         const spaUrl = new URL(request.url);
         spaUrl.pathname = '/index.html';
-        return await env.ASSETS.fetch(new Request(spaUrl.toString(), request));
+        const spaResponse = await env.ASSETS.fetch(new Request(spaUrl.toString(), request));
+        return injectRuntimeEnv(spaResponse);
       }
 
       // ==========================================
@@ -1009,6 +1078,12 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
       // 1. Config Route
       // ==========================================
       if (pathname === '/api/config' && method === 'GET') {
+        const apiBaseUrl =
+          env.VITE_API_BASE_URL ||
+          env.API_BASE_URL ||
+          (typeof process !== 'undefined' ? (process.env.VITE_API_BASE_URL || process.env.API_BASE_URL) : '') ||
+          '';
+
         const googleClientId =
           env.VITE_GOOGLE_CLIENT_ID ||
           env.GOOGLE_CLIENT_ID ||
@@ -1028,6 +1103,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
         return jsonResponse(
           {
+            apiBaseUrl,
             googleClientId,
             supabaseUrl,
             supabaseAnonKey,
@@ -7003,6 +7079,279 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
       }
 
+      // ========================================================================
+      // CUSTOMER INVITATION MANAGEMENT ROUTES (DEVELOPER ADMIN)
+      // ========================================================================
+
+      // GET /api/developer/customer-invitations/companies
+      if ((pathname === '/api/developer/customer-invitations/companies' || pathname === '/api/admin/customer-invitations/companies') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const search = url.searchParams.get('search') || undefined;
+          const statusFilter = (url.searchParams.get('statusFilter') || url.searchParams.get('filter') || 'all') as any;
+
+          const { companies, stats } = await listCustomerCompanies({
+            search,
+            statusFilter,
+            env,
+          });
+
+          return jsonResponse({ success: true, companies, stats }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin list customer companies error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/customer-invitations/companies
+      if ((pathname === '/api/developer/customer-invitations/companies' || pathname === '/api/admin/customer-invitations/companies') && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { company_name, contact_person, notes, recipients } = body;
+
+        try {
+          const company = await createCustomerCompany(
+            {
+              company_name,
+              contact_person,
+              notes,
+              recipients: Array.isArray(recipients) ? recipients : [],
+              created_by: auth.user?.id,
+            },
+            env
+          );
+
+          return jsonResponse({
+            success: true,
+            company,
+            message: 'Customer company created successfully',
+          }, 201, cors);
+        } catch (err: any) {
+          console.error('Admin create customer company error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/customer-invitations/companies/:id/invite
+      const devCompanyInviteMatch = parseRoute('/api/developer/customer-invitations/companies/:id/invite', pathname) ||
+                                    parseRoute('/api/admin/customer-invitations/companies/:id/invite', pathname);
+      if (devCompanyInviteMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        // Apply admin customer invitation rate limiting
+        const rateCheck = checkWorkerRateLimit(request, WORKER_ADMIN_INVITATION_RATE_LIMIT, auth.user?.id);
+        if (!rateCheck.allowed) {
+          return jsonResponse(rateCheck.errorResponse, 429, { ...cors, ...rateCheck.headers });
+        }
+
+        const { id } = devCompanyInviteMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { recipient_ids, confirm_reinvite } = body;
+
+        try {
+          const result = await sendCompanyInvitations(id, {
+            recipientIds: recipient_ids,
+            confirmReinvite: Boolean(confirm_reinvite),
+            sentByUserId: auth.user?.id,
+            env,
+          });
+
+          return jsonResponse({
+            success: true,
+            ...result,
+            message: `Invitations processed: ${result.sent} sent, ${result.failed} failed.`,
+          }, 200, cors);
+        } catch (err: any) {
+          if (err.code === 'REINVITATION_CONFIRMATION_REQUIRED') {
+            return jsonResponse({
+              success: false,
+              code: 'REINVITATION_CONFIRMATION_REQUIRED',
+              error: err.message,
+              previously_invited: err.previouslyInvited,
+            }, 409, cors);
+          }
+          if (err.code === 'INVALID_COMPANY_RECIPIENT') {
+            return jsonResponse({
+              success: false,
+              code: 'INVALID_COMPANY_RECIPIENT',
+              error: err.message,
+            }, 400, cors);
+          }
+          if (err.code === 'BATCH_LIMIT_EXCEEDED') {
+            return jsonResponse({
+              success: false,
+              code: 'BATCH_LIMIT_EXCEEDED',
+              error: err.message,
+            }, 400, cors);
+          }
+          if (err.code === 'RECIPIENT_RATE_LIMITED') {
+            return jsonResponse({
+              success: false,
+              code: 'RECIPIENT_RATE_LIMITED',
+              error: err.message,
+            }, 429, cors);
+          }
+          if (err.code === 'RESEND_CONFIG_MISSING') {
+            return jsonResponse({
+              success: false,
+              code: 'RESEND_CONFIG_MISSING',
+              error: err.message,
+            }, 500, cors);
+          }
+          console.error('Admin send customer invitations error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/customer-invitations/companies/:id
+      const devCompanyDetailMatch = parseRoute('/api/developer/customer-invitations/companies/:id', pathname) ||
+                                    parseRoute('/api/admin/customer-invitations/companies/:id', pathname);
+      if (devCompanyDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { id } = devCompanyDetailMatch;
+        try {
+          const company = await getCustomerCompanyById(id, env);
+          if (!company) {
+            return errorResponse('Customer company not found', 404, cors);
+          }
+          return jsonResponse({ success: true, company }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get customer company error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // PUT /api/developer/customer-invitations/companies/:id
+      if (devCompanyDetailMatch && (method === 'PUT' || method === 'PATCH')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { id } = devCompanyDetailMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { company_name, contact_person, notes, recipients } = body;
+
+        try {
+          const updated = await updateCustomerCompany(
+            id,
+            { company_name, contact_person, notes, recipients },
+            env
+          );
+          return jsonResponse({
+            success: true,
+            company: updated,
+            message: 'Customer company updated successfully',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin update customer company error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // DELETE /api/developer/customer-invitations/companies/:id
+      if (devCompanyDetailMatch && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { id } = devCompanyDetailMatch;
+        try {
+          await deleteCustomerCompany(id, env);
+          return jsonResponse({
+            success: true,
+            message: 'Customer company deleted successfully',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin delete customer company error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/customer-invitations/logs
+      if ((pathname === '/api/developer/customer-invitations/logs' || pathname === '/api/admin/customer-invitations/logs') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const limitStr = url.searchParams.get('limit');
+          const limit = limitStr ? parseInt(limitStr, 10) : 100;
+          const logs = await listCustomerInvitationLogs(isNaN(limit) ? 100 : limit, env);
+          return jsonResponse({ success: true, logs }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin list customer invitation logs error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/customer-invitations/stats
+      if ((pathname === '/api/developer/customer-invitations/stats' || pathname === '/api/admin/customer-invitations/stats') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const stats = await getCustomerInvitationStats(env);
+          return jsonResponse({ success: true, stats }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get customer invitation stats error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/customer-invitations/preview-email
+      if ((pathname === '/api/developer/customer-invitations/preview-email' || pathname === '/api/admin/customer-invitations/preview-email') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const companyName = url.searchParams.get('company_name') || 'Sample Company Ltd';
+          const template = generateCustomerInvitationEmail({ companyName });
+          return jsonResponse({ success: true, template }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin preview customer invitation email error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/customer-invitations/resend-webhook or /api/webhooks/resend
+      if ((pathname === '/api/developer/customer-invitations/resend-webhook' || pathname === '/api/webhooks/resend') && method === 'POST') {
+        const payload = (await request.json().catch(() => ({}))) as any;
+        const result = await handleCustomerInvitationWebhook(payload, env);
+        return jsonResponse({ success: true, result }, 200, cors);
+      }
+
+
       // POST /api/contact (public contact enquiry with persistence first and Gmail delivery)
       if (pathname === '/api/contact' && method === 'POST') {
         // Rate limit check
@@ -7378,7 +7727,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             );
           }
 
-          // Callback URI on the API worker (e.g. https://eventgamestudio-api.kiap93-kmj.workers.dev/api/email/google/callback)
+          // Callback URI on the API worker (e.g. https://<worker-api-domain>/api/email/google/callback)
           const callbackRedirectUri = config.redirectUri || `${url.origin}/api/email/google/callback`;
           const stateToken = generateOAuthStateToken(auth.user.id, env, callbackRedirectUri);
           const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri, env);

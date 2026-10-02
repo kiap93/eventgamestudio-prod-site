@@ -14,6 +14,7 @@ import { DeveloperOrganizationDetail } from './DeveloperOrganizationDetail';
 import { DeveloperEmailSettings } from './DeveloperEmailSettings';
 import { DeveloperErrorLogs } from './DeveloperErrorLogs';
 import { DeveloperContactSettings } from './DeveloperContactSettings';
+import { DeveloperCustomerInvitations } from './invitations/DeveloperCustomerInvitations';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
@@ -116,6 +117,15 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="contact">
         <DeveloperContactSettings />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1f. If viewing Customer Invitations: /developer/customer-invitations
+  if (route.developerSection === 'customer-invitations') {
+    return (
+      <DeveloperAdminLayout activeSection="customer-invitations">
+        <DeveloperCustomerInvitations />
       </DeveloperAdminLayout>
     );
   }
