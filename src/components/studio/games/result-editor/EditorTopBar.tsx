@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useState, useMemo } from 'react';
 import {
   ResultScreenElementType,
@@ -83,6 +84,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   onUndo,
   onRedo,
 }) => {
+  const { t } = useLocalization();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
@@ -99,7 +101,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           </div>
           <div>
             <h2 className="text-xs sm:text-sm font-black text-slate-100 tracking-tight flex items-center gap-2">
-              <span>Result Screen Visual Editor</span>
+              <span>{t('editor.resultPresetLibraryTitle', undefined, 'Result Screen Visual Editor')}</span>
               <span className="hidden sm:inline-block text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/20">
                 1000 × 1000
               </span>
@@ -118,7 +120,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow transition-colors"
           >
             <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Add Element</span>
+            <span>{t('editor.addElement', undefined, 'Add Element')}</span>
           </button>
 
           {addMenuOpen && (
@@ -307,7 +309,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={onCenterSelectedHorizontal}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-amber-300 transition-colors"
-              title="Center Horizontally"
+              title={t('editor.centerHCanvas', undefined, 'Center Horizontally')}
             >
               <AlignCenterHorizontal className="w-3.5 h-3.5" />
             </button>
@@ -317,7 +319,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={onCenterSelectedVertical}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-amber-300 transition-colors"
-              title="Center Vertically"
+              title={t('editor.centerVCanvas', undefined, 'Center Vertically')}
             >
               <AlignCenterVertical className="w-3.5 h-3.5" />
             </button>
@@ -329,7 +331,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={() => onMoveSelectedLayer('front')}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-amber-300 transition-colors"
-              title="Bring to Front (Ctrl+Shift+])"
+              title={t('editor.bringToFront', undefined, 'Bring to Front')}
             >
               <ChevronsUp className="w-3.5 h-3.5" />
             </button>
@@ -339,7 +341,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={() => onMoveSelectedLayer('forward')}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-              title="Bring Forward (Ctrl+])"
+              title={t('editor.bringForward', undefined, 'Bring Forward')}
             >
               <ArrowUp className="w-3.5 h-3.5" />
             </button>
@@ -349,7 +351,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={() => onMoveSelectedLayer('backward')}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-              title="Send Backward (Ctrl+[)"
+              title={t('editor.sendBackward', undefined, 'Send Backward')}
             >
               <ArrowDown className="w-3.5 h-3.5" />
             </button>
@@ -359,7 +361,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={() => onMoveSelectedLayer('back')}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-amber-300 transition-colors"
-              title="Send to Back (Ctrl+Shift+[)"
+              title={t('editor.sendToBack', undefined, 'Send to Back')}
             >
               <ChevronsDown className="w-3.5 h-3.5" />
             </button>
@@ -371,7 +373,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={onDuplicateSelected}
               className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-              title="Duplicate Selected (Ctrl+D)"
+              title={t('editor.duplicateSelection', undefined, 'Duplicate')}
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
@@ -381,14 +383,14 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               type="button"
               onClick={onDeleteSelected}
               className="p-1 rounded-lg hover:bg-rose-950 text-slate-400 hover:text-rose-400 transition-colors"
-              title="Delete Selected (Del)"
+              title={t('editor.deleteSelection', undefined, 'Delete')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
           <div className="text-[11px] text-slate-500 font-medium">
-            Select elements on canvas or in layers panel to inspect & edit
+            {t('editor.selectElementToEdit', undefined, 'Select elements on canvas or in layers panel to inspect & edit')}
           </div>
         )}
       </div>
@@ -406,10 +408,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
                 : 'text-slate-600 opacity-40 cursor-not-allowed'
             }`}
-            title="Undo (Ctrl+Z / Cmd+Z)"
+            title={t('editor.undoTooltip', undefined, 'Undo (Ctrl+Z)')}
           >
             <Undo2 className="w-3.5 h-3.5" />
-            <span className="hidden md:inline text-[11px]">Undo</span>
+            <span className="hidden md:inline text-[11px]">{t('editor.undoTooltip', undefined, 'Undo')}</span>
           </button>
           <div className="w-[1px] h-4 bg-slate-800 mx-0.5" />
           <button
@@ -421,10 +423,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
                 : 'text-slate-600 opacity-40 cursor-not-allowed'
             }`}
-            title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)"
+            title={t('editor.redoTooltip', undefined, 'Redo (Ctrl+Y)')}
           >
             <Redo2 className="w-3.5 h-3.5" />
-            <span className="hidden md:inline text-[11px]">Redo</span>
+            <span className="hidden md:inline text-[11px]">{t('editor.redoTooltip', undefined, 'Redo')}</span>
           </button>
         </div>
 
@@ -434,10 +436,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             type="button"
             onClick={onOpenPresets}
             className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
-            title="Browse pre-designed result screen layout presets and custom templates"
+            title={t('editor.presetLibraryBtn', undefined, 'Templates')}
           >
             <LayoutTemplate className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Templates</span>
+            <span className="hidden sm:inline">{t('editor.presetLibraryBtn', undefined, 'Templates')}</span>
           </button>
         )}
 
@@ -447,10 +449,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             type="button"
             onClick={onSaveAsTemplate}
             className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
-            title="Save current layout as a reusable custom template"
+            title={t('editor.saveAsTemplateBtn', undefined, 'Save Template')}
           >
             <BookmarkPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Save Template</span>
+            <span className="hidden sm:inline">{t('editor.saveAsTemplateBtn', undefined, 'Save Template')}</span>
           </button>
         )}
 
@@ -460,16 +462,16 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             type="button"
             onClick={() => setResetConfirmOpen(!resetConfirmOpen)}
             className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            title="Reset to default result screen layout"
+            title={t('editor.resetCanvasLayout', undefined, 'Reset')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reset</span>
+            <span className="hidden sm:inline">{t('common.reset', undefined, 'Reset')}</span>
           </button>
 
           {resetConfirmOpen && (
             <div className="absolute right-0 top-full mt-2 w-60 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-3 space-y-2.5">
               <span className="text-xs font-bold text-slate-200 block">
-                Reset Layout?
+                {t('editor.resetCanvasLayout', undefined, 'Reset Layout?')}
               </span>
               <p className="text-[11px] text-slate-400 leading-tight">
                 This will restore the standard default result screen cards and stats.
@@ -480,7 +482,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                   onClick={() => setResetConfirmOpen(false)}
                   className="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold"
                 >
-                  Cancel
+                  {t('common.cancel', undefined, 'Cancel')}
                 </button>
                 <button
                   type="button"

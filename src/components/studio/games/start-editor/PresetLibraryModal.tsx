@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import { StartScreenConfig, StartScreenElement } from '../../../../games/shared/startScreenTypes';
 import { START_SCREEN_PRESETS, StartScreenPreset } from './presets';
 import {
@@ -24,6 +25,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
   onClose,
   onApplyPreset,
 }) => {
+  const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<'built-in' | 'custom'>('built-in');
   const [customTemplates, setCustomTemplates] = useState<CustomStartTemplate[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
         <div className="h-14 px-5 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <LayoutTemplate className="w-5 h-5 text-amber-400" />
-            <h2 className="font-bold text-sm text-slate-100">Start Screen Preset Library</h2>
+            <h2 className="font-bold text-sm text-slate-100">{t('editor.presetLibraryTitle', undefined, 'Start Screen Preset Library')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -128,7 +130,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
                         }}
                         className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition-colors"
                       >
-                        Apply Preset
+                        {t('editor.applyPresetConfirm', undefined, 'Apply Preset')}
                       </button>
                     </div>
                   </div>
@@ -172,7 +174,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
                           onClick={() => handleApply(template.elements)}
                           className="px-3 py-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-lg transition-colors"
                         >
-                          Apply Template
+                          {t('editor.applyPresetConfirm', undefined, 'Apply Template')}
                         </button>
                       </div>
                     </div>
@@ -192,7 +194,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
             onClick={onClose}
             className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold"
           >
-            Cancel
+            {t('common.cancel', undefined, 'Cancel')}
           </button>
         </div>
       </div>

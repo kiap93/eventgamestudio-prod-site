@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { apiFetch } from '../../lib/api';
 import {
@@ -42,6 +43,7 @@ export function formatCurrency(amount: number | string | undefined | null, curre
 }
 
 export const DeveloperOrganizationsList: React.FC = () => {
+  const { t } = useLocalization();
   const [organizations, setOrganizations] = useState<DeveloperOrgItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
-                <span>Organizations</span>
+                <span>{t('developer.organizationsTitle')}</span>
                 {!loading && (
                   <span className="text-xs font-mono font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     {organizations.length} {organizations.length === 1 ? 'org' : 'orgs'}
@@ -112,7 +114,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
                 )}
               </h1>
               <p className="text-xs sm:text-sm text-slate-400">
-                Manage organizations, wallet balances and platform activity
+                {t('developer.orgsManagementDesc')}
               </p>
             </div>
           </div>
@@ -125,7 +127,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
             className="flex items-center space-x-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <span>{t('common.refresh')}</span>
           </button>
         </div>
       </div>
@@ -133,35 +135,35 @@ export const DeveloperOrganizationsList: React.FC = () => {
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Total Organizations</span>
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">{t('developer.totalWorkspaces')}</span>
           <div className="text-xl sm:text-2xl font-bold text-white font-mono">
             {loading ? '-' : stats.totalOrgs}
           </div>
-          <span className="text-[10px] text-slate-500 mt-1 block">Active platform tenants</span>
+          <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.activePlatformTenants', undefined, 'Active platform tenants')}</span>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Platform Paid Balances</span>
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">{t('developer.platformPaidBalances', undefined, 'Platform Paid Balances')}</span>
           <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono">
             {loading ? '-' : formatCurrency(stats.totalPaid)}
           </div>
-          <span className="text-[10px] text-slate-500 mt-1 block">Deposited cash funds</span>
+          <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.depositedCashFunds', undefined, 'Deposited cash funds')}</span>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Total Event Credits</span>
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">{t('developer.totalEventCredits', undefined, 'Total Event Credits')}</span>
           <div className="text-xl sm:text-2xl font-bold text-cyan-400 font-mono">
             {loading ? '-' : formatCurrency(stats.totalCredits)}
           </div>
-          <span className="text-[10px] text-slate-500 mt-1 block">Welcome + Showcase + Top-up credits</span>
+          <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.totalEventCreditsSub', undefined, 'Welcome + Showcase + Top-up credits')}</span>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4">
-          <span className="text-[11px] font-medium text-slate-400 block mb-1">Total Wallet Value</span>
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">{t('developer.totalWalletValue', undefined, 'Total Wallet Value')}</span>
           <div className="text-xl sm:text-2xl font-bold text-amber-400 font-mono">
             {loading ? '-' : formatCurrency(stats.totalValue)}
           </div>
-          <span className="text-[10px] text-slate-500 mt-1 block">{stats.totalEvents} total events created</span>
+          <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.totalEventsCreated', { count: stats.totalEvents }, `${stats.totalEvents} total events created`)}</span>
         </div>
       </div>
 
@@ -173,7 +175,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by organization name, owner name, owner email, or slug..."
+            placeholder={t('developer.searchOrgsFullPlaceholder', undefined, 'Search by organization name, owner name, owner email, or slug...')}
             className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl text-xs text-slate-100 placeholder-slate-500 transition-colors"
           />
           {searchQuery && (
@@ -181,7 +183,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
               onClick={() => setSearchQuery('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded bg-slate-800"
             >
-              Clear
+              {t('common.clear', undefined, 'Clear')}
             </button>
           )}
         </div>
@@ -198,7 +200,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
             onClick={fetchOrganizations}
             className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold rounded-lg border border-rose-500/30 transition-colors cursor-pointer"
           >
-            Retry
+            {t('common.retry', undefined, 'Retry')}
           </button>
         </div>
       )}
@@ -218,14 +220,14 @@ export const DeveloperOrganizationsList: React.FC = () => {
                 </div>
               </div>
             </div>
-            <p className="text-center text-xs text-slate-500 py-4">Loading organizations & wallet ledgers...</p>
+            <p className="text-center text-xs text-slate-500 py-4">{t('developer.loadingOrgsAndLedgers', undefined, 'Loading organizations & wallet ledgers...')}</p>
           </div>
         ) : filteredOrgs.length === 0 ? (
           <div className="text-center py-16 px-4 space-y-3">
             <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
               <Building2 className="w-6 h-6" />
             </div>
-            <h3 className="text-sm font-bold text-white">No organizations found</h3>
+            <h3 className="text-sm font-bold text-white">{t('developer.noOrgsFound', undefined, 'No organizations found')}</h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               {searchQuery
                 ? `No organizations matching "${searchQuery}". Try clearing your search.`
@@ -236,7 +238,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
                 onClick={() => setSearchQuery('')}
                 className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition-colors cursor-pointer"
               >
-                Reset Search
+                {t('common.reset', undefined, 'Reset Search')}
               </button>
             )}
           </div>
@@ -245,15 +247,15 @@ export const DeveloperOrganizationsList: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                  <th className="py-3.5 px-4">Organization</th>
-                  <th className="py-3.5 px-4">Owner</th>
-                  <th className="py-3.5 px-4 text-center">Members</th>
-                  <th className="py-3.5 px-4 text-center">Events</th>
-                  <th className="py-3.5 px-4 text-right">Paid Balance</th>
-                  <th className="py-3.5 px-4 text-right">Event Credit</th>
-                  <th className="py-3.5 px-4 text-right">Total Value</th>
-                  <th className="py-3.5 px-4">Created</th>
-                  <th className="py-3.5 px-4 text-center">Action</th>
+                  <th className="py-3.5 px-4">{t('common.organization', undefined, 'Organization')}</th>
+                  <th className="py-3.5 px-4">{t('developer.owner', undefined, 'Owner')}</th>
+                  <th className="py-3.5 px-4 text-center">{t('developer.members', undefined, 'Members')}</th>
+                  <th className="py-3.5 px-4 text-center">{t('developer.events', undefined, 'Events')}</th>
+                  <th className="py-3.5 px-4 text-right">{t('developer.paidBalance', undefined, 'Paid Balance')}</th>
+                  <th className="py-3.5 px-4 text-right">{t('developer.eventCredit', undefined, 'Event Credit')}</th>
+                  <th className="py-3.5 px-4 text-right">{t('developer.totalValue', undefined, 'Total Value')}</th>
+                  <th className="py-3.5 px-4">{t('developer.created', undefined, 'Created')}</th>
+                  <th className="py-3.5 px-4 text-center">{t('common.action', undefined, 'Action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -340,7 +342,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
                     {/* Action */}
                     <td className="py-3.5 px-4 text-center">
                       <span className="inline-flex items-center space-x-1 text-slate-400 group-hover:text-emerald-400 font-semibold text-[11px]">
-                        <span>View</span>
+                        <span>{t('common.view', undefined, 'View')}</span>
                         <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                       </span>
                     </td>

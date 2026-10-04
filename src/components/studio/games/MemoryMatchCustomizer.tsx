@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   GameTheme,
   ThemeDropItem,
@@ -143,6 +144,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const [cardBackDragActive, setCardBackDragActive] = useState(false);
   const [cardBackUploadError, setCardBackUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -224,7 +226,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
             <Layers className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Card Back Pattern & Artwork</h3>
+            <h3 className="text-sm font-bold text-slate-100">{t('customizers.cardBackPatternArtwork')}</h3>
             <p className="text-xs text-slate-400">
               The face-down design displayed on all 16 memory cards before they are flipped
             </p>
@@ -253,7 +255,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
 
             <div className="flex-1 space-y-1.5 min-w-0 text-center sm:text-left">
               <div className="flex items-center justify-center sm:justify-start gap-2">
-                <h4 className="text-xs font-bold text-slate-200">Active Card Back Cover</h4>
+                <h4 className="text-xs font-bold text-slate-200">{t('customizers.activeCardBackCover')}</h4>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
                   Active
                 </span>
@@ -278,18 +280,18 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                   type="button"
                   onClick={() => replaceFileInputRef.current?.click()}
                   disabled={uploadingAsset === 'cardBack'}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700 cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'cardBack' ? 'animate-spin' : ''}`} />
-                  <span>Replace Artwork</span>
+                  <span>{t('customizers.replaceArtwork')}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => updateCardBack(null)}
-                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-rose-500/30"
+                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-rose-500/30 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remove</span>
+                  <span>{t('common.remove')}</span>
                 </button>
               </div>
             </div>

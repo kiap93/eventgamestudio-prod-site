@@ -973,7 +973,7 @@ export async function clearOutstandingBalance(
  * fallback cache. Return/throw an explicit error so the client is informed and can retry.
  * Local storage is strictly a development/test fallback when Supabase is unconfigured.
  */
-async function appendLedgerTransaction(
+export async function appendLedgerTransaction(
   txn: Omit<WalletTransactionRecord, 'id' | 'created_at'>,
   env?: Record<string, any>
 ): Promise<WalletTransactionRecord> {
@@ -1028,6 +1028,8 @@ async function appendLedgerTransaction(
         isLocalFallbackAllowed(env) &&
         (error.code === '22P02' ||
           error.code === '23503' ||
+          error.code === 'PGRST000' ||
+          error.message?.includes('Placeholder') ||
           error.message?.includes('invalid input syntax for type uuid') ||
           error.message?.includes('violates foreign key constraint'))
       ) {
@@ -1039,6 +1041,11 @@ async function appendLedgerTransaction(
       throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
     if (!data) {
+      if (isLocalFallbackAllowed(env)) {
+        localTransactionsCache.set(id, record);
+        saveLocalStores();
+        return record;
+      }
       throw new Error('Financial ledger transaction failed: No confirmation received from database');
     }
 
@@ -1587,6 +1594,20 @@ export async function grantWelcomeCredit(
             message: 'Welcome Credit has already been claimed by this user in their account lifetime (one-time lifetime limit).',
           };
         }
+        userRewardRecord = {
+          id: crypto.randomUUID(),
+          user_id: targetUserId,
+          reward_type: 'WELCOME_CREDIT',
+          organization_id: organizationId,
+          transaction_id: null,
+          amount: WELCOME_CREDIT_AMOUNT,
+          created_at: now,
+        };
+        localUserRewardsCache.set(`${targetUserId}:WELCOME_CREDIT`, userRewardRecord);
+        saveLocalStores();
+      }
+
+      if (!userRewardRecord && isLocalFallbackAllowed(env)) {
         userRewardRecord = {
           id: crypto.randomUUID(),
           user_id: targetUserId,
@@ -3852,23 +3873,22 @@ export async function refundEventPayment(
   }
 
   // 2. Identify original payment transactions or provided amounts
-  let paidToRefund = params.paidAmount ?? 0;
-  let discountToReverse = params.discountAmount ?? 0;
-  let mode = params.paymentMode ?? 'FULL_PAID';
+  const origPaymentTxns = existingTransactions.filter((t) => t.event_id === eventId && t.status === 'COMPLETED');
+  const creditUsageByType = new Map<WalletBalanceType, number>();
+  let recordedPaidAmount = 0;
 
-  if (paidToRefund === 0 && discountToReverse === 0) {
-    const origPaymentTxns = existingTransactions.filter((t) => t.event_id === eventId && t.status === 'COMPLETED');
-    for (const t of origPaymentTxns) {
-      if (t.transaction_type === 'EVENT_PAYMENT' && t.balance_type === 'PAID_BALANCE') {
-        paidToRefund += Math.abs(Number(t.amount || 0));
-      } else if (t.transaction_type === 'CREDIT_USAGE') {
-        discountToReverse += Math.abs(Number(t.amount || 0));
-        if (t.balance_type === 'WELCOME_CREDIT') mode = 'WELCOME_CREDIT';
-        else if (t.balance_type === 'SHOWCASE_CREDIT') mode = 'SHOWCASE_CREDIT';
-        else if (t.balance_type === 'TOPUP_CREDIT') mode = 'TOPUP_CREDIT';
-      }
+  for (const t of origPaymentTxns) {
+    if (t.transaction_type === 'EVENT_PAYMENT' && t.balance_type === 'PAID_BALANCE') {
+      recordedPaidAmount += Math.abs(Number(t.amount || 0));
+    } else if (t.transaction_type === 'CREDIT_USAGE') {
+      const bType = (t.balance_type || 'TOPUP_CREDIT') as WalletBalanceType;
+      creditUsageByType.set(bType, (creditUsageByType.get(bType) || 0) + Math.abs(Number(t.amount || 0)));
     }
   }
+
+  let paidToRefund = recordedPaidAmount > 0 ? recordedPaidAmount : (params.paidAmount ?? 0);
+  let discountToReverse = params.discountAmount ?? 0;
+  let mode = params.paymentMode ?? 'FULL_PAID';
 
   const transactions: WalletTransactionRecord[] = [];
   const eventLabel = eventName ? `"${eventName}"` : `Event #${eventId.slice(0, 8)}`;
@@ -3898,8 +3918,37 @@ export async function refundEventPayment(
     transactions.push(paidRefundTxn);
   }
 
-  // 4. Process Promotional Credit reversal
-  if (discountToReverse > 0 && mode !== 'FULL_PAID') {
+  // 4. Process Promotional Credit reversals for each specific balance type
+  if (creditUsageByType.size > 0) {
+    for (const [creditType, usedAmount] of creditUsageByType.entries()) {
+      if (usedAmount > 0) {
+        const typeKey = creditType.toLowerCase();
+        const creditReversalTxn = await appendLedgerTransaction(
+          {
+            organization_id: organizationId,
+            event_id: eventId,
+            transaction_type: 'CREDIT_REVERSAL',
+            balance_type: creditType,
+            amount: usedAmount, // positive credit
+            currency: 'MYR',
+            status: 'COMPLETED',
+            reference_id: `reversal_event_${eventId}_${typeKey}`,
+            description: `Restored RM${usedAmount.toFixed(2)} ${creditType.replace('_', ' ')} for cancelled ${eventLabel}`,
+            metadata: {
+              event_id: eventId,
+              reason,
+              reversed_credit_amount: usedAmount,
+              credit_type: creditType,
+            },
+            created_by: createdBy || null,
+          },
+          env
+        );
+        transactions.push(creditReversalTxn);
+      }
+    }
+  } else if (discountToReverse > 0 && mode !== 'FULL_PAID') {
+    // Fallback when individual CREDIT_USAGE transactions were not in the ledger
     let creditBalanceType: WalletBalanceType = 'TOPUP_CREDIT';
     if (mode === 'WELCOME_CREDIT') creditBalanceType = 'WELCOME_CREDIT';
     else if (mode === 'SHOWCASE_CREDIT') creditBalanceType = 'SHOWCASE_CREDIT';

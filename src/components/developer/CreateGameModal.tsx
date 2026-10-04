@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { PlatformGame } from '../../types/developer';
 import { GAME_REGISTRY } from '../../games/registry';
 import { getGameTypeIcon } from '../../games';
@@ -19,6 +20,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState<string>('');
   const [slug, setSlug] = useState<string>('');
   const [gameType, setGameType] = useState<string>('catch-brand');
@@ -109,12 +111,12 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Game title is required');
+      setError(t('developer.titleRequiredError'));
       return;
     }
 
     if (isTypeConflict) {
-      setError('This game type is already registered. Please manage the existing game instead of creating another one.');
+      setError(t('developer.gameTypeConflictError'));
       return;
     }
 
@@ -125,7 +127,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
     const cleanSlug = (slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')).toLowerCase();
     if (usedSlugs.has(cleanSlug)) {
-      setError(`The slug "${cleanSlug}" is already in use by another system game. Please choose a unique slug.`);
+      setError(t('developer.slugConflictError'));
       return;
     }
 
@@ -161,10 +163,10 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white">
-                {initialGame ? 'Edit Platform Game' : 'Register New System Game'}
+                {initialGame ? t('developer.editPlatformGame') : t('developer.registerNewSystemGame')}
               </h3>
               <p className="text-xs text-slate-400">
-                {initialGame ? 'Update system game metadata & settings' : 'Register 1 canonical system game per engine type'}
+                {initialGame ? t('developer.updateGameMetadataDesc') : t('developer.registerCanonicalGameDesc')}
               </p>
             </div>
           </div>
@@ -190,9 +192,9 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
             <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-start space-x-2.5">
               <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
               <div>
-                <p className="font-semibold text-amber-200">All Game Engines Registered</p>
+                <p className="font-semibold text-amber-200">{t('developer.allEnginesRegisteredTitle')}</p>
                 <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
-                  All supported game engines are registered. Each game engine exists once at the system level. To add new visuals and styles, open the respective game and create themes.
+                  {t('developer.allEnginesRegisteredDesc')}
                 </p>
               </div>
             </div>
@@ -200,7 +202,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Game Title <span className="text-rose-400">*</span>
+              {t('developer.gameTitleLabel')} <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
@@ -208,7 +210,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
               disabled={isAllRegistered}
               value={name}
               onChange={handleNameChange}
-              placeholder="e.g. Catch the Brand, Brand Memory Match"
+              placeholder={t('developer.gameTitlePlaceholder')}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
             />
           </div>
@@ -216,7 +218,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                Slug <span className="text-rose-400">*</span>
+                {t('developer.slugLabel')} <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
@@ -230,13 +232,13 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
                 } rounded-xl text-xs font-mono focus:outline-none focus:border-emerald-500 disabled:opacity-50`}
               />
               {isSlugConflict && (
-                <p className="text-[10px] text-rose-400 mt-1">Slug is already in use by another game</p>
+                <p className="text-[10px] text-rose-400 mt-1">{t('developer.slugConflictError')}</p>
               )}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center justify-between">
-                <span>Game Engine / Type <span className="text-rose-400">*</span></span>
+                <span>{t('developer.gameEngineTypeLabel')} <span className="text-rose-400">*</span></span>
                 {initialGame && <Lock className="w-3 h-3 text-slate-500 inline" />}
               </label>
               <select
@@ -254,27 +256,27 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
                       value={typeKey}
                       disabled={isRegistered && (!initialGame || initialGame.game_type !== typeKey)}
                     >
-                      {def?.name || typeKey} ({typeKey}) {isRegistered ? '— ✓ Registered' : '— Available'}
+                      {def?.name || typeKey} ({typeKey}) {isRegistered ? t('developer.engineRegisteredSuffix') : t('developer.engineAvailableSuffix')}
                     </option>
                   );
                 })}
               </select>
               {isTypeConflict && (
-                <p className="text-[10px] text-rose-400 mt-1">This game type is already registered</p>
+                <p className="text-[10px] text-rose-400 mt-1">{t('developer.gameTypeConflictError')}</p>
               )}
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Description
+              {t('developer.gameDescriptionLabel')}
             </label>
             <textarea
               rows={2}
               disabled={isAllRegistered}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of the game mechanic and player experience..."
+              placeholder={t('developer.gameDescriptionPlaceholder')}
               className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none disabled:opacity-50"
             />
           </div>
@@ -282,7 +284,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                Icon Name
+                {t('developer.iconNameLabel')}
               </label>
               <input
                 type="text"
@@ -296,7 +298,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                Platform Status
+                {t('developer.platformStatusLabel')}
               </label>
               <select
                 value={status}
@@ -305,10 +307,10 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
               >
                 <option value="active" disabled={!isEngineAvailable}>
-                  {isEngineAvailable ? 'Active (Available to Orgs)' : 'Active (Blocked — Engine in Dev)'}
+                  {isEngineAvailable ? t('developer.statusActiveAvailable') : t('developer.statusActiveBlocked')}
                 </option>
-                <option value="draft">Draft (Developer Only)</option>
-                <option value="archived">Archived</option>
+                <option value="draft">{t('developer.statusDraftDevOnly')}</option>
+                <option value="archived">{t('developer.statusArchived')}</option>
               </select>
             </div>
           </div>
@@ -320,7 +322,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -328,11 +330,11 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
               className="flex items-center space-x-2 px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-emerald-900/30 transition-colors"
             >
               {saving ? (
-                <span>Saving...</span>
+                <span>{t('common.saving')}</span>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{initialGame ? 'Update Game' : 'Register Game'}</span>
+                  <span>{initialGame ? t('developer.updateGameBtn') : t('developer.registerGameBtn')}</span>
                 </>
               )}
             </button>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import { StartScreenElement } from '../../../../games/shared/startScreenTypes';
 import { saveCustomStartTemplate } from './customTemplates';
 import { X, BookmarkPlus, Check } from 'lucide-react';
@@ -18,6 +19,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<'Default' | 'Minimalist' | 'Arcade' | 'Split' | 'Compact'>('Default');
@@ -46,7 +48,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
         <div className="h-14 px-5 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <BookmarkPlus className="w-5 h-5 text-sky-400" />
-            <h2 className="font-bold text-sm text-slate-100">Save Layout as Template</h2>
+            <h2 className="font-bold text-sm text-slate-100">{t('editor.saveTemplateTitle', undefined, 'Save Layout as Template')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -59,12 +61,12 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
         <form onSubmit={handleSave} className="p-5 space-y-4 text-xs">
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Template Name
+              {t('editor.templateNameLabel', undefined, 'Template Name')}
             </label>
             <input
               type="text"
               required
-              placeholder="e.g. Carnival Neon Start Layout"
+              placeholder={t('editor.templateNamePlaceholder', undefined, 'e.g. Carnival Neon Start Layout')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 text-xs"
@@ -73,7 +75,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
 
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Category
+              {t('editor.templateCategoryLabel', undefined, 'Category')}
             </label>
             <select
               value={category}
@@ -90,11 +92,11 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
 
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Description (Optional)
+              {t('editor.templateDescLabel', undefined, 'Description (Optional)')}
             </label>
             <textarea
               rows={3}
-              placeholder="Brief description of this custom layout..."
+              placeholder={t('editor.templateDescPlaceholder', undefined, 'Brief description of this custom layout...')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 text-xs"
@@ -107,14 +109,14 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold"
             >
-              Cancel
+              {t('common.cancel', undefined, 'Cancel')}
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
               className="px-4 py-2 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg shadow-md transition-colors"
             >
-              Save Template
+              {t('editor.saveTemplateBtn', undefined, 'Save Template')}
             </button>
           </div>
         </form>

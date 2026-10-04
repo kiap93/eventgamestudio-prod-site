@@ -42,6 +42,21 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   const { t } = useLocalization();
   const { currentOrganization, currentUser } = useAuth();
 
+  const userRole = currentOrganization?.role;
+  const isDesigner = userRole === 'designer';
+  const isViewer = userRole === 'viewer';
+  const isAuthorized = userRole === 'owner' || userRole === 'admin';
+
+  useEffect(() => {
+    if (!isAuthorized) {
+      if (isDesigner) {
+        navigateTo('/games');
+      } else {
+        navigateTo('/wallet');
+      }
+    }
+  }, [isAuthorized, isDesigner]);
+
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
   const [loadingWallet, setLoadingWallet] = useState(true);
 
@@ -89,7 +104,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
   // 1. Fetch Wallet Balance
   const fetchWallet = useCallback(async () => {
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id || !isAuthorized) return;
     try {
       setLoadingWallet(true);
       const res = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet`);
@@ -102,7 +117,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
     } finally {
       setLoadingWallet(false);
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isAuthorized]);
 
   useEffect(() => {
     fetchWallet();
@@ -343,7 +358,12 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   };
 
   // 6. Simulate / Trigger Payment Provider Webhook Dispatch
-  const isDevAdmin = Boolean(currentUser?.is_developer || (import.meta as any).env?.DEV);
+  // Developer authorization (user privilege)
+  const isDevAdmin = Boolean(currentUser?.is_developer);
+  // Production visibility boundary: Developer Sandbox is strictly restricted to local development builds
+  // (import.meta.env.DEV) AND requires authenticated developer authorization.
+  // In production builds, this is ALWAYS false, preventing the sandbox from rendering even for developer accounts.
+  const showDevSandbox = Boolean(import.meta.env.DEV && isDevAdmin);
 
   const handleStartDelayedWebhookSimulation = (delaySeconds = 15) => {
     if (!activeOrder?.id) return;
@@ -473,6 +493,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   // =========================================================================
   // VIEW RENDER: 0. PAYMENT PENDING SCREEN (Waiting for Authoritative Webhook)
   // =========================================================================
+  if (!isAuthorized) {
+    return null;
+  }
   if (activeOrder && activeOrder.status === 'PENDING' && !showPaymentModal) {
     const topUpAmount = activeOrder.top_up_amount;
     const creditAmount = activeOrder.expected_credit_amount;
@@ -564,7 +587,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             </button>
 
             {/* Developer Sandbox Testing Tools */}
-            {isDevAdmin && (
+            {showDevSandbox && (
               <div className="p-4 rounded-2xl bg-slate-950/90 border border-amber-500/30 text-left space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1.5">
@@ -1333,7 +1356,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               )}
 
               {/* Sandbox Webhook Simulation (Developer Admin Sandbox Only) */}
-              {import.meta.env.DEV && currentUser?.is_developer && (
+              {showDevSandbox && (
                 <div className="pt-2 border-t border-slate-800/80 space-y-2">
                   <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-semibold text-center">
                     Developer Admin Sandbox Tools

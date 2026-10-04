@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import {
   StartScreenElement,
   StartScreenCardElement,
@@ -116,6 +117,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   canvasWidth = 1024,
   canvasHeight = 576,
 }) => {
+  const { t } = useLocalization();
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedContainers, setCollapsedContainers] = useState<Record<string, boolean>>({});
   const [addingChildToParentId, setAddingChildToParentId] = useState<string | null>(null);
@@ -318,7 +320,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
         <button
           onClick={onToggleCollapse}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
-          title="Expand Layer Tree"
+          title={t('editor.layersAndElements', undefined, 'Expand Layer Tree')}
         >
           <PanelLeft className="w-4 h-4" />
         </button>
@@ -332,7 +334,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
       <div className="h-12 px-3 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-amber-400" />
-          <span className="font-bold text-xs text-slate-200">Layers</span>
+          <span className="font-bold text-xs text-slate-200">{t('editor.layers', undefined, 'Layers')}</span>
           <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full font-mono">
             {elements.length}
           </span>
@@ -342,7 +344,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
           <button
             onClick={onToggleCollapse}
             className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-            title="Collapse Panel"
+            title={t('common.close', undefined, 'Collapse Panel')}
           >
             <PanelLeftClose className="w-4 h-4" />
           </button>
@@ -355,7 +357,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
           <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-500 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search layers..."
+            placeholder={t('editor.filterLayers', undefined, 'Search layers...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
@@ -367,7 +369,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
       <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
         {elements.length === 0 ? (
           <div className="p-4 text-center text-xs text-slate-500">
-            No elements on canvas. Click &quot;Add Element&quot; above to create one.
+            {t('editor.emptyCanvas', undefined, 'No elements on canvas. Click "Add Element" above to create one.')}
           </div>
         ) : (
           elements.map((el) => renderLayerItem(el, 0, null))
@@ -376,7 +378,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
 
       {/* Footer info */}
       <div className="p-2 border-t border-slate-800 bg-slate-950/40 text-[10px] text-slate-500 flex items-center justify-between">
-        <span>Click to select • Drag on canvas</span>
+        <span>{t('editor.dragAndDrop', undefined, 'Click to select • Drag on canvas')}</span>
         <span className="font-mono">{canvasWidth}×{canvasHeight}</span>
       </div>
     </div>

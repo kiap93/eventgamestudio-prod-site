@@ -1,5 +1,6 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 /**
- * Shared Visual Editor Engine - Save Template Modal
+ * Shared Visual Editor Engine - {t('editor.saveTemplateBtn', undefined, 'Save Template')} Modal
  * Enables naming, categorizing, and locally saving the current layout as a reusable template.
  */
 import React, { useState } from 'react';
@@ -18,6 +19,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
   onSave,
   elementsCount,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Custom');
@@ -59,7 +61,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Template Name *
+              {t('editor.templateNameLabel', undefined, 'Template Name')} *
             </label>
             <input
               type="text"
@@ -95,7 +97,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
             >
-              Cancel
+              {t('common.cancel', undefined, 'Cancel')}
             </button>
             <button
               type="submit"

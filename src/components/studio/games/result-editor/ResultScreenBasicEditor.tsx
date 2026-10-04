@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useRef, useState } from 'react';
 import {
   Palette,
@@ -64,6 +65,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -420,7 +422,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
               <Palette className="w-4 h-4" />
             </span>
             <div>
-              <h4 className="text-sm font-bold text-slate-100">Result Screen Background</h4>
+              <h4 className="text-sm font-bold text-slate-100">{t('editor.resultScreenBg', undefined, 'Result Screen Background')}</h4>
               <p className="text-xs text-slate-400">
                 Choose between theme wallpaper, solid backdrop color, or custom uploaded image
               </p>
@@ -451,8 +453,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           >
             <Layers className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">Active Theme BG</span>
-              <span className="text-[10px] text-slate-500 block truncate">Uses theme wallpaper</span>
+              <span className="text-xs block">{t('editor.activeThemeBg', undefined, 'Active Theme BG')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.activeThemeBgDesc', undefined, 'Uses theme wallpaper')}</span>
             </div>
             {currentBgType === 'theme' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -468,8 +470,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           >
             <Palette className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">Solid Color</span>
-              <span className="text-[10px] text-slate-500 block truncate">Custom backdrop color</span>
+              <span className="text-xs block">{t('editor.solidColor', undefined, 'Solid Color')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.solidColorDesc', undefined, 'Custom backdrop color')}</span>
             </div>
             {currentBgType === 'color' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -485,8 +487,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           >
             <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">Custom Image</span>
-              <span className="text-[10px] text-slate-500 block truncate">Independent artwork upload</span>
+              <span className="text-xs block">{t('editor.customImage', undefined, 'Custom Image')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.customImageDesc', undefined, 'Independent artwork upload')}</span>
             </div>
             {currentBgType === 'image' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -504,7 +506,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                   className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
                 />
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block">Custom Color</label>
+                  <label className="text-xs font-semibold text-slate-300 block">{t('editor.customColor', undefined, 'Custom Color')}</label>
                   <input
                     type="text"
                     value={currentBgColor}
@@ -696,7 +698,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 block">Play Again Button</label>
+            <label className="text-xs font-semibold text-slate-300 block">{t('editor.playAgainBtn', undefined, 'Play Again Button')}</label>
             <input
               type="text"
               defaultValue={currentBtnText}
@@ -1111,7 +1113,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           {/* FORMULA (REACTION LIGHTS) ELEMENTS */}
           {isReaction && (
             <>
-              {/* Average Reaction Time */}
+              {/* {t('editor.avgReactionTime', undefined, 'Average Reaction Time')} */}
               {(() => {
                 const isVis =
                   findResultScreenElementVisibility(elements, [
@@ -1261,7 +1263,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                 );
               })()}
 
-              {/* Round Results Breakdown */}
+              {/* {t('editor.roundResults', undefined, 'Round Results Breakdown')} */}
               {(() => {
                 const isVis =
                   findResultScreenElementVisibility(elements, [
@@ -1336,7 +1338,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Reaction Tier Rating</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.reactionTierRating', undefined, 'Reaction Tier Rating')}</span>
                         <span className="text-[10px] text-slate-400 block truncate">Godlike, F1 Driver, Fast tier</span>
                       </div>
                     </div>

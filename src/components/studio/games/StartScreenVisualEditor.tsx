@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Layers, Layout, Sliders } from 'lucide-react';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   StartScreenConfig,
   StartScreenElement,
@@ -70,6 +71,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   onToggleFullscreen,
   onUploadAsset,
 }) => {
+  const { t } = useLocalization();
   // Canonical game metadata for previews, rules cards, and badges
   const effectiveGameMeta = useMemo<StartScreenGameMeta>(() => {
     return resolveGameMetaForStartScreen(theme, gameType, gameMeta);
@@ -711,7 +713,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Layers</span>
+            <span>{t('editor.layers', undefined, 'Layers')}</span>
           </button>
           <button
             type="button"
@@ -721,7 +723,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             }`}
           >
             <Layout className="w-3.5 h-3.5" />
-            <span>Canvas</span>
+            <span>{t('editor.canvas', undefined, 'Canvas')}</span>
           </button>
           <button
             type="button"
@@ -731,7 +733,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Properties</span>
+            <span>{t('editor.properties', undefined, 'Properties')}</span>
           </button>
         </div>
 

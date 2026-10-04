@@ -18,6 +18,7 @@
     "test:cors": "tsx server/cors.test.ts",
     "test:api": "bun src/lib/api.test.ts",
     "test:late-webhook": "tsx server/db/late_webhook_scenario.test.ts",
+    "test:sandbox-security": "bun server/db/developer_testing_sandbox_security.test.ts",
     "test:wallet": "tsx server/db/wallet_security_lifecycle.test.ts && tsx server/db/wallet_topup.test.ts && tsx server/db/late_webhook_scenario.test.ts && tsx server/db/wallet_credits.test.ts && tsx server/db/showcase_reward.test.ts && tsx server/db/wallet_production_acid.test.ts && tsx server/db/atomic_payment_acid.test.ts",
     "test:security": "tsx server/db/wallet_security_lifecycle.test.ts",
     "test:credits": "tsx server/db/wallet_credits.test.ts",
@@ -41,7 +42,8 @@
     "test:cron": "bun test server/cloudflare_cron_trigger.test.ts",
     "test:global-nav": "bun server/global_navigation_active_tab.test.ts",
     "test:localization": "tsx server/db/localization_system.test.ts",
-    "test:customer-invitations": "tsx server/customer_invitations.test.ts"
+    "test:customer-invitations": "tsx server/customer_invitations.test.ts",
+    "test:resend-invitations": "bun server/email/resend_invitations_dedicated.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

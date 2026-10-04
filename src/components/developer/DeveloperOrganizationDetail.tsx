@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { apiFetch } from '../../lib/api';
 import {
@@ -100,6 +101,7 @@ interface Props {
 }
 
 export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
+  const { t } = useLocalization();
   const [data, setData] = useState<OrgDetailData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -272,7 +274,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
           className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Organizations List</span>
+          <span>{t('developer.backToOrganizations')}</span>
         </button>
 
         <span className="text-[11px] font-mono text-slate-400">ID: {organization.id}</span>

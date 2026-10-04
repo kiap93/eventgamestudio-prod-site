@@ -31,6 +31,10 @@ import {
   deleteInvitation,
   updateInvitationEmailStatus,
   getInvitationByTokenHash,
+  getInvitationAccountStatus,
+  validateInvitationVerificationCode,
+  sendInvitationVerificationCode,
+  acceptInvitationWithEmailVerification,
   markInvitationAccepted,
   getMember,
   getMemberById,
@@ -243,6 +247,7 @@ import {
   authenticateOptionalJWT,
   authenticateDeveloperAdmin,
   isUserDeveloperAdmin,
+  hasRolePermission,
   signAppToken,
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
@@ -268,6 +273,7 @@ import {
   authRateLimiter,
   resendRateLimiter,
   invitationRateLimiter,
+  invitationVerificationRateLimiter,
   adminInvitationRateLimiter,
   organizationRateLimiter,
   eventRateLimiter,
@@ -1395,14 +1401,14 @@ app.get('/api/organizations/:organizationId/members', authenticateJWT, async (re
     const user = req.user!;
     const { organizationId } = req.params;
 
-    const { isMember, member } = await verifyOrgMembershipAndPermission(
+    const { isMember, member, hasPermission } = await verifyOrgMembershipAndPermission(
       user.id,
       organizationId,
       'organization.members.view'
     );
 
-    if (!isMember || !member) {
-      res.status(403).json({ error: 'Access denied: You are not a member of this organization' });
+    if (!isMember || !member || !hasPermission) {
+      res.status(403).json({ error: 'Access denied: You do not have permission to view organization members' });
       return;
     }
 
@@ -1835,12 +1841,18 @@ app.get('/api/invitations/verify', async (req, res) => {
       return;
     }
 
+    const accountStatus = await getInvitationAccountStatus(tokenHash);
+
     res.json({
       invitationId: invite.id,
       email: invite.email,
       role: invite.role,
       organizationName: invite.organization_name,
       organizationId: invite.organization_id,
+      accountStatus: accountStatus?.accountStatus || 'new_user',
+      requiresPassword: accountStatus ? accountStatus.requiresPassword : true,
+      alreadyMember: accountStatus ? accountStatus.alreadyMember : false,
+      existingRole: accountStatus?.existingRole,
     });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -1902,33 +1914,38 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
     // Upsert user into Supabase
     const user = await upsertGoogleUser(googleUser);
 
-    // Add or update organization membership in Supabase
+    // Add or verify organization membership in Supabase
     const existingMember = await getMember(invite.organization_id, user.id);
-    if (!existingMember) {
+    const org = await getOrganizationById(invite.organization_id);
+    const isOrgOwner = (org && org.owner_id === user.id) || (existingMember && existingMember.role === 'owner');
+    const isAlreadyMember = Boolean(existingMember || isOrgOwner);
+
+    let effectiveRole: OrgRole = invite.role;
+
+    if (isAlreadyMember) {
+      // Preserve existing role! Do NOT overwrite role without authorization!
+      effectiveRole = isOrgOwner ? 'owner' : (existingMember ? existingMember.role : invite.role);
+    } else {
       await addMember({
         organization_id: invite.organization_id,
         user_id: user.id,
         role: invite.role,
       });
-    } else {
-      await updateMemberRole(invite.organization_id, user.id, invite.role);
+
+      await dispatchNotificationEvent({
+        eventType: 'MEMBER_JOINED',
+        organizationId: invite.organization_id,
+        memberUserId: user.id,
+        memberName: user.name || user.email,
+        orgName: org?.name || invite.organization_name || 'Organization',
+        role: invite.role,
+      }).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in server:', err));
     }
 
     // Mark invitation as accepted
     await markInvitationAccepted(invite.id);
 
-    const org = await getOrganizationById(invite.organization_id);
-
-    await dispatchNotificationEvent({
-      eventType: 'MEMBER_JOINED',
-      organizationId: invite.organization_id,
-      memberUserId: user.id,
-      memberName: user.name || user.email,
-      orgName: org?.name || invite.organization_name || 'Organization',
-      role: invite.role,
-    }).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in server:', err));
-
-    const appToken = await signAppToken(user.id, invite.organization_id, invite.role);
+    const appToken = await signAppToken(user.id, invite.organization_id, effectiveRole);
     setAuthCookieOnResponse(res, appToken, getCookieOptionsFromRequest(req));
 
     res.json({
@@ -1944,10 +1961,103 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
         id: org?.id || invite.organization_id,
         name: org?.name || invite.organization_name,
         slug: org?.slug || '',
-        role: invite.role,
+        role: effectiveRole,
       },
+      alreadyMember: isAlreadyMember,
+      message: isAlreadyMember ? 'You are already a member of this organization.' : 'Invitation accepted successfully!',
     });
   } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/invitations/send-code
+ * Request a single-use 6-digit verification code sent to the invited email address via Resend.
+ */
+app.post('/api/invitations/send-code', invitationVerificationRateLimiter, async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    const result = await sendInvitationVerificationCode({
+      token,
+      request: req,
+    });
+    res.json(result);
+  } catch (err: any) {
+    if (err.statusCode && err.statusCode < 500) {
+      res.status(err.statusCode).json({
+        error: err.message,
+        code: err.code,
+        remainingSeconds: err.remainingSeconds,
+      });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/invitations/validate-code
+ * Validates the single-use 6-digit code and checks authoritative account status
+ * without consuming the code or exposing sensitive secrets.
+ */
+app.post('/api/invitations/validate-code', invitationVerificationRateLimiter, async (req, res) => {
+  try {
+    const { token, code } = req.body || {};
+    const result = await validateInvitationVerificationCode({
+      token,
+      code,
+    });
+    res.json(result);
+  } catch (err: any) {
+    if (err.statusCode && err.statusCode < 500) {
+      res.status(err.statusCode).json({
+        error: err.message,
+        code: err.code,
+        remainingAttempts: err.remainingAttempts,
+      });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/invitations/verify-code
+ * Verify the single-use 6-digit code, create/activate account, add membership,
+ * and establish an authenticated session.
+ */
+app.post('/api/invitations/verify-code', invitationVerificationRateLimiter, async (req, res) => {
+  try {
+    const { token, code, password, confirmPassword, name } = req.body || {};
+    const result = await acceptInvitationWithEmailVerification({
+      token,
+      code,
+      password,
+      confirmPassword,
+      name,
+      request: req,
+    });
+    setAuthCookieOnResponse(res, result.token, getCookieOptionsFromRequest(req));
+    res.json({
+      success: true,
+      message: result.message || 'Invitation accepted successfully!',
+      token: result.token,
+      user: result.user,
+      organization: result.organization,
+      alreadyMember: result.alreadyMember,
+    });
+  } catch (err: any) {
+    if (err.statusCode && err.statusCode < 500) {
+      res.status(err.statusCode).json({
+        error: err.message,
+        code: err.code,
+        remainingAttempts: err.remainingAttempts,
+        requiresPassword: err.requiresPassword,
+        accountStatus: err.accountStatus,
+      });
+      return;
+    }
     handleApiError(err, req, res);
   }
 });
@@ -2034,6 +2144,17 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
         code: 'INVALID_CATEGORY',
       });
       return;
+    }
+
+    if (category === 'showcases' && !isDev) {
+      const { role } = await verifyOrgMembershipAndPermission(user.id, orgId);
+      if (role !== 'owner' && role !== 'admin') {
+        res.status(403).json({
+          error: 'Forbidden: Only owners and admins can upload showcase assets',
+          code: 'INSUFFICIENT_PERMISSIONS',
+        });
+        return;
+      }
     }
 
     // 5. Validate File (Magic bytes inspection, strict MIME & extension consistency, SVG rejection)
@@ -2673,8 +2794,8 @@ app.delete('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReq
     }
 
     const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit');
-    if (!isMember || !['owner', 'admin'].includes(role || '')) {
-      res.status(403).json({ error: 'Permission denied: Only owners and admins can delete themes' });
+    if (!isMember || !['owner', 'admin', 'designer'].includes(role || '')) {
+      res.status(403).json({ error: 'Permission denied: Only owners, admins, and designers can delete themes' });
       return;
     }
 
@@ -2885,15 +3006,31 @@ app.get('/api/public/games/pricing', async (req, res) => {
 app.get(['/api/events', '/api/organizations/:organizationId/events', '/api/organizations/:orgId/events'], authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const rawOrgId = req.params.organizationId || req.params.orgId || req.jwtPayload?.organizationId;
-    const organizationId =
+    const rawOrgId =
+      req.params.organizationId ||
+      req.params.orgId ||
+      (req.query?.organizationId as string) ||
+      (req.query?.orgId as string) ||
+      (req.headers['x-organization-id'] as string) ||
+      req.jwtPayload?.organizationId;
+    let organizationId =
       rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
         ? rawOrgId.trim()
         : undefined;
 
     if (!organizationId || !isUUID(organizationId)) {
-      res.json({ events: [] });
-      return;
+      const userOrgs = await getUserOrganizations(user.id);
+      if (userOrgs && userOrgs.length > 0) {
+        const hasAnyEventView = userOrgs.some((o: any) => hasRolePermission(o.role, 'event.view'));
+        if (!hasAnyEventView) {
+          res.status(403).json({ error: 'Forbidden: You do not have permission to view events' });
+          return;
+        }
+        organizationId = userOrgs[0].id;
+      } else {
+        res.json({ events: [] });
+        return;
+      }
     }
 
     const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view');
@@ -4612,6 +4749,18 @@ app.post('/api/events/:eventId/showcase/reward-submission', showcaseRateLimiter,
     const user = req.user!;
     const { eventId } = req.params;
 
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Access denied: You do not have permission to access this event' });
+      return;
+    }
+
     const submission = await createShowcaseRewardSubmission({
       eventId,
       userId: user.id,
@@ -4634,6 +4783,18 @@ app.post('/api/events/:eventId/showcase/reward-submission', showcaseRateLimiter,
 app.get('/api/events/:eventId/showcase/reward-submission', authenticateOptionalJWT, async (req: AuthenticatedRequest, res: any) => {
   try {
     const { eventId } = req.params;
+
+    if (req.user) {
+      const event = await getEventById(eventId);
+      if (event) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user.id, event.organization_id, 'event.view');
+        if (!isMember || !hasPermission) {
+          res.status(403).json({ error: 'Access denied: You do not have permission to view this event showcase' });
+          return;
+        }
+      }
+    }
+
     const submission = await getShowcaseRewardSubmissionForEvent(eventId);
     const userId = req.user?.id;
     const userSubmission = userId ? await getActiveUserShowcaseRewardSubmission(userId) : null;
@@ -6823,6 +6984,7 @@ const handleSendCompanyInvitations = async (req: AuthenticatedRequest, res: any)
       recipientIds: recipient_ids,
       confirmReinvite: Boolean(confirm_reinvite),
       sentByUserId: req.user?.id,
+      env: process.env,
     });
 
     res.json({
@@ -7303,9 +7465,9 @@ app.get('/api/organizations/:orgId/wallet', authenticateJWT, async (req: Authent
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'wallet.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
+    if ((!isMember || !hasPermission) && !isDev) {
       res.status(403).json({ error: 'Access denied to organization wallet' });
       return;
     }
@@ -7339,9 +7501,9 @@ app.get('/api/organizations/:orgId/wallet/transactions', authenticateJWT, async 
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'wallet.transactions.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
+    if ((!isMember || !hasPermission) && !isDev) {
       res.status(403).json({ error: 'Access denied to wallet transactions' });
       return;
     }
@@ -7427,9 +7589,9 @@ app.get('/api/organizations/:orgId/wallet/topup/quote', authenticateJWT, async (
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'wallet.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
+    if ((!isMember || !hasPermission) && !isDev) {
       res.status(403).json({ error: 'Access denied to organization wallet' });
       return;
     }
@@ -7566,9 +7728,9 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id, 'wallet.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
+    if ((!isMember || !hasPermission) && !isDev) {
       res.status(403).json({ error: 'Access denied to this top-up order' });
       return;
     }
@@ -7613,9 +7775,9 @@ const handleListTopupOrders = async (req: AuthenticatedRequest, res: express.Res
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'wallet.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
+    if ((!isMember || !hasPermission) && !isDev) {
       res.status(403).json({ error: 'Access denied to organization top-up orders' });
       return;
     }
@@ -7845,7 +8007,11 @@ app.post('/api/wallet/webhooks/stripe', handlePaymentWebhook);
 app.post('/api/developer/wallet/test-webhook', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     // Completely disabled in production environments
-    if (process.env.NODE_ENV === 'production') {
+    const isProduction =
+      process.env.NODE_ENV === 'production' ||
+      process.env.ENVIRONMENT === 'production' ||
+      process.env.APP_ENV === 'production';
+    if (isProduction) {
       res.status(403).json({
         error: 'Forbidden: Test webhook simulation is disabled in production environments.',
         code: 'TEST_WEBHOOK_DISABLED_IN_PRODUCTION',
@@ -8008,10 +8174,10 @@ app.get('/api/organizations/:orgId/wallet/topup/orders/:orderId', authenticateJW
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'wallet.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Access denied: Requires wallet.view permission' });
       return;
     }
 
@@ -8088,10 +8254,10 @@ app.get('/api/organizations/:orgId/rewards/eligibility', authenticateJWT, async 
     }
 
     const userId = req.user!.id;
-    const { isMember } = await verifyOrgMembershipAndPermission(userId, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(userId, orgId, 'wallet.view');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied: Must be a member of the organization.' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Access denied: Must be an authorized member of the organization.' });
       return;
     }
 
@@ -8129,10 +8295,10 @@ app.get('/api/organizations/:orgId/wallet/can-use-welcome', authenticateJWT, asy
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'event.pay');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Access denied to welcome credit eligibility' });
       return;
     }
 
@@ -8240,10 +8406,10 @@ app.get('/api/organizations/:orgId/wallet/can-use-showcase', authenticateJWT, as
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'event.pay');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Access denied to showcase credit eligibility' });
       return;
     }
 
@@ -8307,10 +8473,10 @@ app.post('/api/organizations/:orgId/wallet/calculate-event-payment', walletRateL
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'event.pay');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Access denied to event payment calculation' });
       return;
     }
 
@@ -8386,10 +8552,10 @@ app.post('/api/organizations/:orgId/wallet/quote-payment', walletRateLimiter, au
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'event.pay');
     const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Access denied to event payment quote' });
       return;
     }
 

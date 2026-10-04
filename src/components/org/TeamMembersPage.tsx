@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
+import { navigateTo } from '../../hooks/useRouteContext';
 import { CountrySelect } from '../common/CountrySelect';
 import { getCountryByCode, getDefaultTimezoneForCountry } from '../../lib/countryUtils';
 import {
@@ -46,6 +47,20 @@ interface Invitation {
 export const TeamMembersPage: React.FC = () => {
   const { t } = useLocalization();
   const { currentOrganization, token, updateOrganizationCountry } = useAuth();
+
+  const orgRole = currentOrganization?.role;
+  const isAuthorized = orgRole === 'owner' || orgRole === 'admin';
+
+  useEffect(() => {
+    if (!isAuthorized) {
+      if (orgRole === 'designer') {
+        navigateTo('/games');
+      } else {
+        navigateTo('/events');
+      }
+    }
+  }, [isAuthorized, orgRole]);
+
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [userRole, setUserRole] = useState<string>('viewer');
@@ -104,7 +119,7 @@ export const TeamMembersPage: React.FC = () => {
   };
 
   const fetchMembers = useCallback(async () => {
-    if (!currentOrganization || !token) return;
+    if (!currentOrganization || !token || !isAuthorized) return;
     setLoading(true);
     try {
       const res = await apiFetch(`/api/organizations/${currentOrganization.id}/members`);
@@ -119,7 +134,7 @@ export const TeamMembersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization, token]);
+  }, [currentOrganization, token, isAuthorized]);
 
   useEffect(() => {
     fetchMembers();
@@ -270,6 +285,10 @@ export const TeamMembersPage: React.FC = () => {
   };
 
   const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin';
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 p-6 text-slate-100 font-sans">

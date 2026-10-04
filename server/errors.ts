@@ -374,6 +374,16 @@ export function isOperationalError(err: any): boolean {
     code === 'EXPIRED_TOKEN' ||
     code === 'INVALID_RESET_TOKEN' ||
     code === 'EXPIRED_RESET_TOKEN' ||
+    code === 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED' ||
+    code === 'SUPABASE_NOT_CONFIGURED' ||
+    code === 'REINVITATION_CONFIRMATION_REQUIRED' ||
+    code === 'INVALID_COMPANY_RECIPIENT' ||
+    code === 'BATCH_LIMIT_EXCEEDED' ||
+    code === 'RECIPIENT_RATE_LIMITED' ||
+    code === 'RESEND_CONFIG_MISSING' ||
+    msg.includes('customer invitation database migration has not been applied') ||
+    msg.includes('customer_invitations_migration_required') ||
+    msg.includes('reinvitation_confirmation_required') ||
     msg.includes('verify your email') ||
     msg.includes('verification link') ||
     msg.includes('password reset') ||
@@ -583,7 +593,14 @@ export function isOperationalError(err: any): boolean {
     code === 'INVALID_TOKEN' ||
     code === 'EXPIRED_TOKEN' ||
     code === 'INVALID_RESET_TOKEN' ||
-    code === 'EXPIRED_RESET_TOKEN'
+    code === 'EXPIRED_RESET_TOKEN' ||
+    code === 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED' ||
+    code === 'SUPABASE_NOT_CONFIGURED' ||
+    code === 'REINVITATION_CONFIRMATION_REQUIRED' ||
+    code === 'INVALID_COMPANY_RECIPIENT' ||
+    code === 'BATCH_LIMIT_EXCEEDED' ||
+    code === 'RECIPIENT_RATE_LIMITED' ||
+    code === 'RESEND_CONFIG_MISSING'
   ) {
     return true;
   }
@@ -777,9 +794,17 @@ export function handleApiError(
       } else if (
         code === 'NO_ACTIVE_GAME_PRICING' ||
         code === 'INVALID_GAME_PRICING' ||
-        code === 'PRICING_CONFIGURATION_ERROR'
+        code === 'PRICING_CONFIGURATION_ERROR' ||
+        code === 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED' ||
+        code === 'SUPABASE_NOT_CONFIGURED'
       ) {
         statusCode = 503;
+      } else if (code === 'REINVITATION_CONFIRMATION_REQUIRED') {
+        statusCode = 409;
+      } else if (code === 'BATCH_LIMIT_EXCEEDED' || code === 'INVALID_COMPANY_RECIPIENT') {
+        statusCode = 400;
+      } else if (code === 'RECIPIENT_RATE_LIMITED') {
+        statusCode = 429;
       } else if (code === 'MISSING_WEBHOOK_SECRET' || code === 'MISSING_STRIPE_SECRET_KEY') {
         statusCode = 500;
       } else if (
@@ -834,6 +859,7 @@ export function handleApiError(
       ? 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
       : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
     res.status(statusCode).json({
+      success: false,
       error: errorMessage,
       code: errorCode,
       ...(err.code === 'THEME_SETUP_REQUIRED' || err.theme_setup_required ? { theme_setup_required: true } : {}),
@@ -843,6 +869,7 @@ export function handleApiError(
         ...(err.shortfall !== undefined ? { shortfall: err.shortfall } : {}),
       } : {}),
       ...(err.eligibility ? { eligibility: err.eligibility } : {}),
+      ...(err.previouslyInvited ? { previously_invited: err.previouslyInvited } : {}),
       ...(err.metadata ? { metadata: sanitizeData(err.metadata) } : {}),
     });
     return;
@@ -1004,9 +1031,17 @@ export async function handleWorkerApiError(
       } else if (
         code === 'NO_ACTIVE_GAME_PRICING' ||
         code === 'INVALID_GAME_PRICING' ||
-        code === 'PRICING_CONFIGURATION_ERROR'
+        code === 'PRICING_CONFIGURATION_ERROR' ||
+        code === 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED' ||
+        code === 'SUPABASE_NOT_CONFIGURED'
       ) {
         statusCode = 503;
+      } else if (code === 'REINVITATION_CONFIRMATION_REQUIRED') {
+        statusCode = 409;
+      } else if (code === 'BATCH_LIMIT_EXCEEDED' || code === 'INVALID_COMPANY_RECIPIENT') {
+        statusCode = 400;
+      } else if (code === 'RECIPIENT_RATE_LIMITED') {
+        statusCode = 429;
       } else if (code === 'MISSING_WEBHOOK_SECRET' || code === 'MISSING_STRIPE_SECRET_KEY') {
         statusCode = 500;
       } else if (
@@ -1065,6 +1100,7 @@ export async function handleWorkerApiError(
       : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
     return new globalThis.Response(
       JSON.stringify({
+        success: false,
         error: errorMessage,
         code: errorCode,
         ...(err.code === 'THEME_SETUP_REQUIRED' || err.theme_setup_required ? { theme_setup_required: true } : {}),
@@ -1074,6 +1110,7 @@ export async function handleWorkerApiError(
           ...(err.shortfall !== undefined ? { shortfall: err.shortfall } : {}),
         } : {}),
         ...(err.eligibility ? { eligibility: err.eligibility } : {}),
+        ...(err.previouslyInvited ? { previously_invited: err.previouslyInvited } : {}),
         ...(err.metadata ? { metadata: sanitizeData(err.metadata) } : {}),
       }),
       {

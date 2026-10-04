@@ -932,7 +932,9 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                           }}
                           className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
                         >
-                          {t('event.editDetails', undefined, 'Edit Details →')}
+                          {(ev?.payment_status || '').toUpperCase() === 'PAID'
+                            ? t('event.viewLockedSetup', undefined, 'View Setup (Locked) →')
+                            : t('event.editDetails', undefined, 'Edit Details →')}
                         </button>
                       </div>
                     </div>

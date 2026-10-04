@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { GameTheme } from '../../themes/types';
 import { GameShell } from '../shell/GameShell';
 import { X, Play, RotateCcw, Sparkles, Monitor, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
@@ -14,6 +15,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
   gameName = 'Catch The Brand',
   onClose,
 }) => {
+  const { t } = useLocalization();
   const [key, setKey] = useState<number>(Date.now());
   const [deviceFrame, setDeviceFrame] = useState<'desktop' | 'mobile'>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -80,7 +82,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  DEVELOPER TEST RUNNER
+                  {t('developer.devTestRunner')}
                 </span>
                 <span className="text-xs text-slate-400 font-medium">{gameName}</span>
               </div>
@@ -99,7 +101,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
               }`}
             >
               <Monitor className="w-3.5 h-3.5" />
-              <span>Full Area</span>
+              <span>{t('developer.fullArea')}</span>
             </button>
             <button
               onClick={() => setDeviceFrame('mobile')}
@@ -110,7 +112,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>Mobile Simulation</span>
+              <span>{t('developer.mobileSim')}</span>
             </button>
           </div>
 
@@ -119,16 +121,16 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
             <button
               onClick={handleRestart}
               className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-700/60 hover:bg-slate-700 border border-slate-600 rounded-lg transition-colors cursor-pointer"
-              title="Restart Game"
+              title={t('developer.restartGame')}
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Restart</span>
+              <span className="hidden md:inline">{t('developer.restart')}</span>
             </button>
 
             <button
               onClick={handleToggleFullscreen}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              title={isFullscreen ? t('developer.exitFullscreen') : t('developer.fullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -136,7 +138,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors ml-2 cursor-pointer"
-              title="Close Test Runner"
+              title={t('developer.closeTestRunner')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -169,16 +171,16 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
           <div className="flex items-center space-x-4">
             <span className="flex items-center space-x-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Theme ID: <code className="text-slate-300 font-mono">{theme.id}</code></span>
+              <span>{t('developer.themeIdLabel')} <code className="text-slate-300 font-mono">{theme.id}</code></span>
             </span>
             <span className="hidden sm:inline text-slate-600">|</span>
-            <span className="hidden sm:inline">Items: <strong className="text-slate-200">{theme.items_config?.length || 0}</strong></span>
+            <span className="hidden sm:inline">{t('developer.itemsCountLabel')} <strong className="text-slate-200">{theme.items_config?.length || 0}</strong></span>
             <span className="hidden sm:inline text-slate-600">|</span>
-            <span className="hidden sm:inline">Fall Speed: <strong className="text-slate-200">{theme.physics_config?.baseFallSpeed || 500}px/s</strong></span>
+            <span className="hidden sm:inline">{t('developer.fallSpeedLabel')} <strong className="text-slate-200">{theme.physics_config?.baseFallSpeed || 500}px/s</strong></span>
           </div>
 
           <div className="flex items-center space-x-3 font-mono">
-            <span className="text-emerald-400 font-bold">Game Mode: Test Play</span>
+            <span className="text-emerald-400 font-bold">{t('developer.gameModeTestPlay')}</span>
           </div>
         </div>
       </div>

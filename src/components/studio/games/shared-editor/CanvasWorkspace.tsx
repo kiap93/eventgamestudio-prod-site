@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import {
   ZoomIn,
   ZoomOut,
@@ -98,6 +99,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
   onDelete,
   onDuplicate,
 }: SharedCanvasWorkspaceProps<T>) => {
+  const { t } = useLocalization();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -1391,7 +1393,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
             setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 100) / 100));
           }}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
-          title="Zoom Out"
+          title={t('editor.zoomOutTooltip', undefined, 'Zoom Out')}
         >
           <ZoomOut className="w-4 h-4" />
         </button>
@@ -1403,7 +1405,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
             setZoom(Number(e.target.value) / 100);
           }}
           className="bg-slate-950 border border-slate-700 text-amber-400 text-xs font-mono font-bold rounded px-1.5 py-1 outline-none cursor-pointer"
-          title="Zoom Level"
+          title={t('editor.zoomLevel', undefined, 'Zoom Level')}
         >
           {zoomOptions.map((preset) => (
             <option key={preset} value={preset}>
@@ -1418,7 +1420,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
             setZoom((z) => Math.min(3.0, Math.round((z + 0.1) * 100) / 100));
           }}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
-          title="Zoom In"
+          title={t('editor.zoomInTooltip', undefined, 'Zoom In')}
         >
           <ZoomIn className="w-4 h-4" />
         </button>
@@ -1431,10 +1433,10 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
             handleFitToScreen();
           }}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-1 text-xs cursor-pointer"
-          title="Fit to Screen"
+          title={t('editor.fitToScreen', undefined, 'Fit to Screen')}
         >
           <Maximize2 className="w-3.5 h-3.5" />
-          <span>Fit</span>
+          <span>{t('editor.fitToScreen', undefined, 'Fit')}</span>
         </button>
 
         <button
@@ -1444,7 +1446,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
             setPanOffset({ x: 0, y: 0 });
           }}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white text-xs cursor-pointer font-mono"
-          title="Reset Zoom to 100%"
+          title={t('editor.resetZoomTooltip', undefined, 'Reset Zoom to 100%')}
         >
           100%
         </button>

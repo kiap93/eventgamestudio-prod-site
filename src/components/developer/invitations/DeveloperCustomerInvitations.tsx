@@ -487,13 +487,13 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                Customer Invitations
+                {t('developer.customerInvitationsTitle')}
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
-                  Prospective B2B Outreach
+                  {t('developer.prospectiveB2BOutreach')}
                 </span>
               </h1>
               <p className="text-xs text-slate-400">
-                Manage prospective customer companies, configure multiple recipient emails per company, and deliver branded platform trial invitations via Resend.
+                {t('developer.customerInvitationsDesc')}
               </p>
             </div>
           </div>
@@ -510,7 +510,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             title="Preview the exact email template sent to customers"
           >
             <Eye className="w-3.5 h-3.5 text-sky-400" />
-            <span>Email Template</span>
+            <span>{t('developer.emailTemplate')}</span>
           </button>
 
           <button
@@ -519,7 +519,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             title="View full audit log of all customer invitation deliveries"
           >
             <FileText className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Audit Logs</span>
+            <span>{t('developer.deliveryAuditLogs')}</span>
           </button>
 
           <button
@@ -536,7 +536,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Customer Company</span>
+            <span>{t('developer.addCompany')}</span>
           </button>
         </div>
       </div>
@@ -575,47 +575,47 @@ export const DeveloperCustomerInvitations: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Companies</span>
+            <span>{t('developer.totalCompanies')}</span>
             <Building2 className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="text-xl font-bold text-white">{stats.totalCompanies}</div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Prospective clients</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{t('developer.companyName')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Total Recipients</span>
+            <span>{t('developer.totalRecipients')}</span>
             <Users className="w-3.5 h-3.5 text-sky-400" />
           </div>
           <div className="text-xl font-bold text-white">{stats.totalRecipients}</div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Across all companies</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{t('developer.recipients')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Never Invited</span>
+            <span>{t('developer.neverInvited')}</span>
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
           </div>
           <div className="text-xl font-bold text-emerald-400">{stats.neverInvitedRecipients}</div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Ready for first outreach</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{t('developer.pendingInvitation')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Previously Invited</span>
+            <span>{t('developer.previouslyInvited')}</span>
             <Clock className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="text-xl font-bold text-amber-400">{stats.previouslyInvitedRecipients}</div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Requires re-invite check</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">{t('developer.reinvitationNotice')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Invitations Sent</span>
+            <span>{t('developer.totalInvitationsSent')}</span>
             <Mail className="w-3.5 h-3.5 text-indigo-400" />
           </div>
           <div className="text-xl font-bold text-indigo-400">{stats.totalInvitationsSent}</div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Delivered via Resend</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">Resend</div>
         </div>
       </div>
 
@@ -628,7 +628,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by company name, contact person, or recipient email..."
+            placeholder={t('developer.searchCompaniesPlaceholder')}
             className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
           />
           {searchQuery && (
@@ -651,7 +651,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            All Companies ({stats.totalCompanies})
+            {t('developer.allStatus')} ({stats.totalCompanies})
           </button>
           <button
             onClick={() => setStatusFilter('never_invited')}
@@ -661,7 +661,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            Never Invited
+            {t('developer.neverInvited')}
           </button>
           <button
             onClick={() => setStatusFilter('partially_invited')}
@@ -671,7 +671,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            Partially Invited
+            {t('developer.partiallyInvited')}
           </button>
           <button
             onClick={() => setStatusFilter('all_invited')}
@@ -681,7 +681,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            All Invited
+            {t('developer.allInvited')}
           </button>
         </div>
       </div>
@@ -721,11 +721,11 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
                 <tr>
-                  <th className="py-3.5 px-4 sm:px-6">Company</th>
-                  <th className="py-3.5 px-4">Recipients</th>
-                  <th className="py-3.5 px-4">Invitation Status</th>
-                  <th className="py-3.5 px-4">Last Invitation</th>
-                  <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
+                  <th className="py-3.5 px-4 sm:px-6">{t('developer.company')}</th>
+                  <th className="py-3.5 px-4">{t('developer.recipients')}</th>
+                  <th className="py-3.5 px-4">{t('developer.status')}</th>
+                  <th className="py-3.5 px-4">{t('developer.lastInvitation')}</th>
+                  <th className="py-3.5 px-4 sm:px-6 text-right">{t('developer.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">

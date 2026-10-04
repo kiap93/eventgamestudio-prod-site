@@ -25,6 +25,10 @@ import {
   removeMember,
   createInvitation,
   getInvitationByTokenHash,
+  getInvitationAccountStatus,
+  validateInvitationVerificationCode,
+  sendInvitationVerificationCode,
+  acceptInvitationWithEmailVerification,
   getActiveOrgInvitations,
   markInvitationAccepted,
   getGamesByOrgId,
@@ -265,6 +269,7 @@ import {
   signAppToken,
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
+  hasRolePermission,
   hashToken,
   isUserDeveloperAdmin,
   resolveAuthToken,
@@ -301,6 +306,8 @@ import {
 export interface Env {
   NODE_ENV?: string;
   EXPOSE_API_ERRORS?: string;
+  RESEND_API_KEY?: string;
+  RESEND_INVITATION_FROM?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   JWT_SECRET?: string;
@@ -2043,15 +2050,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const user = auth.user!;
         const { organizationId } = orgMembersParams;
 
-        const { isMember, member } = await verifyOrgMembershipAndPermission(
+        const { isMember, member, hasPermission } = await verifyOrgMembershipAndPermission(
           user.id,
           organizationId,
           'organization.members.view',
           env
         );
 
-        if (!isMember || !member) {
-          return errorResponse('Access denied: You are not a member of this organization', 403, cors);
+        if (!isMember || !member || !hasPermission) {
+          return errorResponse('Access denied: You do not have permission to view organization members', 403, cors);
         }
 
         const members = await getOrgMembers(organizationId, env);
@@ -2466,6 +2473,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return errorResponse('This invitation has expired', 410, cors);
         }
 
+        const accountStatus = await getInvitationAccountStatus(tokenHash, env);
+
         return jsonResponse(
           {
             invitationId: invite.id,
@@ -2473,6 +2482,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             role: invite.role,
             organizationName: invite.organization_name,
             organizationId: invite.organization_id,
+            accountStatus: accountStatus?.accountStatus || 'new_user',
+            requiresPassword: accountStatus ? accountStatus.requiresPassword : true,
+            alreadyMember: accountStatus ? accountStatus.alreadyMember : false,
+            existingRole: accountStatus?.existingRole,
           },
           200,
           cors
@@ -2525,7 +2538,16 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const user = await upsertGoogleUser(googleUser, env);
 
         const existingMember = await getMember(invite.organization_id, user.id, env);
-        if (!existingMember) {
+        const org = await getOrganizationById(invite.organization_id, env);
+        const isOrgOwner = (org && org.owner_id === user.id) || (existingMember && existingMember.role === 'owner');
+        const isAlreadyMember = Boolean(existingMember || isOrgOwner);
+
+        let effectiveRole: OrgRole = invite.role;
+
+        if (isAlreadyMember) {
+          // Preserve existing role! Do NOT overwrite role without authorization!
+          effectiveRole = isOrgOwner ? 'owner' : (existingMember ? existingMember.role : invite.role);
+        } else {
           await addMember(
             {
               organization_id: invite.organization_id,
@@ -2534,27 +2556,23 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             },
             env
           );
-        } else {
-          await updateMemberRole(invite.organization_id, user.id, invite.role, env);
+
+          await dispatchNotificationEvent(
+            {
+              eventType: 'MEMBER_JOINED',
+              organizationId: invite.organization_id,
+              memberUserId: user.id,
+              memberName: user.name || user.email,
+              orgName: org?.name || invite.organization_name || 'Organization',
+              role: invite.role,
+            },
+            env
+          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in worker:', err));
         }
 
         await markInvitationAccepted(invite.id, env);
 
-        const org = await getOrganizationById(invite.organization_id, env);
-
-        await dispatchNotificationEvent(
-          {
-            eventType: 'MEMBER_JOINED',
-            organizationId: invite.organization_id,
-            memberUserId: user.id,
-            memberName: user.name || user.email,
-            orgName: org?.name || invite.organization_name || 'Organization',
-            role: invite.role,
-          },
-          env
-        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in worker:', err));
-
-        const appToken = await signAppToken(user.id, invite.organization_id, invite.role, undefined, env);
+        const appToken = await signAppToken(user.id, invite.organization_id, effectiveRole, undefined, env);
         const authCookie = buildAuthCookie(appToken, getWorkerCookieOptions(request, env));
 
         return jsonResponse(
@@ -2571,12 +2589,110 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               id: org?.id || invite.organization_id,
               name: org?.name || invite.organization_name,
               slug: org?.slug || '',
-              role: invite.role,
+              role: effectiveRole,
             },
+            alreadyMember: isAlreadyMember,
+            message: isAlreadyMember ? 'You are already a member of this organization.' : 'Invitation accepted successfully!',
           },
           200,
           { ...cors, 'Set-Cookie': authCookie }
         );
+      }
+
+      if (pathname === '/api/invitations/send-code' && method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { token } = body;
+        try {
+          const result = await sendInvitationVerificationCode({
+            token,
+            env,
+            request,
+          });
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          if (err.statusCode && err.statusCode < 500) {
+            return jsonResponse(
+              {
+                error: err.message,
+                code: err.code,
+                remainingSeconds: err.remainingSeconds,
+              },
+              err.statusCode,
+              cors
+            );
+          }
+          return handleWorkerApiError(err, request, cors);
+        }
+      }
+
+      if (pathname === '/api/invitations/validate-code' && method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { token, code } = body;
+        try {
+          const result = await validateInvitationVerificationCode({
+            token,
+            code,
+            env,
+          });
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          if (err.statusCode && err.statusCode < 500) {
+            return jsonResponse(
+              {
+                error: err.message,
+                code: err.code,
+                remainingAttempts: err.remainingAttempts,
+              },
+              err.statusCode,
+              cors
+            );
+          }
+          return handleWorkerApiError(err, request, cors);
+        }
+      }
+
+      if (pathname === '/api/invitations/verify-code' && method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { token, code, password, confirmPassword, name } = body;
+        try {
+          const result = await acceptInvitationWithEmailVerification({
+            token,
+            code,
+            password,
+            confirmPassword,
+            name,
+            env,
+            request,
+          });
+          const authCookie = buildAuthCookie(result.token, getWorkerCookieOptions(request, env));
+          return jsonResponse(
+            {
+              success: true,
+              message: result.message || 'Invitation accepted successfully!',
+              token: result.token,
+              user: result.user,
+              organization: result.organization,
+              alreadyMember: result.alreadyMember,
+            },
+            200,
+            { ...cors, 'Set-Cookie': authCookie }
+          );
+        } catch (err: any) {
+          if (err.statusCode && err.statusCode < 500) {
+            return jsonResponse(
+              {
+                error: err.message,
+                code: err.code,
+                remainingAttempts: err.remainingAttempts,
+                requiresPassword: err.requiresPassword,
+                accountStatus: err.accountStatus,
+              },
+              err.statusCode,
+              cors
+            );
+          }
+          return handleWorkerApiError(err, request, cors);
+        }
       }
 
       // ==========================================
@@ -2645,6 +2761,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             422,
             cors
           );
+        }
+
+        if (category === 'showcases' && !isDev) {
+          const { role } = await verifyOrgMembershipAndPermission(user.id, orgId, undefined, env);
+          if (role !== 'owner' && role !== 'admin') {
+            return errorResponse('Forbidden: Only owners and admins can upload showcase assets', 403, cors);
+          }
         }
 
         // 4. Validate File (Magic bytes inspection, strict MIME & extension consistency, SVG rejection)
@@ -3236,8 +3359,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit', env);
-        if (!isMember || !['owner', 'admin'].includes(role || '')) {
-          return errorResponse('Permission denied: Only owners and admins can delete themes', 403, cors);
+        if (!isMember || !['owner', 'admin', 'designer'].includes(role || '')) {
+          return errorResponse('Permission denied: Only owners, admins, and designers can delete themes', 403, cors);
         }
 
         await deleteTheme(themeId, env);
@@ -3435,14 +3558,29 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         if (!auth.authenticated) return auth.errorResponse!;
 
         const user = auth.user!;
-        const rawOrgId = orgEventsRoute?.organizationId || orgEventsRoute?.orgId || auth.jwtPayload?.organizationId;
-        const organizationId =
+        const rawOrgId =
+          orgEventsRoute?.organizationId ||
+          orgEventsRoute?.orgId ||
+          url.searchParams.get('organizationId') ||
+          url.searchParams.get('orgId') ||
+          request.headers.get('x-organization-id') ||
+          auth.jwtPayload?.organizationId;
+        let organizationId =
           rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
             ? rawOrgId.trim()
             : undefined;
 
         if (!organizationId || !isUUID(organizationId)) {
-          return jsonResponse({ events: [] }, 200, cors);
+          const userOrgs = await getUserOrganizations(user.id, env);
+          if (userOrgs && userOrgs.length > 0) {
+            const hasAnyEventView = userOrgs.some((o: any) => hasRolePermission(o.role, 'event.view'));
+            if (!hasAnyEventView) {
+              return errorResponse('Forbidden: You do not have permission to view events', 403, cors);
+            }
+            organizationId = userOrgs[0].id;
+          } else {
+            return jsonResponse({ events: [] }, 200, cors);
+          }
         }
 
         const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view', env);
@@ -5013,8 +5151,18 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
+        const { eventId } = showcaseRewardSubRoute;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Forbidden: You do not have permission to access this event', 403, cors);
+        }
+
         try {
-          const { eventId } = showcaseRewardSubRoute;
           const submission = await createShowcaseRewardSubmission({
             eventId,
             userId: auth.user.id,
@@ -5037,6 +5185,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         try {
           const { eventId } = showcaseRewardSubRoute;
           const auth = await authenticateOptionalJWT(request, env);
+          if (auth.user) {
+            const event = await getEventById(eventId, env);
+            if (event) {
+              const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.view', env);
+              if (!isMember || !hasPermission) {
+                return errorResponse('Forbidden: You do not have permission to view this event showcase', 403, cors);
+              }
+            }
+          }
           const submission = await getShowcaseRewardSubmissionForEvent(eventId, env);
           const userId = auth.user?.id;
           const userSubmission = userId ? await getActiveUserShowcaseRewardSubmission(userId, env) : null;
@@ -7978,9 +8135,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'wallet.view', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
+        if ((!isMember || !hasPermission) && !isDev) {
           return errorResponse('Forbidden: Access denied to organization wallet', 403, cors);
         }
 
@@ -8006,9 +8163,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'wallet.transactions.view', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
+        if ((!isMember || !hasPermission) && !isDev) {
           return errorResponse('Forbidden: Access denied to wallet transactions', 403, cors);
         }
 
@@ -8122,9 +8279,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'wallet.view', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
+        if ((!isMember || !hasPermission) && !isDev) {
           return errorResponse('Forbidden: Access denied to organization wallet', 403, cors);
         }
 
@@ -8330,9 +8487,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             return errorResponse('Forbidden: Organization mismatch on top-up order', 403, cors);
           }
 
-          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, 'wallet.view', env);
           const isDev = isUserDeveloperAdmin(auth.user, env);
-          if (!isMember && !isDev) {
+          if ((!isMember || !hasPermission) && !isDev) {
             return errorResponse('Forbidden: Access denied to this top-up order', 403, cors);
           }
 
@@ -8376,9 +8533,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return errorResponse('Valid organization ID (UUID) is required', 400, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'wallet.view', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
+        if ((!isMember || !hasPermission) && !isDev) {
           return errorResponse('Forbidden: Access denied to organization top-up orders', 403, cors);
         }
 
@@ -8516,7 +8673,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return errorResponse('Forbidden: Developer Admin access required. You do not have permission to access test webhook simulations.', 403, cors);
         }
 
-        const isProduction = env.NODE_ENV === 'production' || env.ENVIRONMENT === 'production';
+        const isProduction =
+          env.NODE_ENV === 'production' ||
+          env.ENVIRONMENT === 'production' ||
+          env.APP_ENV === 'production';
         if (isProduction) {
           return errorResponse('Forbidden: Test webhook simulation is disabled in production environments.', 403, cors);
         }
@@ -8635,10 +8795,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         if (!auth.authenticated) return auth.errorResponse!;
 
         const userId = auth.user.id;
-        const { isMember } = await verifyOrgMembershipAndPermission(userId, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(userId, orgId, 'wallet.view', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
-          return errorResponse('Forbidden: Must be a member of the organization.', 403, cors);
+        if ((!isMember || !hasPermission) && !isDev) {
+          return errorResponse('Forbidden: Must be an authorized member of the organization.', 403, cors);
         }
 
         try {
@@ -8677,9 +8837,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'event.pay', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
+        if ((!isMember || !hasPermission) && !isDev) {
           return errorResponse('Forbidden: Access denied', 403, cors);
         }
 
@@ -8780,9 +8940,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'event.pay', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
+        if ((!isMember || !hasPermission) && !isDev) {
           return errorResponse('Forbidden: Access denied', 403, cors);
         }
 
@@ -8838,10 +8998,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'event.pay', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
-          return errorResponse('Forbidden: Access denied', 403, cors);
+        if ((!isMember || !hasPermission) && !isDev) {
+          return errorResponse('Forbidden: Access denied to event payment calculation', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -8916,10 +9076,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'event.pay', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if (!isMember && !isDev) {
-          return errorResponse('Forbidden: Access denied', 403, cors);
+        if ((!isMember || !hasPermission) && !isDev) {
+          return errorResponse('Forbidden: Access denied to event payment quote', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;

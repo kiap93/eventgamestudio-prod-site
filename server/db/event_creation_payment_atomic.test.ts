@@ -26,6 +26,7 @@ import {
 import { createOrganization } from './organizations.js';
 import { ensureDefaultGame } from './games.js';
 import { createTheme } from './themes.js';
+import { createUser } from './users.js';
 import { getSupabaseServerClient } from '../supabase.js';
 
 let passed = 0;
@@ -107,10 +108,10 @@ async function runTests() {
     organization_id: orgFullPaid,
     game_theme_id: themeFullPaid,
     name: 'Mega Tech Launch 2026',
-    start_date: '2026-09-20',
-    end_date: '2026-09-20',
-    starts_at: '2026-09-20T00:00:00.000Z',
-    expires_at: '2026-09-20T23:59:59.999Z',
+    start_date: '2026-11-20',
+    end_date: '2026-11-20',
+    starts_at: '2026-11-20T00:00:00.000Z',
+    expires_at: '2026-11-20T23:59:59.999Z',
     payment_mode: 'FULL_PAID',
   });
 
@@ -134,21 +135,22 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('\n--- Test Group 3: Welcome Credit Event Creation & Atomic Split ---');
 
-  const orgWelcome = (await createOrganization({ name: 'Org Welcome', owner_id: crypto.randomUUID() })).id;
+  const ownerW = await createUser({ email: `owner.welcome.${Date.now()}@example.com`, email_verified: true });
+  const orgWelcome = (await createOrganization({ name: 'Org Welcome', owner_id: ownerW.id })).id;
   const gameW = await ensureDefaultGame(orgWelcome, 'Test Game');
   const themeWelcome = (await createTheme({ organization_id: orgWelcome, game_id: gameW.id, name: 'Theme W' })).id;
 
-  await grantWelcomeCredit({ organizationId: orgWelcome });
+  await grantWelcomeCredit({ organizationId: orgWelcome, userId: ownerW.id });
   await createTopup({ organizationId: orgWelcome, amount: 1000.0, referenceId: `topup_w_${Date.now()}` });
 
   const welcomeResult = await createEventWithAtomicPayment({
     organization_id: orgWelcome,
     game_theme_id: themeWelcome,
     name: 'Agency Roadshow Kickoff',
-    start_date: '2026-09-20',
-    end_date: '2026-09-20',
-    starts_at: '2026-09-20T00:00:00.000Z',
-    expires_at: '2026-09-20T23:59:59.999Z',
+    start_date: '2026-11-20',
+    end_date: '2026-11-20',
+    starts_at: '2026-11-20T00:00:00.000Z',
+    expires_at: '2026-11-20T23:59:59.999Z',
     payment_mode: 'WELCOME_CREDIT',
   });
 
@@ -176,21 +178,22 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('\n--- Test Group 4: Showcase Credit Event Creation ---');
 
-  const orgShowcase = (await createOrganization({ name: 'Org Showcase', owner_id: crypto.randomUUID() })).id;
+  const ownerSC = await createUser({ email: `owner.showcase.${Date.now()}@example.com`, email_verified: true });
+  const orgShowcase = (await createOrganization({ name: 'Org Showcase', owner_id: ownerSC.id })).id;
   const gameSC = await ensureDefaultGame(orgShowcase, 'Test Game');
   const themeShowcase = (await createTheme({ organization_id: orgShowcase, game_id: gameSC.id, name: 'Theme SC' })).id;
 
-  await grantShowcaseCredit({ organizationId: orgShowcase });
+  await grantShowcaseCredit({ organizationId: orgShowcase, ownerUserId: ownerSC.id });
   await createTopup({ organizationId: orgShowcase, amount: 1500.0, referenceId: `topup_sc_${Date.now()}` });
 
   const showcaseResult = await createEventWithAtomicPayment({
     organization_id: orgShowcase,
     game_theme_id: themeShowcase,
     name: 'Showcase Rewarded Event',
-    start_date: '2026-09-20',
-    end_date: '2026-09-20',
-    starts_at: '2026-09-20T00:00:00.000Z',
-    expires_at: '2026-09-20T23:59:59.999Z',
+    start_date: '2026-11-20',
+    end_date: '2026-11-20',
+    starts_at: '2026-11-20T00:00:00.000Z',
+    expires_at: '2026-11-20T23:59:59.999Z',
     payment_mode: 'SHOWCASE_CREDIT',
   });
 

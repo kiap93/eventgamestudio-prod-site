@@ -1,8 +1,15 @@
-import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed } from '../supabase.js';
+import {
+  getSupabaseServerClient,
+  isSupabaseConfigured,
+  isLocalFallbackAllowed,
+  isProductionEnvironment,
+  assertProductionCustomerInvitationsSafe,
+} from '../supabase.js';
 import { generateCustomerInvitationEmail } from '../email/customerInvitationTemplate.js';
 import {
   sendEmailViaResend,
   validateResendSenderConfig,
+  validateResendApiKeyConfig,
   isResendConfigured,
   getResendInvitationFrom,
   processResendWebhookPayload,
@@ -69,6 +76,52 @@ export interface CustomerInvitationStats {
 const uploadsDir = path.join(process.cwd(), 'uploads');
 const LOCAL_STORAGE_FILE = path.join(uploadsDir, 'customer_invitations.json');
 
+/**
+ * Detects whether a database error is caused by missing tables or missing stored procedures.
+ */
+export function isMissingTableOrRpcError(err: any): boolean {
+  if (!err) return false;
+  const code = String(err.code || '');
+  const message = String(err.message || '').toLowerCase();
+  const details = String(err.details || '').toLowerCase();
+
+  return (
+    code === 'PGRST202' || // Function not found in schema cache
+    code === '42883' ||    // undefined_function
+    code === 'PGRST204' || // Column / table not found in schema cache
+    code === '42P01' ||    // undefined_table
+    code === 'PGRST200' || // Could not find a relationship
+    code === 'PGRST106' || // Schema cache error
+    (message.includes('function') && (message.includes('does not exist') || message.includes('could not find'))) ||
+    (message.includes('relation') && message.includes('does not exist')) ||
+    (message.includes('table') && message.includes('does not exist')) ||
+    message.includes('could not find the table') ||
+    message.includes('could not find the function') ||
+    (message.includes('customer_companies') && message.includes('does not exist')) ||
+    (message.includes('customer_company_recipients') && message.includes('does not exist')) ||
+    (message.includes('customer_invitation_logs') && message.includes('does not exist')) ||
+    message.includes('create_customer_company_atomic') ||
+    message.includes('update_customer_company_atomic') ||
+    message.includes('record_customer_invitation_dispatch_atomic') ||
+    details.includes('does not exist')
+  );
+}
+
+/**
+ * Creates a stable migration-required error (HTTP 503).
+ */
+export function createMigrationRequiredError(operationName?: string, detail?: string): Error {
+  const message = detail
+    ? `Customer invitation database migration has not been applied (${operationName || 'operation'}): ${detail}. Please apply migration 20261008000000_create_customer_invitations.sql.`
+    : 'Customer invitation database migration has not been applied. Please apply migration 20261008000000_create_customer_invitations.sql to create customer_companies, customer_company_recipients, customer_invitation_logs tables and atomic stored procedures.';
+  const err: any = new Error(message);
+  err.code = 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED';
+  err.statusCode = 503;
+  err.status = 503;
+  err.isOperational = true;
+  return err;
+}
+
 interface LocalStorageSchema {
   companies: CustomerCompanyRecord[];
   recipients: CustomerCompanyRecipientRecord[];
@@ -86,6 +139,9 @@ function ensureUploadsDir() {
 }
 
 function readLocalStorage(env?: Record<string, any>): LocalStorageSchema {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    return { companies: [], recipients: [], logs: [] };
+  }
   try {
     ensureUploadsDir();
     if (!fs.existsSync(LOCAL_STORAGE_FILE)) {
@@ -105,6 +161,9 @@ function readLocalStorage(env?: Record<string, any>): LocalStorageSchema {
 }
 
 function writeLocalStorage(data: LocalStorageSchema, env?: Record<string, any>): void {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    return;
+  }
   try {
     ensureUploadsDir();
     fs.writeFileSync(LOCAL_STORAGE_FILE, JSON.stringify(data, null, 2), 'utf-8');
@@ -172,56 +231,75 @@ export async function listCustomerCompanies(params: {
   env?: Record<string, any>;
 }): Promise<{ companies: CustomerCompanyWithRecipients[]; stats: CustomerInvitationStats }> {
   const { search, statusFilter = 'all', env } = params;
+  assertProductionCustomerInvitationsSafe('listCustomerCompanies', env);
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
+    const supabase = getSupabaseServerClient(env);
 
-      const { data: companiesData, error: compErr } = await supabase
-        .from('customer_companies')
-        .select('*')
-        .order('created_at', { ascending: false });
+    const { data: companiesData, error: compErr } = await supabase
+      .from('customer_companies')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (compErr) throw compErr;
-
-      const { data: recipientsData, error: recErr } = await supabase
-        .from('customer_company_recipients')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      if (recErr) throw recErr;
-
-      const rawCompanies: CustomerCompanyRecord[] = companiesData || [];
-      const rawRecipients: CustomerCompanyRecipientRecord[] = recipientsData || [];
-
-      let enriched = rawCompanies.map((c) => computeCompanyStats(c, rawRecipients));
-
-      // Filter by search
-      if (search && search.trim()) {
-        const query = search.trim().toLowerCase();
-        enriched = enriched.filter((c) => {
-          if (c.company_name.toLowerCase().includes(query)) return true;
-          if (c.contact_person && c.contact_person.toLowerCase().includes(query)) return true;
-          if (c.notes && c.notes.toLowerCase().includes(query)) return true;
-          return c.recipients.some((r) =>
-            r.email.toLowerCase().includes(query) || (r.recipient_name && r.recipient_name.toLowerCase().includes(query))
-          );
-        });
+    if (compErr) {
+      console.error('[listCustomerCompanies] Database error querying customer_companies:', compErr);
+      if (isMissingTableOrRpcError(compErr)) {
+        throw createMigrationRequiredError('listCustomerCompanies', compErr.message);
       }
-
-      // Filter by status
-      if (statusFilter && statusFilter !== 'all') {
-        enriched = enriched.filter((c) => c.invitationStatus === statusFilter);
-      }
-
-      const stats = await getCustomerInvitationStats(env);
-      return { companies: enriched, stats };
-    } catch (err) {
-      console.warn('Notice: Falling back to local storage for listCustomerCompanies:', err);
+      const dbErr: any = new Error(`Database error listing customer companies: ${compErr.message}`);
+      dbErr.code = compErr.code;
+      dbErr.statusCode = 500;
+      throw dbErr;
     }
+
+    const { data: recipientsData, error: recErr } = await supabase
+      .from('customer_company_recipients')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (recErr) {
+      console.error('[listCustomerCompanies] Database error querying company recipients:', recErr);
+      if (isMissingTableOrRpcError(recErr)) {
+        throw createMigrationRequiredError('listCustomerCompanies', recErr.message);
+      }
+      const dbErr: any = new Error(`Database error listing company recipients: ${recErr.message}`);
+      dbErr.code = recErr.code;
+      dbErr.statusCode = 500;
+      throw dbErr;
+    }
+
+    const rawCompanies: CustomerCompanyRecord[] = companiesData || [];
+    const rawRecipients: CustomerCompanyRecipientRecord[] = recipientsData || [];
+
+    let enriched = rawCompanies.map((c) => computeCompanyStats(c, rawRecipients));
+
+    // Filter by search
+    if (search && search.trim()) {
+      const query = search.trim().toLowerCase();
+      enriched = enriched.filter((c) => {
+        if (c.company_name.toLowerCase().includes(query)) return true;
+        if (c.contact_person && c.contact_person.toLowerCase().includes(query)) return true;
+        if (c.notes && c.notes.toLowerCase().includes(query)) return true;
+        return c.recipients.some((r) =>
+          r.email.toLowerCase().includes(query) || (r.recipient_name && r.recipient_name.toLowerCase().includes(query))
+        );
+      });
+    }
+
+    // Filter by status
+    if (statusFilter && statusFilter !== 'all') {
+      enriched = enriched.filter((c) => c.invitationStatus === statusFilter);
+    }
+
+    const stats = await getCustomerInvitationStats(env);
+    return { companies: enriched, stats };
   }
 
-  // Local storage fallback
+  // Local storage fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer company listing requires a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
+  }
+
   const store = readLocalStorage(env);
   let enriched = store.companies.map((c) => computeCompanyStats(c, store.recipients));
 
@@ -255,40 +333,71 @@ export async function getCustomerCompanyById(
   id: string,
   env?: Record<string, any>
 ): Promise<(CustomerCompanyWithRecipients & { logs: CustomerInvitationLogRecord[] }) | null> {
+  assertProductionCustomerInvitationsSafe('getCustomerCompanyById', env);
+
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
+    const supabase = getSupabaseServerClient(env);
 
-      const { data: comp, error: compErr } = await supabase
-        .from('customer_companies')
+    const { data: comp, error: compErr } = await supabase
+      .from('customer_companies')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (compErr) {
+      console.error('[getCustomerCompanyById] Database error fetching customer company:', compErr);
+      if (isMissingTableOrRpcError(compErr)) {
+        throw createMigrationRequiredError('getCustomerCompanyById', compErr.message);
+      }
+      const dbErr: any = new Error(`Database error fetching customer company: ${compErr.message}`);
+      dbErr.code = compErr.code;
+      dbErr.statusCode = 500;
+      throw dbErr;
+    } else if (comp) {
+      const { data: recs, error: recErr } = await supabase
+        .from('customer_company_recipients')
         .select('*')
-        .eq('id', id)
-        .single();
+        .eq('company_id', id)
+        .order('created_at', { ascending: true });
 
-      if (compErr) {
-        throw compErr;
+      if (recErr) {
+        if (isMissingTableOrRpcError(recErr)) {
+          throw createMigrationRequiredError('getCustomerCompanyById', recErr.message);
+        }
+        const dbErr: any = new Error(`Database error fetching company recipients: ${recErr.message}`);
+        dbErr.code = recErr.code;
+        dbErr.statusCode = 500;
+        throw dbErr;
       }
 
-      if (comp) {
-        const { data: recs } = await supabase
-          .from('customer_company_recipients')
-          .select('*')
-          .eq('company_id', id)
-          .order('created_at', { ascending: true });
+      const { data: logs, error: logErr } = await supabase
+        .from('customer_invitation_logs')
+        .select('*')
+        .eq('company_id', id)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-        const { data: logs } = await supabase
-          .from('customer_invitation_logs')
-          .select('*')
-          .eq('company_id', id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        const computed = computeCompanyStats(comp, recs || []);
-        return { ...computed, logs: logs || [] };
+      if (logErr) {
+        if (isMissingTableOrRpcError(logErr)) {
+          throw createMigrationRequiredError('getCustomerCompanyById', logErr.message);
+        }
+        const dbErr: any = new Error(`Database error fetching company invitation logs: ${logErr.message}`);
+        dbErr.code = logErr.code;
+        dbErr.statusCode = 500;
+        throw dbErr;
       }
-    } catch (err) {
-      console.warn('Notice: Falling back to local storage for getCustomerCompanyById:', err);
+
+      const computed = computeCompanyStats(comp, recs || []);
+      return { ...computed, logs: logs || [] };
+    } else {
+      // Company genuinely does not exist in authoritative database
+      return null;
     }
+  }
+
+  // Local storage fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer company retrieval requires a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
   }
 
   const store = readLocalStorage(env);
@@ -305,7 +414,6 @@ export async function getCustomerCompanyById(
   return { ...computed, logs };
 }
 
-
 /**
  * Create a new customer company with recipients
  */
@@ -319,13 +427,21 @@ export async function createCustomerCompany(
   },
   env?: Record<string, any>
 ): Promise<CustomerCompanyWithRecipients> {
+  assertProductionCustomerInvitationsSafe('createCustomerCompany', env);
+
   const companyName = (params.company_name || '').trim();
   if (!companyName) {
-    throw new Error('Company name is required');
+    const err: any = new Error('Company name is required');
+    err.statusCode = 400;
+    err.code = 'VALIDATION_ERROR';
+    throw err;
   }
 
   if (!params.recipients || !Array.isArray(params.recipients) || params.recipients.length === 0) {
-    throw new Error('At least one recipient email address is required');
+    const err: any = new Error('At least one recipient email address is required');
+    err.statusCode = 400;
+    err.code = 'VALIDATION_ERROR';
+    throw err;
   }
 
   // Validate and deduplicate emails
@@ -336,7 +452,10 @@ export async function createCustomerCompany(
     const cleanEmail = (r.email || '').trim().toLowerCase();
     if (!cleanEmail) continue;
     if (!isValidEmail(cleanEmail)) {
-      throw new Error(`Invalid email address: "${r.email}"`);
+      const err: any = new Error(`Invalid email address: "${r.email}"`);
+      err.statusCode = 400;
+      err.code = 'VALIDATION_ERROR';
+      throw err;
     }
     if (seenEmails.has(cleanEmail)) {
       continue; // Duplicate within company deduplicated
@@ -349,7 +468,10 @@ export async function createCustomerCompany(
   }
 
   if (sanitizedRecipients.length === 0) {
-    throw new Error('At least one valid recipient email address is required');
+    const err: any = new Error('At least one valid recipient email address is required');
+    err.statusCode = 400;
+    err.code = 'VALIDATION_ERROR';
+    throw err;
   }
 
   const now = new Date().toISOString();
@@ -379,36 +501,48 @@ export async function createCustomerCompany(
   }));
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
+    const supabase = getSupabaseServerClient(env);
 
-      const { data: compData, error: compErr } = await supabase
-        .from('customer_companies')
-        .insert({
-          id: newCompany.id,
-          company_name: newCompany.company_name,
-          contact_person: newCompany.contact_person,
-          notes: newCompany.notes,
-          created_by: newCompany.created_by,
-          created_at: newCompany.created_at,
-          updated_at: newCompany.updated_at,
-        })
-        .select()
-        .single();
+    // 1. Attempt atomic creation RPC first
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('create_customer_company_atomic', {
+      p_company_name: newCompany.company_name,
+      p_contact_person: newCompany.contact_person,
+      p_notes: newCompany.notes,
+      p_created_by: newCompany.created_by,
+      p_recipients: sanitizedRecipients.map((r, idx) => ({
+        id: newRecipients[idx].id,
+        email: r.email,
+        recipient_name: r.recipient_name,
+      })),
+      p_company_id: newCompany.id,
+    });
 
-      if (compErr) throw compErr;
-
-      const { data: recData, error: recErr } = await supabase
-        .from('customer_company_recipients')
-        .insert(newRecipients)
-        .select();
-
-      if (recErr) throw recErr;
-
-      return computeCompanyStats(compData, recData || newRecipients);
-    } catch (err) {
-      console.warn('Notice: Falling back to local storage for createCustomerCompany:', err);
+    if (rpcErr) {
+      if (isMissingTableOrRpcError(rpcErr)) {
+        throw createMigrationRequiredError('createCustomerCompany', rpcErr.message);
+      }
+      console.error('[createCustomerCompany] Database error in create_customer_company_atomic RPC:', rpcErr);
+      const dbErr: any = new Error(`Database error creating customer company: ${rpcErr.message}`);
+      dbErr.code = rpcErr.code || 'DATABASE_ERROR';
+      dbErr.statusCode = 500;
+      throw dbErr;
     }
+
+    if (!rpcData || !rpcData.success || !rpcData.company) {
+      const ambigErr: any = new Error(
+        'Ambiguous or incomplete database response from create_customer_company_atomic: company was not confirmed persisted.'
+      );
+      ambigErr.code = 'DATABASE_PERSISTENCE_UNCERTAIN';
+      ambigErr.statusCode = 500;
+      throw ambigErr;
+    }
+
+    return computeCompanyStats(rpcData.company, rpcData.recipients || newRecipients);
+  }
+
+  // 3. Local fallback ONLY for non-production environments where fallback is explicitly allowed
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer company creation requires a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
   }
 
   const store = readLocalStorage(env);
@@ -432,118 +566,86 @@ export async function updateCustomerCompany(
   },
   env?: Record<string, any>
 ): Promise<CustomerCompanyWithRecipients> {
+  assertProductionCustomerInvitationsSafe('updateCustomerCompany', env);
   const now = new Date().toISOString();
 
   if (params.recipients) {
     if (!Array.isArray(params.recipients) || params.recipients.length === 0) {
-      throw new Error('At least one recipient email address is required');
+      const err: any = new Error('At least one recipient email address is required');
+      err.statusCode = 400;
+      err.code = 'VALIDATION_ERROR';
+      throw err;
     }
     for (const r of params.recipients) {
       const email = (r.email || '').trim().toLowerCase();
       if (!email || !isValidEmail(email)) {
-        throw new Error(`Invalid recipient email address: "${r.email}"`);
+        const err: any = new Error(`Invalid recipient email address: "${r.email}"`);
+        err.statusCode = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
       }
     }
   }
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
+    const supabase = getSupabaseServerClient(env);
 
-      // Check existence
-      const { data: existing, error: existErr } = await supabase
-        .from('customer_companies')
-        .select('*')
-        .eq('id', id)
-        .single();
+    // Call atomic update RPC
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('update_customer_company_atomic', {
+      p_company_id: id,
+      p_company_name: params.company_name !== undefined ? params.company_name.trim() : null,
+      p_contact_person: params.contact_person !== undefined ? (params.contact_person?.trim() || null) : null,
+      p_notes: params.notes !== undefined ? (params.notes?.trim() || null) : null,
+      p_recipients: params.recipients
+        ? params.recipients.map((r) => ({
+            id: r.id || null,
+            email: r.email.trim().toLowerCase(),
+            recipient_name: r.recipient_name?.trim() || null,
+          }))
+        : null,
+    });
 
-      if (existErr || !existing) {
-        throw new Error('Company not found');
+    if (rpcErr) {
+      if (isMissingTableOrRpcError(rpcErr)) {
+        throw createMigrationRequiredError('updateCustomerCompany', rpcErr.message);
       }
-
-      const updatePayload: Record<string, any> = { updated_at: now };
-      if (params.company_name !== undefined) updatePayload.company_name = params.company_name.trim();
-      if (params.contact_person !== undefined) updatePayload.contact_person = params.contact_person?.trim() || null;
-      if (params.notes !== undefined) updatePayload.notes = params.notes?.trim() || null;
-
-      const { data: updatedComp, error: updateErr } = await supabase
-        .from('customer_companies')
-        .update(updatePayload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (updateErr) throw updateErr;
-
-      // Reconcile recipients if provided
-      if (params.recipients) {
-        const { data: currentRecs } = await supabase
-          .from('customer_company_recipients')
-          .select('*')
-          .eq('company_id', id);
-
-        const currentMap = new Map((currentRecs || []).map((r) => [r.id, r]));
-        const seenEmails = new Set<string>();
-        const toKeepIds = new Set<string>();
-
-        for (const inputRec of params.recipients) {
-          const cleanEmail = inputRec.email.trim().toLowerCase();
-          if (seenEmails.has(cleanEmail)) continue;
-          seenEmails.add(cleanEmail);
-
-          if (inputRec.id && currentMap.has(inputRec.id)) {
-            toKeepIds.add(inputRec.id);
-            await supabase
-              .from('customer_company_recipients')
-              .update({
-                email: cleanEmail,
-                recipient_name: inputRec.recipient_name?.trim() || null,
-                updated_at: now,
-              })
-              .eq('id', inputRec.id);
-          } else {
-            const newRecId = crypto.randomUUID();
-            toKeepIds.add(newRecId);
-            await supabase
-              .from('customer_company_recipients')
-              .insert({
-                id: newRecId,
-                company_id: id,
-                email: cleanEmail,
-                recipient_name: inputRec.recipient_name?.trim() || null,
-                invitation_count: 0,
-                last_invited_at: null,
-                last_invitation_status: 'never_invited',
-                created_at: now,
-                updated_at: now,
-              });
-          }
-        }
-
-        // Delete recipients removed by user
-        for (const [currId] of currentMap) {
-          if (!toKeepIds.has(currId)) {
-            await supabase.from('customer_company_recipients').delete().eq('id', currId);
-          }
-        }
+      if (rpcErr.message && rpcErr.message.includes('Customer company not found')) {
+        const notFoundErr: any = new Error('Customer company not found');
+        notFoundErr.statusCode = 404;
+        notFoundErr.code = 'NOT_FOUND';
+        throw notFoundErr;
       }
-
-      const { data: finalRecs } = await supabase
-        .from('customer_company_recipients')
-        .select('*')
-        .eq('company_id', id);
-
-      return computeCompanyStats(updatedComp, finalRecs || []);
-    } catch (err) {
-      console.warn('Notice: Falling back to local storage for updateCustomerCompany:', err);
+      console.error('[updateCustomerCompany] Database error in update_customer_company_atomic RPC:', rpcErr);
+      const dbErr: any = new Error(`Database error updating customer company: ${rpcErr.message}`);
+      dbErr.code = rpcErr.code || 'DATABASE_ERROR';
+      dbErr.statusCode = 500;
+      throw dbErr;
     }
+
+    if (!rpcData || !rpcData.success || !rpcData.company) {
+      const ambigErr: any = new Error(
+        'Ambiguous or incomplete database response from update_customer_company_atomic: company was not confirmed updated.'
+      );
+      ambigErr.code = 'DATABASE_PERSISTENCE_UNCERTAIN';
+      ambigErr.statusCode = 500;
+      throw ambigErr;
+    }
+
+    return computeCompanyStats(rpcData.company, rpcData.recipients || []);
   }
 
-  // Local fallback
+  // Local fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer company update requires a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
+  }
+
   const store = readLocalStorage(env);
   const compIndex = store.companies.findIndex((c) => c.id === id);
   if (compIndex === -1) {
-    throw new Error('Company not found');
+    const err: any = new Error('Customer company not found');
+    err.statusCode = 404;
+    err.code = 'NOT_FOUND';
+    throw err;
   }
 
   const comp = store.companies[compIndex];
@@ -585,7 +687,6 @@ export async function updateCustomerCompany(
       }
     }
 
-    // Replace company recipients in store
     store.recipients = store.recipients.filter((r) => r.company_id !== id).concat(nextRecs);
   }
 
@@ -598,18 +699,53 @@ export async function updateCustomerCompany(
  * Delete a customer company
  */
 export async function deleteCustomerCompany(id: string, env?: Record<string, any>): Promise<boolean> {
+  assertProductionCustomerInvitationsSafe('deleteCustomerCompany', env);
+
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { error } = await supabase.from('customer_companies').delete().eq('id', id);
-      if (error) throw error;
+    const supabase = getSupabaseServerClient(env);
+
+    const { data: existing, error: existErr } = await supabase
+      .from('customer_companies')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existErr) {
+      console.error('[deleteCustomerCompany] Database error verifying customer company for deletion:', existErr);
+      if (isMissingTableOrRpcError(existErr)) {
+        throw createMigrationRequiredError('deleteCustomerCompany', existErr.message);
+      }
+      throw new Error(`Database error verifying customer company for deletion: ${existErr.message}`);
+    } else if (!existing) {
+      const err: any = new Error('Customer company not found');
+      err.statusCode = 404;
+      err.code = 'NOT_FOUND';
+      throw err;
+    } else {
+      const { error: delErr } = await supabase.from('customer_companies').delete().eq('id', id);
+      if (delErr) {
+        if (isMissingTableOrRpcError(delErr)) {
+          throw createMigrationRequiredError('deleteCustomerCompany', delErr.message);
+        }
+        throw new Error(`Database error deleting customer company: ${delErr.message}`);
+      }
       return true;
-    } catch (err) {
-      console.warn('Notice: Falling back to local storage for deleteCustomerCompany:', err);
     }
   }
 
+  // Local fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer company deletion requires a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
+  }
+
   const store = readLocalStorage(env);
+  const found = store.companies.some((c) => c.id === id);
+  if (!found) {
+    const err: any = new Error('Customer company not found');
+    err.statusCode = 404;
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
   store.companies = store.companies.filter((c) => c.id !== id);
   store.recipients = store.recipients.filter((r) => r.company_id !== id);
   store.logs = store.logs.filter((l) => l.company_id !== id);
@@ -629,27 +765,29 @@ export async function checkCompanyRecipientsPreviouslyInvited(
   previouslyInvited: CustomerCompanyRecipientRecord[];
   allTargetRecipients: CustomerCompanyRecipientRecord[];
 }> {
+  assertProductionCustomerInvitationsSafe('checkCompanyRecipientsPreviouslyInvited', env);
   let allRecipients: CustomerCompanyRecipientRecord[] = [];
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('customer_company_recipients')
-        .select('*')
-        .eq('company_id', companyId);
-      if (error) throw error;
-      if (data && data.length > 0) {
-        allRecipients = data;
-      } else {
-        const store = readLocalStorage(env);
-        allRecipients = store.recipients.filter((r) => r.company_id === companyId);
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('customer_company_recipients')
+      .select('*')
+      .eq('company_id', companyId);
+
+    if (error) {
+      console.error('[checkCompanyRecipientsPreviouslyInvited] Database error querying company recipients:', error);
+      if (isMissingTableOrRpcError(error)) {
+        throw createMigrationRequiredError('checkCompanyRecipientsPreviouslyInvited', error.message);
       }
-    } catch {
-      const store = readLocalStorage(env);
-      allRecipients = store.recipients.filter((r) => r.company_id === companyId);
+      throw new Error(`Database error querying company recipients: ${error.message}`);
+    } else {
+      allRecipients = data || [];
     }
   } else {
+    if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+      throw new Error('Fatal: Checking recipients requires a valid Supabase database in production/Worker environment.');
+    }
     const store = readLocalStorage(env);
     allRecipients = store.recipients.filter((r) => r.company_id === companyId);
   }
@@ -661,6 +799,7 @@ export async function checkCompanyRecipientsPreviouslyInvited(
       if (!validRecipientMap.has(rid)) {
         const err: any = new Error(`Recipient ID "${rid}" does not belong to company "${companyId}"`);
         err.code = 'INVALID_COMPANY_RECIPIENT';
+        err.statusCode = 400;
         throw err;
       }
     }
@@ -672,8 +811,6 @@ export async function checkCompanyRecipientsPreviouslyInvited(
     targets = allRecipients.filter((r) => idSet.has(r.id));
   }
 
-  // Safe retry architecture: Recipients whose previous attempt failed (status === 'failed')
-  // are NOT considered active successful invitations, so they can be retried cleanly without confirmation.
   const previouslyInvited = targets.filter(
     (r) => r.last_invitation_status === 'sent' || ((r.invitation_count || 0) > 0 && r.last_invitation_status !== 'failed')
   );
@@ -696,6 +833,7 @@ export async function sendCompanyInvitations(
     confirmReinvite?: boolean;
     sentByUserId?: string | null;
     env?: Record<string, any>;
+    fetchFn?: typeof fetch;
   }
 ): Promise<{
   success: boolean;
@@ -710,7 +848,7 @@ export async function sendCompanyInvitations(
     error?: string;
   }>;
 }> {
-  const { recipientIds, confirmReinvite = false, sentByUserId = null, env } = options;
+  const { recipientIds, confirmReinvite = false, sentByUserId = null, env, fetchFn } = options;
 
   // 1. Verify company exists
   const company = await getCustomerCompanyById(companyId, env);
@@ -766,7 +904,17 @@ export async function sendCompanyInvitations(
   // 2E. Validate Resend sender configuration upfront and fail fast with actionable error
   const senderCheck = validateResendSenderConfig(env);
   if (!senderCheck.valid) {
+    console.error(`[Admin Invitations] Sender configuration invalid: ${senderCheck.error}`);
     const configErr: any = new Error(senderCheck.error);
+    configErr.code = 'RESEND_CONFIG_MISSING';
+    throw configErr;
+  }
+
+  // 2F. Validate Resend API key configuration upfront and fail fast with actionable error
+  const apiKeyCheck = validateResendApiKeyConfig(env);
+  if (!apiKeyCheck.valid) {
+    console.error('[Admin Invitations] Server configuration error: RESEND_API_KEY secret is missing or not configured.');
+    const configErr: any = new Error(apiKeyCheck.error);
     configErr.code = 'RESEND_CONFIG_MISSING';
     throw configErr;
   }
@@ -799,6 +947,7 @@ export async function sendCompanyInvitations(
         fromEmail: senderCheck.fromAddress,
         replyTo: 'eventgamestudio@gmail.com',
         env,
+        fetchFn,
       });
 
       const logId = crypto.randomUUID();
@@ -836,32 +985,46 @@ export async function sendCompanyInvitations(
       };
 
       if (isSupabaseConfigured(env)) {
-        try {
-          const supabase = getSupabaseServerClient(env);
-          await supabase.from('customer_invitation_logs').insert(logRecord);
-          await supabase
-            .from('customer_company_recipients')
-            .update(updatedRecipientData)
-            .eq('id', recipient.id);
-        } catch (dbErr) {
-          console.warn('Notice: Failed updating database for recipient invitation log:', dbErr);
-        }
-      }
+        const supabase = getSupabaseServerClient(env);
+        const { error: dispatchErr } = await supabase.rpc('record_customer_invitation_dispatch_atomic', {
+          p_log_id: logId,
+          p_company_id: companyId,
+          p_recipient_id: recipient.id,
+          p_email: recipient.email,
+          p_subject: emailContent.subject,
+          p_provider: 'resend',
+          p_provider_message_id: sendResult.messageId || null,
+          p_status: status,
+          p_error_message: sendResult.error || null,
+          p_sent_by_user_id: sentByUserId,
+        });
 
-      // Local storage update
-      const store = readLocalStorage(env);
-      store.logs.unshift(logRecord);
-      const recInStore = store.recipients.find((r) => r.id === recipient.id);
-      if (recInStore) {
-        recInStore.invitation_count = updatedRecipientData.invitation_count;
-        if (updatedRecipientData.last_invited_at) {
-          recInStore.last_invited_at = updatedRecipientData.last_invited_at;
+        if (dispatchErr) {
+          if (isMissingTableOrRpcError(dispatchErr)) {
+            throw createMigrationRequiredError('record_customer_invitation_dispatch_atomic', dispatchErr.message);
+          }
+          console.error('[sendCompanyInvitations] Failed recording invitation dispatch atomically in database:', dispatchErr);
+          const dbErr: any = new Error(`Database error recording customer invitation dispatch: ${dispatchErr.message}`);
+          dbErr.code = dispatchErr.code || 'DATABASE_ERROR';
+          dbErr.statusCode = 500;
+          throw dbErr;
         }
-        recInStore.last_invitation_status = updatedRecipientData.last_invitation_status;
-        recInStore.last_invitation_error = updatedRecipientData.last_invitation_error;
-        recInStore.updated_at = now;
+      } else if (isLocalFallbackAllowed(env)) {
+        // Local storage update ONLY in development/test when allowed
+        const store = readLocalStorage(env);
+        store.logs.unshift(logRecord);
+        const recInStore = store.recipients.find((r) => r.id === recipient.id);
+        if (recInStore) {
+          recInStore.invitation_count = updatedRecipientData.invitation_count;
+          if (updatedRecipientData.last_invited_at) {
+            recInStore.last_invited_at = updatedRecipientData.last_invited_at;
+          }
+          recInStore.last_invitation_status = updatedRecipientData.last_invitation_status;
+          recInStore.last_invitation_error = updatedRecipientData.last_invitation_error;
+          recInStore.updated_at = now;
+        }
+        writeLocalStorage(store, env);
       }
-      writeLocalStorage(store, env);
 
       results.push({
         recipientId: recipient.id,
@@ -958,10 +1121,23 @@ export async function handleCustomerInvitationWebhook(
       }
     } catch (dbErr) {
       console.warn('Notice: Error handling webhook via Supabase:', dbErr);
+      if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+        return {
+          handled: false,
+          message: `Database error processing webhook: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
+        };
+      }
     }
   }
 
-  // Local storage fallback
+  // Local storage fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    return {
+      handled: false,
+      message: `No customer invitation log found for provider message ID: ${processed.emailId}`,
+    };
+  }
+
   const store = readLocalStorage(env);
   const log = store.logs.find((l) => l.provider_message_id === processed.emailId);
   if (log) {
@@ -999,21 +1175,30 @@ export async function listCustomerInvitationLogs(
   limit = 100,
   env?: Record<string, any>
 ): Promise<CustomerInvitationLogRecord[]> {
-  if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('customer_invitation_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+  assertProductionCustomerInvitationsSafe('listCustomerInvitationLogs', env);
 
-      if (!error && data) {
-        return data;
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('customer_invitation_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('[listCustomerInvitationLogs] Database error listing customer invitation logs:', error);
+      if (isMissingTableOrRpcError(error)) {
+        throw createMigrationRequiredError('listCustomerInvitationLogs', error.message);
       }
-    } catch (err) {
-      console.warn('Notice: Falling back to local storage for listCustomerInvitationLogs:', err);
+      throw new Error(`Database error listing customer invitation logs: ${error.message}`);
+    } else if (data) {
+      return data;
     }
+  }
+
+  // Local storage fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer invitation logs require a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
   }
 
   const store = readLocalStorage(env);
@@ -1026,38 +1211,65 @@ export async function listCustomerInvitationLogs(
  * Get overall summary stats for customer invitations
  */
 export async function getCustomerInvitationStats(env?: Record<string, any>): Promise<CustomerInvitationStats> {
+  assertProductionCustomerInvitationsSafe('getCustomerInvitationStats', env);
+
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
+    const supabase = getSupabaseServerClient(env);
 
-      const { count: totalCompanies } = await supabase
-        .from('customer_companies')
-        .select('*', { count: 'exact', head: true });
+    const { count: totalCompanies, error: compErr } = await supabase
+      .from('customer_companies')
+      .select('*', { count: 'exact', head: true });
 
-      const { data: recs } = await supabase
-        .from('customer_company_recipients')
-        .select('invitation_count, last_invited_at');
-
-      const { count: totalLogs } = await supabase
-        .from('customer_invitation_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'sent');
-
-      const allRecs = recs || [];
-      const totalRecipients = allRecs.length;
-      const previouslyInvited = allRecs.filter((r) => (r.invitation_count || 0) > 0 || r.last_invited_at != null).length;
-      const neverInvited = totalRecipients - previouslyInvited;
-
-      return {
-        totalCompanies: totalCompanies || 0,
-        totalRecipients,
-        neverInvitedRecipients: neverInvited,
-        previouslyInvitedRecipients: previouslyInvited,
-        totalInvitationsSent: totalLogs || 0,
-      };
-    } catch {
-      // fallback
+    if (compErr) {
+      console.error('[getCustomerInvitationStats] Database error calculating customer invitation stats:', compErr);
+      if (isMissingTableOrRpcError(compErr)) {
+        throw createMigrationRequiredError('getCustomerInvitationStats', compErr.message);
+      }
+      throw new Error(`Database error calculating customer invitation stats: ${compErr.message}`);
     }
+
+    const { data: recs, error: recErr } = await supabase
+      .from('customer_company_recipients')
+      .select('invitation_count, last_invited_at');
+
+    if (recErr) {
+      console.error('[getCustomerInvitationStats] Database error calculating recipient stats:', recErr);
+      if (isMissingTableOrRpcError(recErr)) {
+        throw createMigrationRequiredError('getCustomerInvitationStats', recErr.message);
+      }
+      throw new Error(`Database error calculating recipient stats: ${recErr.message}`);
+    }
+
+    const { count: totalLogs, error: logErr } = await supabase
+      .from('customer_invitation_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'sent');
+
+    if (logErr) {
+      console.error('[getCustomerInvitationStats] Database error calculating invitation logs count:', logErr);
+      if (isMissingTableOrRpcError(logErr)) {
+        throw createMigrationRequiredError('getCustomerInvitationStats', logErr.message);
+      }
+      throw new Error(`Database error calculating invitation logs count: ${logErr.message}`);
+    }
+
+    const allRecs = recs || [];
+    const totalRecipients = allRecs.length;
+    const previouslyInvited = allRecs.filter((r) => (r.invitation_count || 0) > 0 || r.last_invited_at != null).length;
+    const neverInvited = totalRecipients - previouslyInvited;
+
+    return {
+      totalCompanies: totalCompanies || 0,
+      totalRecipients,
+      neverInvitedRecipients: neverInvited,
+      previouslyInvitedRecipients: previouslyInvited,
+      totalInvitationsSent: totalLogs || 0,
+    };
+  }
+
+  // Local storage fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Customer invitation stats require a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.');
   }
 
   const store = readLocalStorage(env);

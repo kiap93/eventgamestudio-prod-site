@@ -117,8 +117,8 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-100">Multi-Game Platform Catalog</h2>
-              <p className="text-xs text-slate-400">Available interactive game engines registered by Developer / Admin</p>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-100">{t('studio.multiGameCatalogTitle')}</h2>
+              <p className="text-xs text-slate-400">{t('studio.multiGameCatalogDesc')}</p>
             </div>
           </div>
           <button
@@ -134,7 +134,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
         {loading ? (
           <div className="py-12 text-center text-slate-400 flex items-center justify-center gap-2">
             <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
-            <span className="text-xs">Loading registered platform games...</span>
+            <span className="text-xs">{t('studio.loadingPlatformGames')}</span>
           </div>
         ) : (
           /* Game Cards Grid */

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
+import { useLocalization } from '../../../context/LocalizationContext';
 import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from '../../../themes/types';
 import { ResultScreenVisualEditorModal, ResultScreenBasicEditor } from './result-editor';
 import { ResultScreenRenderer } from '../../../games/shared/ResultScreenRenderer';
@@ -58,6 +59,7 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const [showAdvancedBasket, setShowAdvancedBasket] = useState(false);
   const [catcherDragActive, setCatcherDragActive] = useState(false);
   const [catcherUploadError, setCatcherUploadError] = useState<string | null>(null);
@@ -131,7 +133,7 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
             <Layers className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Catcher Artwork & Dimensions</h3>
+            <h3 className="text-sm font-bold text-slate-100">{t('customizers.catcherArtworkDimensions')}</h3>
             <p className="text-xs text-slate-400">
               The player vessel controlled horizontally at the bottom of the screen
             </p>
@@ -181,10 +183,10 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
                   type="button"
                   onClick={() => catcherReplaceFileInputRef.current?.click()}
                   disabled={uploadingAsset === 'catcher'}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700 cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'catcher' ? 'animate-spin' : ''}`} />
-                  <span>Replace Graphic</span>
+                  <span>{t('customizers.replaceGraphic')}</span>
                 </button>
               </div>
             </div>
@@ -368,6 +370,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const items = theme.items_config || [];
 
   const handleUpdateItem = (index: number, updates: Partial<ThemeDropItem>) => {
@@ -417,7 +420,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
             <Sparkles className="w-4 h-4" />
           </span>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Falling Objects & Collectibles</h3>
+            <h3 className="text-sm font-bold text-slate-100">{t('customizers.fallingObjectsCollectibles')}</h3>
             <p className="text-xs text-slate-400">
               Configure good point items, hazardous penalty obstacles, and golden bonus drops
             </p>
@@ -427,10 +430,10 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
         <button
           type="button"
           onClick={handleAddItem}
-          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-md"
+          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5 stroke-[3]" />
-          <span>Add Item</span>
+          <span>{t('customizers.addItem')}</span>
         </button>
       </div>
 
@@ -583,6 +586,7 @@ export const CatchBrandGameplayCustomizer: React.FC<CatchBrandGameplayCustomizer
   theme,
   onChange,
 }) => {
+  const { t } = useLocalization();
   const physics = theme.physics_config || {
     gameDurationSeconds: 20,
     fallSpeedMultiplier: 0.7,
@@ -611,7 +615,7 @@ export const CatchBrandGameplayCustomizer: React.FC<CatchBrandGameplayCustomizer
               <Zap className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Match Dynamics & Speed</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.matchDynamicsSpeed')}</h3>
               <p className="text-xs text-slate-400">
                 Adjust game session duration, falling velocity, and catcher responsiveness
               </p>
@@ -722,6 +726,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
   const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
@@ -792,19 +797,19 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Start Screen</span>
+            <span>{t('customizers.startScreen')}</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveSubTab('result')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeSubTab === 'result'
                 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 border border-slate-800'
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Result Screen</span>
+            <span>{t('customizers.resultScreen')}</span>
           </button>
         </div>
       </div>
@@ -828,7 +833,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
-                  <span>Start Screen Visual Canvas Editor</span>
+                  <span>{t('customizers.startScreenVisualCanvasEditor')}</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
                   Design elements, layouts, start button, rules cards, and badges directly on the 1024×576 canvas.
@@ -840,7 +845,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span>Open Start Screen Editor</span>
+                <span>{t('customizers.openStartScreenEditor')}</span>
               </button>
             </div>
 
@@ -891,7 +896,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
-                  <span>Result Screen Visual Canvas Editor</span>
+                  <span>{t('customizers.resultScreenVisualCanvasEditor')}</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
                   Design result cards, typography, stats badges, leaderboard layout, and buttons directly on the canvas.
@@ -903,7 +908,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span>Open Result Screen Editor</span>
+                <span>{t('customizers.openResultScreenEditor')}</span>
               </button>
             </div>
 
@@ -911,7 +916,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
             <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 gap-3">
               {/* Viewport Dimension Presets for Verification */}
               <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] font-mono">
-                <span className="text-slate-400 px-2 font-medium">Viewport:</span>
+                <span className="text-slate-400 px-2 font-medium">{t('customizers.viewport')}</span>
                 {(
                   [
                     { id: 'fit', label: 'Fit (Auto)' },

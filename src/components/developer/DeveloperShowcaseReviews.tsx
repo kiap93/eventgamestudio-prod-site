@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { AdminShowcaseListItem, EventShowcaseMedia } from '../../types/showcase';
 import {
@@ -32,6 +33,7 @@ import {
 } from 'lucide-react';
 
 export const DeveloperShowcaseReviews: React.FC = () => {
+  const { t } = useLocalization();
   const [showcases, setShowcases] = useState<AdminShowcaseListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -455,11 +457,11 @@ export const DeveloperShowcaseReviews: React.FC = () => {
               <Gift className="w-5 h-5" />
             </span>
             <h1 className="text-xl font-black text-white tracking-tight">
-              Event Showcase Submissions & Moderation
+              {t('developer.showcaseSubmissionsTitle')}
             </h1>
           </div>
           <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-            Manage public event marketing showcases and review first-event owner rewards. Showcase publishing is self-service and immediately live. Approving an eligible showcase grants <strong className="text-amber-400">RM300 Showcase Credit</strong> to the organization account owner without gating publication. Admins can also moderate sensitive showcases or soft-delete content.
+            {t('developer.showcaseSubmissionsDesc')}
           </p>
         </div>
 
@@ -469,48 +471,48 @@ export const DeveloperShowcaseReviews: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shrink-0 cursor-pointer self-start md:self-auto"
         >
           <RefreshCw className={`w-4 h-4 ${loading || pendingRewardsLoading ? 'animate-spin' : ''}`} />
-          <span>Refresh All</span>
+          <span>{t('developer.refreshAll')}</span>
         </button>
       </div>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reward Pending</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('developer.rewardPending')}</div>
           <div className="text-2xl font-black text-amber-400 flex items-center gap-2">
             <span>{countRewardPending}</span>
             {countRewardPending > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold animate-pulse">
-                Needs Action
+                {t('developer.needsAction')}
               </span>
             )}
           </div>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Approved & Rewarded</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('developer.approvedAndRewarded')}</div>
           <div className="text-2xl font-black text-emerald-400">{countRewarded}</div>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Published Live</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('developer.publishedLive')}</div>
           <div className="text-2xl font-black text-emerald-300">{countPublished}</div>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Blocked by Moderation</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('developer.blockedByModeration')}</div>
           <div className="text-2xl font-black text-rose-400 flex items-center gap-2">
             <span>{countBlocked}</span>
             {countBlocked > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold">
-                Hidden
+                {t('developer.hidden')}
               </span>
             )}
           </div>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Rewards</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('developer.totalRewards')}</div>
           <div className="text-2xl font-black text-amber-400">RM {totalRewardedMYR.toLocaleString()}</div>
         </div>
       </div>
@@ -559,17 +561,17 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             onClick={fetchPendingRewards}
             disabled={pendingRewardsLoading}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors self-start sm:self-auto cursor-pointer"
-            title="Refresh Pending Reward Queue"
+            title={t('developer.refreshPendingRewardQueue', undefined, 'Refresh Pending Reward Queue')}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${pendingRewardsLoading ? 'animate-spin' : ''}`} />
-            <span>Sync Queue</span>
+            <span>{t('developer.syncQueue', undefined, 'Sync Queue')}</span>
           </button>
         </div>
 
         {pendingRewardsLoading ? (
           <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-            <span>Checking pending reward approvals...</span>
+            <span>{t('developer.checkingPendingRewards', undefined, 'Checking pending reward approvals...')}</span>
           </div>
         ) : pendingRewardsError ? (
           <div className="py-4 px-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
@@ -586,7 +588,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <div className="flex justify-center text-emerald-400 mb-1">
               <CheckCircle2 className="w-6 h-6" />
             </div>
-            <p className="text-xs font-bold text-slate-200">No Rewards Waiting for Approval</p>
+            <p className="text-xs font-bold text-slate-200">{t('developer.noRewardsWaiting', undefined, 'No Rewards Waiting for Approval')}</p>
             <p className="text-[11px] text-slate-500 max-w-md mx-auto">
               All qualifying first-event showcases have been reviewed or already rewarded. New qualifying submissions with completed and paid events will appear here automatically.
             </p>
@@ -611,7 +613,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                         </span>
                         <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
                           <Gift className="w-3 h-3 text-amber-400" />
-                          RM300 Reward
+                          {t('developer.rm300Reward', undefined, 'RM300 Reward')}
                         </span>
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
                           Paid & Completed
@@ -645,12 +647,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2 self-start lg:self-center shrink-0">
-                      {/* View / Inspect Button */}
+                      {/* {t('developer.viewInspect', undefined, 'View / Inspect')} Button */}
                       <button
                         type="button"
                         onClick={() => openPreview(sc)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                        title="Inspect showcase details, media, and description"
+                        title={t('developer.inspectShowcaseDetails', undefined, 'Inspect showcase details, media, and description')}
                       >
                         <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                         <span>View / Inspect</span>
@@ -665,10 +667,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                         }}
                         disabled={actionLoading}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 transition-colors cursor-pointer disabled:opacity-50"
-                        title="Reject Showcase Reward (Showcase remains published)"
+                        title={t('developer.rejectRewardBtn', undefined, 'Reject Showcase Reward')}
                       >
                         <X className="w-3.5 h-3.5" />
-                        <span>Reject Reward</span>
+                        <span>{t('developer.rejectRewardBtn', undefined, 'Reject Reward')}</span>
                       </button>
 
                       {/* Approve RM300 Button */}
@@ -677,10 +679,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                         onClick={() => setApprovingShowcase(sc)}
                         disabled={actionLoading}
                         className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
-                        title="Approve RM300 Showcase Reward"
+                        title={t('developer.approveRM300Btn', undefined, 'Approve RM300 Showcase Reward')}
                       >
                         <Check className="w-3.5 h-3.5" />
-                        <span>Approve RM300</span>
+                        <span>{t('developer.approveRM300Btn', undefined, 'Approve RM300')}</span>
                       </button>
                     </div>
                   </div>
@@ -699,7 +701,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
               All Showcases Management
             </h2>
             <p className="text-xs text-slate-500">
-              Visibility, moderation, history, and status of all published and archived event showcases.
+              {t('developer.visibilityHeader', undefined, 'Visibility')}, moderation, history, and status of all published and archived event showcases.
             </p>
           </div>
         </div>
@@ -755,7 +757,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search event, org, client..."
+            placeholder={t('developer.searchEventOrgClient', undefined, 'Search event, org, client...')}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-amber-500 outline-none"
           />
         </div>
@@ -765,12 +767,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       {loading ? (
         <div className="py-20 text-center space-y-3">
           <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">Loading showcase submissions...</p>
+          <p className="text-xs text-slate-400">{t('developer.loadingSubmissions', undefined, 'Loading showcase submissions...')}</p>
         </div>
       ) : filteredShowcases.length === 0 ? (
         <div className="py-16 text-center bg-slate-950/40 border border-slate-800 rounded-3xl p-8 space-y-3">
           <Sparkles className="w-8 h-8 text-slate-600 mx-auto" />
-          <h3 className="text-sm font-bold text-slate-300">No Showcase Submissions Found</h3>
+          <h3 className="text-sm font-bold text-slate-300">{t('developer.noSubmissionsFound', undefined, 'No Showcase Submissions Found')}</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             {filterStatus !== 'ALL'
               ? `There are currently no showcases matching the "${filterStatus}" status filter.`
@@ -783,10 +785,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3">Showcase & Event</th>
-                  <th className="px-4 py-3">Organization & Client</th>
+                  <th className="px-4 py-3">{t('developer.showcaseAndEvent', undefined, 'Showcase & Event')}</th>
+                  <th className="px-4 py-3">{t('developer.organizationAndClient', undefined, 'Organization & Client')}</th>
                   <th className="px-4 py-3">Media</th>
-                  <th className="px-4 py-3">Created / Published</th>
+                  <th className="px-4 py-3">{t('developer.createdPublished', undefined, 'Created / Published')}</th>
                   <th className="px-4 py-3">RM300 Reward</th>
                   <th className="px-4 py-3">Visibility</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -824,7 +826,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                               Client: {sc.client_name}
                             </div>
                           ) : (
-                            <div className="text-[11px] text-slate-500 italic">No client specified</div>
+                            <div className="text-[11px] text-slate-500 italic">{t('developer.noClientSpecified', undefined, 'No client specified')}</div>
                           )}
                         </div>
                       </td>
@@ -882,7 +884,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                             </span>
                             <div className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
                               <Gift className="w-3 h-3 text-amber-400" />
-                              <span>RM300 Granted</span>
+                              <span>{t('developer.rm300Granted', undefined, 'RM300 Granted')}</span>
                             </div>
                           </div>
                         ) : isRewardPending(sc) ? (
@@ -943,7 +945,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 type="button"
                                 onClick={() => window.open(`/showcase/${sc.id || sc.event_id}`, '_blank')}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                                title="Open Public Showcase in New Tab"
+                                title={t('developer.openPublicShowcaseNewTab', undefined, 'Open Public Showcase in New Tab')}
                               >
                                 <Eye className="w-3.5 h-3.5 text-emerald-400" />
                                 <span>View</span>
@@ -952,12 +954,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 type="button"
                                 onClick={() => handleShareShowcase(sc)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                                title="Share Public Showcase URL"
+                                title={t('developer.sharePublicShowcaseUrl', undefined, 'Share Public Showcase URL')}
                               >
                                 {copiedShowcaseId === sc.id ? (
                                   <>
                                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span className="text-emerald-400 font-bold">Link copied</span>
+                                    <span className="text-emerald-400 font-bold">{t('developer.linkCopied', undefined, 'Link copied')}</span>
                                   </>
                                 ) : (
                                   <>
@@ -973,7 +975,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                           <button
                             onClick={() => openPreview(sc)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-                            title="Inspect Showcase Details & Media"
+                            title={t('developer.inspectShowcaseDetails', undefined, 'Inspect Showcase Details & Media')}
                           >
                             <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                           </button>
@@ -983,7 +985,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                             <button
                               onClick={() => setApprovingShowcase(sc)}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shadow-emerald-600/30 cursor-pointer"
-                              title="Approve First-Event Showcase Reward (RM300)"
+                              title={t('developer.approveOwnerRewardTitle', undefined, 'Approve First-Event Showcase Reward (RM300)')}
                             >
                               <Check className="w-3.5 h-3.5" />
                               <span>Approve Reward</span>
@@ -1013,7 +1015,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 setBlockReason('');
                               }}
                               className="p-1.5 rounded-lg bg-slate-900 hover:bg-amber-950/40 text-slate-400 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 transition-colors cursor-pointer"
-                              title="Block Showcase (Hide Publicly)"
+                              title={t('developer.blockShowcaseTitle', undefined, 'Block Showcase (Hide Publicly)')}
                             >
                               <ShieldAlert className="w-3.5 h-3.5" />
                             </button>
@@ -1027,10 +1029,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 setUnblockReason('');
                               }}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer"
-                              title="Unblock Showcase (Restore Public Access)"
+                              title={t('developer.unblockShowcaseTitle', undefined, 'Unblock Showcase (Restore Public Access)')}
                             >
                               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Unblock</span>
+                              <span>{t('developer.unblockShowcaseModalTitle', undefined, 'Unblock')}</span>
                             </button>
                           )}
 
@@ -1042,7 +1044,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 setDeleteReason('');
                               }}
                               className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/40 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-colors cursor-pointer"
-                              title="Admin Soft Delete Showcase"
+                              title={t('developer.adminSoftDelete', undefined, 'Admin Soft Delete Showcase')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1067,7 +1069,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">Approve Owner First-Event Reward</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.approveOwnerRewardTitle', undefined, 'Approve Owner First-Event Reward')}</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 You are approving the first-event showcase reward for <strong className="text-slate-200">{approvingShowcase.title}</strong> (Org:{' '}
                 <strong className="text-emerald-400">{approvingShowcase.organization_name}</strong>).
@@ -1082,7 +1084,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 space-y-1">
               <div className="font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Owner-Level Reward Execution</span>
+                <span>{t('developer.ownerRewardExecution', undefined, 'Owner-Level Reward Execution')}</span>
               </div>
               <p className="text-[11px] text-emerald-200/80">
                 1. Verifies lifetime eligibility for the Account Owner (limit 1 reward per owner).<br />
@@ -1122,7 +1124,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-rose-400" />
-                <h3 className="text-sm font-bold text-white">Reject First-Event Showcase Reward</h3>
+                <h3 className="text-sm font-bold text-white">{t('developer.rejectFirstEventRewardTitle', undefined, 'Reject First-Event Showcase Reward')}</h3>
               </div>
               <button
                 type="button"
@@ -1145,7 +1147,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 rows={4}
-                placeholder="e.g. Please provide at least 3 high-resolution photos of the booth activation and ensure the client logo is transparent."
+                placeholder={t('developer.rejectFeedbackPlaceholder', undefined, 'e.g. Please provide at least 3 high-resolution photos of the booth activation and ensure the client logo is transparent.')}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-rose-500 outline-none resize-none"
                 required
               />
@@ -1234,7 +1236,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3">
                   <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                   <div className="space-y-1.5 flex-1">
-                    <div className="text-xs font-bold text-rose-300">Showcase Blocked by Moderation</div>
+                    <div className="text-xs font-bold text-rose-300">{t('developer.showcaseBlockedNotice', undefined, 'Showcase Blocked by Moderation')}</div>
                     <p className="text-xs text-rose-200/90 leading-relaxed bg-rose-950/50 p-2.5 rounded-xl border border-rose-500/20">
                       <span className="font-semibold text-rose-300">Reason:</span> {selectedShowcase.moderation_reason || 'Violates community standards or sensitive content.'}
                     </p>
@@ -1252,7 +1254,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 <div className="p-4 bg-slate-800/60 border border-slate-700 rounded-2xl flex items-start gap-3">
                   <Trash2 className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
                   <div className="space-y-1 flex-1">
-                    <div className="text-xs font-bold text-slate-300">Showcase Administratively Soft-Deleted</div>
+                    <div className="text-xs font-bold text-slate-300">{t('developer.showcaseSoftDeletedNotice', undefined, 'Showcase Administratively Soft-Deleted')}</div>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       {selectedShowcase.moderation_reason || 'Archived by developer administrator.'}
                     </p>
@@ -1316,7 +1318,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 </div>
 
                 {previewMediaLoading ? (
-                  <div className="py-8 text-center text-slate-500">Loading gallery items...</div>
+                  <div className="py-8 text-center text-slate-500">{t('developer.loadingGalleryItems', undefined, 'Loading gallery items...')}</div>
                 ) : previewMedia.length === 0 ? (
                   <div className="p-4 text-center bg-slate-950/40 border border-slate-800 rounded-xl text-slate-500">
                     No media items uploaded for this showcase.
@@ -1346,7 +1348,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                           target="_blank"
                           rel="noreferrer"
                           className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-950/80 text-slate-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Open original"
+                          title={t('developer.openOriginal', undefined, 'Open original')}
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
@@ -1358,7 +1360,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
               {/* Audit Details */}
               <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-1.5 text-[11px] text-slate-400">
-                <div className="font-bold text-slate-300">Audit Information:</div>
+                <div className="font-bold text-slate-300">{t('developer.auditInfo', undefined, 'Audit Information:')}</div>
                 <div>Submitted At: {selectedShowcase.submitted_at ? new Date(selectedShowcase.submitted_at).toLocaleString() : 'N/A'}</div>
                 {selectedShowcase.reviewed_at && (
                   <div>Reviewed At: {new Date(selectedShowcase.reviewed_at).toLocaleString()}</div>
@@ -1515,7 +1517,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   value={blockReason}
                   onChange={(e) => setBlockReason(e.target.value)}
                   rows={4}
-                  placeholder="e.g. Contains sensitive client proprietary assets, or violates community guidelines."
+                  placeholder={t('developer.blockReasonPlaceholder', undefined, 'e.g. Contains sensitive client proprietary assets, or violates community guidelines.')}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none resize-none"
                   required
                 />
@@ -1568,7 +1570,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   value={unblockReason}
                   onChange={(e) => setUnblockReason(e.target.value)}
                   rows={3}
-                  placeholder="e.g. Sensitive assets reviewed and cleared with event organizer."
+                  placeholder={t('developer.unblockReasonPlaceholder', undefined, 'e.g. Sensitive assets reviewed and cleared with event organizer.')}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 outline-none resize-none"
                 />
               </div>
@@ -1620,7 +1622,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   value={deleteReason}
                   onChange={(e) => setDeleteReason(e.target.value)}
                   rows={3}
-                  placeholder="e.g. Inappropriate content, copyright infringement, or spam."
+                  placeholder={t('developer.softDeleteReasonPlaceholder', undefined, 'e.g. Inappropriate content, copyright infringement, or spam.')}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-rose-500 outline-none resize-none"
                   required
                 />

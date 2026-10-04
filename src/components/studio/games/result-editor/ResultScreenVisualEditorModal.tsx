@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import {
   ResultScreenElement,
   ResultCardElement,
@@ -63,6 +64,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   onClose,
   historyController,
 }) => {
+  const { t } = useLocalization();
   const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
   const isCatch = gameType === 'catch-brand';
 
@@ -1151,7 +1153,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          <span>Layers</span>
+          <span>{t('editor.layers', undefined, 'Layers')}</span>
         </button>
         <button
           type="button"
@@ -1161,7 +1163,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
           }`}
         >
           <Layout className="w-3.5 h-3.5" />
-          <span>Canvas</span>
+          <span>{t('editor.canvas', undefined, 'Canvas')}</span>
         </button>
         <button
           type="button"
@@ -1171,7 +1173,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
           }`}
         >
           <Sliders className="w-3.5 h-3.5" />
-          <span>Properties</span>
+          <span>{t('editor.properties', undefined, 'Properties')}</span>
         </button>
       </div>
 

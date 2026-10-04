@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import {
   AlertOctagon,
@@ -39,6 +40,7 @@ export interface ApiErrorLogItem {
 }
 
 export const DeveloperErrorLogs: React.FC = () => {
+  const { t } = useLocalization();
   const [logs, setLogs] = useState<ApiErrorLogItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -238,13 +240,13 @@ export const DeveloperErrorLogs: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              API Error Logs & Diagnostic Audit
+              {t('developer.apiErrorLogsTitle')}
               <span className="px-2.5 py-0.5 text-xs rounded-full font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                {totalCount} Total Logs
+                {t('developer.totalLogsCount', { count: totalCount })}
               </span>
             </h1>
             <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-              Real-time audit log of sanitized API failures, correlation IDs, stack traces, and backend infrastructure diagnostics.
+              {t('developer.apiErrorLogsDesc')}
             </p>
           </div>
         </div>
@@ -256,7 +258,7 @@ export const DeveloperErrorLogs: React.FC = () => {
             className="flex items-center space-x-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
-            <span>Refresh</span>
+            <span>{t('common.refresh')}</span>
           </button>
         </div>
       </div>
@@ -269,7 +271,7 @@ export const DeveloperErrorLogs: React.FC = () => {
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
             <input
               type="text"
-              placeholder="Search by Request ID, message, or endpoint..."
+              placeholder={t('developer.searchLogsPlaceholder')}
               value={searchQuery}
               onChange={e => {
                 setSearchQuery(e.target.value);
@@ -287,10 +289,10 @@ export const DeveloperErrorLogs: React.FC = () => {
                 setSelectedService(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by Service"
+              aria-label={t('developer.filterByService')}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-emerald-500/50"
             >
-              <option value="">All Services</option>
+              <option value="">{t('developer.allServices')}</option>
               <option value="postgres">PostgreSQL</option>
               <option value="supabase">Supabase</option>
               <option value="stripe">Stripe</option>
@@ -310,10 +312,10 @@ export const DeveloperErrorLogs: React.FC = () => {
                 setSelectedStatusCode(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by HTTP Status Code"
+              aria-label={t('developer.filterByStatus')}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-emerald-500/50"
             >
-              <option value="">All Status Codes</option>
+              <option value="">{t('developer.allStatusCodes')}</option>
               <option value="500">500 (Internal Server Error)</option>
               <option value="400">400 (Bad Request)</option>
               <option value="401">401 (Unauthorized)</option>

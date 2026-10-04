@@ -55,27 +55,32 @@ async function runTests() {
   }
   console.log('  ✓ 1b. Admin possesses all granular event permissions');
 
-  // Test 3: Designer has event.view but CANNOT mutate event configuration
+  // Test 3: Designer MUST NOT have event or wallet permissions (Design-only role)
   assert.ok(
-    PERMISSIONS.designer.includes('event.view'),
-    'Designer role must include event.view'
+    !PERMISSIONS.designer.includes('event.view'),
+    'Designer role MUST NOT include event.view'
   );
-  assert.ok(
+  assert.strictEqual(
     hasRolePermission('designer', 'event.view'),
-    'hasRolePermission(\'designer\', \'event.view\') must return true'
+    false,
+    'hasRolePermission(\'designer\', \'event.view\') must return false'
   );
 
-  const restrictedEventPermsForDesigner = [
+  const restrictedEventAndWalletPermsForDesigner = [
+    'event.view',
     'event.create',
     'event.edit',
     'event.cancel',
     'event.pay',
     'event.manage',
+    'wallet.view',
+    'wallet.topup',
+    'wallet.transactions.view',
   ];
-  for (const perm of restrictedEventPermsForDesigner) {
+  for (const perm of restrictedEventAndWalletPermsForDesigner) {
     assert.ok(
       !PERMISSIONS.designer.includes(perm),
-      `Designer role MUST NOT include event mutation permission: ${perm}`
+      `Designer role MUST NOT include operational permission: ${perm}`
     );
     assert.strictEqual(
       hasRolePermission('designer', perm),
@@ -83,7 +88,7 @@ async function runTests() {
       `hasRolePermission('designer', '${perm}') must return false`
     );
   }
-  console.log('  ✓ 1c. Designer has event.view but is strictly excluded from event mutation permissions');
+  console.log('  ✓ 1c. Designer is strictly excluded from all event and wallet permissions');
 
   // Test 4: Designer retains game/theme editing capabilities
   const designerGamePerms = [
@@ -109,7 +114,9 @@ async function runTests() {
   // Test 5: Viewer is view-only
   assert.ok(PERMISSIONS.viewer.includes('event.view'), 'Viewer must have event.view');
   assert.ok(PERMISSIONS.viewer.includes('game.view'), 'Viewer must have game.view');
-  for (const perm of [...restrictedEventPermsForDesigner, 'game.items.edit']) {
+  assert.ok(PERMISSIONS.viewer.includes('wallet.view'), 'Viewer must have wallet.view');
+  assert.ok(PERMISSIONS.viewer.includes('wallet.transactions.view'), 'Viewer must have wallet.transactions.view');
+  for (const perm of ['event.create', 'event.edit', 'event.cancel', 'event.pay', 'event.manage', 'game.items.edit', 'wallet.topup']) {
     assert.ok(!PERMISSIONS.viewer.includes(perm), `Viewer must not have permission: ${perm}`);
     assert.strictEqual(hasRolePermission('viewer', perm), false);
   }
@@ -170,16 +177,37 @@ async function runTests() {
   assert.strictEqual(designerEditCheck.hasPermission, false);
   assert.strictEqual(designerEditCheck.role, 'designer');
 
-  // Test verifyOrgMembershipAndPermission for Designer on event.view
+  // Test verifyOrgMembershipAndPermission for Designer on event.view (MUST BE FALSE)
   const designerViewCheck = await verifyOrgMembershipAndPermission(designerUser.id, org.id, 'event.view', workerEnv);
   assert.strictEqual(designerViewCheck.isMember, true);
-  assert.strictEqual(designerViewCheck.hasPermission, true);
+  assert.strictEqual(designerViewCheck.hasPermission, false);
   assert.strictEqual(designerViewCheck.role, 'designer');
 
-  // Test verifyOrgMembershipAndPermission for Designer on game.items.edit
+  // Test verifyOrgMembershipAndPermission for Designer on wallet.view (MUST BE FALSE)
+  const designerWalletCheck = await verifyOrgMembershipAndPermission(designerUser.id, org.id, 'wallet.view', workerEnv);
+  assert.strictEqual(designerWalletCheck.isMember, true);
+  assert.strictEqual(designerWalletCheck.hasPermission, false);
+
+  // Test verifyOrgMembershipAndPermission for Designer on game.items.edit (MUST BE TRUE)
   const designerGameCheck = await verifyOrgMembershipAndPermission(designerUser.id, org.id, 'game.items.edit', workerEnv);
   assert.strictEqual(designerGameCheck.isMember, true);
   assert.strictEqual(designerGameCheck.hasPermission, true);
+
+  // Test verifyOrgMembershipAndPermission for Viewer on event.view & wallet.view (MUST BE TRUE)
+  const viewerEventCheck = await verifyOrgMembershipAndPermission(viewerUser.id, org.id, 'event.view', workerEnv);
+  assert.strictEqual(viewerEventCheck.isMember, true);
+  assert.strictEqual(viewerEventCheck.hasPermission, true);
+
+  const viewerWalletCheck = await verifyOrgMembershipAndPermission(viewerUser.id, org.id, 'wallet.view', workerEnv);
+  assert.strictEqual(viewerWalletCheck.isMember, true);
+  assert.strictEqual(viewerWalletCheck.hasPermission, true);
+
+  // Test verifyOrgMembershipAndPermission for Viewer on mutations (MUST BE FALSE)
+  const viewerEditCheck = await verifyOrgMembershipAndPermission(viewerUser.id, org.id, 'event.edit', workerEnv);
+  assert.strictEqual(viewerEditCheck.hasPermission, false);
+
+  const viewerTopupCheck = await verifyOrgMembershipAndPermission(viewerUser.id, org.id, 'wallet.topup', workerEnv);
+  assert.strictEqual(viewerTopupCheck.hasPermission, false);
 
   console.log('  ✓ 2a. verifyOrgMembershipAndPermission correctly computes hasPermission per role');
 
@@ -201,8 +229,8 @@ async function runTests() {
     game_id: 'catch-brand',
     game_theme_id: theme.id,
     name: 'Annual Gala',
-    start_date: '2026-10-01',
-    end_date: '2026-10-02',
+    start_date: '2026-11-01',
+    end_date: '2026-11-02',
     event_price: 1900,
     payment_status: 'UNPAID',
     event_status: 'DRAFT',
@@ -211,6 +239,8 @@ async function runTests() {
 
   const designerJwt = await signAppToken(designerUser.id, org.id, 'designer', workerEnv.JWT_SECRET, workerEnv);
   const ownerJwt = await signAppToken(ownerUser.id, org.id, 'owner', workerEnv.JWT_SECRET, workerEnv);
+  const adminJwt = await signAppToken(adminUser.id, org.id, 'admin', workerEnv.JWT_SECRET, workerEnv);
+  const viewerJwt = await signAppToken(viewerUser.id, org.id, 'viewer', workerEnv.JWT_SECRET, workerEnv);
 
   // Test 3a: Designer cannot modify event configuration (PUT /api/events/:eventId)
   const designerPutRes = await worker.fetch(
@@ -324,7 +354,7 @@ async function runTests() {
   );
   console.log('  ✓ 3e. Designer blocked from deleting events (DELETE /api/events/:id)');
 
-  // Test 3f: Designer CAN view events (GET /api/events)
+  // Test 3f: Designer CANNOT view events (GET /api/events) -> 403 Forbidden
   const designerGetEventsRes = await worker.fetch(
     new Request('https://api.eventgamestudio.local/api/events', {
       method: 'GET',
@@ -336,12 +366,102 @@ async function runTests() {
   );
   assert.strictEqual(
     designerGetEventsRes.status,
-    200,
-    'Designer must be able to view events (GET /api/events)'
+    403,
+    'Designer must be blocked from viewing events (GET /api/events)'
   );
-  console.log('  ✓ 3f. Designer allowed to view events (GET /api/events)');
+  console.log('  ✓ 3f. Designer strictly blocked from viewing events list (GET /api/events)');
 
-  // Test 3g: Designer CAN edit game themes (PUT /api/themes/:themeId)
+  // Test 3g: Designer CANNOT view single event details (GET /api/events/:id)
+  const designerGetEventDetailsRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/events/${event.id}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${designerJwt}`,
+      },
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    designerGetEventDetailsRes.status,
+    403,
+    'Designer must be blocked from viewing event details (GET /api/events/:id)'
+  );
+  console.log('  ✓ 3g. Designer strictly blocked from viewing event details (GET /api/events/:id)');
+
+  // Test 3h: Designer CANNOT access event preview (GET /api/events/:id/preview)
+  const designerPreviewRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/events/${event.id}/preview`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${designerJwt}`,
+      },
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    designerPreviewRes.status,
+    403,
+    'Designer must be blocked from event preview (GET /api/events/:id/preview)'
+  );
+  console.log('  ✓ 3h. Designer strictly blocked from event preview (GET /api/events/:id/preview)');
+
+  // Test 3i: Designer CANNOT access wallet balance (GET /api/organizations/:orgId/wallet)
+  const designerWalletRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/organizations/${org.id}/wallet`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${designerJwt}`,
+      },
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    designerWalletRes.status,
+    403,
+    'Designer must be blocked from accessing wallet balance'
+  );
+  console.log('  ✓ 3i. Designer strictly blocked from wallet balance (GET /api/organizations/:orgId/wallet)');
+
+  // Test 3j: Designer CANNOT access wallet transactions (GET /api/organizations/:orgId/wallet/transactions)
+  const designerTxnsRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/organizations/${org.id}/wallet/transactions`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${designerJwt}`,
+      },
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    designerTxnsRes.status,
+    403,
+    'Designer must be blocked from accessing wallet transactions'
+  );
+  console.log('  ✓ 3j. Designer strictly blocked from wallet transactions (GET /api/organizations/:orgId/wallet/transactions)');
+
+  // Test 3k: Designer CANNOT create top-up orders (POST /api/organizations/:orgId/wallet/topup-orders)
+  const designerTopupRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/organizations/${org.id}/wallet/topup-orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${designerJwt}`,
+      },
+      body: JSON.stringify({
+        amount: 1400,
+        currency: 'MYR',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    designerTopupRes.status,
+    403,
+    'Designer must be blocked from creating top-up orders'
+  );
+  console.log('  ✓ 3k. Designer strictly blocked from top-up orders (POST /api/organizations/:orgId/wallet/topup-orders)');
+
+  // Test 3l: Designer CAN edit game themes (PUT /api/themes/:themeId)
   const designerThemeRes = await worker.fetch(
     new Request(`https://api.eventgamestudio.local/api/themes/${theme.id}`, {
       method: 'PUT',
@@ -360,9 +480,136 @@ async function runTests() {
     200,
     'Designer must be permitted to edit game themes'
   );
-  console.log('  ✓ 3g. Designer successfully modifies game theme (PUT /api/themes/:id)');
+  console.log('  ✓ 3l. Designer successfully modifies game theme (PUT /api/themes/:id)');
 
-  // Test 3h: Owner CAN modify event configuration (PUT /api/events/:id)
+  // Test 3m: Viewer CAN view events (GET /api/events)
+  const viewerGetEventsRes = await worker.fetch(
+    new Request('https://api.eventgamestudio.local/api/events', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${viewerJwt}`,
+      },
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    viewerGetEventsRes.status,
+    200,
+    'Viewer must be able to view events (GET /api/events)'
+  );
+  console.log('  ✓ 3m. Viewer allowed to view events (GET /api/events)');
+
+  // Test 3n: Viewer CAN view wallet (GET /api/organizations/:orgId/wallet)
+  const viewerWalletRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/organizations/${org.id}/wallet`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${viewerJwt}`,
+      },
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    viewerWalletRes.status,
+    200,
+    'Viewer must be able to view wallet balance'
+  );
+  console.log('  ✓ 3n. Viewer allowed to view wallet balance (GET /api/organizations/:orgId/wallet)');
+
+  // Test 3o: Viewer CANNOT mutate themes (PUT /api/themes/:id)
+  const viewerThemeRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/themes/${theme.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${viewerJwt}`,
+      },
+      body: JSON.stringify({
+        name: 'Hacked by Viewer',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    viewerThemeRes.status,
+    403,
+    'Viewer must be blocked from modifying themes'
+  );
+  console.log('  ✓ 3o. Viewer strictly blocked from modifying themes (PUT /api/themes/:id)');
+
+  // Test 3p: Viewer CANNOT create events (POST /api/events)
+  const viewerCreateEventRes = await worker.fetch(
+    new Request('https://api.eventgamestudio.local/api/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${viewerJwt}`,
+      },
+      body: JSON.stringify({
+        name: 'Viewer Event',
+        game_id: 'catch-brand',
+        game_theme_id: theme.id,
+        start_date: '2026-12-01',
+        end_date: '2026-12-02',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    viewerCreateEventRes.status,
+    403,
+    'Viewer must be blocked from creating events'
+  );
+  console.log('  ✓ 3p. Viewer strictly blocked from creating events (POST /api/events)');
+
+  // Test 3q: Admin CAN create events (POST /api/events)
+  const adminCreateEventRes = await worker.fetch(
+    new Request('https://api.eventgamestudio.local/api/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminJwt}`,
+      },
+      body: JSON.stringify({
+        name: 'Admin Created Gala',
+        game_id: 'catch-brand',
+        game_theme_id: theme.id,
+        start_date: '2026-12-10',
+        end_date: '2026-12-11',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    adminCreateEventRes.status,
+    201,
+    'Admin must be allowed to create events'
+  );
+  console.log('  ✓ 3q. Admin successfully creates event (POST /api/events)');
+
+  // Test 3r: Admin CAN create top-up orders (POST /api/organizations/:orgId/wallet/topup-orders)
+  const adminTopupRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/organizations/${org.id}/wallet/topup-orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminJwt}`,
+      },
+      body: JSON.stringify({
+        amount: 3000,
+        currency: 'MYR',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    adminTopupRes.status,
+    201,
+    'Admin must be allowed to create top-up orders'
+  );
+  console.log('  ✓ 3r. Admin successfully creates top-up order (POST /api/organizations/:orgId/wallet/topup-orders)');
+
+  // Test 3s: Owner CAN modify event configuration (PUT /api/events/:id)
   const ownerPutRes = await worker.fetch(
     new Request(`https://api.eventgamestudio.local/api/events/${event.id}`, {
       method: 'PUT',
@@ -383,9 +630,9 @@ async function runTests() {
   );
   const ownerPutBody = await ownerPutRes.json() as any;
   assert.strictEqual(ownerPutBody.event.name, 'Renamed by Owner');
-  console.log('  ✓ 3h. Owner successfully modifies event configuration (PUT /api/events/:id)');
+  console.log('  ✓ 3s. Owner successfully modifies event configuration (PUT /api/events/:id)');
 
-  // Test 3i: Designer blocked from creating showcase (POST /api/events/:id/showcase)
+  // Test 3t: Designer blocked from creating showcase (POST /api/events/:id/showcase)
   const completedEvent = await createEvent({
     organization_id: org.id,
     game_id: 'catch-brand',
@@ -427,9 +674,9 @@ async function runTests() {
     403,
     'Designer must be blocked from creating event showcase'
   );
-  console.log('  ✓ 3i. Designer blocked from creating event showcase (POST /api/events/:id/showcase)');
+  console.log('  ✓ 3t. Designer blocked from creating event showcase (POST /api/events/:id/showcase)');
 
-  // Test 3j: Owner can create event showcase (POST /api/events/:id/showcase)
+  // Test 3u: Owner can create event showcase (POST /api/events/:id/showcase)
   const ownerShowcaseRes = await worker.fetch(
     new Request(`https://api.eventgamestudio.local/api/events/${completedEvent.id}/showcase`, {
       method: 'POST',
@@ -448,14 +695,11 @@ async function runTests() {
     201,
     'Owner must be allowed to create event showcase'
   );
-  console.log('  ✓ 3j. Owner successfully creates event showcase (POST /api/events/:id/showcase)');
+  console.log('  ✓ 3u. Owner successfully creates event showcase (POST /api/events/:id/showcase)');
 
   console.log('\n======================================================');
   console.log('All Granular Event Permission Tests Passed Successfully!');
   console.log('======================================================');
 }
 
-runTests().catch((err) => {
-  console.error('Test failure:', err);
-  process.exit(1);
-});
+await runTests();

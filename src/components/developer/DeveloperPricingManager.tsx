@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { PlatformPricingSettings, AdminEventPricingItem, EventPricingRule, PlatformGame } from '../../types/developer';
 import { calculateEventCalendarDays } from '../../lib/dateUtils';
@@ -47,6 +48,7 @@ const DEFAULT_RULE_TEMPLATES: EventPricingRule[] = [
 ];
 
 export const DeveloperPricingManager: React.FC = () => {
+  const { t } = useLocalization();
   const [pricingSettings, setPricingSettings] = useState<PlatformPricingSettings>({
     default_price: 1400,
     default_currency: 'MYR',
@@ -209,12 +211,12 @@ export const DeveloperPricingManager: React.FC = () => {
   // Rule Helpers & Validation
   const formatRuleRange = (rule: EventPricingRule) => {
     if (rule.max_days === null) {
-      return `${rule.min_days}+ calendar days`;
+      return t('developer.calendarDaysPlus', { count: rule.min_days });
     }
     if (rule.min_days === rule.max_days) {
-      return `${rule.min_days} calendar day${rule.min_days > 1 ? 's' : ''}`;
+      return t('developer.calendarDaysCount', { count: rule.min_days });
     }
-    return `${rule.min_days} to ${rule.max_days} calendar days`;
+    return `${rule.min_days} - ${rule.max_days} ${t('developer.calendarDaysCount', { count: rule.max_days })}`;
   };
 
   const handleSavePricingRules = async (rulesToSave: EventPricingRule[]) => {
@@ -512,9 +514,9 @@ export const DeveloperPricingManager: React.FC = () => {
               <Coins className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">Event Pricing & Duration Control</h1>
+              <h1 className="text-2xl font-black text-white tracking-tight">{t('developer.eventPricingDurationControl')}</h1>
               <p className="text-xs text-slate-400">
-                Server-authoritative calendar-day duration tiers, platform base pricing, and custom event overrides.
+                {t('developer.eventPricingDurationControlDesc')}
               </p>
             </div>
           </div>
@@ -528,7 +530,7 @@ export const DeveloperPricingManager: React.FC = () => {
             title="Execute background maintenance job to cancel expired unpaid events and complete expired live events"
           >
             <ShieldCheck className={`w-3.5 h-3.5 ${runningMaintenance ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
-            <span>{runningMaintenance ? 'Running Maintenance...' : 'Run Lifecycle Maintenance'}</span>
+            <span>{runningMaintenance ? t('developer.runningMaintenance') : t('developer.runLifecycleMaintenance')}</span>
           </button>
 
           <button
@@ -537,7 +539,7 @@ export const DeveloperPricingManager: React.FC = () => {
             className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : ''}`} />
-            <span>Refresh Data</span>
+            <span>{t('developer.refreshData')}</span>
           </button>
         </div>
       </div>
@@ -578,7 +580,7 @@ export const DeveloperPricingManager: React.FC = () => {
           }`}
         >
           <Gamepad2 className="w-4 h-4" />
-          <span>Game-Specific Pricing Tiers</span>
+          <span>{t('developer.gameSpecificPricingTiers')}</span>
           <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-950/30 text-current">
             {games.length} games
           </span>
@@ -593,7 +595,7 @@ export const DeveloperPricingManager: React.FC = () => {
           }`}
         >
           <Calendar className="w-4 h-4" />
-          <span>Event Pricing Overrides</span>
+          <span>{t('developer.eventPricingOverrides')}</span>
           <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-950/30 text-current">
             {events.length}
           </span>
@@ -608,7 +610,7 @@ export const DeveloperPricingManager: React.FC = () => {
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span>Platform Fallback & Settings</span>
+          <span>{t('developer.platformFallbackSettings')}</span>
         </button>
       </div>
 
@@ -622,8 +624,8 @@ export const DeveloperPricingManager: React.FC = () => {
                 <Gamepad2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Select Game Engine</h3>
-                <p className="text-xs text-slate-400">Choose a game to inspect or customize its duration-based license pricing tiers</p>
+                <h3 className="text-sm font-bold text-white">{t('developer.selectGameEngine')}</h3>
+                <p className="text-xs text-slate-400">{t('developer.selectGameEngineDesc')}</p>
               </div>
             </div>
 
@@ -682,9 +684,9 @@ export const DeveloperPricingManager: React.FC = () => {
                 <Sliders className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white">Platform Default Base Price (1 Day)</h2>
+                <h2 className="text-base font-bold text-white">{t('developer.platformDefaultBasePrice', undefined, 'Platform Default Base Price (1 Day)')}</h2>
                 <p className="text-xs text-slate-400">
-                  Authoritative base price fallback applied to 1-day events across all organizations
+                  {t('developer.platformDefaultBasePriceDesc', undefined, 'Authoritative base price fallback applied to 1-day events across all organizations')}
                 </p>
               </div>
             </div>
@@ -699,7 +701,7 @@ export const DeveloperPricingManager: React.FC = () => {
                 className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Base</span>
+                <span>{t('developer.editBase', undefined, 'Edit Base')}</span>
               </button>
             )}
           </div>
@@ -711,11 +713,11 @@ export const DeveloperPricingManager: React.FC = () => {
                   <span className="text-3xl font-black text-amber-400 font-mono tracking-tight">
                     {pricingSettings.default_currency} {pricingSettings.default_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">/ 1 calendar day</span>
+                  <span className="text-xs text-slate-400 font-medium">{t('developer.calendarDay', undefined, '/ 1 calendar day')}</span>
                 </div>
                 <div className="flex items-center space-x-2 mt-2 text-[11px] text-slate-400">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Server-authoritative database setting</span>
+                  <span>{t('developer.serverAuthSetting', undefined, 'Server-authoritative database setting')}</span>
                   {pricingSettings.updated_at && (
                     <>
                       <span>•</span>
@@ -728,7 +730,7 @@ export const DeveloperPricingManager: React.FC = () => {
               <div className="bg-slate-950/60 rounded-2xl p-3 border border-slate-800 text-[11px] text-slate-400 max-w-sm space-y-1">
                 <div className="flex items-center space-x-1 text-slate-300 font-semibold">
                   <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Authoritative Price Rule:</span>
+                  <span>{t('developer.authoritativePrice', undefined, 'Authoritative Price')} Rule:</span>
                 </div>
                 <p>
                   Prices are locked into event records at creation time. Historical events preserve their original locked price.
@@ -792,12 +794,12 @@ export const DeveloperPricingManager: React.FC = () => {
                   {savingSettings ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving Base...</span>
+                      <span>{t('developer.savingBase', undefined, 'Saving Base...')}</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>Save Platform Base</span>
+                      <span>{t('developer.savePlatformBase', undefined, 'Save Platform Base')}</span>
                     </>
                   )}
                 </button>
@@ -812,7 +814,7 @@ export const DeveloperPricingManager: React.FC = () => {
             <span className="text-slate-400 text-xs font-medium">Duration Tiers</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-amber-400 font-mono">{pricingRules.length}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Active tier rules</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.activeTierRules', undefined, 'Active tier rules')}</span>
             </div>
           </div>
 
@@ -820,7 +822,7 @@ export const DeveloperPricingManager: React.FC = () => {
             <span className="text-slate-400 text-xs font-medium">Platform Events</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-white font-mono">{events.length}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Across all orgs</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.acrossAllOrgs', undefined, 'Across all orgs')}</span>
             </div>
           </div>
 
@@ -828,7 +830,7 @@ export const DeveloperPricingManager: React.FC = () => {
             <span className="text-slate-400 text-xs font-medium">Custom Overrides</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-cyan-400 font-mono">{customPriceCount}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Admin custom rates</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.adminCustomRates', undefined, 'Admin custom rates')}</span>
             </div>
           </div>
 
@@ -836,7 +838,7 @@ export const DeveloperPricingManager: React.FC = () => {
             <span className="text-slate-400 text-xs font-medium">Credit Coverage</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-emerald-400 font-mono">20% Cap</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Top-up bonus max</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.topUpBonusMax', undefined, 'Top-up bonus max')}</span>
             </div>
           </div>
         </div>
@@ -850,7 +852,7 @@ export const DeveloperPricingManager: React.FC = () => {
               <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
                 <Clock className="w-4 h-4" />
               </div>
-              <h3 className="text-base font-bold text-white">Duration-Based Pricing Tiers</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.durationBasedPricingTiers', undefined, 'Duration-Based Pricing Tiers')}</h3>
             </div>
             <p className="text-xs text-slate-400 mt-1">
               Configure tiered pricing based on the event's calendar-day duration (Start Date to End Date inclusive).
@@ -871,7 +873,7 @@ export const DeveloperPricingManager: React.FC = () => {
               className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer shadow-md"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Add Duration Tier</span>
+              <span>{t('developer.addDurationTier', undefined, 'Add Duration Tier')}</span>
             </button>
           </div>
         </div>
@@ -881,11 +883,11 @@ export const DeveloperPricingManager: React.FC = () => {
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <tr>
-                <th className="px-5 py-3.5">Duration Range</th>
-                <th className="px-5 py-3.5">Min Days</th>
-                <th className="px-5 py-3.5">Max Days</th>
+                <th className="px-5 py-3.5">{t('developer.durationRange', undefined, 'Duration Range')}</th>
+                <th className="px-5 py-3.5">{t('developer.minDaysHeader', undefined, 'Min Days')}</th>
+                <th className="px-5 py-3.5">{t('developer.maxDaysHeader', undefined, 'Max Days')}</th>
                 <th className="px-5 py-3.5">Authoritative Price</th>
-                <th className="px-5 py-3.5">Daily Equivalent</th>
+                <th className="px-5 py-3.5">{t('developer.dailyEquivalent', undefined, 'Daily Equivalent')}</th>
                 <th className="px-5 py-3.5">Status</th>
                 <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
@@ -934,14 +936,14 @@ export const DeveloperPricingManager: React.FC = () => {
                         <button
                           onClick={() => handleOpenEditRule(rule)}
                           className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Edit Tier"
+                          title={t('developer.editTier', undefined, 'Edit Tier')}
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteRule(rule.id)}
                           className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Tier"
+                          title={t('developer.deleteTier', undefined, 'Delete Tier')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -962,7 +964,7 @@ export const DeveloperPricingManager: React.FC = () => {
             <Calculator className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Duration Pricing Simulator</h3>
+            <h3 className="text-base font-bold text-white">{t('developer.durationPricingSimulator', undefined, 'Duration Pricing Simulator')}</h3>
             <p className="text-xs text-slate-400">
               Test how calendar-day ranges calculate server-authoritative event license pricing.
             </p>
@@ -997,13 +999,13 @@ export const DeveloperPricingManager: React.FC = () => {
 
           <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/80 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Calculated Duration:</span>
+              <span className="text-xs text-slate-400">{t('developer.calculatedDuration', undefined, 'Calculated Duration:')}</span>
               <span className="text-xs font-bold text-white font-mono">
                 {simDurationDays} calendar day{simDurationDays > 1 ? 's' : ''}
               </span>
             </div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-900">
-              <span className="text-xs text-slate-400">Simulated Quote:</span>
+              <span className="text-xs text-slate-400">{t('developer.simulatedQuote', undefined, 'Simulated Quote:')}</span>
               <span className="text-base font-black text-amber-400 font-mono">
                 {simCurrency} {simQuotePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
@@ -1026,7 +1028,7 @@ export const DeveloperPricingManager: React.FC = () => {
         {/* Table Header & Search Filter Bar */}
         <div className="p-5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-slate-900/50">
           <div>
-            <h3 className="text-base font-bold text-white">Event Pricing Inventory</h3>
+            <h3 className="text-base font-bold text-white">{t('developer.eventPricingInventory', undefined, 'Event Pricing Inventory')}</h3>
             <p className="text-xs text-slate-400">
               View and configure authoritative prices for every event individually with locked rates.
             </p>
@@ -1038,7 +1040,7 @@ export const DeveloperPricingManager: React.FC = () => {
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search event or organization..."
+                placeholder={t('developer.searchEventOrOrg', undefined, 'Search event or organization...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
@@ -1051,9 +1053,9 @@ export const DeveloperPricingManager: React.FC = () => {
               onChange={(e) => setPricingTypeFilter(e.target.value as any)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
             >
-              <option value="all">All Pricing Types</option>
-              <option value="custom">Custom Overrides Only</option>
-              <option value="default">Standard Tiers Only</option>
+              <option value="all">{t('developer.allPricingTypes', undefined, 'All Pricing Types')}</option>
+              <option value="custom">{t('developer.customOverridesOnly', undefined, 'Custom Overrides Only')}</option>
+              <option value="default">{t('developer.standardTiersOnly', undefined, 'Standard Tiers Only')}</option>
             </select>
 
             {/* Status Filter */}
@@ -1062,13 +1064,13 @@ export const DeveloperPricingManager: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
             >
-              <option value="all">All Event & Payment Statuses</option>
-              <option value="draft">Event: DRAFT</option>
-              <option value="live">Event: LIVE</option>
-              <option value="completed">Event: COMPLETED</option>
-              <option value="cancelled">Event: CANCELLED</option>
-              <option value="paid">Payment: PAID</option>
-              <option value="unpaid">Payment: UNPAID</option>
+              <option value="all">{t('developer.allStatuses', undefined, 'All Event & Payment Statuses')}</option>
+              <option value="draft">{t('developer.eventDraft', undefined, 'Event: DRAFT')}</option>
+              <option value="live">{t('developer.eventLive', undefined, 'Event: LIVE')}</option>
+              <option value="completed">{t('developer.eventCompleted', undefined, 'Event: COMPLETED')}</option>
+              <option value="cancelled">{t('developer.eventCancelled', undefined, 'Event: CANCELLED')}</option>
+              <option value="paid">{t('developer.paymentPaid', undefined, 'Payment: PAID')}</option>
+              <option value="unpaid">{t('developer.paymentUnpaid', undefined, 'Payment: UNPAID')}</option>
             </select>
           </div>
         </div>
@@ -1077,25 +1079,25 @@ export const DeveloperPricingManager: React.FC = () => {
         {loading ? (
           <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
             <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
-            <span className="text-xs">Loading event pricing ledger...</span>
+            <span className="text-xs">{t('developer.loadingEventPricing', undefined, 'Loading event pricing ledger...')}</span>
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="p-12 text-center text-slate-400 space-y-2">
             <Coins className="w-8 h-8 mx-auto text-slate-600" />
-            <p className="text-sm font-semibold text-slate-300">No events found</p>
-            <p className="text-xs text-slate-500">Try adjusting your search or filters.</p>
+            <p className="text-sm font-semibold text-slate-300">{t('developer.noEventsFound', undefined, 'No events found')}</p>
+            <p className="text-xs text-slate-500">{t('developer.adjustSearchOrFilters', undefined, 'Try adjusting your search or filters.')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 <tr>
-                  <th className="px-5 py-3.5">Event Name</th>
+                  <th className="px-5 py-3.5">{t('developer.eventName', undefined, 'Event Name')}</th>
                   <th className="px-5 py-3.5">Organization</th>
-                  <th className="px-5 py-3.5">Duration & Dates</th>
-                  <th className="px-5 py-3.5">Effective Price</th>
-                  <th className="px-5 py-3.5">Pricing Status</th>
-                  <th className="px-5 py-3.5">Event Status</th>
+                  <th className="px-5 py-3.5">{t('developer.durationAndDates', undefined, 'Duration & Dates')}</th>
+                  <th className="px-5 py-3.5">{t('developer.effectivePrice', undefined, 'Effective Price')}</th>
+                  <th className="px-5 py-3.5">{t('developer.pricingStatus', undefined, 'Pricing Status')}</th>
+                  <th className="px-5 py-3.5">{t('developer.eventStatus', undefined, 'Event Status')}</th>
                   <th className="px-5 py-3.5">Payment Status</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
@@ -1154,7 +1156,7 @@ export const DeveloperPricingManager: React.FC = () => {
                             </div>
                           </>
                         ) : (
-                          <div className="text-xs text-slate-400 italic">Pending Quote</div>
+                          <div className="text-xs text-slate-400 italic">{t('developer.pendingQuote', undefined, 'Pending Quote')}</div>
                         )}
                       </td>
 
@@ -1233,10 +1235,10 @@ export const DeveloperPricingManager: React.FC = () => {
                           <button
                             onClick={() => handleOpenEditEvent(ev)}
                             className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-amber-500/20 hover:text-amber-300 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
-                            title="Edit Price"
+                            title={t('developer.editPrice', undefined, 'Edit Price')}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
-                            <span>Edit Price</span>
+                            <span>{t('developer.editPrice', undefined, 'Edit Price')}</span>
                           </button>
 
                           {(isCancelled || eventStatus === 'DRAFT') && (
@@ -1244,7 +1246,7 @@ export const DeveloperPricingManager: React.FC = () => {
                               onClick={() => handleReactivateEvent(ev.id, ev.name)}
                               disabled={reactivatingId === ev.id}
                               className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer disabled:opacity-50"
-                              title="Manually override status & reactivate event"
+                              title={t('developer.reactivateEvent', undefined, 'Manually override status & reactivate event')}
                             >
                               <ShieldCheck className={`w-3.5 h-3.5 ${reactivatingId === ev.id ? 'animate-spin' : ''}`} />
                               <span>{reactivatingId === ev.id ? 'Reactivating...' : 'Reactivate'}</span>
@@ -1275,7 +1277,7 @@ export const DeveloperPricingManager: React.FC = () => {
                   <h3 className="text-base font-bold text-white">
                     {editingRuleId ? 'Edit Duration Tier' : 'Add Duration Tier'}
                   </h3>
-                  <p className="text-xs text-slate-400">Configure day range and fixed rate</p>
+                  <p className="text-xs text-slate-400">{t('developer.configureDayRange', undefined, 'Configure day range and fixed rate')}</p>
                 </div>
               </div>
               <button
@@ -1397,7 +1399,7 @@ export const DeveloperPricingManager: React.FC = () => {
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Edit Event Price</h3>
+                  <h3 className="text-base font-bold text-white">{t('developer.editEventPriceTitle', undefined, 'Edit Event Price')}</h3>
                   <p className="text-xs text-slate-400">{selectedEvent.name}</p>
                 </div>
               </div>
@@ -1421,7 +1423,7 @@ export const DeveloperPricingManager: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Current Effective Price:</span>
+                <span className="text-slate-400">{t('developer.currentEffectivePrice', undefined, 'Current Effective Price:')}</span>
                 <span className="text-amber-400 font-mono font-bold">
                   {(() => {
                     const duration = selectedEvent.duration_days || calculateEventCalendarDays(selectedEvent.start_date, selectedEvent.end_date);
@@ -1505,12 +1507,12 @@ export const DeveloperPricingManager: React.FC = () => {
                   {savingEventPrice ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving Price...</span>
+                      <span>{t('developer.savingPrice', undefined, 'Saving Price...')}</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>Save Event Price</span>
+                      <span>{t('developer.saveEventPriceBtn', undefined, 'Save Event Price')}</span>
                     </>
                   )}
                 </button>

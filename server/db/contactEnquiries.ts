@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, isProductionEnvironment } from '../supabase.js';
 import {
   ContactEnquiryRecord,
   CreateContactEnquiryParams,
@@ -29,7 +29,7 @@ function ensureUploadsDir() {
 
 function readLocalEnquiries(env?: Record<string, any>): ContactEnquiryRecord[] {
   try {
-    if (!isLocalFallbackAllowed(env)) return [];
+    if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) return [];
     ensureUploadsDir();
     if (!fs.existsSync(LOCAL_ENQUIRIES_FILE)) {
       return [];
@@ -45,7 +45,7 @@ function readLocalEnquiries(env?: Record<string, any>): ContactEnquiryRecord[] {
 
 function writeLocalEnquiries(records: ContactEnquiryRecord[], env?: Record<string, any>): void {
   try {
-    if (!isLocalFallbackAllowed(env)) return;
+    if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) return;
     ensureUploadsDir();
     const trimmed = records.slice(0, MAX_LOCAL_ENQUIRIES);
     fs.writeFileSync(LOCAL_ENQUIRIES_FILE, JSON.stringify(trimmed, null, 2), 'utf-8');
@@ -132,6 +132,9 @@ export async function createContactEnquiry(
   };
 
   if (!isSupabaseConfigured(env)) {
+    if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+      throw new Error(`Fatal: Database error creating contact enquiry: Supabase is not configured and local fallback is prohibited in production/Worker environment.`);
+    }
     localEnquiriesCache.set(id, record);
     const all = [record, ...readLocalEnquiries(env).filter((x) => x.id !== id)];
     writeLocalEnquiries(all, env);
@@ -169,7 +172,11 @@ export async function createContactEnquiry(
 
   if (error) {
     console.error('Error inserting contact enquiry to Supabase:', error.message);
-    if (isLocalFallbackAllowed(env)) {
+    if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error creating contact enquiry: ${error.message}`);
+    }
+    const isPlaceholder = error.message?.includes('Placeholder') || error.code === 'PGRST000';
+    if (isPlaceholder && isLocalFallbackAllowed(env)) {
       localEnquiriesCache.set(id, record);
       const all = [record, ...readLocalEnquiries(env).filter((x) => x.id !== id)];
       writeLocalEnquiries(all, env);
@@ -260,6 +267,9 @@ export async function updateContactEnquiryEmailStatus(
   }
 
   if (!isSupabaseConfigured(env)) {
+    if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+      throw new Error(`Fatal: Database error updating contact enquiry email status: Supabase is not configured and local fallback is prohibited in production/Worker environment.`);
+    }
     const all = readLocalEnquiries(env).map((item) => (item.id === id ? { ...item, ...updates } : item));
     writeLocalEnquiries(all, env);
     return localEnquiriesCache.get(id) || null;
@@ -276,7 +286,11 @@ export async function updateContactEnquiryEmailStatus(
 
     if (error) {
       console.error(`Error updating contact enquiry ${id} email status:`, error.message);
-      if (isLocalFallbackAllowed(env)) {
+      if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error updating email status: ${error.message}`);
+      }
+      const isPlaceholder = error.message?.includes('Placeholder') || error.code === 'PGRST000';
+      if (isPlaceholder && isLocalFallbackAllowed(env)) {
         return localEnquiriesCache.get(id) || null;
       }
       throw new Error(`Database error updating email status: ${error.message}`);
@@ -288,7 +302,7 @@ export async function updateContactEnquiryEmailStatus(
     }
   } catch (err: any) {
     console.error(`Exception updating email status for enquiry ${id}:`, err);
-    if (!isLocalFallbackAllowed(env)) {
+    if (!isLocalFallbackAllowed(env) || isProductionEnvironment(env)) {
       throw err;
     }
   }
@@ -401,7 +415,16 @@ export async function listContactEnquiries(
         .order('created_at', { ascending: false })
         .range(offset, offset + pageSize - 1);
 
-      if (!error && data) {
+      if (error) {
+        console.error('Error querying contact enquiries in database:', error.message);
+        if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+          throw new Error(`Database error querying contact enquiries: ${error.message}`);
+        }
+        const isPlaceholder = error.message?.includes('Placeholder') || error.code === 'PGRST000';
+        if (!isPlaceholder) {
+          throw new Error(`Database error querying contact enquiries: ${error.message}`);
+        }
+      } else if (data) {
         return {
           enquiries: data as ContactEnquiryRecord[],
           total: count || 0,
@@ -411,10 +434,17 @@ export async function listContactEnquiries(
       }
     } catch (err) {
       console.warn('Notice: Error querying contact enquiries in database:', err);
+      if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+        throw err;
+      }
     }
   }
 
-  // Fallback to local memory / file
+  // Fallback to local memory / file ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error('Fatal: Contact enquiries listing requires a valid Supabase database in production/Worker environment. Local cache fallback is strictly prohibited.');
+  }
+
   let all = Array.from(localEnquiriesCache.values());
   if (all.length === 0) {
     all = readLocalEnquiries(env);

@@ -18,9 +18,11 @@ import {
   getResendApiKey,
   getResendInvitationFrom,
   validateResendSenderConfig,
+  validateResendApiKeyConfig,
   isResendConfigured,
   processResendWebhookPayload,
   isValidEmail,
+  sanitizeErrorMessage,
 } from './email/resend.js';
 import {
   generateCustomerInvitationEmail,
@@ -108,29 +110,41 @@ async function runResendAdminInvitationsTests() {
   assert.strictEqual(invalidRecipientSend.permanentFailure, true);
   assert.ok(invalidRecipientSend.error?.includes('Invalid recipient email address'));
 
-  // 2c. Simulation in non-production environment returns simulated messageId
-  const simulatedSend = await sendEmailViaResend({
+  // 2c. Missing API key returns failure and is NEVER reported as sent
+  const missingKeySend = await sendEmailViaResend({
     to: 'partner@agency.com',
     subject: 'Test Subject',
     html: '<p>Test</p>',
     env: {
       NODE_ENV: 'development',
       RESEND_INVITATION_FROM: 'Mun Jian (EventGameStudio) <onboarding@resend.dev>',
+      RESEND_API_KEY: '',
     },
   });
-  assert.strictEqual(simulatedSend.success, true);
-  assert.strictEqual(simulatedSend.status, 'sent');
-  assert.ok(simulatedSend.messageId?.startsWith('sim_resend_'));
+  assert.strictEqual(missingKeySend.success, false);
+  assert.strictEqual(missingKeySend.status, 'failed');
+  assert.strictEqual(missingKeySend.permanentFailure, true);
+  assert.ok(missingKeySend.error?.includes('RESEND_API_KEY is not configured'));
 
-  console.log('  ✓ PASSED: Resend service gracefully isolates failures and simulates in dev/test.\n');
+  console.log('  ✓ PASSED: Resend service gracefully rejects missing API key without faking delivery.\n');
 
   // --------------------------------------------------------------------------
   // TEST 3: Admin Customer Invitations Flow & Model Association
   // --------------------------------------------------------------------------
   console.log('Test 3: Admin invitation flow, company contact association & Resend dispatch...');
 
+  let capturedAuthHeader = '';
+  const mockResendSuccessFetch = async (_url: string, init?: any) => {
+    capturedAuthHeader = init?.headers?.Authorization || '';
+    return new Response(JSON.stringify({ id: `re_test_${Date.now()}` }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
   const testEnv = {
     RESEND_INVITATION_FROM: 'Mun Jian (EventGameStudio) <onboarding@resend.dev>',
+    RESEND_API_KEY: 're_worker_secret_123',
     NODE_ENV: 'test',
   };
 
@@ -155,12 +169,14 @@ async function runResendAdminInvitationsTests() {
   const inviteResult = await sendCompanyInvitations(company.id, {
     sentByUserId: 'admin-user-001',
     env: testEnv,
+    fetchFn: mockResendSuccessFetch,
   });
 
   assert.strictEqual(inviteResult.success, true);
   assert.strictEqual(inviteResult.total, 2);
   assert.strictEqual(inviteResult.sent, 2);
   assert.strictEqual(inviteResult.failed, 0);
+  assert.strictEqual(capturedAuthHeader, 'Bearer re_worker_secret_123', 'Worker secret passed to Resend API Authorization header');
 
   // Verify recipient records and provider log
   const refreshed = await getCustomerCompanyById(company.id, testEnv);
@@ -248,6 +264,7 @@ async function runResendAdminInvitationsTests() {
     recipientIds: [bouncedRecipient.id],
     confirmReinvite: false,
     env: testEnv,
+    fetchFn: mockResendSuccessFetch,
   });
 
   assert.strictEqual(retryResult.success, true);
@@ -385,6 +402,7 @@ async function runResendAdminInvitationsTests() {
   // Send an invitation to populate logs
   const sentRes = await sendCompanyInvitations(webhookCompany.id, {
     env: testEnv,
+    fetchFn: mockResendSuccessFetch,
   });
   assert.strictEqual(sentRes.success, true);
 
@@ -461,12 +479,92 @@ async function runResendAdminInvitationsTests() {
 
   console.log('  ✓ PASSED: Admin invitations and system mailer remain strictly isolated.\n');
 
+  // --------------------------------------------------------------------------
+  // TEST 9: Cloudflare Worker Secret & Runtime Key Configuration
+  // --------------------------------------------------------------------------
+  console.log('Test 9: Cloudflare Worker secret binding, Express fallback & key security...');
+
+  // 9a. Cloudflare Worker environment binding access: reads env.RESEND_API_KEY
+  const workerEnv = { RESEND_API_KEY: 're_cf_worker_binding_secret_999' };
+  assert.strictEqual(
+    getResendApiKey(workerEnv),
+    're_cf_worker_binding_secret_999',
+    'Must read RESEND_API_KEY from Cloudflare Worker env binding'
+  );
+
+  // 9b. Node.js Express process.env fallback when env is undefined
+  const savedProcKey = process.env.RESEND_API_KEY;
+  try {
+    process.env.RESEND_API_KEY = 're_express_env_secret_888';
+    assert.strictEqual(
+      getResendApiKey(),
+      're_express_env_secret_888',
+      'Must read RESEND_API_KEY from process.env when env is undefined in Express'
+    );
+  } finally {
+    if (savedProcKey !== undefined) {
+      process.env.RESEND_API_KEY = savedProcKey;
+    } else {
+      delete process.env.RESEND_API_KEY;
+    }
+  }
+
+  // 9c. Missing or invalid secret validation
+  assert.strictEqual(
+    getResendApiKey({ RESEND_API_KEY: '' }),
+    null,
+    'Empty key string must return null'
+  );
+  assert.strictEqual(
+    getResendApiKey({ RESEND_API_KEY: 'placeholder-key' }),
+    null,
+    'Placeholder key must return null'
+  );
+  assert.strictEqual(
+    validateResendApiKeyConfig({ RESEND_API_KEY: '' }).valid,
+    false,
+    'validateResendApiKeyConfig must fail when key is missing'
+  );
+
+  // 9d. Safe error message sanitization: raw keys and Bearer tokens are NEVER exposed
+  const rawSensitiveError = 'Resend error with key re_live_secret_key_123456789 and Bearer re_live_secret_key_123456789 in request';
+  const sanitized = sanitizeErrorMessage(rawSensitiveError, 're_live_secret_key_123456789');
+  assert.ok(!sanitized.includes('re_live_secret_key_123456789'), 'Sanitized error must not contain raw API key');
+  assert.ok(sanitized.includes('[REDACTED]'), 'Sanitized error must redact sensitive tokens');
+
+  // 9e. Safe failure without losing underlying business record when secret is missing
+  const testCompanyForMissingKey = await createCustomerCompany({
+    company_name: 'Resilient Records Corp',
+    recipients: [{ email: 'lead@resilient.com', recipient_name: 'Lead' }],
+  });
+
+  await assert.rejects(
+    async () => {
+      await sendCompanyInvitations(testCompanyForMissingKey.id, {
+        env: {
+          RESEND_INVITATION_FROM: 'Mun Jian <onboarding@resend.dev>',
+          RESEND_API_KEY: '',
+        },
+      });
+    },
+    (err: any) => {
+      assert.strictEqual(err.code, 'RESEND_CONFIG_MISSING');
+      return true;
+    },
+    'Missing key must throw RESEND_CONFIG_MISSING'
+  );
+
+  // Verify company and recipient records are 100% preserved
+  const preservedRecord = await getCustomerCompanyById(testCompanyForMissingKey.id);
+  assert.ok(preservedRecord, 'Company record must be preserved despite missing API key');
+  assert.strictEqual(preservedRecord.recipients.length, 1, 'Recipient record must be preserved');
+  await deleteCustomerCompany(testCompanyForMissingKey.id);
+
+  console.log('  ✓ PASSED: Cloudflare Worker binding, Express fallback, key sanitization, and record preservation verified.\n');
+
   console.log('================================================================');
-  console.log('🎉 ALL RESEND ADMIN INVITATIONS TESTS PASSED CLEANLY (8/8)!');
+  console.log('🎉 ALL RESEND ADMIN INVITATIONS TESTS PASSED CLEANLY (9/9)!');
   console.log('================================================================\n');
 }
 
-runResendAdminInvitationsTests().catch((err) => {
-  console.error('❌ Resend admin invitations test suite failed:', err);
-  process.exit(1);
-});
+await runResendAdminInvitationsTests();

@@ -26,6 +26,9 @@
   "exclude": [
     "node_modules",
     "dist",
-    "server/email_password_auth.test.ts"
+    "server/*.test.ts",
+    "server/*.test.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

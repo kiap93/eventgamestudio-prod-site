@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useState } from 'react';
 import { ResultScreenElement } from '../../../../games/memory-match/types';
 import { saveCustomTemplate, CustomResultScreenTemplate } from './customTemplates';
@@ -16,6 +17,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
   elements,
   onTemplateSaved,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Custom');
@@ -102,7 +104,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             </div>
           )}
 
-          {/* Template Name */}
+          {/* {t('editor.templateNameLabel', undefined, 'Template Name')} */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
               Template Name <span className="text-rose-400">*</span>
@@ -174,7 +176,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold transition-colors"
             >
-              Cancel
+              {t('common.cancel', undefined, 'Cancel')}
             </button>
 
             <button
@@ -190,7 +192,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
               ) : (
                 <>
                   <BookmarkPlus className="w-4 h-4" />
-                  <span>Save Template</span>
+                  <span>{t('editor.saveTemplateBtn', undefined, 'Save Template')}</span>
                 </>
               )}
             </button>

@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useState, useEffect } from 'react';
 import {
   RESULT_SCREEN_PRESETS,
@@ -41,6 +42,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
   onOpenSaveTemplateModal,
   hasExistingElements = true,
 }) => {
+  const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<'builtin' | 'custom'>('builtin');
   const [selectedBuiltinId, setSelectedBuiltinId] = useState<string>('classic-center');
   const [selectedCustomId, setSelectedCustomId] = useState<string | null>(null);
@@ -429,7 +431,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold transition-colors"
             >
-              Cancel
+              {t('common.cancel', undefined, 'Cancel')}
             </button>
 
             {activeTab === 'builtin' ? (

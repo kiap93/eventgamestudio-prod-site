@@ -18,6 +18,7 @@ import {
   getSetupDayStartTime,
   isSetupDayStarted,
   canCancelEvent,
+  canDeleteEvent,
   determineEventRefund,
   runEventLifecycleMaintenance,
   getClientLiveGameAccessDetails,
@@ -63,8 +64,8 @@ async function runTests() {
 
   console.log('--- Test Case 1: Create Event -> Status PENDING_PAYMENT, Uncharged, Stable URL ---');
   const now = new Date();
-  const startsAt = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
-  const expiresAt = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString();
+  const startsAt = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const event1 = await createEvent({
     organization_id: orgId,
@@ -267,10 +268,11 @@ async function runTests() {
     'Payment status remains unpaid/pending_payment'
   );
 
-  // Cancellation check before Setup Day (Unpaid)
+  // Deletion/Cancellation check before Setup Day (Unpaid events before Setup Day are deleted, not cancelled)
+  const delCheckUnpaid = canDeleteEvent(sep10EventUnpaid, date8Sep);
+  assert.strictEqual(delCheckUnpaid.canDelete, true, 'Deletion allowed before Setup Day for unpaid event');
   const cancelCheckUnpaid = canCancelEvent(sep10EventUnpaid, date8Sep);
-  assert.strictEqual(cancelCheckUnpaid.canCancel, true, 'Cancellation allowed before Setup Day for unpaid event');
-  assert.strictEqual(cancelCheckUnpaid.canRefund, false, 'No refund needed since unpaid');
+  assert.strictEqual(cancelCheckUnpaid.canCancel, false, 'Unpaid events before Setup Day should be deleted, not cancelled');
 
   // Now create a paid event scheduled for 10 Sep to verify pre-Setup-Day paid cancellation & refund
   await createTopup({

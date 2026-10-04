@@ -463,16 +463,23 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div className="flex items-center gap-2">
           {/* Action 1: Pay CTA or Play Live CTA */}
           {isPendingPayment ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowPaymentModal(true);
-              }}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
-            >
-              <CreditCard className="w-3.5 h-3.5 text-slate-950" />
-              <span>{t('event.payToActivate', undefined, 'Pay & Activate')}</span>
-            </button>
+            !isViewer ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPaymentModal(true);
+                }}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5 text-slate-950" />
+                <span>{t('event.payToActivate', undefined, 'Pay & Activate')}</span>
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>{t('event.statusPendingPayment', undefined, 'Pending Payment')}</span>
+              </span>
+            )
           ) : availability.liveUrlAvailable ? (
             <button
               onClick={openPublicGame}
@@ -514,7 +521,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             <button
               onClick={() => onEdit(event)}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 rounded-lg text-xs transition-colors cursor-pointer"
-              title={isPaid ? t('event.lockedPaid', undefined, 'View Event Setup (Locked - Paid)') : t('event.editEvent', undefined, 'Edit Event')}
+              title={isPaid ? t('event.viewLockedSetup', undefined, 'View Event Setup (Locked after payment)') : t('event.editEvent', undefined, 'Edit Event')}
             >
               {isPaid ? <Lock className="w-3.5 h-3.5 text-amber-400/80" /> : <Edit2 className="w-3.5 h-3.5" />}
             </button>

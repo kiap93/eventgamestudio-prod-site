@@ -342,6 +342,23 @@ export const adminInvitationRateLimiter = createRateLimiter({
 });
 
 /**
+ * 2C. Invitation Verification Rate Limiter:
+ * Protects POST /api/invitations/send-code and POST /api/invitations/verify-code.
+ * 10 requests per 60 seconds per IP/token.
+ */
+export const invitationVerificationRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyPrefix: 'invitation_verification',
+  keyGenerator: (req) => {
+    const token = req.body?.token;
+    const ip = getExpressClientKey(req, 'ip');
+    return `${ip}:${token || ''}`;
+  },
+  message: 'Too many verification requests. Please wait a moment before trying again.',
+});
+
+/**
  * 3. Organizations Creation Rate Limiter:
  * Protects POST /api/organizations.
  * 10 requests per 60 seconds.

@@ -25,6 +25,8 @@ export interface SendResendEmailOptions {
   maxRetries?: number; // Default: 2 (total 3 attempts)
   initialBackoffMs?: number; // Default: 250ms
   timeoutMs?: number; // Default: 10000ms (10 seconds)
+  fetchFn?: typeof fetch; // Optional custom fetch implementation for testing / isolation
+  apiUrl?: string; // Optional custom API URL (defaults to https://api.resend.com/emails)
 }
 
 export interface ResendSendResult {
@@ -73,34 +75,97 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
- * Retrieve the active Resend API key from server-side environment.
+ * Retrieve the active Resend API key from runtime environment.
+ * For Cloudflare Workers: Reads directly from Worker `env.RESEND_API_KEY` binding.
+ * For Node.js / Express: Falls back to `process.env.RESEND_API_KEY`.
  * NEVER exposed to client or prefixed with VITE_.
+ * Returns null if missing, empty, or placeholder.
  */
 export function getResendApiKey(env?: Record<string, any>): string | null {
-  const procEnv = typeof process !== 'undefined' ? process.env : {};
-  const key =
-    (env && typeof env.RESEND_API_KEY === 'string' && env.RESEND_API_KEY.trim()) ||
-    procEnv.RESEND_API_KEY?.trim() ||
-    null;
+  // 1. Check Cloudflare Worker env binding first if provided
+  if (env && typeof env === 'object') {
+    if (typeof env.RESEND_API_KEY === 'string') {
+      const trimmed = env.RESEND_API_KEY.trim();
+      if (!trimmed || trimmed.toLowerCase().includes('placeholder') || trimmed.toLowerCase().includes('your-resend-api-key')) {
+        return null;
+      }
+      return trimmed;
+    }
+    // If an env object was explicitly passed (e.g. Worker environment or test mock),
+    // and RESEND_API_KEY is not defined on it, do not fall back to process.env.
+    return null;
+  }
 
-  return key;
+  // 2. Fall back to Node.js process.env for Express runtime when env is not passed
+  const procEnv = typeof process !== 'undefined' && process && process.env ? process.env : {};
+  if (typeof procEnv.RESEND_API_KEY === 'string') {
+    const trimmed = procEnv.RESEND_API_KEY.trim();
+    if (!trimmed || trimmed.toLowerCase().includes('placeholder') || trimmed.toLowerCase().includes('your-resend-api-key')) {
+      return null;
+    }
+    return trimmed;
+  }
+
+  return null;
 }
 
 /**
  * Retrieve the configured sender address for admin invitations.
  * Uses RESEND_INVITATION_FROM as primary server-side configuration,
  * with fallback to RESEND_FROM_EMAIL.
+ * Reads from Cloudflare Worker env binding first, falling back to process.env.
  */
 export function getResendInvitationFrom(env?: Record<string, any>): string | null {
-  const procEnv = typeof process !== 'undefined' ? process.env : {};
-  const configured =
-    (env && typeof env.RESEND_INVITATION_FROM === 'string' && env.RESEND_INVITATION_FROM.trim()) ||
-    procEnv.RESEND_INVITATION_FROM?.trim() ||
-    (env && typeof env.RESEND_FROM_EMAIL === 'string' && env.RESEND_FROM_EMAIL.trim()) ||
-    procEnv.RESEND_FROM_EMAIL?.trim() ||
-    null;
+  // 1. Check Cloudflare Worker env binding first if provided
+  if (env && typeof env === 'object') {
+    if (typeof env.RESEND_INVITATION_FROM === 'string' && env.RESEND_INVITATION_FROM.trim()) {
+      return env.RESEND_INVITATION_FROM.trim();
+    }
+    if (typeof env.RESEND_FROM_EMAIL === 'string' && env.RESEND_FROM_EMAIL.trim()) {
+      return env.RESEND_FROM_EMAIL.trim();
+    }
+    return null;
+  }
 
-  return configured;
+  // 2. Fall back to Node.js process.env for Express runtime
+  const procEnv = typeof process !== 'undefined' && process && process.env ? process.env : {};
+  if (typeof procEnv.RESEND_INVITATION_FROM === 'string' && procEnv.RESEND_INVITATION_FROM.trim()) {
+    return procEnv.RESEND_INVITATION_FROM.trim();
+  }
+  if (typeof procEnv.RESEND_FROM_EMAIL === 'string' && procEnv.RESEND_FROM_EMAIL.trim()) {
+    return procEnv.RESEND_FROM_EMAIL.trim();
+  }
+
+  return null;
+}
+
+/**
+ * Validates that RESEND_API_KEY is configured in the environment.
+ * Returns a clear, actionable error if missing without leaking credentials.
+ */
+export function validateResendApiKeyConfig(env?: Record<string, any>): { valid: boolean; error?: string } {
+  const apiKey = getResendApiKey(env);
+  if (!apiKey) {
+    return {
+      valid: false,
+      error: 'RESEND_API_KEY is not configured on this server environment. Please configure RESEND_API_KEY in server secrets.',
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Sanitizes error messages to ensure API keys and authorization tokens are NEVER printed in logs or errors.
+ */
+export function sanitizeErrorMessage(msg: string, key?: string | null): string {
+  if (!msg) return 'Unknown error';
+  let clean = String(msg);
+  if (key && key.length > 5) {
+    clean = clean.split(key).join('[REDACTED]');
+  }
+  clean = clean.replace(/Bearer\s+[A-Za-z0-9_\-\.]+/gi, 'Bearer [REDACTED]');
+  clean = clean.replace(/re_[A-Za-z0-9_\-]+/gi, 're_[REDACTED]');
+  return clean;
 }
 
 /**
@@ -131,6 +196,15 @@ export function validateResendSenderConfig(
     };
   }
 
+  // Validate sender domain structure (RFC compliance & non-empty TLD)
+  const atParts = emailPart.split('@');
+  if (atParts.length !== 2 || !atParts[1].includes('.') || atParts[1].startsWith('.') || atParts[1].endsWith('.')) {
+    return {
+      valid: false,
+      error: `Configured RESEND_INVITATION_FROM "${rawFrom}" does not contain a valid sender domain.`,
+    };
+  }
+
   return {
     valid: true,
     fromAddress: rawFrom,
@@ -141,14 +215,9 @@ export function validateResendSenderConfig(
  * Check whether Resend is configured with a valid API key and sender address.
  */
 export function isResendConfigured(env?: Record<string, any>): boolean {
-  const apiKey = getResendApiKey(env);
+  const keyCheck = validateResendApiKeyConfig(env);
   const senderCheck = validateResendSenderConfig(env);
-  return Boolean(
-    apiKey &&
-    apiKey.trim().length > 0 &&
-    !apiKey.includes('placeholder') &&
-    senderCheck.valid
-  );
+  return keyCheck.valid && senderCheck.valid;
 }
 
 /**
@@ -202,6 +271,8 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
     maxRetries = 2,
     initialBackoffMs = 250,
     timeoutMs = 10000,
+    fetchFn,
+    apiUrl,
   } = options;
 
   // 1. Validate recipients
@@ -244,26 +315,11 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
   }
 
   const fromAddress = senderValidation.fromAddress!;
+
+  // 3. Validate API key: fail fast and safely if missing
   const apiKey = getResendApiKey(env);
-
-  // 3. Handle non-production simulation or missing API key
-  const isProduction =
-    (env && env.NODE_ENV === 'production') ||
-    (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
-
-  if (!apiKey || apiKey.includes('placeholder')) {
-    if (!isProduction) {
-      const mockId = `sim_resend_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      console.log(`[Resend][Simulation] Simulating invitation email to ${cleanRecipients.join(', ')} (Subject: "${subject}")`);
-      return {
-        success: true,
-        messageId: mockId,
-        rawResponse: { id: mockId, simulated: true },
-        retryCount: 0,
-        status: 'sent',
-      };
-    }
-
+  if (!apiKey) {
+    console.error('[Resend] Server configuration error: RESEND_API_KEY secret is not configured or missing in server environment.');
     return {
       success: false,
       error: 'RESEND_API_KEY is not configured on this server environment. Please configure RESEND_API_KEY in server secrets.',
@@ -301,7 +357,10 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-      const res = await fetch('https://api.resend.com/emails', {
+      const effectiveFetch = fetchFn || fetch;
+      const effectiveUrl = apiUrl || 'https://api.resend.com/emails';
+
+      const res = await effectiveFetch(effectiveUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey.trim()}`,
@@ -316,6 +375,20 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
       lastResponseData = responseData;
 
       if (res.ok) {
+        // Guard against any response that has ok=true but contains an error payload or HTTP error statusCode
+        if (responseData && (responseData.error || (responseData.statusCode && responseData.statusCode >= 400))) {
+          const rawErrMsg = responseData?.error?.message || responseData?.message || 'Resend provider rejected request';
+          const errMsg = sanitizeErrorMessage(rawErrMsg, apiKey);
+          return {
+            success: false,
+            error: errMsg,
+            rawResponse: responseData,
+            retryCount: attempt,
+            status: 'failed',
+            permanentFailure: true,
+          };
+        }
+
         const messageId = responseData?.id || `resend_${Date.now()}`;
         return {
           success: true,
@@ -327,11 +400,11 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
       }
 
       // Extract provider error message
-      const errorMsg =
+      const rawErrorMsg =
         responseData?.message ||
         responseData?.error?.message ||
         `Resend API error (${res.status}: ${res.statusText})`;
-      lastError = errorMsg;
+      lastError = sanitizeErrorMessage(rawErrorMsg, apiKey);
 
       // Check if transient error eligible for retry
       const isTransient = isTransientResendError(res.status);
@@ -339,7 +412,7 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
         attempt++;
         // Respect retry-after header if present, capped at 2000ms
         let backoffDelay = initialBackoffMs * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 50);
-        const retryAfterHeader = res.headers.get('retry-after');
+        const retryAfterHeader = res.headers?.get ? res.headers.get('retry-after') : null;
         if (retryAfterHeader) {
           const parsedSec = parseInt(retryAfterHeader, 10);
           if (!isNaN(parsedSec) && parsedSec > 0) {
@@ -355,7 +428,7 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
       // Permanent error (e.g. 400, 401, 403, 422): do NOT retry
       return {
         success: false,
-        error: errorMsg,
+        error: lastError,
         rawResponse: responseData,
         retryCount: attempt,
         status: 'failed',
@@ -363,7 +436,8 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
       };
     } catch (fetchErr: any) {
       const isTransient = isTransientResendError(null, fetchErr);
-      lastError = fetchErr?.message || 'Network error communicating with Resend API';
+      const rawErrMsg = fetchErr?.message || 'Network error communicating with Resend API';
+      lastError = sanitizeErrorMessage(rawErrMsg, apiKey);
 
       if (isTransient && attempt < maxRetries) {
         attempt++;
@@ -419,6 +493,10 @@ export function processResendWebhookPayload(payload: any): ProcessedResendWebhoo
     deliveryStatus = 'bounced';
     const bounceMsg = data.bounce?.message || data.bounce?.type || 'Recipient server bounced message';
     reason = `Bounced: ${bounceMsg}`;
+  } else if (eventType === 'email.rejected' || eventType === 'email.failed') {
+    deliveryStatus = 'bounced';
+    const rejectMsg = data.reject?.reason || data.message || 'Email rejected by provider or suppression list';
+    reason = `Rejected: ${rejectMsg}`;
   } else if (eventType === 'email.complained') {
     deliveryStatus = 'complained';
     reason = 'Recipient marked message as spam complaint';

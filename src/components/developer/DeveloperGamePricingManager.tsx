@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { PlatformGame } from '../../types/developer';
 import {
@@ -48,6 +49,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
   game,
   onPricingUpdated,
 }) => {
+  const { t } = useLocalization();
   const [tiers, setTiers] = useState<GamePricingTier[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -270,7 +272,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
   const handleDeleteTier = async (tier: GamePricingTier) => {
     const label = tier.min_days === tier.max_days ? `${tier.min_days} day` : `${tier.min_days}-${tier.max_days || '+'} days`;
-    if (!confirm(`Delete pricing tier (${label} - ${tier.currency} ${tier.price})?`)) return;
+    if (!confirm(`${t('developer.confirmDeleteTier')} (${label} - ${tier.currency} ${tier.price})`)) return;
 
     setSaving(true);
     setError(null);
@@ -408,15 +410,13 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           </div>
           <div>
             <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              Game-Owned Pricing Architecture
+              {t('developer.gameOwnedPricingTitle')}
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 Authoritative
               </span>
             </h4>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Pricing for <strong className="text-amber-300">{game.name}</strong> is managed independently from other games.
-              When an organization creates an event with this game, the selected duration tier is resolved server-side and
-              snapshotted onto the event record with immutable historical pricing integrity.
+              {t('developer.gameOwnedPricingDesc', { name: game.name })}
             </p>
           </div>
         </div>
@@ -428,7 +428,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <span>{t('common.refresh')}</span>
           </button>
           <button
             onClick={handleSeedDefaults}
@@ -436,14 +436,14 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 text-xs font-semibold rounded-xl border border-amber-500/30 transition-colors"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Seed Standard Tiers</span>
+            <span>{t('developer.seedStandardTiers')}</span>
           </button>
           <button
             onClick={handleOpenAdd}
             className="flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-950/30 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Duration Tier</span>
+            <span>{t('developer.addDurationTierBtn')}</span>
           </button>
         </div>
       </div>
@@ -457,11 +457,11 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Tag className="w-4 h-4 text-amber-400" />
-                  <span>Configured Duration Tiers</span>
+                  <span>{t('developer.configuredDurationTiers')}</span>
                   <span className="text-xs font-mono text-slate-400">({tiers.length})</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Calendar day thresholds and corresponding license prices
+                  {t('developer.thresholdsDesc')}
                 </p>
               </div>
             </div>
@@ -474,9 +474,9 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             ) : tiers.length === 0 ? (
               <div className="text-center py-12 p-6">
                 <Coins className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-white mb-1">No Pricing Tiers Configured</h4>
+                <h4 className="text-sm font-bold text-white mb-1">{t('developer.noPricingTiersConfigured')}</h4>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
-                  This game does not have custom duration tiers yet. Click below to seed the standard duration tiers.
+                  {t('developer.noPricingTiersDesc')}
                 </p>
                 <button
                   onClick={handleSeedDefaults}
@@ -484,7 +484,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                   className="inline-flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Seed Standard Tiers (1 to 91+ Days)</span>
+                  <span>{t('developer.seedStandardTiersButton')}</span>
                 </button>
               </div>
             ) : (
@@ -538,7 +538,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                                   : 'bg-slate-800 text-slate-400 border border-slate-700'
                               }`}
                             >
-                              {tier.is_active ? 'Active' : 'Inactive'}
+                              {tier.is_active ? t('developer.activeTierToggle') : t('developer.inactiveTierToggle')}
                             </span>
                           </div>
 
@@ -719,11 +719,11 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
               <Calculator className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-white">Event Duration Simulator</h3>
+              <h3 className="text-sm font-bold text-white">{t('developer.durationSimulator')}</h3>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Test how an event date range calculates against <strong className="text-slate-200">{game.name}</strong>&apos;s active pricing tiers.
+              {t('developer.durationSimulatorDesc')}
             </p>
 
             <div className="space-y-3">

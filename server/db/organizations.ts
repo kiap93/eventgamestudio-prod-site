@@ -13,7 +13,7 @@ import {
 } from './types.js';
 import { initializeEmptyWallet, getWalletBalance, getWalletTransactions, grantWelcomeCredit } from './wallet.js';
 import { getUserById, localUsersCache } from './users.js';
-import { getOrgMembers, addMember, OrgMemberWithUserDetails } from './members.js';
+import { getOrgMembers, addMember, OrgMemberWithUserDetails, localMembersCache } from './members.js';
 import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
 export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry } from '../../src/lib/countryUtils.js';
@@ -246,15 +246,48 @@ export async function getUserOrganizations(userId: string, env?: Record<string, 
   }
 
   assertProductionSafe('getUserOrganizations', env);
-  return Array.from(localOrgsCache.values()).map((o) => ({
-    id: o.id,
-    name: o.name,
-    slug: o.slug,
-    role: 'owner' as OrgRole,
-    logo_url: o.logo_url,
-    country_code: o.country_code ?? null,
-    created_at: o.created_at,
-  }));
+  const userMemberships: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    role: OrgRole;
+    logo_url: string | null;
+    country_code: string | null;
+    created_at: string;
+  }> = [];
+
+  for (const m of localMembersCache.values()) {
+    if (m.user_id === userId) {
+      const org = localOrgsCache.get(m.organization_id);
+      if (org) {
+        userMemberships.push({
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          role: m.role,
+          logo_url: org.logo_url,
+          country_code: org.country_code ?? null,
+          created_at: m.created_at || org.created_at,
+        });
+      }
+    }
+  }
+
+  for (const o of localOrgsCache.values()) {
+    if (o.owner_id === userId && !userMemberships.some((m) => m.id === o.id)) {
+      userMemberships.push({
+        id: o.id,
+        name: o.name,
+        slug: o.slug,
+        role: 'owner' as OrgRole,
+        logo_url: o.logo_url,
+        country_code: o.country_code ?? null,
+        created_at: o.created_at,
+      });
+    }
+  }
+
+  return userMemberships;
 }
 
 export interface CreateOrganizationResult extends OrganizationRecord {

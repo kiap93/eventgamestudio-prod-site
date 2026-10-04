@@ -59,6 +59,10 @@ export interface OrgInvitationRecord {
   email_status?: 'pending' | 'sent' | 'failed';
   email_sent_at?: string | null;
   email_error?: string | null;
+  verification_code_hash?: string | null;
+  verification_code_expires_at?: string | null;
+  verification_attempts?: number;
+  last_code_sent_at?: string | null;
 }
 
 export interface GoogleMailSettingsRecord {

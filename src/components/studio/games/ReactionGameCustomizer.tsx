@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   GameTheme,
   isReactionTheme,

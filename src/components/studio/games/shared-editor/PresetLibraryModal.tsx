@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 /**
  * Shared Visual Editor Engine - Preset Library Modal
  * Displays categorized built-in presets and user-saved custom templates.
@@ -34,6 +35,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
   onApplyPreset,
   onDeleteCustomTemplate,
 }: PresetLibraryModalProps<T>) => {
+  const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<'built-in' | 'custom'>('built-in');
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
@@ -116,7 +118,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                       className="w-full py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow transition-colors cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>Apply Preset</span>
+                      <span>{t('editor.applyPresetConfirm', undefined, 'Apply Preset')}</span>
                     </button>
                   </div>
                 );

@@ -40,6 +40,17 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   const { currentOrganization, organizations, switchOrganization, currentUser } = useAuth();
   const { t } = useLocalization();
 
+  const userRole = currentOrganization?.role || 'viewer';
+  const isDesigner = userRole === 'designer';
+  const isViewer = userRole === 'viewer';
+
+  // Immediate redirect for Designer role: Designer MUST NOT access Events page
+  useEffect(() => {
+    if (isDesigner) {
+      navigateTo('/games');
+    }
+  }, [isDesigner]);
+
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +73,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   const [loadingThemeReadiness, setLoadingThemeReadiness] = useState(true);
 
   useEffect(() => {
+    if (isDesigner) return;
     let isMounted = true;
     const fetchUserRewardStatus = async () => {
       try {
@@ -86,13 +98,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, isDesigner]);
 
   // Fetch Theme Readiness for Organization
   useEffect(() => {
+    if (!currentOrganization?.id || isDesigner) return;
     let isMounted = true;
     const fetchReadiness = async () => {
-      if (!currentOrganization?.id) return;
       try {
         setLoadingThemeReadiness(true);
         const res = await apiFetch('/api/theme-readiness');
@@ -113,10 +125,11 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
     return () => {
       isMounted = false;
     };
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isDesigner]);
 
   // Automatically handle ?create=true URL query param
   useEffect(() => {
+    if (isViewer || isDesigner) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('create') === 'true') {
       if (themeReadiness) {
@@ -127,7 +140,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         }
       }
     }
-  }, [themeReadiness]);
+  }, [themeReadiness, isViewer, isDesigner]);
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,7 +173,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   }, []);
 
   const fetchEvents = async () => {
-    if (!currentOrganization || !currentOrganization.id || currentOrganization.id === 'undefined' || currentOrganization.id === 'null') {
+    if (!currentOrganization || !currentOrganization.id || currentOrganization.id === 'undefined' || currentOrganization.id === 'null' || isDesigner) {
       return;
     }
     try {
@@ -185,8 +198,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   };
 
   useEffect(() => {
-    fetchEvents();
-  }, [currentOrganization?.id]);
+    if (!isDesigner) {
+      fetchEvents();
+    }
+  }, [currentOrganization?.id, isDesigner]);
 
   const handleEventCreated = (newEvent: any) => {
     setEvents((prev) => {
@@ -242,10 +257,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   const completedCount = events.filter((e) => calculateEventStatus(e) === 'completed').length;
   const expiredCount = events.filter((e) => calculateEventStatus(e) === 'expired').length;
 
-  const isViewer = currentOrganization?.role === 'viewer';
   const isOwner = currentOrganization?.role === 'owner';
   const hasClaimedLifetimeReward = lifetimeRewardStatus?.hasReceivedReward === true;
   const shouldShowRewardBanner = isOwner && !hasClaimedLifetimeReward && !loadingRewardStatus;
+
+  if (isDesigner) {
+    return null;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
@@ -439,16 +457,18 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
               </div>
             </div>
 
-            <div className="flex items-center shrink-0 pl-0 lg:pl-4">
-              <button
-                id="deploy-first-event-reward-cta"
-                onClick={() => setIsCreateOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{t('event.createEvent', undefined, 'Deploy First Event')}</span>
-              </button>
-            </div>
+            {!isViewer && (
+              <div className="flex items-center shrink-0 pl-0 lg:pl-4">
+                <button
+                  id="deploy-first-event-reward-cta"
+                  onClick={() => setIsCreateOpen(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{t('event.createEvent', undefined, 'Deploy First Event')}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -497,7 +517,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
             currentOrganizationId={currentOrganization?.id}
             onSelectOrganization={(orgId) => switchOrganization(orgId)}
             onEditEvent={(eventToEdit) => setEditingEvent(eventToEdit)}
-            onCreateEvent={() => setIsCreateOpen(true)}
+            onCreateEvent={!isViewer ? () => setIsCreateOpen(true) : undefined}
           />
         )
       ) : (

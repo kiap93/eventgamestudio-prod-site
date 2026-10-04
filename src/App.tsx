@@ -23,6 +23,7 @@ import { SEO } from './components/common/SEO';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
 import { LocalizationProvider, useLocalization } from './context/LocalizationContext';
+import { matchesMainSection } from './lib/navigation';
 import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -52,17 +53,38 @@ const AppContent: React.FC = () => {
     if (isLoading) return;
 
     if (isAuthenticated) {
-      // 1. Authenticated user visiting /login -> redirect automatically to redirectUrl or /events
+      const isDesigner = currentOrganization?.role === 'designer';
+      const defaultLanding = isDesigner ? '/games' : '/events';
+
+      // 1. Authenticated user visiting /login -> redirect automatically to redirectUrl or default landing
       if (isLoginRoute) {
-        const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+        const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || defaultLanding;
         navigateTo(redirectUrl);
       } else if (routeContext.mode === 'developer_admin' && !currentUser?.is_developer) {
-        // 2. Non-developer visiting /developer -> redirect to /events
-        navigateTo('/events');
+        // 2. Non-developer visiting /developer -> redirect to default landing
+        navigateTo(defaultLanding);
       } else if (routeContext.mode === 'create_org' && currentOrganization) {
-        // 3. User with active organization on create_org route -> redirect to /events (Requirement 6)
-        console.log('[App] Active organization present on create_org route, transitioning to /events');
-        navigateTo('/events');
+        // 3. User with active organization on create_org route -> redirect to default landing
+        console.log('[App] Active organization present on create_org route, transitioning to landing');
+        navigateTo(defaultLanding);
+      } else if (isDesigner) {
+        const path = window.location.pathname;
+        if (
+          matchesMainSection(path, '/events') ||
+          matchesMainSection(path, '/wallet') ||
+          matchesMainSection(path, '/wallet/top-up') ||
+          matchesMainSection(path, '/team') ||
+          routeContext.mode === 'event_preview'
+        ) {
+          navigateTo('/games');
+        }
+      } else if (currentOrganization?.role === 'viewer') {
+        const path = window.location.pathname;
+        if (matchesMainSection(path, '/team')) {
+          navigateTo('/events');
+        } else if (matchesMainSection(path, '/wallet/top-up')) {
+          navigateTo('/wallet');
+        }
       }
     } else {
       // 4. Unauthenticated user visiting a protected route -> redirect automatically to /login
@@ -109,6 +131,10 @@ const AppContent: React.FC = () => {
 
   // 1.7. AUTHENTICATED EVENT PREVIEW ROUTE: /events/:eventId/preview
   if (routeContext.mode === 'event_preview') {
+    if (currentOrganization?.role === 'designer') {
+      navigateTo('/games');
+      return null;
+    }
     return (
       <>
         <SEO robots="noindex, follow" title={`${t('common.preview', undefined, 'Event Preview')} | Event Game Studio`} />

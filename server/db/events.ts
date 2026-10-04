@@ -32,6 +32,8 @@ import {
   refundEventPayment,
   withOrganizationLock,
   recordWalletAuditEvent,
+  localWalletsCache,
+  localTransactionsCache,
 } from './wallet.js';
 import {
   getPlatformPricingSettings,
@@ -44,7 +46,7 @@ import {
   ensureTestScoresClearedForLiveEvent,
 } from './highScores.js';
 import { dispatchNotificationEvent, dispatchEventPaymentFailed } from '../notifications/dispatcher.js';
-import { cleanupExpiredNotifications } from './notifications.js';
+import { cleanupExpiredNotifications, deleteNotificationsByEventId } from './notifications.js';
 import { getOrganizationById } from './organizations.js';
 import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone } from '../../src/lib/countryUtils.js';
 export { resolveEventTimezone };
@@ -3702,8 +3704,8 @@ export async function createEventWithAtomicPayment(
         created_by,
         payment_status: 'UNPAID',
         payment_mode,
-        paid_amount: calculation.paidAmount,
-        discount_amount: calculation.totalDiscount,
+        paid_amount: 0,
+        discount_amount: 0,
         event_price: eventPrice,
         event_currency: eventCurrency,
         pricing_id: durationPricingTierId,
@@ -3715,7 +3717,8 @@ export async function createEventWithAtomicPayment(
 
     // 6. Execute Atomic Ledger Payment
     try {
-      const paymentResult = await processEventPayment(
+      const executePayment = env?.__processEventPayment || processEventPayment;
+      const paymentResult = await executePayment(
         {
           organizationId: organization_id,
           eventId: createdEventRecord.id,
@@ -3742,12 +3745,119 @@ export async function createEventWithAtomicPayment(
       };
     } catch (paymentError: any) {
       console.error('Fatal: Event payment failed after record insertion. Initiating automatic ACID rollback:', paymentError);
-      await deleteEvent(createdEventRecord.id, env).catch((rollbackErr) => {
+      await rollbackFailedEventCreation(createdEventRecord.id, organization_id, env).catch((rollbackErr) => {
         console.error('CRITICAL: Failed to rollback event creation after payment error:', rollbackErr);
       });
       throw paymentError;
     }
   });
+}
+
+/**
+ * Dedicated internal rollback mechanism for failed event creation transactions.
+ * Strictly internal — CANNOT be triggered by users or exposed via public API routes.
+ *
+ * Verifies that:
+ * 1. Event belongs to the current failed transaction's organization.
+ * 2. Event is UNPAID (payment_status !== 'PAID' and paid_amount === 0).
+ * 3. Reverses any partial financial operations/transactions for this event first (restoring wallet balances).
+ * 4. Cleans up any notifications created during insertion.
+ * 5. Removes the event record from database via authoritative RPC `rollback_failed_event_creation`
+ *    (which sets internal session variable app.internal_rollback_event_id so the deletion trigger permits rollback,
+ *    even on Setup Day) or local fallback.
+ * 6. Evicts the event from local memory cache.
+ */
+export async function rollbackFailedEventCreation(
+  eventId: string,
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<{ success: boolean; reversedCount: number }> {
+  let reversedCount = 0;
+
+  // 1. Verify safety invariants on cached record if present
+  const cached = localEventsCache.get(eventId);
+  if (cached) {
+    if (cached.organization_id !== organizationId) {
+      throw new Error('Rollback rejected: event does not belong to specified organization');
+    }
+    const isPaid = cached.payment_status === 'PAID' || (cached.paid_amount || 0) > 0;
+    if (isPaid) {
+      throw new Error('Cannot rollback a paid event. Paid events must use Cancel & Refund.');
+    }
+  }
+
+  // 2. Production / Database RPC: Call dedicated rollback_failed_event_creation
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase.rpc('rollback_failed_event_creation', {
+        p_event_id: eventId,
+        p_organization_id: organizationId,
+      });
+
+      if (!error && data && data.success) {
+        reversedCount = Number(data.reversed_transactions_count || 0);
+      } else if (error) {
+        console.warn('[rollbackFailedEventCreation] RPC call failed:', error.message || error);
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(`Failed to rollback event creation: ${error.message || error.code}`);
+        }
+      } else if (data && !data.success) {
+        console.error('[rollbackFailedEventCreation] RPC rejected rollback:', data.error, data.message);
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(data.message || data.error || 'Failed to rollback event creation');
+        }
+      }
+    } catch (rpcErr: any) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw rpcErr;
+      }
+      console.warn('[rollbackFailedEventCreation] RPC exception, handling local cleanup:', rpcErr?.message);
+    }
+  }
+
+  // 3. Local fallback & memory cache cleanup (handles in-memory tests and local dev mode)
+  try {
+    const wallet = localWalletsCache.get(organizationId);
+
+    // Revert any partial wallet transactions recorded for this event
+    for (const [txId, tx] of localTransactionsCache.entries()) {
+      if (tx.event_id === eventId) {
+        if (tx.amount < 0 && wallet) {
+          const absAmt = Math.abs(tx.amount);
+          if (tx.balance_type === 'PAID_BALANCE' || tx.transaction_type === 'EVENT_PAYMENT' || (tx as any).type === 'PAYMENT') {
+            wallet.paid_balance = Math.round((wallet.paid_balance + absAmt) * 100) / 100;
+          } else if (tx.balance_type === 'WELCOME_CREDIT' || tx.transaction_type === 'WELCOME_CREDIT' || (tx as any).type === 'WELCOME_CREDIT_SPENT') {
+            wallet.welcome_credit = Math.round((wallet.welcome_credit + absAmt) * 100) / 100;
+          } else if (tx.balance_type === 'SHOWCASE_CREDIT' || tx.transaction_type === 'SHOWCASE_CREDIT' || (tx as any).type === 'SHOWCASE_CREDIT_SPENT') {
+            wallet.showcase_credit = Math.round((wallet.showcase_credit + absAmt) * 100) / 100;
+          } else if (tx.balance_type === 'TOPUP_CREDIT' || tx.transaction_type === 'TOPUP_CREDIT' || (tx as any).type === 'TOPUP_CREDIT_SPENT') {
+            wallet.topup_credit = Math.round((wallet.topup_credit + absAmt) * 100) / 100;
+          }
+          reversedCount++;
+        }
+        localTransactionsCache.delete(txId);
+      }
+    }
+    if (wallet) {
+      wallet.updated_at = new Date().toISOString();
+      localWalletsCache.set(organizationId, wallet);
+    }
+  } catch (txErr) {
+    console.warn('[rollbackFailedEventCreation] Error reversing local transactions:', txErr);
+  }
+
+  // 4. Remove any generated notifications for this event
+  try {
+    await deleteNotificationsByEventId(eventId, env);
+  } catch (notifErr) {
+    // ignore
+  }
+
+  // 5. Remove event from localEventsCache
+  localEventsCache.delete(eventId);
+
+  return { success: true, reversedCount };
 }
 
 

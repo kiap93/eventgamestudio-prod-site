@@ -16,6 +16,26 @@ export const MAIN_NAVIGATION_ITEMS: NavigationItem[] = [
 ];
 
 /**
+ * Returns filtered navigation items according to role-based access permissions.
+ * - Designer: MUST NOT see Events or Team menu. Only Games / Themes.
+ * - Viewer: MUST NOT see Team menu. Only Events (read-only) and Games.
+ * - Owner & Admin: Full access to Events, Games, and Team.
+ */
+export const getNavigationItemsForRole = (role?: string | null): NavigationItem[] => {
+  if (!role) return MAIN_NAVIGATION_ITEMS;
+
+  if (role === 'designer') {
+    return MAIN_NAVIGATION_ITEMS.filter((item) => item.id === 'games');
+  }
+
+  if (role === 'viewer') {
+    return MAIN_NAVIGATION_ITEMS.filter((item) => item.id === 'events' || item.id === 'games');
+  }
+
+  return MAIN_NAVIGATION_ITEMS;
+};
+
+/**
  * Matches whether currentPath belongs to the main section represented by sectionHref.
  * This function ONLY controls visual active styling and never blocks navigation.
  */

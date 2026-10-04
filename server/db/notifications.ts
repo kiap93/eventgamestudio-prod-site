@@ -819,3 +819,36 @@ export async function cleanupNotificationsByRetention(env?: Record<string, any>)
  * Backward compatibility alias for cleanupNotificationsByRetention.
  */
 export const cleanupExpiredNotifications = cleanupNotificationsByRetention;
+
+/**
+ * Internal cleanup helper: removes notifications associated with a rolled-back or deleted event.
+ */
+export async function deleteNotificationsByEventId(eventId: string, env?: Record<string, any>): Promise<number> {
+  let count = 0;
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      await supabase.from('notifications').delete().eq('event_id', eventId);
+    } catch (err) {
+      console.warn('[Notifications] Failed to delete notifications for rolled-back event:', err);
+    }
+  }
+
+  if (isLocalFallbackAllowed(env)) {
+    const locals = readLocalNotifications(env);
+    const remaining = locals.filter((n) => {
+      const match =
+        (n as any).event_id === eventId ||
+        n.entity_id === eventId ||
+        n.metadata?.event_id === eventId ||
+        n.metadata?.eventId === eventId;
+      return !match;
+    });
+    count = locals.length - remaining.length;
+    if (count > 0) {
+      writeLocalNotifications(remaining, env);
+    }
+  }
+
+  return count;
+}

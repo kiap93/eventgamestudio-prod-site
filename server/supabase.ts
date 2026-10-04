@@ -140,10 +140,16 @@ export function isProductionEnvironment(env?: Record<string, any>): boolean {
   const appEnv =
     (env && typeof env.ENVIRONMENT === 'string' ? env.ENVIRONMENT : undefined) ??
     (env && typeof env.APP_ENV === 'string' ? env.APP_ENV : undefined) ??
+    (env && typeof env.WORKER_ENV === 'string' ? env.WORKER_ENV : undefined) ??
     procEnv.ENVIRONMENT ??
     procEnv.APP_ENV ??
+    procEnv.WORKER_ENV ??
     '';
-  return nodeEnv === 'production' || appEnv === 'production' || isCloudflareWorkerRuntime();
+  const isCf =
+    isCloudflareWorkerRuntime() ||
+    Boolean(env && (env.CF_PAGES === '1' || env.CF_WORKER === 'true' || env.RATE_LIMITER || env.ASSETS));
+
+  return nodeEnv === 'production' || appEnv === 'production' || isCf;
 }
 
 /**
@@ -229,6 +235,26 @@ export function assertProductionMaintenanceSafe(operationName: string, env?: Rec
       throw new Error(
         `Fatal: Event lifecycle maintenance operation "${operationName}" requires a valid Supabase database connection in production/Worker environment. Local cache fallback is strictly prohibited.`
       );
+    }
+  }
+}
+
+/**
+ * Guard assertion for customer invitation operations.
+ * Throws a fatal error if execution is in production mode or Cloudflare Workers without a configured Supabase database.
+ * Ensures local database fallback is strictly prohibited in production.
+ */
+export function assertProductionCustomerInvitationsSafe(operationName: string, env?: Record<string, any>): void {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    if (!isSupabaseConfigured(env)) {
+      const err: any = new Error(
+        `Fatal: Customer invitation operation "${operationName}" requires a valid Supabase database connection in production/Worker environment. Local database fallback is strictly prohibited.`
+      );
+      err.code = 'SUPABASE_NOT_CONFIGURED';
+      err.statusCode = 503;
+      err.status = 503;
+      err.isOperational = true;
+      throw err;
     }
   }
 }

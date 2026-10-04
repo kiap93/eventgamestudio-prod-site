@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch, getApiBaseUrl } from '../../lib/api';
 import {
   Mail,
@@ -31,6 +32,7 @@ interface GmailStatusResponse {
 }
 
 export const DeveloperEmailSettings: React.FC = () => {
+  const { t } = useLocalization();
   const [statusData, setStatusData] = useState<GmailStatusResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [connecting, setConnecting] = useState<boolean>(false);
@@ -281,27 +283,27 @@ export const DeveloperEmailSettings: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-white tracking-tight flex items-center space-x-3">
-                <span>Official Gmail API Integration</span>
+                <span>{t('developer.emailSettingsTitle')}</span>
                 {loading ? (
                   <span className="text-xs font-normal text-slate-500 flex items-center">
-                    <RefreshCw className="w-3 h-3 animate-spin mr-1" /> checking status...
+                    <RefreshCw className="w-3 h-3 animate-spin mr-1" /> {t('developer.checkingStatus')}
                   </span>
                 ) : isConnected ? (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Active & Sending
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {t('developer.activeSending')}
                   </span>
                 ) : isError ? (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                    <XCircle className="w-3.5 h-3.5 mr-1" /> Connection Error
+                    <XCircle className="w-3.5 h-3.5 mr-1" /> {t('developer.connectionError')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                    <AlertTriangle className="w-3.5 h-3.5 mr-1" /> Not Connected
+                    <AlertTriangle className="w-3.5 h-3.5 mr-1" /> {t('developer.notConnected')}
                   </span>
                 )}
               </h1>
               <p className="text-xs text-slate-400 mt-1">
-                Platform-wide dedicated Google Workspace / Gmail sending account for transactional invitations
+                {t('developer.emailSettingsDesc')}
               </p>
             </div>
           </div>
@@ -314,7 +316,7 @@ export const DeveloperEmailSettings: React.FC = () => {
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl text-xs text-slate-300 transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh Status</span>
+            <span>{t('developer.refreshStatus')}</span>
           </button>
         </div>
       </div>
@@ -326,7 +328,7 @@ export const DeveloperEmailSettings: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
             <h2 className="text-base font-bold text-white flex items-center space-x-2">
               <Server className="w-5 h-5 text-indigo-400" />
-              <span>Dedicated Sending Account Status</span>
+              <span>{t('developer.sendingAccountStatus')}</span>
             </h2>
 
             {/* Connection Info Box */}
@@ -334,7 +336,7 @@ export const DeveloperEmailSettings: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
                   <span className="text-slate-500 block uppercase tracking-wider font-semibold text-[10px]">
-                    Sending Method
+                    {t('developer.sendingMethod')}
                   </span>
                   <span className="text-slate-200 font-mono mt-0.5 block font-bold">
                     Official Gmail API (v1 / users.messages.send)
@@ -343,7 +345,7 @@ export const DeveloperEmailSettings: React.FC = () => {
 
                 <div>
                   <span className="text-slate-500 block uppercase tracking-wider font-semibold text-[10px]">
-                    OAuth Scope
+                    {t('developer.oauthScope')}
                   </span>
                   <span className="text-slate-200 font-mono mt-0.5 block">
                     https://www.googleapis.com/auth/gmail.send
@@ -352,21 +354,21 @@ export const DeveloperEmailSettings: React.FC = () => {
 
                 <div>
                   <span className="text-slate-500 block uppercase tracking-wider font-semibold text-[10px]">
-                    Connected Sending Account
+                    {t('developer.connectedAccount')}
                   </span>
                   <span className="text-indigo-400 font-bold text-sm mt-0.5 block font-mono">
-                    {statusData?.email || 'None (Connection Required)'}
+                    {statusData?.email || t('developer.noneRequired')}
                   </span>
                 </div>
 
                 <div>
                   <span className="text-slate-500 block uppercase tracking-wider font-semibold text-[10px]">
-                    Last Connection Time
+                    {t('developer.lastConnectionTime')}
                   </span>
                   <span className="text-slate-300 mt-0.5 block">
                     {statusData?.lastConnectedAt
                       ? new Date(statusData.lastConnectedAt).toLocaleString()
-                      : 'Never'}
+                      : t('developer.never')}
                   </span>
                 </div>
               </div>
@@ -375,7 +377,7 @@ export const DeveloperEmailSettings: React.FC = () => {
                 <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-xs text-rose-300 flex items-start space-x-2">
                   <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">Recent Error:</span> {statusData.lastError}
+                    <span className="font-bold">{t('developer.recentError')}</span> {statusData.lastError}
                   </div>
                 </div>
               )}
@@ -391,7 +393,7 @@ export const DeveloperEmailSettings: React.FC = () => {
                 >
                   <Key className="w-4 h-4" />
                   <span>
-                    {connecting ? 'Redirecting to Google...' : 'Connect Business Gmail Account'}
+                    {connecting ? t('developer.redirectingToGoogle') : t('developer.connectGmailBtn')}
                   </span>
                 </button>
               ) : (
@@ -402,7 +404,7 @@ export const DeveloperEmailSettings: React.FC = () => {
                     className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition-all"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Reconnect Account</span>
+                    <span>{t('developer.reconnectAccount')}</span>
                   </button>
 
                   <button
@@ -411,7 +413,7 @@ export const DeveloperEmailSettings: React.FC = () => {
                     className="flex items-center space-x-2 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-semibold text-xs rounded-xl transition-all"
                   >
                     <Unplug className="w-3.5 h-3.5" />
-                    <span>{disconnecting ? 'Disconnecting...' : 'Disconnect Gmail'}</span>
+                    <span>{disconnecting ? t('developer.disconnecting') : t('developer.disconnectGmail')}</span>
                   </button>
                 </>
               )}
@@ -422,10 +424,10 @@ export const DeveloperEmailSettings: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold text-white flex items-center space-x-2">
               <Send className="w-5 h-5 text-emerald-400" />
-              <span>Send Test Transactional Email</span>
+              <span>{t('developer.sendTestEmailTitle')}</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Verify that the Cloudflare Worker can retrieve a fresh access token and successfully deliver an RFC 2822 MIME message via the Gmail API.
+              {t('developer.sendTestEmailDesc')}
             </p>
 
             <form onSubmit={handleSendTestEmail} className="space-y-3">
@@ -445,14 +447,14 @@ export const DeveloperEmailSettings: React.FC = () => {
                   className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
                 >
                   <Send className={`w-4 h-4 ${sendingTest ? 'animate-pulse' : ''}`} />
-                  <span>{sendingTest ? 'Sending via Gmail...' : 'Send Test Email'}</span>
+                  <span>{sendingTest ? t('developer.sendingViaGmail') : t('developer.sendTestEmailBtn')}</span>
                 </button>
               </div>
 
               {!isConnected && (
                 <p className="text-[11px] text-amber-400/90 flex items-center space-x-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Please connect a platform Gmail account above before sending test emails.</span>
+                  <span>{t('developer.pleaseConnectFirst')}</span>
                 </p>
               )}
             </form>

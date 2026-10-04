@@ -63,6 +63,17 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
   const { t } = useLocalization();
   const { currentOrganization } = useAuth();
 
+  const userRole = currentOrganization?.role;
+  const isDesigner = userRole === 'designer';
+  const isViewer = userRole === 'viewer';
+
+  // Immediate redirect for Designer role: Designer MUST NOT access Wallet page
+  useEffect(() => {
+    if (isDesigner) {
+      navigateTo('/games');
+    }
+  }, [isDesigner]);
+
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
   const [transactions, setTransactions] = useState<WalletTransactionRecord[]>([]);
   const [totalTxns, setTotalTxns] = useState(0);
@@ -109,7 +120,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
   // 1. Fetch Wallet Balance for Current Organization
   const fetchWallet = useCallback(async () => {
-    if (!currentOrganization?.id) {
+    if (!currentOrganization?.id || isDesigner) {
       setWallet(null);
       setIsLoadingWallet(false);
       return;
@@ -129,7 +140,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     } finally {
       setIsLoadingWallet(false);
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isDesigner]);
 
   // Compute active date boundaries based on datePreset
   const calculatedDateRange = useMemo(() => {
@@ -165,7 +176,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
   // 2. Fetch Transaction History Ledger for Current Organization
   const fetchTransactions = useCallback(async () => {
-    if (!currentOrganization?.id) {
+    if (!currentOrganization?.id || isDesigner) {
       setTransactions([]);
       setTotalTxns(0);
       setIsLoadingTxns(false);
@@ -205,10 +216,11 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     } finally {
       setIsLoadingTxns(false);
     }
-  }, [currentOrganization?.id, filterGroup, calculatedDateRange, searchQuery]);
+  }, [currentOrganization?.id, isDesigner, filterGroup, calculatedDateRange, searchQuery]);
 
   // Initial and reactive load
   useEffect(() => {
+    if (isDesigner) return;
     fetchWallet();
     fetchTransactions();
     apiFetch('/api/user/showcase-reward-status')
@@ -219,17 +231,18 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         }
       })
       .catch(() => {});
-  }, [fetchWallet, fetchTransactions]);
+  }, [isDesigner, fetchWallet, fetchTransactions]);
 
   // Listen for wallet_updated custom event
   useEffect(() => {
+    if (isDesigner) return;
     const handleWalletUpdated = () => {
       fetchWallet();
       fetchTransactions();
     };
     window.addEventListener('wallet_updated', handleWalletUpdated);
     return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
-  }, [fetchWallet, fetchTransactions]);
+  }, [isDesigner, fetchWallet, fetchTransactions]);
 
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
@@ -502,6 +515,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     setSearchQuery('');
   };
 
+  if (isDesigner) {
+    return null;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in duration-300">
       {/* 1. Header & Workspace Organization Isolation Bar */}
@@ -582,17 +599,19 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </div>
 
             <div className="flex flex-wrap sm:flex-col items-start sm:items-end gap-2.5 shrink-0">
-              <button
-                onClick={() => {
-                  if (onNavigateToTopUp) onNavigateToTopUp();
-                  else if (onNavigateTab) onNavigateTab('wallet-topup');
-                  else navigateTo('/wallet/top-up');
-                }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>{t('payment.topUp')}</span>
-              </button>
+              {!isViewer && (
+                <button
+                  onClick={() => {
+                    if (onNavigateToTopUp) onNavigateToTopUp();
+                    else if (onNavigateTab) onNavigateTab('wallet-topup');
+                    else navigateTo('/wallet/top-up');
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer transform hover:-translate-y-0.5"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>{t('payment.topUp')}</span>
+                </button>
+              )}
 
               {onNavigateTab && (
                 <button
@@ -618,16 +637,18 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <Coins className="w-4 h-4" />
               </div>
-              <button
-                onClick={() => {
-                  if (onNavigateToTopUp) onNavigateToTopUp();
-                  else if (onNavigateTab) onNavigateTab('wallet-topup');
-                  else navigateTo('/wallet/top-up');
-                }}
-                className="text-[10px] uppercase font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" /> {t('payment.topUp')}
-              </button>
+              {!isViewer && (
+                <button
+                  onClick={() => {
+                    if (onNavigateToTopUp) onNavigateToTopUp();
+                    else if (onNavigateTab) onNavigateTab('wallet-topup');
+                    else navigateTo('/wallet/top-up');
+                  }}
+                  className="text-[10px] uppercase font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> {t('payment.topUp')}
+                </button>
+              )}
             </div>
             <div>
               <div className="text-xs text-slate-400 font-medium">{t('payment.paidBalance')}</div>

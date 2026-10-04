@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useState, useMemo } from 'react';
 import {
   ResultScreenElement,
@@ -130,6 +131,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   onToggleCollapse,
   onOpenPresets,
 }) => {
+  const { t } = useLocalization();
   const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChildMenuId, setActiveChildMenuId] = useState<string | null>(null);

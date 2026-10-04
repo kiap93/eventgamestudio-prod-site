@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocalization } from '../../../../context/LocalizationContext';
 import {
   StartScreenElementType,
   StartScreenElement,
@@ -105,6 +106,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   onUndo,
   onRedo,
 }) => {
+  const { t } = useLocalization();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const groupedElements = useMemo(
     () => getStartElementsGroupedByCategory(gameType),
@@ -133,7 +135,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-lg shadow-md transition-all active:scale-95"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Add Element</span>
+            <span>{t('editor.addElement', undefined, 'Add Element')}</span>
           </button>
 
           {showAddMenu && (
@@ -146,7 +148,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 {/* Containers */}
                 <div>
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                    Containers
+                    {t('editor.containers', undefined, 'Containers')}
                   </span>
                   <div className="flex flex-col gap-0.5 mt-1">
                     {groupedElements.containers.map((item) => {
@@ -176,7 +178,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 {/* Visuals */}
                 <div className="border-t border-slate-800 pt-1.5">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                    Visuals
+                    {t('editor.visuals', undefined, 'Visuals')}
                   </span>
                   <div className="flex flex-col gap-0.5 mt-1">
                     {groupedElements.visuals.map((item) => {
@@ -206,7 +208,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 {/* Info & Typography */}
                 <div className="border-t border-slate-800 pt-1.5">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                    Info & Text
+                    {t('editor.infoAndText', undefined, 'Info & Text')}
                   </span>
                   <div className="flex flex-col gap-0.5 mt-1">
                     {groupedElements.info.map((item) => {
@@ -236,7 +238,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 {/* Controls */}
                 <div className="border-t border-slate-800 pt-1.5">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                    Controls
+                    {t('editor.controls', undefined, 'Controls')}
                   </span>
                   <div className="flex flex-col gap-0.5 mt-1">
                     {groupedElements.controls.map((item) => {
@@ -277,7 +279,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 ? 'text-slate-200 hover:bg-slate-800 active:scale-95'
                 : 'text-slate-600 cursor-not-allowed'
             }`}
-            title="Undo (Ctrl+Z)"
+            title={t('editor.undoTooltip', undefined, 'Undo (Ctrl+Z)')}
           >
             <Undo2 className="w-3.5 h-3.5" />
           </button>
@@ -289,7 +291,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 ? 'text-slate-200 hover:bg-slate-800 active:scale-95'
                 : 'text-slate-600 cursor-not-allowed'
             }`}
-            title="Redo (Ctrl+Y)"
+            title={t('editor.redoTooltip', undefined, 'Redo (Ctrl+Y)')}
           >
             <Redo2 className="w-3.5 h-3.5" />
           </button>
@@ -304,42 +306,42 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             <button
               onClick={() => handleAlign('left')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
-              title="Align Left"
+              title={t('editor.alignLeftTooltip', undefined, 'Align Left')}
             >
               <AlignLeft className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleAlign('center-h')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
-              title="Align Center Horizontally"
+              title={t('editor.alignCenterHTooltip', undefined, 'Align Center Horizontally')}
             >
               <AlignCenterHorizontal className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleAlign('right')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
-              title="Align Right"
+              title={t('editor.alignRightTooltip', undefined, 'Align Right')}
             >
               <AlignRight className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleAlign('top')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
-              title="Align Top"
+              title={t('editor.alignTopTooltip', undefined, 'Align Top')}
             >
               <AlignStartVertical className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleAlign('center-v')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
-              title="Align Center Vertically"
+              title={t('editor.alignCenterVTooltip', undefined, 'Align Center Vertically')}
             >
               <AlignCenterVertical className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleAlign('bottom')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
-              title="Align Bottom"
+              title={t('editor.alignBottomTooltip', undefined, 'Align Bottom')}
             >
               <AlignEndVertical className="w-3.5 h-3.5" />
             </button>
@@ -353,7 +355,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                   ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
                   : 'text-slate-600 cursor-not-allowed opacity-40'
               }`}
-              title={canDistribute ? 'Distribute Horizontally' : 'Distribute Horizontally (requires 3+ elements)'}
+              title={canDistribute ? t('editor.distributeHTooltip', undefined, 'Distribute Horizontally') : t('editor.distributeHTooltip', undefined, 'Distribute Horizontally') + ' (3+)'}
             >
               <AlignHorizontalDistributeCenter className="w-3.5 h-3.5" />
             </button>
@@ -365,7 +367,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                   ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
                   : 'text-slate-600 cursor-not-allowed opacity-40'
               }`}
-              title={canDistribute ? 'Distribute Vertically' : 'Distribute Vertically (requires 3+ elements)'}
+              title={canDistribute ? t('editor.distributeVTooltip', undefined, 'Distribute Vertically') : t('editor.distributeVTooltip', undefined, 'Distribute Vertically') + ' (3+)'}
             >
               <AlignVerticalDistributeCenter className="w-3.5 h-3.5" />
             </button>
@@ -376,28 +378,28 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             <button
               onClick={() => onMoveSelectedLayer('front')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Bring to Front"
+              title={t('editor.bringToFront', undefined, 'Bring to Front')}
             >
               <ChevronsUp className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onMoveSelectedLayer('forward')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Bring Forward"
+              title={t('editor.bringForward', undefined, 'Bring Forward')}
             >
               <ArrowUp className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onMoveSelectedLayer('backward')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Send Backward"
+              title={t('editor.sendBackward', undefined, 'Send Backward')}
             >
               <ArrowDown className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onMoveSelectedLayer('back')}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Send to Back"
+              title={t('editor.sendToBack', undefined, 'Send to Back')}
             >
               <ChevronsDown className="w-3.5 h-3.5" />
             </button>
@@ -409,7 +411,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               <button
                 onClick={onGroupSelected}
                 className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-                title="Group Selected (Ctrl+G)"
+                title={t('editor.groupTooltip', undefined, 'Group Selected (Ctrl+G)')}
               >
                 <FolderTree className="w-3.5 h-3.5 text-amber-400" />
               </button>
@@ -418,7 +420,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               <button
                 onClick={onUngroupSelected}
                 className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-                title="Ungroup (Ctrl+Shift+G)"
+                title={t('editor.ungroupTooltip', undefined, 'Ungroup (Ctrl+Shift+G)')}
               >
                 <FolderMinus className="w-3.5 h-3.5 text-amber-400" />
               </button>
@@ -429,7 +431,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
               <button
                 onClick={onToggleLockSelected}
                 className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-                title={isAllSelectedLocked ? 'Unlock Selected' : 'Lock Selected'}
+                title={isAllSelectedLocked ? t('editor.unlockSelection', undefined, 'Unlock Selected') : t('editor.lockSelection', undefined, 'Lock Selected')}
               >
                 {isAllSelectedLocked ? (
                   <Lock className="w-3.5 h-3.5 text-rose-400" />
@@ -443,7 +445,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             <button
               onClick={onDuplicateSelected}
               className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Duplicate (Ctrl+D)"
+              title={t('editor.duplicateSelection', undefined, 'Duplicate (Ctrl+D)')}
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
@@ -452,14 +454,14 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             <button
               onClick={onDeleteSelected}
               className="p-1.5 rounded hover:bg-rose-950/60 text-slate-300 hover:text-rose-400"
-              title="Delete (Del)"
+              title={t('editor.deleteSelection', undefined, 'Delete (Del)')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
           <span className="text-xs text-slate-500 font-medium">
-            {totalElementsCount} elements on canvas • Click element to edit
+            {t('editor.multipleElements', { count: totalElementsCount }, `${totalElementsCount} elements`)} • {t('editor.selectElementToEdit', undefined, 'Click element to edit')}
           </span>
         )}
       </div>
@@ -481,17 +483,17 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-bold'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
             }`}
-            title={isPreviewMode ? 'Exit Preview Mode' : 'Preview Live Start Screen (P)'}
+            title={isPreviewMode ? t('editor.previewActive', undefined, 'Exit Preview Mode') : t('editor.togglePreviewTooltip', undefined, 'Preview Live Start Screen (P)')}
           >
             {isPreviewMode ? (
               <>
                 <EyeOff className="w-3.5 h-3.5" />
-                <span>Exit Preview</span>
+                <span>{t('editor.previewActive', undefined, 'Exit Preview')}</span>
               </>
             ) : (
               <>
                 <Eye className="w-3.5 h-3.5 text-amber-400" />
-                <span>Preview</span>
+                <span>{t('editor.preview', undefined, 'Preview')}</span>
               </>
             )}
           </button>
@@ -501,10 +503,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           <button
             onClick={onOpenPresets}
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition-colors"
-            title="Load Pre-designed Layout Presets"
+            title={t('editor.presetLibraryBtn', undefined, 'Load Pre-designed Layout Presets')}
           >
             <LayoutTemplate className="w-3.5 h-3.5 text-amber-400" />
-            <span>Presets</span>
+            <span>{t('editor.presetLibraryBtn', undefined, 'Presets')}</span>
           </button>
         )}
 
@@ -512,27 +514,27 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           <button
             onClick={onSaveAsTemplate}
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition-colors"
-            title="Save Layout as Custom Template"
+            title={t('editor.saveAsTemplateBtn', undefined, 'Save Layout as Custom Template')}
           >
             <BookmarkPlus className="w-3.5 h-3.5 text-sky-400" />
-            <span>Save Template</span>
+            <span>{t('editor.saveAsTemplateBtn', undefined, 'Save Template')}</span>
           </button>
         )}
 
         <button
           onClick={onResetLayout}
           className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg text-xs font-semibold border border-slate-700/60 transition-colors"
-          title="Reset to Default Layout"
+          title={t('editor.resetCanvasLayout', undefined, 'Reset to Default Layout')}
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset</span>
+          <span>{t('common.reset', undefined, 'Reset')}</span>
         </button>
 
         {onToggleFullscreen && (
           <button
             onClick={onToggleFullscreen}
             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
-            title={isModal ? 'Exit Fullscreen' : 'Open Studio Fullscreen'}
+            title={isModal ? t('gamesCatalog.exitFullscreen', undefined, 'Exit Fullscreen') : t('editor.fullscreenTooltip', undefined, 'Open Studio Fullscreen')}
           >
             <Maximize2 className="w-4 h-4" />
           </button>
@@ -544,7 +546,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-md transition-all active:scale-95 ml-1"
           >
             <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>Done</span>
+            <span>{t('common.done', undefined, 'Done')}</span>
           </button>
         )}
       </div>

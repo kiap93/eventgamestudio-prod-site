@@ -42,7 +42,12 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
   const [isPollingStatus, setIsPollingStatus] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const isDevAdmin = Boolean(import.meta.env.DEV && currentUser?.is_developer);
+  // Developer authorization (user privilege)
+  const isDevAdmin = Boolean(currentUser?.is_developer);
+  // Production visibility boundary: Developer Sandbox is strictly restricted to local development builds
+  // (import.meta.env.DEV) AND requires authenticated developer authorization.
+  // In production builds, this is ALWAYS false, preventing the sandbox from rendering even for developer accounts.
+  const showDevSandbox = Boolean(import.meta.env.DEV && isDevAdmin);
 
   const pollingTimerRef = useRef<any>(null);
   const isProcessingRef = useRef<boolean>(false);
@@ -302,7 +307,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
           )}
 
           {/* Sandbox Webhook Simulation (Developer Admin Sandbox Only) */}
-          {isDevAdmin && (
+          {showDevSandbox && (
             <div className="pt-2 border-t border-slate-800/80 space-y-2">
               <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-semibold text-center">
                 Developer Admin Sandbox Tools

@@ -287,10 +287,10 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
           type="button"
           onClick={handleResetAllLayout}
           className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 shrink-0 transition-all"
-          title="Reset all element coordinates to factory defaults"
+          title={t('studio.resetAllLayoutTitle')}
         >
           <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-          <span>Reset All Layout</span>
+          <span>{t('studio.resetAllLayout')}</span>
         </button>
       </div>
 
@@ -522,7 +522,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
               type="button"
               onClick={handleResetActiveElement}
               className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Reset this element to default position"
+              title={t('studio.resetElementPosition')}
             >
               <RotateCcw className="w-3 h-3 text-slate-400" />
               <span>{t('common.reset')}</span>
@@ -600,9 +600,9 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
               className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>0% (Left)</span>
-              <span>50% (Center)</span>
-              <span>100% (Right)</span>
+              <span>{t('studio.alignLeftPct')}</span>
+              <span>{t('studio.alignCenterPct')}</span>
+              <span>{t('studio.alignRightPct')}</span>
             </div>
           </div>
 
@@ -640,9 +640,9 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
               className="w-full accent-teal-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>0% (Top)</span>
-              <span>50% (Center)</span>
-              <span>100% (Bottom)</span>
+              <span>{t('studio.alignTopPct')}</span>
+              <span>{t('studio.alignMiddlePct')}</span>
+              <span>{t('studio.alignBottomPct')}</span>
             </div>
           </div>
 
@@ -735,7 +735,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 text-xs text-amber-200 flex items-start gap-2.5">
           <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <div className="font-bold text-amber-300">Live Drag & Resize in Simulation Viewport:</div>
+            <div className="font-bold text-amber-300">{t('studio.liveDragResizeViewport')}</div>
             <div className="text-[11px] text-amber-200/90 leading-relaxed">
               You can also click and drag UI elements directly inside the live simulation preview on the right.
               Drag from the bounding box to move, or drag the side handle to change width!

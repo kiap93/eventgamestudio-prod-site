@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 /**
  * Shared Visual Editor Engine - Layer Tree & Outliner Panel
  * Displays tree hierarchy of canvas elements (containers, groups, components),
@@ -132,6 +133,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
   onToggleCollapse,
   onOpenPresets,
 }: LayerTreePanelProps<T>) => {
+  const { t } = useLocalization();
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedContainers, setCollapsedContainers] = useState<Record<string, boolean>>({});
   const [addingChildToParentId, setAddingChildToParentId] = useState<string | null>(null);
@@ -414,7 +416,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
           <Search className="w-3.5 h-3.5 absolute left-2 text-slate-500" />
           <input
             type="text"
-            placeholder="Search layers..."
+            placeholder={t('editor.filterLayers', undefined, 'Search layers...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"

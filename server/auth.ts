@@ -423,18 +423,13 @@ export const PERMISSIONS: Record<OrgRole, string[]> = {
     'wallet.transactions.view',
   ],
   designer: [
-    // Event viewing only (designers can view and preview events, but cannot create, edit, pay, cancel, or manage events)
-    'event.view',
-    // Game/Theme editing (primary designer capability)
+    // Game/Theme editing (primary designer capability - strictly design resources only)
     'game.view',
     'game.items.view',
     'game.background.edit',
     'game.items.edit',
     'game.basket.edit',
     'game.settings.edit',
-    // Wallet viewing
-    'wallet.view',
-    'wallet.transactions.view',
   ],
   viewer: [
     // View-only permissions

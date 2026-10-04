@@ -30,11 +30,12 @@ import { LanguageSelector } from '../common/LanguageSelector';
 import { useLocalization } from '../../context/LocalizationContext';
 import {
   MAIN_NAVIGATION_ITEMS,
+  getNavigationItemsForRole,
   matchesMainSection,
   handleMainTabNavigation,
 } from '../../lib/navigation';
 
-export { MAIN_NAVIGATION_ITEMS, matchesMainSection, handleMainTabNavigation };
+export { MAIN_NAVIGATION_ITEMS, getNavigationItemsForRole, matchesMainSection, handleMainTabNavigation };
 
 export const DashboardLayout: React.FC = () => {
   const routeContext = useRouteContext();
@@ -48,14 +49,18 @@ export const DashboardLayout: React.FC = () => {
     logout,
   } = useAuth();
 
+  const isDesigner = currentOrganization?.role === 'designer';
+  const isViewer = currentOrganization?.role === 'viewer';
+
   const getInitialTab = (): 'events' | 'games' | 'team' | 'wallet' | 'wallet-topup' => {
     const path = window.location.pathname;
+    if (isDesigner) return 'games';
     if (matchesMainSection(path, '/wallet/top-up')) return 'wallet-topup';
     if (matchesMainSection(path, '/wallet')) return 'wallet';
     if (matchesMainSection(path, '/games')) return 'games';
-    if (matchesMainSection(path, '/team')) return 'team';
+    if (matchesMainSection(path, '/team')) return isViewer ? 'events' : 'team';
     if (matchesMainSection(path, '/events')) return 'events';
-    return 'events';
+    return isDesigner ? 'games' : 'events';
   };
 
   const [activeTab, setActiveTab] = useState<'events' | 'games' | 'team' | 'wallet' | 'wallet-topup'>(() => getInitialTab());
@@ -98,7 +103,7 @@ export const DashboardLayout: React.FC = () => {
 
   // Fetch current organization's wallet balance from existing Wallet Engine
   const fetchWallet = useCallback(async (resetState: boolean = false) => {
-    if (!currentOrganization?.id) {
+    if (!currentOrganization?.id || isDesigner) {
       setWallet(null);
       setLoadingWallet(false);
       setWalletError(false);
@@ -126,7 +131,7 @@ export const DashboardLayout: React.FC = () => {
     } finally {
       setLoadingWallet(false);
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isDesigner]);
 
   // When organization changes, trigger a fresh fetch and reset previous org balance
   useEffect(() => {
@@ -145,18 +150,43 @@ export const DashboardLayout: React.FC = () => {
   // Sync tab with browser URL history and route changes
   useEffect(() => {
     const path = routeContext.pathname || window.location.pathname;
+    if (isDesigner) {
+      if (
+        matchesMainSection(path, '/events') ||
+        matchesMainSection(path, '/wallet') ||
+        matchesMainSection(path, '/wallet/top-up') ||
+        matchesMainSection(path, '/team') ||
+        routeContext.isShowcaseRoute
+      ) {
+        navigateTo('/games');
+        setActiveTab('games');
+        return;
+      }
+      setActiveTab('games');
+      return;
+    }
     if (matchesMainSection(path, '/wallet/top-up')) {
-      setActiveTab('wallet-topup');
+      if (isViewer) {
+        navigateTo('/wallet');
+        setActiveTab('wallet');
+      } else {
+        setActiveTab('wallet-topup');
+      }
     } else if (matchesMainSection(path, '/wallet')) {
       setActiveTab('wallet');
     } else if (matchesMainSection(path, '/games')) {
       setActiveTab('games');
     } else if (matchesMainSection(path, '/team')) {
-      setActiveTab('team');
+      if (isViewer) {
+        navigateTo('/events');
+        setActiveTab('events');
+      } else {
+        setActiveTab('team');
+      }
     } else if (matchesMainSection(path, '/events')) {
       setActiveTab('events');
     }
-  }, [routeContext.pathname]);
+  }, [routeContext.pathname, routeContext.isShowcaseRoute, isDesigner, isViewer]);
 
   const currentPath = routeContext.pathname || (typeof window !== 'undefined' ? window.location.pathname : '/');
 
@@ -173,6 +203,21 @@ export const DashboardLayout: React.FC = () => {
   };
 
   const handleTabChange = (tab: 'events' | 'games' | 'team' | 'wallet' | 'wallet-topup') => {
+    if (isDesigner && tab !== 'games') {
+      setActiveTab('games');
+      handleNavigation('/games');
+      return;
+    }
+    if (isViewer && tab === 'team') {
+      setActiveTab('events');
+      handleNavigation('/events');
+      return;
+    }
+    if (isViewer && tab === 'wallet-topup') {
+      setActiveTab('wallet');
+      handleNavigation('/wallet');
+      return;
+    }
     setActiveTab(tab);
     if (tab === 'events') {
       handleNavigation('/events');
@@ -237,7 +282,7 @@ export const DashboardLayout: React.FC = () => {
 
           {/* Center: Main Navigation (Desktop) */}
           <div className="hidden md:flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs shrink-0">
-            {MAIN_NAVIGATION_ITEMS.map((item) => {
+            {getNavigationItemsForRole(currentOrganization?.role).map((item) => {
               const isActive = matchesMainSection(currentPath, item.href);
               const Icon = item.icon;
               const label =
@@ -247,8 +292,6 @@ export const DashboardLayout: React.FC = () => {
                   ? t('nav.games')
                   : item.id === 'team'
                   ? t('nav.team')
-                  : item.id === 'wallet'
-                  ? t('nav.wallet')
                   : item.label;
               return (
                 <button
@@ -385,43 +428,45 @@ export const DashboardLayout: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Organization Available Balance Button [ Balance RM6,000 ] */}
-            <button
-              onClick={() => handleTabChange('wallet')}
-              title={`Organization Balance (${currentOrganization?.name || 'Workspace'}) - Click to view wallet details`}
-              className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
-                activeTab === 'wallet' || activeTab === 'wallet-topup'
-                  ? 'border-amber-500 bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/40 shadow-sm'
-                  : 'border-slate-800 hover:border-slate-700 text-slate-200'
-              } px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer shrink-0`}
-            >
-              <Wallet className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'wallet' ? 'text-amber-300' : 'text-amber-400'} group-hover:scale-105 transition-transform shrink-0`} />
-              
-              {loadingWallet && !wallet && !walletError ? (
-                <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
-                  <span className="inline-flex items-center gap-1 text-slate-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    <span className="text-[11px] font-mono">...</span>
+            {/* 2. Organization Available Balance Button [ Balance RM6,000 ] - Hidden for Designers */}
+            {!isDesigner && (
+              <button
+                onClick={() => handleTabChange('wallet')}
+                title={`Organization Balance (${currentOrganization?.name || 'Workspace'}) - Click to view wallet details`}
+                className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
+                  activeTab === 'wallet' || activeTab === 'wallet-topup'
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/40 shadow-sm'
+                    : 'border-slate-800 hover:border-slate-700 text-slate-200'
+                } px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer shrink-0`}
+              >
+                <Wallet className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'wallet' ? 'text-amber-300' : 'text-amber-400'} group-hover:scale-105 transition-transform shrink-0`} />
+                
+                {loadingWallet && !wallet && !walletError ? (
+                  <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
+                    <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
+                    <span className="inline-flex items-center gap-1 text-slate-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      <span className="text-[11px] font-mono">...</span>
+                    </span>
                   </span>
-                </span>
-              ) : walletError && !wallet ? (
-                <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
-                  <span className="text-rose-400/90 font-medium">{t('common.na')}</span>
-                </span>
-              ) : wallet ? (
-                <span className="flex items-center gap-1.5 text-xs font-bold whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
-                  <span className="font-mono text-amber-400 font-bold">{formatCurrency(wallet.total_balance, currencyCode)}</span>
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
-                  <span>{t('common.na')}</span>
-                </span>
-              )}
-            </button>
+                ) : walletError && !wallet ? (
+                  <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                    <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
+                    <span className="text-rose-400/90 font-medium">{t('common.na')}</span>
+                  </span>
+                ) : wallet ? (
+                  <span className="flex items-center gap-1.5 text-xs font-bold whitespace-nowrap">
+                    <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
+                    <span className="font-mono text-amber-400 font-bold">{formatCurrency(wallet.total_balance, currencyCode)}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                    <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
+                    <span>{t('common.na')}</span>
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Language Selector */}
             <LanguageSelector variant="standard" />
@@ -477,16 +522,18 @@ export const DashboardLayout: React.FC = () => {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setShowUserDropdown(false);
-                      handleTabChange('wallet');
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
-                  >
-                    <Wallet className="w-4 h-4" />
-                    <span>{t('payment.wallet')}</span>
-                  </button>
+                  {!isDesigner && (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        handleTabChange('wallet');
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
+                    >
+                      <Wallet className="w-4 h-4" />
+                      <span>{t('payment.wallet')}</span>
+                    </button>
+                  )}
 
                   {currentUser?.is_developer && (
                     <button
@@ -534,8 +581,8 @@ export const DashboardLayout: React.FC = () => {
             id="dashboard-mobile-nav-drawer"
             className="md:hidden px-4 py-3 bg-slate-950/98 border-t border-slate-800 space-y-3 animate-in slide-in-from-top-2 duration-150"
           >
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs">
-              {MAIN_NAVIGATION_ITEMS.map((item) => {
+            <div className="grid grid-flow-col auto-cols-fr gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs">
+              {getNavigationItemsForRole(currentOrganization?.role).map((item) => {
                 const isActive = matchesMainSection(currentPath, item.href);
                 const Icon = item.icon;
                 const label =
@@ -578,16 +625,18 @@ export const DashboardLayout: React.FC = () => {
                 </span>
               </div>
 
-              <button
-                onClick={() => {
-                  handleTabChange('wallet');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg text-xs font-bold text-amber-300 shrink-0 cursor-pointer"
-              >
-                <Wallet className="w-3.5 h-3.5" />
-                <span>{availableBalanceText}</span>
-              </button>
+              {!isDesigner && (
+                <button
+                  onClick={() => {
+                    handleTabChange('wallet');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg text-xs font-bold text-amber-300 shrink-0 cursor-pointer"
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>{availableBalanceText}</span>
+                </button>
+              )}
             </div>
 
             {/* Mobile Actions */}
@@ -623,19 +672,23 @@ export const DashboardLayout: React.FC = () => {
       {/* Main Content Body */}
       <main className="flex-1 py-6">
         {routeContext.isShowcaseRoute && routeContext.eventId ? (
-          <EventShowcasePage eventId={routeContext.eventId} />
+          !isDesigner ? (
+            <EventShowcasePage eventId={routeContext.eventId} />
+          ) : (
+            <GamesPage />
+          )
         ) : (
           <>
-            {activeTab === 'events' && <EventsPage />}
+            {activeTab === 'events' && !isDesigner && <EventsPage />}
             {activeTab === 'games' && <GamesPage />}
-            {activeTab === 'team' && <TeamMembersPage />}
-            {activeTab === 'wallet' && (
+            {activeTab === 'team' && !isDesigner && !isViewer && <TeamMembersPage />}
+            {activeTab === 'wallet' && !isDesigner && (
               <OrganizationWalletPage
                 onNavigateTab={handleTabChange}
                 onNavigateToTopUp={() => handleTabChange('wallet-topup')}
               />
             )}
-            {activeTab === 'wallet-topup' && (
+            {activeTab === 'wallet-topup' && !isDesigner && !isViewer && (
               <TopUpPage
                 onBackToWallet={() => handleTabChange('wallet')}
                 onNavigateTab={handleTabChange}

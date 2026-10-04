@@ -4,6 +4,32 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-10-02] - Fix Customer Invitation Database Persistence and RPC Atomicity
+
+### Summary
+Addressed unsafe missing-RPC fallbacks and non-persisted customer invitation creations where `POST /api/developer/customer-invitations/companies` returned HTTP 201 before migration `20261008000000_create_customer_invitations.sql` was applied to Supabase. Removed unsafe separate table inserts and local fallback paths for production/Cloudflare Workers. Enforced atomic database procedures (`create_customer_company_atomic`, `update_customer_company_atomic`, and `record_customer_invitation_dispatch_atomic`), strict migration detection throwing `CUSTOMER_INVITATIONS_MIGRATION_REQUIRED` (HTTP 503), and tightened database execution permissions so unprivileged users cannot execute administrative operations.
+
+### Key Changes Implemented
+1. **Removed Unsafe Fallbacks**:
+   - Eliminated the `isRpcMissing` block in `createCustomerCompany()` that performed non-transactional separate table inserts.
+   - For production and Cloudflare Workers, company and recipient creation, updates, deletions, and invitation logs strictly require an authoritative Supabase database connection and atomic RPCs.
+   - Added `isMissingTableOrRpcError()` and `createMigrationRequiredError()` mapping missing tables or RPCs directly to `CUSTOMER_INVITATIONS_MIGRATION_REQUIRED` (HTTP 503).
+2. **Hardened Atomic Database Procedures**:
+   - `create_customer_company_atomic`: Validates company name, requires at least one valid recipient email, normalizes email addresses to lowercase, deduplicates emails within the batch, executes in an all-or-nothing PostgreSQL transaction under `SECURITY DEFINER` with fixed `search_path = public`, and checks for existing user foreign key integrity before assigning `created_by`.
+   - `update_customer_company_atomic`: Atomic procedure reconciling company details and recipient updates, creations, and removals within a single database transaction.
+   - `record_customer_invitation_dispatch_atomic`: Atomically writes the invitation audit log and updates the recipient's count, last status, and timestamps.
+   - Revoked execute permissions on atomic procedures from `PUBLIC` and `anon`; explicitly granted only to `authenticated` and `service_role`.
+3. **Audit and Parity across All Operations**:
+   - Updated `updateCustomerCompany`, `deleteCustomerCompany`, `sendCompanyInvitations`, `listCustomerCompanies`, `getCustomerCompanyById`, `listCustomerInvitationLogs`, and `getCustomerInvitationStats` to detect missing migrations/tables and propagate clear errors without silent partial writes or stale reads.
+   - Resend dispatch ensures delivery records are created with explicit message IDs, failing fast if API keys are unconfigured.
+4. **Error Handler & Protocol Parity**:
+   - Express (`handleApiError`) and Cloudflare Workers (`handleWorkerApiError`) map `CUSTOMER_INVITATIONS_MIGRATION_REQUIRED` and `SUPABASE_NOT_CONFIGURED` to HTTP 503.
+   - `REINVITATION_CONFIRMATION_REQUIRED` maps to HTTP 409 with structured `previously_invited` recipient metadata.
+5. **Regression Test Coverage (`server/customer_invitations.test.ts`)**:
+   - Added unit and integration tests verifying missing RPC detection (`isMissingTableOrRpcError`), production fallback prevention (`assertProductionCustomerInvitationsSafe`), Express and Cloudflare Worker HTTP 503 error status mapping, and HTTP 409 re-invitation confirmation payload parity. All 13 test suites pass cleanly.
+
+---
+
 ## [2026-09-24] - Fix Showcase "Submit for RM300 Reward" Flow: Autosave on Submit
 
 ### Summary
