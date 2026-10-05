@@ -70,7 +70,7 @@ async function runCustomerInvitationsTestSuite() {
   );
 
   // Verify required body paragraphs & wording
-  assert.ok(template.text.includes('Dear Sir/Mdm,'), 'Must contain "Dear Sir/Mdm,"');
+  assert.ok(template.text.includes('Hello,'), 'Must contain "Hello,"');
   assert.ok(
     template.text.includes('interactive game platform designed for corporate events, team activities, brand activations'),
     'Must contain core platform value description'

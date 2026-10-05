@@ -35,7 +35,7 @@ export function generateCustomerInvitationEmail(params: CustomerInvitationEmailP
   const rawCompanyName = (params.companyName || '').trim() || 'your team';
   const escapedCompanyName = escapeHtml(rawCompanyName);
 
-  const text = `Dear Sir/Mdm,
+  const text = `Hello,
 
 We would like to invite ${rawCompanyName} to try EventGameStudio, an interactive game platform designed for corporate events, team activities, brand activations, and other engagement experiences.
 
@@ -90,7 +90,7 @@ Email: ${SENDER_EMAIL}`;
           <tr>
             <td style="padding: 36px 36px 28px 36px; font-size: 15px; color: #cbd5e1; line-height: 1.7;">
               <p style="margin: 0 0 18px 0; font-size: 16px; font-weight: 600; color: #f8fafc;">
-                Dear Sir/Mdm,
+                Hello,
               </p>
 
               <p style="margin: 0 0 22px 0;">
