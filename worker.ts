@@ -59,6 +59,10 @@ import {
   getClientLiveGameAccessDetails,
   isEventExplicitlyCancelled,
   getNormalizedEventDates,
+  PLATFORM_BUSINESS_TIMEZONE,
+  getCalendarDateInTimezone,
+  resolveEventTimezone,
+  formatDateApi,
   createEvent,
   createEventWithAtomicPayment,
   updateEvent,
@@ -213,6 +217,16 @@ import {
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
 import { translationService } from './server/translation/service.js';
+import { isValidTimezone } from './src/lib/countryUtils.js';
+import {
+  getAuthoritativeNow,
+  getAuthoritativeNowMs,
+  getBusinessDate,
+  getBusinessDateTime,
+  getEventStartInstant,
+  getEventEndInstant,
+  getEventSetupDayInstant,
+} from './src/lib/authoritativeTime.js';
 import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from './src/lib/i18n/languages.js';
 import {
   getEventTranslations,
@@ -235,6 +249,7 @@ import {
   listCustomerInvitationLogs,
   getCustomerInvitationStats,
   handleCustomerInvitationWebhook,
+  findCrossCompanyDuplicates,
 } from './server/db/customerInvitations.js';
 import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
 
@@ -835,11 +850,18 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
       // Dynamic client environment configuration script (/env.js)
       if (pathname === '/env.js' && method === 'GET') {
+        const workerNow = getAuthoritativeNow();
+        const serverToday = getBusinessDate(workerNow, PLATFORM_BUSINESS_TIMEZONE);
+        const isDev = env.NODE_ENV !== 'production';
         const envScript = `window.__ENV__ = Object.assign(window.__ENV__ || {}, ${JSON.stringify({
           VITE_API_BASE_URL: env.VITE_API_BASE_URL || env.API_BASE_URL || '',
           VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
           VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || '',
           VITE_GOOGLE_CLIENT_ID: env.VITE_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '',
+          VITE_EVENT_REFERENCE_DATE: '',
+          SERVER_DATE: serverToday,
+          SERVER_TIMEZONE: PLATFORM_BUSINESS_TIMEZONE,
+          SERVER_TIMESTAMP: workerNow.getTime(),
         })});`;
 
         return new Response(envScript, {
@@ -860,11 +882,18 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             return response;
           }
 
+          const workerNow = getAuthoritativeNow();
+          const serverToday = getBusinessDate(workerNow, PLATFORM_BUSINESS_TIMEZONE);
+          const isDev = env.NODE_ENV !== 'production';
           const runtimeConfig = JSON.stringify({
             VITE_API_BASE_URL: env.VITE_API_BASE_URL || env.API_BASE_URL || '',
             VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || env.SUPABASE_URL || '',
             VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || '',
             VITE_GOOGLE_CLIENT_ID: env.VITE_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '',
+            VITE_EVENT_REFERENCE_DATE: '',
+            SERVER_DATE: serverToday,
+            SERVER_TIMEZONE: PLATFORM_BUSINESS_TIMEZONE,
+            SERVER_TIMESTAMP: workerNow.getTime(),
           });
 
           const HTMLRewriterClass = (globalThis as any).HTMLRewriter;
@@ -1117,6 +1146,74 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           },
           200,
           cors
+        );
+      }
+
+      // GET /api/time - Authoritative Application Clock (Strictly uncached)
+      if (pathname === '/api/time' && method === 'GET') {
+        const reqTz = url.searchParams.get('timezone') || PLATFORM_BUSINESS_TIMEZONE;
+        const targetTz = isValidTimezone(reqTz) ? reqTz : PLATFORM_BUSINESS_TIMEZONE;
+        const now = getAuthoritativeNow();
+        const businessDate = getBusinessDate(now, targetTz);
+        const runtimeTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+        return new Response(
+          JSON.stringify({
+            epoch: now.getTime(),
+            timestamp: now.getTime(),
+            iso: now.toISOString(),
+            utc: now.toUTCString(),
+            runtimeTimezone,
+            businessTimezone: targetTz,
+            businessDate,
+            date: businessDate,
+            timezone: targetTz,
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+              'CDN-Cache-Control': 'no-store',
+              'Cloudflare-CDN-Cache-Control': 'no-store',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+              ...cors,
+            },
+          }
+        );
+      }
+
+      // GET /api/debug/time - Diagnostic endpoint for authoritative server time (Strictly uncached)
+      if (pathname === '/api/debug/time' && method === 'GET') {
+        const reqTz = url.searchParams.get('timezone') || PLATFORM_BUSINESS_TIMEZONE;
+        const targetTz = isValidTimezone(reqTz) ? reqTz : PLATFORM_BUSINESS_TIMEZONE;
+        const now = getAuthoritativeNow();
+        const businessDate = getBusinessDate(now, targetTz);
+        const runtimeTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+        return new Response(
+          JSON.stringify({
+            epoch: now.getTime(),
+            iso: now.toISOString(),
+            utc: now.toUTCString(),
+            runtimeTimezone,
+            businessTimezone: targetTz,
+            businessDate,
+            singaporeDate: getBusinessDate(now, 'Asia/Singapore'),
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+              'CDN-Cache-Control': 'no-store',
+              'Cloudflare-CDN-Cache-Control': 'no-store',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+              ...cors,
+            },
+          }
         );
       }
 
@@ -4217,10 +4314,33 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         try {
-          if (resolvedEnd < resolvedStart) {
+          // Authoritative server-side date validation from Cloudflare Worker runtime
+          const orgRecord = await getOrganizationById(organizationId, env);
+          const resolvedTz = resolveEventTimezone(event_timezone, orgRecord);
+          const authoritativeWorkerNow = new Date();
+          const serverToday = getCalendarDateInTimezone(authoritativeWorkerNow, resolvedTz);
+
+          const cleanStart = formatDateApi(resolvedStart);
+          const cleanEnd = formatDateApi(resolvedEnd);
+
+          if (!cleanStart || !cleanEnd) {
+            return jsonResponse({
+              code: 'INVALID_DATE_FORMAT',
+              error: 'Invalid Start Date or End Date. Please provide dates in YYYY-MM-DD format.',
+            }, 422, cors);
+          }
+
+          if (cleanEnd < cleanStart) {
             return jsonResponse({
               code: 'INVALID_DATE_RANGE',
               error: 'The event end date cannot be earlier than the start date. Please select a valid date range.',
+            }, 422, cors);
+          }
+
+          if (cleanEnd < serverToday) {
+            return jsonResponse({
+              code: 'EVENT_DATE_PASSED',
+              error: 'This event date has already passed. Please select a current or future event date.',
             }, 422, cors);
           }
 
@@ -4231,11 +4351,11 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               game_id,
               game_theme_id,
               name,
-              event_date: resolvedStart,
-              start_date: resolvedStart,
-              end_date: resolvedEnd,
-              startDate: resolvedStart,
-              endDate: resolvedEnd,
+              event_date: cleanStart,
+              start_date: cleanStart,
+              end_date: cleanEnd,
+              startDate: cleanStart,
+              endDate: cleanEnd,
               starts_at,
               expires_at,
               status: 'draft',
@@ -4243,7 +4363,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               payment_status: 'UNPAID',
               created_by: user.id,
               event_price,
-              event_timezone,
+              event_timezone: resolvedTz,
+              currentDate: serverToday,
             },
             env
           );
@@ -7265,6 +7386,29 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
       }
 
+      // POST /api/developer/customer-invitations/check-duplicates
+      if ((pathname === '/api/developer/customer-invitations/check-duplicates' || pathname === '/api/admin/customer-invitations/check-duplicates') && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { emails, exclude_company_id } = body;
+        if (!Array.isArray(emails)) {
+          return errorResponse('Emails must be an array', 400, cors);
+        }
+
+        try {
+          const duplicates = await findCrossCompanyDuplicates(emails, exclude_company_id, env);
+          return jsonResponse({ success: true, duplicates }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin check customer duplicates error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
       // POST /api/developer/customer-invitations/companies
       if ((pathname === '/api/developer/customer-invitations/companies' || pathname === '/api/admin/customer-invitations/companies') && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
@@ -7274,7 +7418,44 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { company_name, contact_person, notes, recipients } = body;
+        const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = body;
+
+        if (!Array.isArray(recipients) || recipients.length === 0) {
+          return errorResponse('At least one recipient email address is required', 400, cors);
+        }
+
+        // CASE 1: Duplicate inside same company (error)
+        const seenEmails = new Set<string>();
+        for (const r of recipients) {
+          const clean = (r.email || '').trim().toLowerCase();
+          if (!clean) continue;
+          if (seenEmails.has(clean)) {
+            return jsonResponse({
+              success: false,
+              error: `Duplicate email address "${clean}" within the same company. Each recipient must have a unique email.`,
+              code: 'DUPLICATE_COMPANY_EMAIL',
+            }, 400, cors);
+          }
+          seenEmails.add(clean);
+        }
+
+        // CASE 2: Duplicate across other companies (warning requiring confirmation)
+        if (!confirm_cross_company_duplicates) {
+          try {
+            const crossDuplicates = await findCrossCompanyDuplicates(Array.from(seenEmails), undefined, env);
+            if (crossDuplicates.length > 0) {
+              return jsonResponse({
+                success: false,
+                code: 'CROSS_COMPANY_DUPLICATE_WARNING',
+                message: 'One or more recipient emails are already associated with another company.',
+                cross_company_duplicates: crossDuplicates,
+              }, 409, cors);
+            }
+          } catch (err: any) {
+            console.error('Error checking cross company duplicates:', err);
+            return handleWorkerApiError(err, request, cors, env);
+          }
+        }
 
         try {
           const company = await createCustomerCompany(
@@ -7282,7 +7463,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               company_name,
               contact_person,
               notes,
-              recipients: Array.isArray(recipients) ? recipients : [],
+              recipients,
               created_by: auth.user?.id,
             },
             env
@@ -7327,10 +7508,19 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             env,
           });
 
+          if (!result.success) {
+            return jsonResponse({
+              success: false,
+              ...result,
+              error: result.results.find((r) => r.error)?.error || 'Failed to deliver invitation email via Resend.',
+              message: `Invitations failed: ${result.sent} sent, ${result.failed} failed.`,
+            }, 400, cors);
+          }
+
           return jsonResponse({
             success: true,
             ...result,
-            message: `Invitations processed: ${result.sent} sent, ${result.failed} failed.`,
+            message: `Invitation email delivered: ${result.sent} recipient(s) notified.`,
           }, 200, cors);
         } catch (err: any) {
           if (err.code === 'REINVITATION_CONFIRMATION_REQUIRED') {
@@ -7407,7 +7597,42 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
         const { id } = devCompanyDetailMatch;
         const body = (await request.json().catch(() => ({}))) as any;
-        const { company_name, contact_person, notes, recipients } = body;
+        const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = body;
+
+        if (Array.isArray(recipients)) {
+          // CASE 1: Duplicate inside same company (error)
+          const seenEmails = new Set<string>();
+          for (const r of recipients) {
+            const clean = (r.email || '').trim().toLowerCase();
+            if (!clean) continue;
+            if (seenEmails.has(clean)) {
+              return jsonResponse({
+                success: false,
+                error: `Duplicate email address "${clean}" within the same company. Each recipient must have a unique email.`,
+                code: 'DUPLICATE_COMPANY_EMAIL',
+              }, 400, cors);
+            }
+            seenEmails.add(clean);
+          }
+
+          // CASE 2: Duplicate across other companies (warning requiring confirmation)
+          if (!confirm_cross_company_duplicates) {
+            try {
+              const crossDuplicates = await findCrossCompanyDuplicates(Array.from(seenEmails), id, env);
+              if (crossDuplicates.length > 0) {
+                return jsonResponse({
+                  success: false,
+                  code: 'CROSS_COMPANY_DUPLICATE_WARNING',
+                  message: 'One or more recipient emails are already associated with another company.',
+                  cross_company_duplicates: crossDuplicates,
+                }, 409, cors);
+              }
+            } catch (err: any) {
+              console.error('Error checking cross company duplicates on update:', err);
+              return handleWorkerApiError(err, request, cors, env);
+            }
+          }
+        }
 
         try {
           const updated = await updateCustomerCompany(

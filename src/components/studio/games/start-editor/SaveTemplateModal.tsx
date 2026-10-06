@@ -82,11 +82,11 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
               onChange={(e) => setCategory(e.target.value as any)}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs"
             >
-              <option value="Default">Default</option>
-              <option value="Minimalist">Minimalist</option>
-              <option value="Arcade">Arcade</option>
-              <option value="Split">Split</option>
-              <option value="Compact">Compact</option>
+              <option value="Default">{t('editor.categoryDefault', undefined, 'Default')}</option>
+              <option value="Minimalist">{t('editor.categoryMinimalist', undefined, 'Minimalist')}</option>
+              <option value="Arcade">{t('editor.categoryArcade', undefined, 'Arcade')}</option>
+              <option value="Split">{t('editor.categorySplit', undefined, 'Split')}</option>
+              <option value="Compact">{t('editor.categoryCompact', undefined, 'Compact')}</option>
             </select>
           </div>
 

@@ -691,7 +691,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                               ? 'border-amber-400 bg-amber-500/10 text-amber-300 ring-1 ring-amber-400/40'
                               : 'border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
                           }`}
-                          title={`Set background to ${preset.name} (${preset.hex})`}
+                          title={t('studio.setBackgroundToPreset', { name: preset.name, hex: preset.hex }, `Set background to ${preset.name} (${preset.hex})`)}
                         >
                           <span
                             className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"
@@ -926,7 +926,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                               ? 'border-emerald-400 bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-400/40'
                               : 'border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
                           }`}
-                          title={`Set background to ${preset.name} (${preset.hex})`}
+                          title={t('studio.setBackgroundToPreset', { name: preset.name, hex: preset.hex }, `Set background to ${preset.name} (${preset.hex})`)}
                         >
                           <span
                             className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"

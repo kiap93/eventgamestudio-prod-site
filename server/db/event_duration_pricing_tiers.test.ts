@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import crypto from 'node:crypto';
+import { createUser } from './users.js';
 import { createOrganization } from './organizations.js';
 import { createGame } from './games.js';
 import { createTheme } from './themes.js';
@@ -12,9 +13,14 @@ async function runEventDurationPricingTiersTestSuite() {
   console.log('--- STARTING EVENT DURATION PRICING TIERS TEST SUITE (12 TESTS) ---');
   console.log('=================================================================');
 
+  const testUser = await createUser({
+    email: `test_duration_${Date.now()}_${Math.random().toString(36).slice(2)}@test.com`,
+    name: 'Duration Test User',
+  });
+
   const testOrg = await createOrganization({
     name: 'Duration Test Org ' + Date.now(),
-    owner_id: crypto.randomUUID(),
+    owner_id: testUser.id,
   });
   const orgId = testOrg.id;
 
@@ -72,8 +78,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 1: Valid duration - 1 day (1-day tier price RM1,400)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-01';
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-01';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 1, 'Duration must be 1 day');
 
@@ -98,8 +104,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 2: Valid duration - 3 days (3-day tier price RM2,200)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-03';
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-03';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 3, 'Duration must be 3 days');
 
@@ -124,8 +130,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 3: Valid duration - 7 days (4-7 day tier price RM2,800)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-07';
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-07';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 7, 'Duration must be 7 days');
 
@@ -150,8 +156,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 4: Valid duration - 30 days (15-30 day tier price RM4,500)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-30';
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-30';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 30, 'Duration must be 30 days');
 
@@ -176,8 +182,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 5: Valid duration - 45 days (31-60 day tier price RM6,000)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-11-14';
+    const startDate = '2026-11-01';
+    const endDate = '2026-12-15';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 45, 'Duration must be 45 days');
 
@@ -202,8 +208,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 6: Valid duration - 75 days (61-90 day tier price RM8,000)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-12-14';
+    const startDate = '2026-11-01';
+    const endDate = '2027-01-14';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 75, 'Duration must be 75 days');
 
@@ -228,8 +234,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 7: Valid duration - 100 days (91+ day tier price RM10,000)...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2027-01-08';
+    const startDate = '2026-11-01';
+    const endDate = '2027-02-08';
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 100, 'Duration must be 100 days');
 
@@ -295,8 +301,8 @@ async function runEventDurationPricingTiersTestSuite() {
       },
     ]);
 
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-10'; // 10 days
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-10'; // 10 days
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 10, 'Duration must be 10 days');
 
@@ -365,8 +371,8 @@ async function runEventDurationPricingTiersTestSuite() {
       },
     ]);
 
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-31'; // 31 days
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-31'; // 31 days
     const days = calculateEventCalendarDays(startDate, endDate);
     assert.strictEqual(days, 31, 'Duration must be 31 days');
 
@@ -435,8 +441,8 @@ async function runEventDurationPricingTiersTestSuite() {
       },
     ]);
 
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-15'; // 15 days (covered only by inactive tier)
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-15'; // 15 days (covered only by inactive tier)
 
     try {
       await createEvent({
@@ -478,8 +484,8 @@ async function runEventDurationPricingTiersTestSuite() {
     // Explicitly set zero pricing tiers for this game
     localGamePricingCache.set(noPricingGame.id, []);
 
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-01';
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-01';
 
     try {
       await createEvent({
@@ -505,8 +511,8 @@ async function runEventDurationPricingTiersTestSuite() {
   // =========================================================================
   console.log('TEST 12: Game pricing isolation across games...');
   {
-    const startDate = '2026-10-01';
-    const endDate = '2026-10-01'; // 1 day
+    const startDate = '2026-11-01';
+    const endDate = '2026-11-01'; // 1 day
 
     const catchEvent = await createEvent({
       organization_id: orgId,

@@ -40,6 +40,7 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
   theme,
   onChange,
 }) => {
+  const { t } = useLocalization();
   const currentConfig: ReactionGameConfig = {
     ...DEFAULT_REACTION_CONFIG,
     ...((theme.game_config as ReactionGameConfig) || {}),
@@ -83,9 +84,9 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               className="w-full accent-amber-500"
             />
             <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-              <span>1 (Fast)</span>
-              <span>5 (Standard)</span>
-              <span>10 (Thorough)</span>
+              <span>{t('customizers.roundsFast', undefined, '1 (Fast)')}</span>
+              <span>{t('customizers.roundsStandard', undefined, '5 (Standard)')}</span>
+              <span>{t('customizers.roundsThorough', undefined, '10 (Thorough)')}</span>
             </div>
           </div>
 
@@ -104,9 +105,9 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               className="w-full accent-amber-500"
             />
             <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-              <span>3 Lights</span>
-              <span>4 Lights</span>
-              <span>5 (F1 Classic)</span>
+              <span>{t('customizers.lights3', undefined, '3 Lights')}</span>
+              <span>{t('customizers.lights4', undefined, '4 Lights')}</span>
+              <span>{t('customizers.lights5', undefined, '5 (F1 Classic)')}</span>
             </div>
           </div>
 
@@ -126,9 +127,9 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               className="w-full accent-amber-500"
             />
             <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-              <span>400ms (Rapid)</span>
-              <span>1000ms (Classic)</span>
-              <span>1500ms (Deliberate)</span>
+              <span>{t('customizers.stepRapid', undefined, '400ms (Rapid)')}</span>
+              <span>{t('customizers.stepClassic', undefined, '1000ms (Classic)')}</span>
+              <span>{t('customizers.stepDeliberate', undefined, '1500ms (Deliberate)')}</span>
             </div>
           </div>
 
@@ -142,9 +143,9 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               onChange={(e) => updateConfig({ falseStartRule: e.target.value as any })}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono"
             >
-              <option value="retry">Retry Round (Discard Jump Start)</option>
-              <option value="penalty_1000ms">+1000ms Penalty Added</option>
-              <option value="disqualify">Mark Round as Disqualified</option>
+              <option value="retry">{t('customizers.jumpRetry', undefined, 'Retry Round (Discard Jump Start)')}</option>
+              <option value="penalty_1000ms">{t('customizers.jumpPenalty', undefined, '+1000ms Penalty Added')}</option>
+              <option value="disqualify">{t('customizers.jumpDisqualify', undefined, 'Mark Round as Disqualified')}</option>
             </select>
           </div>
         </div>
@@ -159,7 +160,7 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
           </label>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-[10px] text-slate-500 font-mono">Minimum Delay</span>
+              <span className="text-[10px] text-slate-500 font-mono">{t('customizers.minDelay', undefined, 'Minimum Delay')}</span>
               <input
                 type="number"
                 min={500}
@@ -175,7 +176,7 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 font-mono">Maximum Delay</span>
+              <span className="text-[10px] text-slate-500 font-mono">{t('customizers.maxDelay', undefined, 'Maximum Delay')}</span>
               <input
                 type="number"
                 min={1500}
@@ -217,9 +218,9 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               onChange={(e) => updateConfig({ lightShape: e.target.value as any })}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
             >
-              <option value="circle">Circular Lens (Classic)</option>
-              <option value="rounded">Rounded Square</option>
-              <option value="pill">Vertical Capsule / Pill</option>
+              <option value="circle">{t('customizers.lensCircular', undefined, 'Circular Lens (Classic)')}</option>
+              <option value="rounded">{t('customizers.lensRoundedSquare', undefined, 'Rounded Square')}</option>
+              <option value="pill">{t('customizers.lensCapsule', undefined, 'Vertical Capsule / Pill')}</option>
             </select>
           </div>
 
@@ -233,8 +234,8 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               onChange={(e) => updateConfig({ lightGoBehavior: e.target.value as any })}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
             >
-              <option value="all-off">Lights Out (Formula 1 Standard)</option>
-              <option value="all-green">All Turn Green</option>
+              <option value="all-off">{t('customizers.signalLightsOut', undefined, 'Lights Out (Formula 1 Standard)')}</option>
+              <option value="all-green">{t('customizers.signalAllGreen', undefined, 'All Turn Green')}</option>
             </select>
           </div>
 
@@ -274,7 +275,7 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
               onChange={(e) => updateConfig({ soundEnabled: e.target.checked })}
               className="rounded accent-emerald-500"
             />
-            <span>Audio Enabled</span>
+            <span>{t('customizers.audioEnabled', undefined, 'Audio Enabled')}</span>
           </label>
         </div>
 
@@ -284,35 +285,35 @@ export const ReactionGameGameplayCustomizer: React.FC<ReactionGameCustomizerProp
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Play className="w-3 h-3 text-rose-400" />
-            <span>Light 1 Tick</span>
+            <span>{t('customizers.lightTick', undefined, 'Light Tick')}</span>
           </button>
           <button
             onClick={() => reactionSounds.playLightTick(4)}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Play className="w-3 h-3 text-rose-400" />
-            <span>Light 5 Tick</span>
+            <span>{t('customizers.lightTick', undefined, 'Light Tick')}</span>
           </button>
           <button
             onClick={() => reactionSounds.playGoChime()}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Play className="w-3 h-3 text-emerald-400" />
-            <span>Lights Out Chime</span>
+            <span>{t('customizers.lightsOutChime', undefined, 'Lights Out Chime')}</span>
           </button>
           <button
             onClick={() => reactionSounds.playFalseStart()}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Play className="w-3 h-3 text-amber-400" />
-            <span>False Start Buzz</span>
+            <span>{t('customizers.falseStartBuzz', undefined, 'False Start Buzz')}</span>
           </button>
           <button
             onClick={() => reactionSounds.playCelebration()}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Play className="w-3 h-3 text-purple-400" />
-            <span>Victory Fanfare</span>
+            <span>{t('customizers.victoryFanfare', undefined, 'Victory Fanfare')}</span>
           </button>
         </div>
       </div>
@@ -326,6 +327,7 @@ export const ReactionScreensCustomizer: React.FC<{
   onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
   uploadingAsset?: string | null;
 }> = ({ theme, onChange, onUploadAsset, uploadingAsset }) => {
+  const { t } = useLocalization();
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
   const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
@@ -399,7 +401,7 @@ export const ReactionScreensCustomizer: React.FC<{
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Start Screen</span>
+            <span>{t('customizers.startScreen', undefined, 'Start Screen')}</span>
           </button>
           <button
             type="button"
@@ -411,7 +413,7 @@ export const ReactionScreensCustomizer: React.FC<{
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Result Screen</span>
+            <span>{t('customizers.resultScreen', undefined, 'Result Screen')}</span>
           </button>
         </div>
       </div>
@@ -435,7 +437,7 @@ export const ReactionScreensCustomizer: React.FC<{
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
-                  <span>Start Screen Visual Canvas Editor</span>
+                  <span>{t('customizers.startScreenVisualCanvasEditor', undefined, 'Start Screen Visual Canvas Editor')}</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
                   Design elements, layouts, start button, and gantry badges directly on the 1024×576 canvas.
@@ -447,7 +449,7 @@ export const ReactionScreensCustomizer: React.FC<{
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span>Open Start Screen Editor</span>
+                <span>{t('customizers.openStartScreenEditor', undefined, 'Open Start Screen Editor')}</span>
               </button>
             </div>
 
@@ -464,7 +466,7 @@ export const ReactionScreensCustomizer: React.FC<{
                 />
               </div>
               <span className="text-[11px] text-slate-500 mt-2 font-mono">
-                Interactive Scaled Canvas Preview (1024 × 576)
+                {t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}
               </span>
             </div>
           </div>
@@ -498,7 +500,7 @@ export const ReactionScreensCustomizer: React.FC<{
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
-                  <span>Result Screen Visual Canvas Editor</span>
+                  <span>{t('customizers.resultScreenVisualCanvasEditor', undefined, 'Result Screen Visual Canvas Editor')}</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
                   Design reaction time metrics, round results, ratings, leaderboard layout, and buttons directly on the canvas.
@@ -510,7 +512,7 @@ export const ReactionScreensCustomizer: React.FC<{
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span>Open Result Screen Editor</span>
+                <span>{t('customizers.openResultScreenEditor', undefined, 'Open Result Screen Editor')}</span>
               </button>
             </div>
 
@@ -518,7 +520,7 @@ export const ReactionScreensCustomizer: React.FC<{
             <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 gap-3">
               {/* Viewport Dimension Presets for Verification */}
               <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] font-mono">
-                <span className="text-slate-400 px-2 font-medium">Viewport:</span>
+                <span className="text-slate-400 px-2 font-medium">{t('customizers.viewport', undefined, 'Viewport:')}</span>
                 {(
                   [
                     { id: 'fit', label: 'Fit (Auto)' },
@@ -600,14 +602,14 @@ export const ReactionScreensCustomizer: React.FC<{
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-500 font-mono">
-                <span>Interactive Scaled Canvas Preview (1024 × 576)</span>
+                <span>{t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}</span>
                 <span className="text-slate-600">•</span>
                 <span className="text-amber-400 font-semibold">
-                  Scale: {resultScaleInfo.scale.toFixed(3)}
+                  {t('customizers.scale', undefined, 'Scale:')} {resultScaleInfo.scale.toFixed(3)}
                 </span>
                 <span className="text-slate-600">•</span>
                 <span className="text-slate-400">
-                  Viewport: {resultScaleInfo.width} × {resultScaleInfo.height}
+                  {t('customizers.viewport', undefined, 'Viewport:')} {resultScaleInfo.width} × {resultScaleInfo.height}
                 </span>
               </div>
             </div>

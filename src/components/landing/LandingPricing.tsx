@@ -58,7 +58,8 @@ export const LandingPricing: React.FC = () => {
   // Authoritative duration matching:
   // selectedDays >= min_days AND (max_days IS NULL OR selectedDays <= max_days)
   const matchedTier = matchGamePricingTier(selectedGameTiers, selectedDays);
-  const isCustomQuote = !matchedTier || matchedTier.price <= 0 || (selectedDays >= 31 && (!matchedTier || matchedTier.max_days === null && matchedTier.min_days > 90));
+  const hasValidPricingTier = matchedTier !== null && matchedTier.price > 0;
+  const isCustomQuote = !hasValidPricingTier;
 
   const handleActionClick = () => {
     if (isCustomQuote) {
@@ -214,11 +215,7 @@ export const LandingPricing: React.FC = () => {
                     key={opt.days}
                     onClick={() => setSelectedDays(opt.days)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                      selectedDays === opt.days ||
-                      (opt.days === 7 && selectedDays >= 4 && selectedDays <= 7) ||
-                      (opt.days === 14 && selectedDays >= 8 && selectedDays <= 14) ||
-                      (opt.days === 30 && selectedDays >= 15 && selectedDays <= 30) ||
-                      (opt.days === 31 && selectedDays >= 31)
+                      selectedDays === opt.days
                         ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                     }`}
@@ -239,7 +236,7 @@ export const LandingPricing: React.FC = () => {
                   </label>
                   <div className="flex items-baseline gap-1">
                     <span className="font-mono text-3xl font-black text-slate-900">
-                      {selectedDays >= 31 ? '31+' : selectedDays}
+                      {selectedDays}
                     </span>
                     <span className="text-xs font-semibold text-slate-500">
                       {selectedDays === 1 ? t('landing.pricingDayUnit') : t('landing.pricingDaysUnit')}
@@ -251,7 +248,7 @@ export const LandingPricing: React.FC = () => {
                   id="duration-slider"
                   type="range"
                   min="1"
-                  max="31"
+                  max={Math.max(60, selectedDays)}
                   step="1"
                   value={selectedDays}
                   onChange={(e) => setSelectedDays(Number(e.target.value))}
@@ -281,10 +278,14 @@ export const LandingPricing: React.FC = () => {
                 {isCustomQuote ? (
                   <div className="space-y-2">
                     <div className="text-2xl sm:text-3xl font-black text-slate-900">
-                      {t('landing.pricingCustomQuote')}
+                      {t('landing.pricingCustomPricing', undefined, 'Custom Pricing')}
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      {t('landing.pricingCustomQuoteDesc')}
+                      {t(
+                        'landing.pricingDurationNotAvailableDesc',
+                        undefined,
+                        'Pricing for this event duration is not currently available online. Please contact us for a quotation.'
+                      )}
                     </p>
                   </div>
                 ) : (
@@ -302,7 +303,11 @@ export const LandingPricing: React.FC = () => {
                   onClick={handleActionClick}
                   className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >
-                  <span>{isCustomQuote ? t('landing.pricingCustomQuoteCta') : t('landing.pricingChoosePlan')}</span>
+                  <span>
+                    {isCustomQuote
+                      ? t('landing.pricingContactUs', undefined, 'Contact Us')
+                      : t('landing.pricingChoosePlan')}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -325,25 +330,26 @@ export const LandingPricing: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
               {durationOptions.map((opt) => {
                 const tier = matchGamePricingTier(selectedGameTiers, opt.days);
-                const isCustom = opt.days >= 31 && (!tier || tier.max_days === null && tier.min_days > 90) || !tier || tier.price <= 0;
-                const isHighlighted = opt.days === 7;
+                const hasTier = tier !== null && tier.price > 0;
+                const isSelected = selectedDays === opt.days;
 
                 return (
                   <div
                     key={opt.days}
-                    className={`p-4 rounded-xl border flex flex-col justify-between text-center space-y-2 transition-all ${
-                      isHighlighted
-                        ? 'bg-amber-50/80 border-amber-200/80 shadow-xs'
-                        : 'bg-slate-50 border-slate-200'
+                    onClick={() => setSelectedDays(opt.days)}
+                    className={`p-4 rounded-xl border flex flex-col justify-between text-center space-y-2 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-500/50 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70 hover:border-slate-300'
                     }`}
                   >
-                    <div className={`text-xs font-bold ${isHighlighted ? 'text-amber-900' : 'text-slate-600'}`}>
+                    <div className={`text-xs font-bold ${isSelected ? 'text-amber-900' : 'text-slate-600'}`}>
                       {opt.label}
                     </div>
                     <div className="font-mono text-base sm:text-lg font-black text-slate-900">
-                      {isCustom ? (
+                      {!hasTier ? (
                         <span className="text-xs sm:text-sm font-bold text-slate-700">
-                          {t('landing.pricingCustomQuote')}
+                          {t('landing.pricingCustomPricing', undefined, 'Custom Pricing')}
                         </span>
                       ) : (
                         formatPublicPrice(tier.price, tier.currency)

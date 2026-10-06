@@ -22,6 +22,7 @@ export { logApiError } from './db/errorLogs.js';
  */
 export class AppError extends Error {
   public readonly statusCode: number;
+  public readonly status: number;
   public readonly code?: string;
   public readonly isOperational: boolean;
   public readonly service?: string;
@@ -38,6 +39,7 @@ export class AppError extends Error {
     super(message);
     this.name = 'AppError';
     this.statusCode = statusCode;
+    this.status = statusCode;
     this.code = code;
 
     if (typeof optionsOrIsOperational === 'boolean') {

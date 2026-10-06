@@ -13,6 +13,7 @@ import {
   getNormalizedCurrentDate,
   resolveEventTimezone,
 } from './index.js';
+import { localGamePricingCache, buildDefaultPricingTiers } from './gamePricing.js';
 
 function getOffsetDate(baseDateStr: string, offsetDays: number): string {
   const [y, m, d] = baseDateStr.split('-').map(Number);
@@ -33,7 +34,11 @@ async function runPendingEventLimitExpirationTests() {
   };
 
   const games = await getAllPlatformGames(testEnv);
+  for (const g of games) {
+    localGamePricingCache.set(g.id, buildDefaultPricingTiers(g.id, g.game_type || g.slug));
+  }
   const gameId = games[0]?.id || 'game-catch-brand';
+  localGamePricingCache.set(gameId, buildDefaultPricingTiers(gameId, 'catch-brand'));
 
   const user = await createUser({
     email: `pending_limit_tester_${Date.now()}@example.com`,

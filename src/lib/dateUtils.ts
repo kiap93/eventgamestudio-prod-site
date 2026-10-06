@@ -66,34 +66,217 @@ const MONTH_NAMES_FULL = [
 ];
 
 /**
- * Extracts YYYY-MM-DD from any date string or Date object.
+ * Explicitly parses a date-only value (YYYY-MM-DD or DD/MM/YYYY) into a local Date object.
+ * Avoids any timezone shift or ambiguous new Date("DD/MM/YYYY") parsing.
+ * Requirement 5:
+ * function parseDateOnly(value: string): Date {
+ *   const [year, month, day] = value.split('-').map(Number);
+ *   return new Date(year, month - 1, day);
+ * }
  */
-export function extractDateString(dateVal: string | Date | null | undefined): string {
-  if (!dateVal) return '';
-  if (typeof dateVal === 'string') {
-    const match = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      return `${match[1]}-${match[2]}-${match[3]}`;
-    }
-    const dt = new Date(dateVal);
-    if (isNaN(dt.getTime())) return '';
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+export function parseDateOnly(value: string | Date | null | undefined): Date {
+  if (!value) return new Date(NaN);
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return new Date(NaN);
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
   }
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${dateVal.getUTCFullYear()}-${pad(dateVal.getUTCMonth() + 1)}-${pad(dateVal.getUTCDate())}`;
+  const str = String(value).trim();
+  // 1. Check for YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10);
+    const day = parseInt(isoMatch[3], 10);
+    return new Date(year, month - 1, day);
+  }
+  // 2. Check for DD/MM/YYYY
+  const dmyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10);
+    const year = parseInt(dmyMatch[3], 10);
+    return new Date(year, month - 1, day);
+  }
+  // 3. Check for DD-MM-YYYY
+  const dmyDashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (dmyDashMatch) {
+    const day = parseInt(dmyDashMatch[1], 10);
+    const month = parseInt(dmyDashMatch[2], 10);
+    const year = parseInt(dmyDashMatch[3], 10);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(NaN);
 }
 
 /**
- * Formats a date into a clean display format: "02 Sep 2026"
+ * Converts a displayed DD/MM/YYYY string back to a Date object parsed explicitly.
+ * Requirement 6:
+ * function parseDisplayDate(value: string): Date {
+ *   const [day, month, year] = value.split('/').map(Number);
+ *   return new Date(year, month - 1, day);
+ * }
+ */
+export function parseDisplayDate(value: string | Date | null | undefined): Date {
+  if (!value) return new Date(NaN);
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return new Date(NaN);
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const str = String(value).trim();
+  const parts = str.split('/');
+  if (parts.length === 3) {
+    const [day, month, year] = parts.map(Number);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      return new Date(year, month - 1, day);
+    }
+  }
+  const dashParts = str.split('-');
+  if (dashParts.length === 3 && dashParts[0].length <= 2 && dashParts[2].length === 4) {
+    const [day, month, year] = dashParts.map(Number);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      return new Date(year, month - 1, day);
+    }
+  }
+  return parseDateOnly(str);
+}
+
+/**
+ * Normalizes any date representation (Date object, DD/MM/YYYY, YYYY-MM-DD, ISO string)
+ * into internal/API representation: 'YYYY-MM-DD'.
+ *
+ * Example:
+ * formatDateApi("10/05/2026") => "2026-05-10"
+ * formatDateApi("2026-05-10") => "2026-05-10"
+ * formatDateApi(new Date(2026, 4, 10)) => "2026-05-10"
+ */
+export function formatDateApi(dateVal: string | Date | null | undefined): string {
+  if (!dateVal) return '';
+  if (dateVal instanceof Date) {
+    if (isNaN(dateVal.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${dateVal.getFullYear()}-${pad(dateVal.getMonth() + 1)}-${pad(dateVal.getDate())}`;
+  }
+  const str = String(dateVal).trim();
+  // 1. Match YYYY-MM-DD or YYYY/MM/DD (or ISO string starting with YYYY-MM-DD)
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const year = isoMatch[1];
+    const month = isoMatch[2].padStart(2, '0');
+    const day = isoMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  // 2. Match DD/MM/YYYY (user-facing display format)
+  const dmyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  // 3. Match DD-MM-YYYY
+  const dmyDashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (dmyDashMatch) {
+    const day = dmyDashMatch[1].padStart(2, '0');
+    const month = dmyDashMatch[2].padStart(2, '0');
+    const year = dmyDashMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
+/**
+ * Formats any date representation into 'DD/MM/YYYY' strictly for user-facing display.
+ *
+ * Example:
+ * formatDateDisplay("2026-05-10") => "10/05/2026"
+ * formatDateDisplay("10/05/2026") => "10/05/2026"
+ */
+export function formatDateDisplay(dateVal: string | Date | null | undefined): string {
+  const ymd = formatDateApi(dateVal);
+  if (!ymd) return '';
+  const [year, month, day] = ymd.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Formats a date with time into user-facing display: "DD/MM/YYYY, HH:MM"
+ */
+export function formatDateTimeDisplay(dateVal: string | Date | null | undefined): string {
+  if (!dateVal) return '';
+  const dateStr = formatDateDisplay(dateVal);
+  if (!dateStr) return '';
+  let timeStr = '';
+  if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    timeStr = `${pad(dateVal.getHours())}:${pad(dateVal.getMinutes())}`;
+  } else if (typeof dateVal === 'string' && dateVal.includes('T')) {
+    const dt = new Date(dateVal);
+    if (!isNaN(dt.getTime())) {
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      timeStr = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    }
+  }
+  return timeStr ? `${dateStr}, ${timeStr}` : dateStr;
+}
+
+/**
+ * Compares two calendar dates safely.
+ * Returns negative if d1 < d2, 0 if equal, positive if d1 > d2.
+ */
+export function compareCalendarDates(
+  d1: string | Date | null | undefined,
+  d2: string | Date | null | undefined
+): number {
+  const s1 = formatDateApi(d1);
+  const s2 = formatDateApi(d2);
+  if (!s1 && !s2) return 0;
+  if (!s1) return -1;
+  if (!s2) return 1;
+  return s1.localeCompare(s2);
+}
+
+export function isDateBefore(
+  d1: string | Date | null | undefined,
+  d2: string | Date | null | undefined
+): boolean {
+  return compareCalendarDates(d1, d2) < 0;
+}
+
+export function isDateAfter(
+  d1: string | Date | null | undefined,
+  d2: string | Date | null | undefined
+): boolean {
+  return compareCalendarDates(d1, d2) > 0;
+}
+
+export function isSameCalendarDate(
+  d1: string | Date | null | undefined,
+  d2: string | Date | null | undefined
+): boolean {
+  return compareCalendarDates(d1, d2) === 0;
+}
+
+/**
+ * Extracts YYYY-MM-DD from any date string or Date object.
+ * Safe from MM/DD/YYYY browser ambiguity.
+ */
+export function extractDateString(dateVal: string | Date | null | undefined): string {
+  return formatDateApi(dateVal);
+}
+
+/**
+ * Formats a date into a clean display format: "10 May 2026"
  * Ensures NO browser timezone conversion shifts the date.
  */
 export function formatDateOnly(
   dateVal: string | Date | null | undefined,
-  options?: { fullMonth?: boolean }
+  options?: { fullMonth?: boolean; numeric?: boolean }
 ): string {
   if (!dateVal) return '';
-  const dateStr = extractDateString(dateVal);
+  if (options?.numeric) {
+    return formatDateDisplay(dateVal);
+  }
+  const dateStr = formatDateApi(dateVal);
   if (!dateStr) return '';
 
   const parts = dateStr.split('-');
@@ -105,24 +288,23 @@ export function formatDateOnly(
 
   const dayStr = day.toString().padStart(2, '0');
   const monthList = options?.fullMonth ? MONTH_NAMES_FULL : MONTH_NAMES_SHORT;
-  const monthStr = monthList[monthIdx] || 'Sep';
+  const monthStr = monthList[monthIdx] || '';
 
-  return `${dayStr} ${monthStr} ${year}`;
+  return `${dayStr} ${monthStr} ${year}`.trim();
 }
 
 /**
  * Formats an event date range cleanly:
- * - Single Day: "02 Sep 2026"
- * - Same Month/Year: "02 Sep 2026 – 03 Sep 2026"
- * - Multi-Day: "02 Sep 2026 – 03 Sep 2026"
+ * - Single Day: "10 May 2026"
+ * - Multi-Day: "10 May 2026 – 12 May 2026"
  */
 export function formatEventDateRange(
   startsAt: string | Date | null | undefined,
   expiresAt: string | Date | null | undefined,
   eventDate?: string | null
 ): string {
-  const startDateStr = extractDateString(eventDate || startsAt);
-  const endDateStr = extractDateString(expiresAt || eventDate || startsAt);
+  const startDateStr = formatDateApi(eventDate || startsAt);
+  const endDateStr = formatDateApi(expiresAt || eventDate || startsAt);
 
   if (!startDateStr && !endDateStr) return '';
   if (!endDateStr || startDateStr === endDateStr) {
@@ -135,23 +317,204 @@ export function formatEventDateRange(
   return `${formattedStart} – ${formattedEnd}`;
 }
 
+// =========================================================================
+// Authoritative Time Integration
+// =========================================================================
+
+import {
+  PLATFORM_BUSINESS_TIMEZONE,
+  PLATFORM_BUSINESS_TIMEZONE_LABEL,
+  getAuthoritativeNow,
+  getAuthoritativeNowMs,
+  getBusinessDate,
+  getBusinessDateTime,
+  getEventStartInstant,
+  getEventEndInstant,
+  getEventSetupDayInstant,
+  syncAuthoritativeClock,
+  getAuthoritativeClientNow,
+  getAuthoritativeClientNowMs,
+  resetAuthoritativeClock,
+  isDevelopmentOrTest,
+} from './authoritativeTime.js';
+
+export {
+  PLATFORM_BUSINESS_TIMEZONE,
+  PLATFORM_BUSINESS_TIMEZONE_LABEL,
+  getAuthoritativeNow,
+  getAuthoritativeNowMs,
+  getBusinessDate,
+  getBusinessDateTime,
+  getEventStartInstant,
+  getEventEndInstant,
+  getEventSetupDayInstant,
+  syncAuthoritativeClock,
+  getAuthoritativeClientNow,
+  getAuthoritativeClientNowMs,
+  resetAuthoritativeClock,
+};
+
+let authoritativeServerDate: string | null = null;
+let authoritativeServerTimezone: string = PLATFORM_BUSINESS_TIMEZONE;
+
+/**
+ * Sets the authoritative server date retrieved from Cloudflare Worker.
+ */
+export function setAuthoritativeServerDate(date: string, timezone: string = PLATFORM_BUSINESS_TIMEZONE, serverTimestamp?: number): void {
+  const clean = extractDateString(date);
+  if (clean) {
+    authoritativeServerDate = clean;
+    authoritativeServerTimezone = timezone;
+    if (serverTimestamp && typeof serverTimestamp === 'number') {
+      syncAuthoritativeClock(serverTimestamp);
+    }
+  }
+}
+
+/**
+ * Gets the current authoritative server date if synchronized.
+ */
+export function getAuthoritativeServerDate(timeZone?: string): string | null {
+  if (authoritativeServerDate && (!timeZone || timeZone === authoritativeServerTimezone)) {
+    return authoritativeServerDate;
+  }
+  const clientNow = getAuthoritativeClientNow();
+  return getBusinessDate(clientNow, timeZone || authoritativeServerTimezone);
+}
+
+/**
+ * Resets the authoritative server date cache (primarily for unit tests).
+ */
+export function resetAuthoritativeServerDate(): void {
+  authoritativeServerDate = null;
+  authoritativeServerTimezone = PLATFORM_BUSINESS_TIMEZONE;
+  resetAuthoritativeClock();
+}
+
+/**
+ * Fetches the authoritative date and timezone from the Cloudflare Worker (/api/time).
+ * Synchronizes the client state with the server without relying on local machine clock.
+ */
+export async function fetchServerDate(timeZone: string = PLATFORM_BUSINESS_TIMEZONE): Promise<{
+  date: string;
+  businessDate: string;
+  timezone: string;
+  timestamp: number;
+}> {
+  try {
+    const { apiFetch } = await import('./api.js');
+    const res = await apiFetch(`/api/time?timezone=${encodeURIComponent(timeZone)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const resolvedDate = data.businessDate || data.date;
+      if (data && typeof resolvedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(resolvedDate)) {
+        if (typeof data.timestamp === 'number') {
+          syncAuthoritativeClock(data.timestamp);
+        }
+        setAuthoritativeServerDate(resolvedDate, data.businessTimezone || data.timezone || timeZone, data.timestamp);
+        return {
+          date: resolvedDate,
+          businessDate: resolvedDate,
+          timezone: data.businessTimezone || data.timezone || timeZone,
+          timestamp: data.timestamp || Date.now(),
+        };
+      }
+    }
+  } catch (err) {
+    console.error(
+      '[dateUtils] Failed to fetch authoritative server date:',
+      err
+    );
+
+    throw new Error(
+      'Unable to retrieve authoritative server date from EventGameStudio server.'
+    );
+  }
+}
+
 /**
  * Formats date for <input type="date" /> (YYYY-MM-DD)
  */
 export function formatForDateInput(dateVal: string | Date | null | undefined): string {
-  return extractDateString(dateVal);
+  return formatDateApi(dateVal);
 }
 
 /**
  * Gets today's calendar date as YYYY-MM-DD in the specified timezone (or local time if omitted).
+ * Authoritatively uses Cloudflare Worker server date, restricting test reference dates strictly to dev/test.
  */
-export function getTodayDateString(timeZone?: string): string {
-  if (timeZone) {
-    return getCalendarDateInTimezone(new Date(), timeZone);
+export function getTodayDateString(timeZone?: string, now?: Date | string): string {
+  // 1. Explicit `now` parameter passed to function
+  if (now) {
+    if (typeof now === 'string') {
+      if (now.includes('T')) {
+        const dt = new Date(now);
+        if (!isNaN(dt.getTime())) {
+          return getBusinessDate(dt, timeZone || PLATFORM_BUSINESS_TIMEZONE);
+        }
+      }
+      const clean = extractDateString(now);
+      if (clean) return clean;
+    } else if (now instanceof Date && !isNaN(now.getTime())) {
+      return getBusinessDate(now, timeZone || PLATFORM_BUSINESS_TIMEZONE);
+    }
   }
-  const d = new Date();
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  // 2. Test/Development reference date overrides (STRICTLY DISABLED in production)
+  if (isDevelopmentOrTest()) {
+    // Global test reference date on window (e.g. window.__EVENT_REFERENCE_DATE__ = '2026-05-10')
+    if (typeof window !== 'undefined' && (window as any).__EVENT_REFERENCE_DATE__) {
+      const ref = (window as any).__EVENT_REFERENCE_DATE__;
+      if (typeof ref === 'string') {
+        const clean = extractDateString(ref);
+        if (clean) return clean;
+      } else if (ref instanceof Date && !isNaN(ref.getTime())) {
+        return getBusinessDate(ref, timeZone || PLATFORM_BUSINESS_TIMEZONE);
+      }
+    }
+
+    // Runtime environment reference date for dev testing
+    if (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_EVENT_REFERENCE_DATE) {
+      const envRef = (window as any).__ENV__.VITE_EVENT_REFERENCE_DATE;
+      if (typeof envRef === 'string') {
+        const clean = extractDateString(envRef);
+        if (clean) return clean;
+      }
+    }
+
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EVENT_REFERENCE_DATE) {
+      const envRef = import.meta.env.VITE_EVENT_REFERENCE_DATE;
+      if (typeof envRef === 'string') {
+        const clean = extractDateString(envRef);
+        if (clean) return clean;
+      }
+    }
+
+    if (typeof window !== 'undefined' && window.location?.search) {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const queryRef = searchParams.get('refDate') || searchParams.get('referenceDate');
+        if (queryRef) {
+          const clean = extractDateString(queryRef);
+          if (clean) return clean;
+        }
+      } catch {
+        // Ignore URL parsing errors
+      }
+    }
+
+    if (typeof import.meta !== 'undefined' && Boolean(import.meta.env?.DEV)) {
+      const devDate = import.meta.env.VITE_EVENT_REFERENCE_DATE;
+      if (devDate) {
+        const clean = extractDateString(devDate);
+        if (clean) return clean;
+      }
+    }
+  }
+
+  // 3. Authoritative server date from synchronized clock
+  const clientNow = getAuthoritativeClientNow();
+  return getBusinessDate(clientNow, timeZone || PLATFORM_BUSINESS_TIMEZONE);
 }
 
 /**
@@ -174,32 +537,12 @@ export function calculateSetupDayString(startDateStr: string): string {
 }
 
 /**
- * Canonical platform business timezone declaration.
- * All events currently operate on Asia/Singapore & Malaysia (UTC+8) business timezone.
- */
-export const PLATFORM_BUSINESS_TIMEZONE = 'Asia/Singapore';
-export const PLATFORM_BUSINESS_TIMEZONE_LABEL = 'Asia/Singapore / Malaysia (UTC+8)';
-
-/**
  * Returns the calendar date formatted as 'YYYY-MM-DD' in the specified timezone.
  * Defaults to Asia/Singapore (UTC+8).
  * Ensures exact calendar date calculation without client browser timezone skew.
  */
-export function getCalendarDateInTimezone(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
-  try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timeZone || PLATFORM_BUSINESS_TIMEZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    return formatter.format(date);
-  } catch (e) {
-    const utcTime = date.getTime();
-    const sgTime = new Date(utcTime + 8 * 60 * 60 * 1000);
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${sgTime.getUTCFullYear()}-${pad(sgTime.getUTCMonth() + 1)}-${pad(sgTime.getUTCDate())}`;
-  }
+export function getCalendarDateInTimezone(date: Date = getAuthoritativeNow(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
+  return getBusinessDate(date, timeZone || PLATFORM_BUSINESS_TIMEZONE);
 }
 
 /**
@@ -207,8 +550,8 @@ export function getCalendarDateInTimezone(date: Date = new Date(), timeZone: str
  * Ensures exact Singapore calendar date without client browser timezone skew.
  * Accepts optional timeZone parameter for future multi-timezone support.
  */
-export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
-  return getCalendarDateInTimezone(date, timeZone);
+export function getSingaporeCalendarDate(date: Date = getAuthoritativeNow(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
+  return getBusinessDate(date, timeZone || PLATFORM_BUSINESS_TIMEZONE);
 }
 
 /**
@@ -264,8 +607,8 @@ export function getUtcBoundaryInTimezone(
  */
 export function getNormalizedCurrentDate(currentDate?: string | Date | null, timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
   if (typeof currentDate === 'string') {
-    const match = currentDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+    const formatted = formatDateApi(currentDate);
+    if (formatted) return formatted;
   }
   const dt = currentDate instanceof Date ? currentDate : new Date();
   return getCalendarDateInTimezone(dt, timeZone);
@@ -1188,15 +1531,7 @@ export function getSetupDayStartTime(event: {
 
   const timeZone = resolveEventTimezone(event);
 
-  let dateStr = event.start_date || event.event_date;
-  if (!dateStr && event.starts_at) {
-    const match = event.starts_at.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      dateStr = `${match[1]}-${match[2]}-${match[3]}`;
-    } else {
-      dateStr = event.starts_at.split('T')[0];
-    }
-  }
+  let dateStr = formatDateApi(event.start_date || event.event_date || event.starts_at);
 
   if (dateStr) {
     const parts = dateStr.split('-');

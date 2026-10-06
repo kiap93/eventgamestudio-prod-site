@@ -251,7 +251,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
             {/* Z-Index Badge */}
             <span
               className="text-[9px] font-mono text-slate-400 bg-slate-900 px-1 py-0.2 rounded border border-slate-700/60 shrink-0 select-none"
-              title={`Layer Stacking Order: Z-${el.zIndex ?? 1}`}
+              title={t('editor.layerStackingOrder', { zIndex: el.zIndex ?? 1 }, `Layer Stacking Order: Z-${el.zIndex ?? 1}`)}
             >
               z:{el.zIndex ?? 1}
             </span>
@@ -268,7 +268,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                   onUngroup([el.id]);
                 }}
                 className="p-1 rounded hover:bg-sky-950 text-slate-400 hover:text-sky-300 transition-colors"
-                title="Ungroup this Group"
+                title={t('editor.ungroupThisGroup', undefined, 'Ungroup this Group')}
               >
                 <FolderMinus className="w-3 h-3 text-sky-400" />
               </button>
@@ -308,7 +308,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onMoveLayer(el.id, 'front');
               }}
               className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-amber-300"
-              title="Bring To Front"
+              title={t('common.bringToFront', undefined, 'Bring To Front')}
             >
               <ChevronsUp className="w-3 h-3" />
             </button>
@@ -321,7 +321,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onMoveLayer(el.id, 'forward');
               }}
               className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200"
-              title="Bring Forward (1 step)"
+              title={t('common.bringForward', undefined, 'Bring Forward (1 step)')}
             >
               <ArrowUp className="w-3 h-3" />
             </button>
@@ -334,7 +334,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onMoveLayer(el.id, 'backward');
               }}
               className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200"
-              title="Send Backward (1 step)"
+              title={t('common.sendBackward', undefined, 'Send Backward (1 step)')}
             >
               <ArrowDown className="w-3 h-3" />
             </button>
@@ -347,7 +347,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onMoveLayer(el.id, 'back');
               }}
               className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-amber-300"
-              title="Send To Back"
+              title={t('common.sendToBack', undefined, 'Send To Back')}
             >
               <ChevronsDown className="w-3 h-3" />
             </button>
@@ -366,7 +366,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                       ? 'bg-blue-600 text-white'
                       : 'hover:bg-blue-900/50 text-blue-400 hover:text-blue-200'
                   }`}
-                  title="Add child into container"
+                  title={t('editor.addChildInsideContainer', undefined, 'Add child into container')}
                 >
                   <Plus className="w-3 h-3" />
                 </button>
@@ -479,7 +479,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                           className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
                         >
                           {getElementIcon('group')}
-                          <span>Group Wrapper</span>
+                          <span>{t('editor.groupWrapper', undefined, 'Group Wrapper')}</span>
                         </button>
                       </div>
                     </div>
@@ -557,12 +557,12 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-200">Layers</span>
+              <span className="text-xs font-bold text-slate-200">{t('editor.layers', undefined, 'Layers')}</span>
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-amber-400 font-bold border border-slate-700">
                 {totalCount}
               </span>
             </div>
-            <span className="text-[10px] text-slate-500">Stacking hierarchy</span>
+            <span className="text-[10px] text-slate-500">{t('editor.stackingHierarchy', undefined, 'Stacking hierarchy')}</span>
           </div>
         </div>
 

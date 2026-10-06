@@ -1194,10 +1194,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                   type="button"
                   onClick={onPlayLiveGame}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm ring-1 ring-emerald-400 active:scale-95 shrink-0"
-                  title="Switch to full-page live playable game mode"
+                  title={t('studio.switchLiveMode', undefined, 'Switch to full-page live playable game mode')}
                 >
                   <Gamepad2 className="w-3 h-3" />
-                  <span>Play Live Game</span>
+                  <span>{t('studio.playLiveGame', undefined, 'Play Live Game')}</span>
                 </button>
               )}
 
@@ -1209,7 +1209,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                     ? 'bg-amber-500 text-slate-950 shadow-sm ring-1 ring-amber-400'
                     : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
                 }`}
-                title="Toggle between Interactive Player Control and Auto-Attract Simulation"
+                title={t('studio.toggleInteractiveSim', undefined, 'Toggle between Interactive Player Control and Auto-Attract Simulation')}
               >
                 <Gamepad2 className="w-3 h-3" />
                 <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
@@ -1228,12 +1228,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 {effectivePreviewOrientation === 'landscape' ? (
                   <>
                     <Smartphone className="w-3 h-3 text-amber-400" />
-                    <span>Portrait</span>
+                    <span>{t('studio.portraitLabel', undefined, 'Portrait')}</span>
                   </>
                 ) : (
                   <>
                     <Monitor className="w-3 h-3 text-sky-400" />
-                    <span>Landscape</span>
+                    <span>{t('studio.landscapeLabel', undefined, 'Landscape')}</span>
                   </>
                 )}
               </button>
@@ -1255,7 +1255,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 type="button"
                 onClick={handleResetSimulation}
                 className="p-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700/60 shrink-0"
-                title="Restart simulation"
+                title={t('studio.restartSimulation', undefined, 'Restart simulation')}
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -1264,10 +1264,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 type="button"
                 onClick={handleCloseFullscreen}
                 className="flex items-center gap-1 px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-[11px] font-bold transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
-                title="Close Fullscreen (Esc)"
+                title={t('studio.closeFullscreen', undefined, 'Close Fullscreen (Esc)')}
               >
                 <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>Close</span>
+                <span>{t('common.close', undefined, 'Close')}</span>
               </button>
             </div>
           </div>
@@ -1293,10 +1293,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                     ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
                     : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
                 }`}
-                title="Toggle between Interactive Player Control and Auto-Attract Simulation"
+                title={t('studio.toggleInteractiveSim', undefined, 'Toggle between Interactive Player Control and Auto-Attract Simulation')}
               >
                 <Gamepad2 className="w-3.5 h-3.5" />
-                <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
+                <span>{isInteractive ? t('studio.testingInteractive', undefined, 'Testing (Interactive)') : t('studio.autoDemo', undefined, 'Auto Demo')}</span>
               </button>
 
               <button
@@ -1312,12 +1312,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 {effectivePreviewOrientation === 'landscape' ? (
                   <>
                     <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="hidden sm:inline">Portrait</span>
+                    <span className="hidden sm:inline">{t('studio.portraitLabel', undefined, 'Portrait')}</span>
                   </>
                 ) : (
                   <>
                     <Monitor className="w-3.5 h-3.5 text-sky-400" />
-                    <span className="hidden sm:inline">Landscape</span>
+                    <span className="hidden sm:inline">{t('studio.landscapeLabel', undefined, 'Landscape')}</span>
                   </>
                 )}
               </button>
@@ -1339,7 +1339,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 type="button"
                 onClick={handleResetSimulation}
                 className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
-                title="Restart simulation"
+                title={t('studio.restartSimulation', undefined, 'Restart simulation')}
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -1348,10 +1348,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 type="button"
                 onClick={handleCloseFullscreen}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
-                title="Close Fullscreen (Esc)"
+                title={t('studio.closeFullscreen', undefined, 'Close Fullscreen (Esc)')}
               >
                 <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>Close</span>
+                <span>{t('common.close', undefined, 'Close')}</span>
               </button>
             </div>
           </div>
@@ -1371,10 +1371,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               <button
                 onClick={onPlayLiveGame}
                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md ring-1 ring-emerald-400 active:scale-95"
-                title="Switch to full-page live playable game mode"
+                title={t('studio.switchLiveMode', undefined, 'Switch to full-page live playable game mode')}
               >
                 <Gamepad2 className="w-3 h-3" />
-                <span>Play Live Game</span>
+                <span>{t('studio.playLiveGame', undefined, 'Play Live Game')}</span>
               </button>
             )}
 
@@ -1385,10 +1385,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                   ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
-              title="Toggle between Interactive Player Control and Auto-Attract Simulation"
+              title={t('studio.toggleInteractiveSim', undefined, 'Toggle between Interactive Player Control and Auto-Attract Simulation')}
             >
               <Gamepad2 className="w-3 h-3" />
-              <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
+              <span>{isInteractive ? t('studio.testingInteractive', undefined, 'Testing (Interactive)') : t('studio.autoDemo', undefined, 'Auto Demo')}</span>
             </button>
 
             <button
@@ -1399,12 +1399,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               {effectivePreviewOrientation === 'landscape' ? (
                 <>
                   <Smartphone className="w-3 h-3 text-amber-400" />
-                  <span>Portrait</span>
+                  <span>{t('studio.portraitLabel', undefined, 'Portrait')}</span>
                 </>
               ) : (
                 <>
                   <Monitor className="w-3 h-3 text-sky-400" />
-                  <span>Landscape</span>
+                  <span>{t('studio.landscapeLabel', undefined, 'Landscape')}</span>
                 </>
               )}
             </button>
@@ -1424,7 +1424,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <button
               onClick={handleResetSimulation}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-              title="Restart simulation"
+              title={t('studio.restartSimulation', undefined, 'Restart simulation')}
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -1432,7 +1432,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <button
               onClick={handleToggleFullscreen}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors"
-              title="Fullscreen"
+              title={t('common.fullscreen', undefined, 'Fullscreen')}
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
@@ -1658,7 +1658,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                         setIsPaused(false);
                       }}
                       className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all cursor-pointer shrink-0 ml-2"
-                      title="Close Settings"
+                      title={t('studio.closeSettings', undefined, 'Close Settings')}
                     >
                       <X className={isCompactModal ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
                     </button>
@@ -1679,7 +1679,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                         <div className="truncate">
-                          <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono uppercase">Active Theme</div>
+                          <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono uppercase">{t('studio.activeTheme', undefined, 'Active Theme')}</div>
                           <div className="font-bold text-slate-100 text-xs sm:text-sm truncate">{theme.name}</div>
                         </div>
                       </div>
@@ -1790,9 +1790,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                         className="w-full accent-amber-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
                       />
                       <div className="flex justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
-                        <span>50% (Gentle)</span>
-                        <span>100% (Standard)</span>
-                        <span>150% (Intense)</span>
+                        <span>{t('studio.speedGentle', undefined, '50% (Gentle)')}</span>
+                        <span>{t('studio.speedStandard', undefined, '100% (Standard)')}</span>
+                        <span>{t('studio.speedIntense', undefined, '150% (Intense)')}</span>
                       </div>
                     </div>
 
@@ -1844,7 +1844,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                       }`}
                     >
                       <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
-                      <span className="truncate">Restart Simulation</span>
+                      <span className="truncate">{t('studio.restartSimulation', undefined, 'Restart Simulation')}</span>
                     </button>
 
                     <button
@@ -1858,7 +1858,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                       }`}
                     >
                       <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                      <span className="truncate">Apply & Resume</span>
+                      <span className="truncate">{t('studio.applyAndResume', undefined, 'Apply & Resume')}</span>
                     </button>
                   </div>
                 </div>
@@ -1892,8 +1892,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xs font-bold text-amber-400 flex items-center gap-1 shrink-0 mr-1.5 font-mono">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Instant Drop Tester:</span>
-                <span className="sm:hidden">Drop:</span>
+                <span className="hidden sm:inline">{t('studio.instantDropTester', undefined, 'Instant Drop Tester:')}</span>
+                <span className="sm:hidden">{t('studio.dropLabel', undefined, 'Drop:')}</span>
               </span>
               {(theme.items_config || []).map((item, idx) => (
                 <button
@@ -1939,10 +1939,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 type="button"
                 onClick={handleCloseFullscreen}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer shrink-0"
-                title="Exit Fullscreen Mode (Esc)"
+                title={t('studio.exitFullscreenModeEsc', undefined, 'Exit Fullscreen Mode (Esc)')}
               >
                 <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Exit Fullscreen</span>
+                <span>{t('studio.exitFullscreen', undefined, 'Exit Fullscreen')}</span>
                 <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
                   ESC
                 </span>
@@ -1974,10 +1974,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               type="button"
               onClick={handleCloseFullscreen}
               className="flex items-center gap-2 px-4 py-1.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-md backdrop-blur-md cursor-pointer shrink-0"
-              title="Exit Fullscreen Mode (Esc)"
+              title={t('studio.exitFullscreenModeEsc', undefined, 'Exit Fullscreen Mode (Esc)')}
             >
               <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
-              <span>Exit Fullscreen</span>
+              <span>{t('studio.exitFullscreen', undefined, 'Exit Fullscreen')}</span>
               <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
                 ESC
               </span>
@@ -2004,7 +2004,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
               <div className="px-3 py-1.5 rounded-xl text-xs font-mono bg-slate-950/80 border border-slate-800 text-slate-300 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Click, tap, or press SPACE on canvas to react as soon as lights go out!</span>
+                <span>{t('game.reactionTapInstructions', undefined, 'Click, tap, or press SPACE on canvas to react as soon as lights go out!')}</span>
               </div>
             </div>
           ) : isMemoryMatch ? (

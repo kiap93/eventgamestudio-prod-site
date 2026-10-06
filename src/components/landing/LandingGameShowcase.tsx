@@ -272,7 +272,11 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                           );
                         }
 
-                        return null;
+                        return (
+                          <span className="text-[11px] font-medium text-slate-500">
+                            {t('landing.pricingCustomPricing', undefined, 'Custom Pricing')}
+                          </span>
+                        );
                       })()}
                     </div>
                   )}

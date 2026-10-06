@@ -48,11 +48,11 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Please enter a template name.');
+      setError(t('editor.enterTemplateName', undefined, 'Please enter a template name.'));
       return;
     }
     if (elements.length === 0) {
-      setError('Cannot save an empty canvas as a template.');
+      setError(t('editor.emptyCanvasTemplateError', undefined, 'Cannot save an empty canvas as a template.'));
       return;
     }
 
@@ -67,7 +67,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
         setDescription('');
       }, 600);
     } catch (err: any) {
-      setError(err?.message || 'Failed to save template');
+      setError(err?.message || t('editor.failedSaveTemplate', undefined, 'Failed to save template'));
     }
   };
 
@@ -81,15 +81,16 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
               <BookmarkPlus className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100">Save as Custom Template</h2>
-              <p className="text-xs text-slate-400">Reuse this Result Screen layout across events</p>
+              <h2 className="text-base font-bold text-slate-100">{t('editor.saveAsCustomTemplate', undefined, 'Save as Custom Template')}</h2>
+              <p className="text-xs text-slate-400">{t('editor.saveAsCustomTemplateDesc', undefined, 'Reuse this Result Screen layout across events')}</p>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 flex items-center justify-center text-sm font-bold transition-colors"
+            aria-label={t('common.close', undefined, 'Close')}
+            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -104,10 +105,10 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             </div>
           )}
 
-          {/* {t('editor.templateNameLabel', undefined, 'Template Name')} */}
+          {/* Template Name */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Template Name <span className="text-rose-400">*</span>
+              {t('editor.templateNameLabel', undefined, 'Template Name')} <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
@@ -117,7 +118,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
                 setName(e.target.value);
                 setError(null);
               }}
-              placeholder="e.g. Neon Cyberpunk Victory Screen"
+              placeholder={t('editor.templateNamePlaceholder', undefined, 'e.g. Neon Cyberpunk Victory Screen')}
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-amber-500 focus:outline-none text-slate-100 text-xs placeholder:text-slate-600 transition-colors"
               autoFocus
             />
@@ -126,27 +127,27 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
           {/* Description */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Description <span className="text-slate-500 font-normal">(Optional)</span>
+              {t('editor.description', undefined, 'Description')} <span className="text-slate-500 font-normal">({t('common.optional', undefined, 'Optional')})</span>
             </label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief summary of layout design, target theme, or branding notes..."
+              placeholder={t('editor.templateDescPlaceholder', undefined, 'Brief summary of layout design, target theme, or branding notes...')}
               className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-amber-500 focus:outline-none text-slate-100 text-xs placeholder:text-slate-600 transition-colors resize-none"
             />
           </div>
 
           {/* Category Selection */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5">Category</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">{t('editor.templateCategoryLabel', undefined, 'Category')}</label>
             <div className="flex flex-wrap gap-1.5">
               {categories.map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategory(cat)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     category === cat
                       ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
                       : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -162,10 +163,10 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
           <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-xs">
             <span className="text-slate-400 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Canvas Elements</span>
+              <span>{t('editor.canvasElements', undefined, 'Canvas Elements')}</span>
             </span>
             <span className="font-mono font-bold text-slate-200 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">
-              {totalElementsCount} items
+              {totalElementsCount} {t('editor.items', undefined, 'items')}
             </span>
           </div>
 
@@ -174,7 +175,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
             >
               {t('common.cancel', undefined, 'Cancel')}
             </button>
@@ -182,12 +183,12 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             <button
               type="submit"
               disabled={success}
-              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-emerald-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all hover:scale-105"
+              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-emerald-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all hover:scale-105 cursor-pointer"
             >
               {success ? (
                 <>
                   <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Saved!</span>
+                  <span>{t('editor.saved', undefined, 'Saved!')}</span>
                 </>
               ) : (
                 <>

@@ -129,7 +129,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             disabled={!canUndo}
             onClick={onUndo}
             className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
-            title="Undo (Cmd Z)"
+            title={t('common.undoShortcut', undefined, 'Undo (Cmd Z)')}
           >
             <Undo2 className="w-4 h-4" />
           </button>
@@ -137,7 +137,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             disabled={!canRedo}
             onClick={onRedo}
             className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
-            title="Redo (Cmd Shift Z)"
+            title={t('common.redoShortcut', undefined, 'Redo (Cmd Shift Z)')}
           >
             <Redo2 className="w-4 h-4" />
           </button>
@@ -149,7 +149,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             <button
               onClick={onOpenPresets}
               className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
-              title="Apply preset layout template"
+              title={t('editor.applyPresetLayout', undefined, 'Apply preset layout template')}
             >
               <LayoutTemplate className="w-3.5 h-3.5 text-amber-400" />
               <span>{t('studio.presets', undefined, 'Presets')}</span>
@@ -160,7 +160,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
             <button
               onClick={onSaveAsTemplate}
               className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
-              title="Save current layout as a custom template"
+              title={t('editor.saveCurrentLayoutAsTemplate', undefined, 'Save current layout as a custom template')}
             >
               <BookmarkPlus className="w-3.5 h-3.5 text-amber-400" />
               <span>{t('studio.saveTemplate', undefined, 'Save Template')}</span>
@@ -176,7 +176,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || !onAlignSelected}
           onClick={() => onAlignSelected?.('left')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Align Left"
+          title={t('editor.alignLeft', undefined, 'Align Left')}
         >
           <AlignLeft className="w-4 h-4" />
         </button>
@@ -184,7 +184,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || (!onAlignSelected && !onCenterSelectedHorizontal)}
           onClick={() => (onAlignSelected ? onAlignSelected('center-h') : onCenterSelectedHorizontal?.())}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Center Horizontally"
+          title={t('editor.centerHorizontally', undefined, 'Center Horizontally')}
         >
           <AlignCenterHorizontal className="w-4 h-4" />
         </button>
@@ -192,7 +192,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || !onAlignSelected}
           onClick={() => onAlignSelected?.('right')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Align Right"
+          title={t('editor.alignRight', undefined, 'Align Right')}
         >
           <AlignRight className="w-4 h-4" />
         </button>
@@ -203,7 +203,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || !onAlignSelected}
           onClick={() => onAlignSelected?.('top')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Align Top"
+          title={t('editor.alignTop', undefined, 'Align Top')}
         >
           <AlignStartVertical className="w-4 h-4" />
         </button>
@@ -211,7 +211,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || (!onAlignSelected && !onCenterSelectedVertical)}
           onClick={() => (onAlignSelected ? onAlignSelected('center-v') : onCenterSelectedVertical?.())}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Center Vertically"
+          title={t('editor.centerVertically', undefined, 'Center Vertically')}
         >
           <AlignCenterVertical className="w-4 h-4" />
         </button>
@@ -219,7 +219,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={!hasSelection || !onAlignSelected}
           onClick={() => onAlignSelected?.('bottom')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Align Bottom"
+          title={t('editor.alignBottom', undefined, 'Align Bottom')}
         >
           <AlignEndVertical className="w-4 h-4" />
         </button>
@@ -231,7 +231,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={selectedIds.length < 3 || !onAlignSelected}
           onClick={() => onAlignSelected?.('distribute-h')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Distribute Horizontally"
+          title={t('editor.distributeHorizontally', undefined, 'Distribute Horizontally')}
         >
           <AlignHorizontalDistributeCenter className="w-4 h-4" />
         </button>
@@ -239,7 +239,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           disabled={selectedIds.length < 3 || !onAlignSelected}
           onClick={() => onAlignSelected?.('distribute-v')}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-25 disabled:pointer-events-none transition-colors"
-          title="Distribute Vertically"
+          title={t('editor.distributeVertically', undefined, 'Distribute Vertically')}
         >
           <AlignVerticalDistributeCenter className="w-4 h-4" />
         </button>
@@ -276,7 +276,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
             }`}
-            title="Toggle Live Screen Preview"
+            title={t('editor.toggleLiveScreenPreview', undefined, 'Toggle Live Screen Preview')}
           >
             {isPreviewMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             <span>{isPreviewMode ? t('event.exitPreview') : t('event.previewGame')}</span>

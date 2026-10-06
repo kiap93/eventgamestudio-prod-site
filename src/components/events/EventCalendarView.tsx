@@ -15,7 +15,15 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { formatEventDateRange, formatDateOnly, calculateEventStatus } from '../../lib/dateUtils';
+import {
+  formatEventDateRange,
+  formatDateOnly,
+  formatDateDisplay,
+  formatDateApi,
+  calculateEventStatus,
+  getTodayDateString,
+  parseDateOnly,
+} from '../../lib/dateUtils';
 import { useLocalization } from '../../context/LocalizationContext';
 
 export type CalendarViewType = 'month' | 'week' | 'day';
@@ -68,11 +76,11 @@ function endOfDay(d: Date): Date {
 }
 
 function isEventOnDay(event: any, day: Date): boolean {
-  if (!event.starts_at || !event.expires_at) return false;
-  const start = startOfDay(new Date(event.starts_at));
-  const end = endOfDay(new Date(event.expires_at));
-  const target = startOfDay(day);
-  return target >= start && target <= end;
+  const startStr = formatDateApi(event.start_date || event.starts_at);
+  const endStr = formatDateApi(event.end_date || event.expires_at || startStr);
+  if (!startStr) return false;
+  const dayStr = formatDateApi(day);
+  return dayStr >= startStr && dayStr <= endStr;
 }
 
 export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
@@ -85,7 +93,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
   onCreateEvent,
 }) => {
   const { t, language } = useLocalization();
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  const [currentDate, setCurrentDate] = useState<Date>(() => parseDateOnly(getTodayDateString()));
   const [viewType, setViewType] = useState<CalendarViewType>('month');
 
   // Filter States
@@ -98,7 +106,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
   );
 
   const isViewer = userRole === 'viewer';
-  const today = new Date();
+  const today = parseDateOnly(getTodayDateString());
 
   // Extract unique games and themes for filter dropdowns
   const uniqueGames = useMemo(() => {
@@ -195,7 +203,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date());
+    setCurrentDate(parseDateOnly(getTodayDateString()));
   };
 
   // Compute Header Title based on view type
@@ -213,18 +221,13 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-      const startPart = startOfWeek.toLocaleDateString(localeCode, { month: 'short', day: 'numeric' });
-      const endPart = endOfWeek.toLocaleDateString(localeCode, { month: 'short', day: 'numeric', year: 'numeric' });
+      const startPart = formatDateDisplay(startOfWeek);
+      const endPart = formatDateDisplay(endOfWeek);
       return `${startPart} – ${endPart}`;
     }
 
     // Day view
-    return currentDate.toLocaleDateString(localeCode, {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return formatDateDisplay(currentDate);
   }, [currentDate, viewType, language]);
 
   // Generate Month Grid Dates (e.g. 35 or 42 days)
@@ -647,10 +650,12 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                       <div className="flex-1 space-y-1.5 overflow-hidden">
                         {dayEvents.slice(0, 3).map((ev) => {
                           const effectiveStatus = calculateEventStatus(ev);
-                          const isMultiDay =
-                            !isSameDay(new Date(ev.starts_at), new Date(ev.expires_at));
-                          const isStartDay = isSameDay(date, new Date(ev.starts_at));
-                          const isEndDay = isSameDay(date, new Date(ev.expires_at));
+                          const evStartStr = formatDateApi(ev.start_date || ev.starts_at);
+                          const evEndStr = formatDateApi(ev.end_date || ev.expires_at || evStartStr);
+                          const dayDateStr = formatDateApi(date);
+                          const isMultiDay = evStartStr !== evEndStr;
+                          const isStartDay = dayDateStr === evStartStr;
+                          const isEndDay = dayDateStr === evEndStr;
 
                           return (
                             <div

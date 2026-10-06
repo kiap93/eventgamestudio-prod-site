@@ -166,6 +166,14 @@ export async function getGamePricing(gameId: string, env?: any): Promise<GamePri
         return sorted;
       }
 
+      // In local dev/test, if explicit mock tiers were seeded into cache, use them
+      if (isLocalFallbackAllowed(env) && localGamePricingCache.has(gameId)) {
+        const cached = localGamePricingCache.get(gameId);
+        if (cached && cached.length > 0) {
+          return cached;
+        }
+      }
+
       // If no pricing found in DB for this game, return empty array (do NOT auto-seed)
       localGamePricingCache.set(gameId, []);
       return [];
@@ -182,16 +190,6 @@ export async function getGamePricing(gameId: string, env?: any): Promise<GamePri
 
   // Local/Test mode fallback
   if (isLocalFallbackAllowed(env)) {
-    if (!localGamePricingCache.has(gameId)) {
-      const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
-      const rawSlug = gameId.replace(/^game-/, '');
-      if (canonicalGames.includes(gameId) || canonicalGames.includes(rawSlug)) {
-        const defaults = buildDefaultPricingTiers(gameId, rawSlug);
-        localGamePricingCache.set(gameId, defaults);
-      } else {
-        localGamePricingCache.set(gameId, []);
-      }
-    }
     return localGamePricingCache.get(gameId) || [];
   }
 
@@ -217,6 +215,16 @@ export async function getGamePricingTierById(tierId: string, env?: any): Promise
   if (!tierId) return null;
 
   assertProductionPricingSafe(env);
+
+  // If tierId is not a valid UUID and local fallback is allowed, resolve from local cache
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tierId);
+  if (!isUuid && isLocalFallbackAllowed(env)) {
+    for (const tiers of localGamePricingCache.values()) {
+      const found = tiers.find((t) => t.id === tierId);
+      if (found) return found;
+    }
+    return null;
+  }
 
   const supabase = getSupabaseServerClient(env);
   if (supabase && isSupabaseConfigured(env)) {
@@ -266,15 +274,6 @@ export async function getGamePricingTierById(tierId: string, env?: any): Promise
     for (const tiers of localGamePricingCache.values()) {
       const found = tiers.find((t) => t.id === tierId);
       if (found) return found;
-    }
-    const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
-    for (const gid of canonicalGames) {
-      if (!localGamePricingCache.has(gid)) {
-        const defaults = buildDefaultPricingTiers(gid, gid);
-        localGamePricingCache.set(gid, defaults);
-        const found = defaults.find((t) => t.id === tierId);
-        if (found) return found;
-      }
     }
     return null;
   }
@@ -942,19 +941,12 @@ export async function getPublicGamesPricing(env?: any): Promise<PublicGamesPrici
     let activeTiers: GamePricingRecord[] = [];
     try {
       activeTiers = await getActiveGamePricing(game.id, env);
-      if (!activeTiers || activeTiers.length === 0) {
-        activeTiers = await ensureDefaultGamePricing(game.id, game.slug || game.game_type, env);
-        activeTiers = activeTiers.filter((t) => t.is_active && t.price > 0);
-      }
     } catch (err: any) {
       console.warn(`[getPublicGamesPricing] Could not fetch pricing for game ${game.id}:`, err?.message || err);
-      if (isLocalFallbackAllowed(env)) {
-        const fallback = buildDefaultPricingTiers(game.id, game.slug || game.game_type);
-        activeTiers = fallback.filter((t) => t.is_active && t.price > 0);
-      }
+      activeTiers = [];
     }
 
-    const sortedTiers = activeTiers
+    const sortedTiers = (activeTiers || [])
       .filter((t) => t.is_active !== false && t.price > 0)
       .sort((a, b) => a.min_days - b.min_days);
 

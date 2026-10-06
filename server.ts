@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -87,6 +90,10 @@ import {
   getClientLiveGameAccessDetails,
   isEventExplicitlyCancelled,
   getNormalizedEventDates,
+  PLATFORM_BUSINESS_TIMEZONE,
+  getCalendarDateInTimezone,
+  resolveEventTimezone,
+  formatDateApi,
   createEvent,
   createEventWithAtomicPayment,
   updateEvent,
@@ -229,8 +236,19 @@ import {
   listCustomerInvitationLogs,
   getCustomerInvitationStats,
   handleCustomerInvitationWebhook,
+  findCrossCompanyDuplicates,
 } from './server/db/index.js';
 import { translationService } from './server/translation/service.js';
+import { isValidTimezone } from './src/lib/countryUtils.js';
+import {
+  getAuthoritativeNow,
+  getAuthoritativeNowMs,
+  getBusinessDate,
+  getBusinessDateTime,
+  getEventStartInstant,
+  getEventEndInstant,
+  getEventSetupDayInstant,
+} from './src/lib/authoritativeTime.js';
 import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from './src/lib/i18n/languages.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
@@ -468,11 +486,18 @@ const mediaUpload = multer({
  * Serves runtime client environment configuration for frontend applications
  */
 app.get('/env.js', (_req, res) => {
+  const serverNow = getAuthoritativeNow();
+  const serverToday = getBusinessDate(serverNow, PLATFORM_BUSINESS_TIMEZONE);
+  const isDev = process.env.NODE_ENV !== 'production';
   const envPayload = {
     VITE_API_BASE_URL: process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '',
     VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
     VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || '',
     VITE_GOOGLE_CLIENT_ID: process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+    VITE_EVENT_REFERENCE_DATE: '',
+    SERVER_DATE: serverToday,
+    SERVER_TIMEZONE: PLATFORM_BUSINESS_TIMEZONE,
+    SERVER_TIMESTAMP: serverNow.getTime(),
   };
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -488,12 +513,73 @@ app.get('/api/config', (_req, res) => {
   const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
   const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+  const isDev = process.env.NODE_ENV !== 'production';
+  const eventReferenceDate = '';
 
   res.json({
     apiBaseUrl,
     googleClientId,
     supabaseUrl,
     supabaseAnonKey,
+    eventReferenceDate,
+  });
+});
+
+/**
+ * GET /api/time
+ * Returns authoritative application clock (strictly uncached)
+ */
+app.get('/api/time', (req, res) => {
+  const reqTz = (req.query.timezone as string) || PLATFORM_BUSINESS_TIMEZONE;
+  const targetTz = isValidTimezone(reqTz) ? reqTz : PLATFORM_BUSINESS_TIMEZONE;
+  const now = getAuthoritativeNow();
+  const businessDate = getBusinessDate(now, targetTz);
+  const runtimeTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.setHeader('Cloudflare-CDN-Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  res.json({
+    epoch: now.getTime(),
+    timestamp: now.getTime(),
+    iso: now.toISOString(),
+    utc: now.toUTCString(),
+    runtimeTimezone,
+    businessTimezone: targetTz,
+    businessDate,
+    date: businessDate,
+    timezone: targetTz,
+  });
+});
+
+/**
+ * GET /api/debug/time
+ * Diagnostic endpoint for authoritative server time (strictly uncached)
+ */
+app.get('/api/debug/time', (req, res) => {
+  const reqTz = (req.query.timezone as string) || PLATFORM_BUSINESS_TIMEZONE;
+  const targetTz = isValidTimezone(reqTz) ? reqTz : PLATFORM_BUSINESS_TIMEZONE;
+  const now = getAuthoritativeNow();
+  const businessDate = getBusinessDate(now, targetTz);
+  const runtimeTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.setHeader('Cloudflare-CDN-Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  res.json({
+    epoch: now.getTime(),
+    iso: now.toISOString(),
+    utc: now.toUTCString(),
+    runtimeTimezone,
+    businessTimezone: targetTz,
+    businessDate,
+    singaporeDate: getBusinessDate(now, 'Asia/Singapore'),
   });
 });
 
@@ -3662,10 +3748,35 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       return;
     }
 
-    if (resolvedEnd < resolvedStart) {
+    // Authoritative server-side date validation
+    const orgRecord = await getOrganizationById(organizationId);
+    const resolvedTz = resolveEventTimezone(event_timezone, orgRecord);
+    const serverNow = new Date();
+    const serverToday = getCalendarDateInTimezone(serverNow, resolvedTz);
+
+    const cleanStart = formatDateApi(resolvedStart);
+    const cleanEnd = formatDateApi(resolvedEnd);
+
+    if (!cleanStart || !cleanEnd) {
+      res.status(422).json({
+        code: 'INVALID_DATE_FORMAT',
+        error: 'Invalid Start Date or End Date. Please provide dates in YYYY-MM-DD format.',
+      });
+      return;
+    }
+
+    if (cleanEnd < cleanStart) {
       res.status(422).json({
         code: 'INVALID_DATE_RANGE',
         error: 'The event end date cannot be earlier than the start date. Please select a valid date range.',
+      });
+      return;
+    }
+
+    if (cleanEnd < serverToday) {
+      res.status(422).json({
+        code: 'EVENT_DATE_PASSED',
+        error: 'This event date has already passed. Please select a current or future event date.',
       });
       return;
     }
@@ -3676,11 +3787,11 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       game_id,
       game_theme_id,
       name,
-      event_date: resolvedStart,
-      start_date: resolvedStart,
-      end_date: resolvedEnd,
-      startDate: resolvedStart,
-      endDate: resolvedEnd,
+      event_date: cleanStart,
+      start_date: cleanStart,
+      end_date: cleanEnd,
+      startDate: cleanStart,
+      endDate: cleanEnd,
       starts_at,
       expires_at,
       status: 'draft',
@@ -3688,7 +3799,8 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       payment_status: 'UNPAID',
       created_by: user.id,
       event_price,
-      event_timezone,
+      event_timezone: resolvedTz,
+      currentDate: serverToday,
     });
 
     const enriched = await getEventById(created.id);
@@ -6867,18 +6979,78 @@ app.get('/api/developer/customer-invitations/companies', authenticateDeveloperAd
 app.get('/api/admin/customer-invitations/companies', authenticateDeveloperAdmin, handleListCustomerCompanies);
 
 /**
+ * POST /api/developer/customer-invitations/check-duplicates
+ * Check if recipient email addresses already exist under another company
+ */
+const handleCheckCustomerDuplicates = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { emails, exclude_company_id } = req.body || {};
+    if (!Array.isArray(emails)) {
+      res.status(400).json({ success: false, error: 'Emails must be an array', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    const duplicates = await findCrossCompanyDuplicates(emails, exclude_company_id);
+    res.json({
+      success: true,
+      duplicates,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/customer-invitations/check-duplicates', authenticateDeveloperAdmin, handleCheckCustomerDuplicates);
+app.post('/api/admin/customer-invitations/check-duplicates', authenticateDeveloperAdmin, handleCheckCustomerDuplicates);
+
+/**
  * POST /api/developer/customer-invitations/companies
  * Create a new customer company with one or more recipient email addresses
  */
 const handleCreateCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const { company_name, contact_person, notes, recipients } = req.body || {};
+    const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = req.body || {};
+
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      res.status(400).json({ success: false, error: 'At least one recipient email address is required', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    // CASE 1: Duplicate inside same company (error)
+    const seenEmails = new Set<string>();
+    for (const r of recipients) {
+      const clean = (r.email || '').trim().toLowerCase();
+      if (!clean) continue;
+      if (seenEmails.has(clean)) {
+        res.status(400).json({
+          success: false,
+          error: `Duplicate email address "${clean}" within the same company. Each recipient must have a unique email.`,
+          code: 'DUPLICATE_COMPANY_EMAIL',
+        });
+        return;
+      }
+      seenEmails.add(clean);
+    }
+
+    // CASE 2: Duplicate across other companies (warning requiring confirmation)
+    if (!confirm_cross_company_duplicates) {
+      const crossDuplicates = await findCrossCompanyDuplicates(Array.from(seenEmails));
+      if (crossDuplicates.length > 0) {
+        res.status(409).json({
+          success: false,
+          code: 'CROSS_COMPANY_DUPLICATE_WARNING',
+          message: 'One or more recipient emails are already associated with another company.',
+          cross_company_duplicates: crossDuplicates,
+        });
+        return;
+      }
+    }
 
     const company = await createCustomerCompany({
       company_name,
       contact_person,
       notes,
-      recipients: Array.isArray(recipients) ? recipients : [],
+      recipients,
       created_by: req.user?.id,
     });
 
@@ -6928,7 +7100,39 @@ app.get('/api/admin/customer-invitations/companies/:id', authenticateDeveloperAd
 const handleUpdateCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
   try {
     const { id } = req.params;
-    const { company_name, contact_person, notes, recipients } = req.body || {};
+    const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = req.body || {};
+
+    if (Array.isArray(recipients)) {
+      // CASE 1: Duplicate inside same company (error)
+      const seenEmails = new Set<string>();
+      for (const r of recipients) {
+        const clean = (r.email || '').trim().toLowerCase();
+        if (!clean) continue;
+        if (seenEmails.has(clean)) {
+          res.status(400).json({
+            success: false,
+            error: `Duplicate email address "${clean}" within the same company. Each recipient must have a unique email.`,
+            code: 'DUPLICATE_COMPANY_EMAIL',
+          });
+          return;
+        }
+        seenEmails.add(clean);
+      }
+
+      // CASE 2: Duplicate across other companies (warning requiring confirmation)
+      if (!confirm_cross_company_duplicates) {
+        const crossDuplicates = await findCrossCompanyDuplicates(Array.from(seenEmails), id);
+        if (crossDuplicates.length > 0) {
+          res.status(409).json({
+            success: false,
+            code: 'CROSS_COMPANY_DUPLICATE_WARNING',
+            message: 'One or more recipient emails are already associated with another company.',
+            cross_company_duplicates: crossDuplicates,
+          });
+          return;
+        }
+      }
+    }
 
     const updated = await updateCustomerCompany(id, {
       company_name,
@@ -6987,10 +7191,20 @@ const handleSendCompanyInvitations = async (req: AuthenticatedRequest, res: any)
       env: process.env,
     });
 
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        ...result,
+        error: result.results.find((r) => r.error)?.error || 'Failed to deliver invitation email via Resend.',
+        message: `Invitations failed: ${result.sent} sent, ${result.failed} failed.`,
+      });
+      return;
+    }
+
     res.json({
       success: true,
       ...result,
-      message: `Invitations processed: ${result.sent} sent, ${result.failed} failed.`,
+      message: `Invitation email delivered: ${result.sent} recipient(s) notified.`,
     });
   } catch (err: any) {
     if (err.code === 'REINVITATION_CONFIRMATION_REQUIRED') {

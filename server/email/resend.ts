@@ -275,9 +275,20 @@ export async function sendEmailViaResend(options: SendResendEmailOptions): Promi
     apiUrl,
   } = options;
 
-  // 1. Validate recipients
-  const recipients = Array.isArray(to) ? to : [to];
-  const cleanRecipients = recipients.map((r) => (typeof r === 'string' ? r.trim() : '')).filter(Boolean);
+  // 1. Validate and deduplicate recipients
+  const rawRecipients = Array.isArray(to) ? to : [to];
+  const seenEmails = new Set<string>();
+  const cleanRecipients: string[] = [];
+
+  for (const item of rawRecipients) {
+    const trimmed = typeof item === 'string' ? item.trim() : '';
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (!seenEmails.has(lower)) {
+      seenEmails.add(lower);
+      cleanRecipients.push(trimmed);
+    }
+  }
 
   if (cleanRecipients.length === 0) {
     return {

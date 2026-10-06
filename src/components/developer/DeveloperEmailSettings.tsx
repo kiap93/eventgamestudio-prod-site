@@ -499,32 +499,32 @@ export const DeveloperEmailSettings: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <h3 className="text-sm font-bold text-white flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Production Security Architecture</span>
+              <span>{t('developer.prodSecurityArch', undefined, 'Production Security Architecture')}</span>
             </h3>
 
             <ul className="text-xs text-slate-300 space-y-3">
               <li className="flex items-start space-x-2">
                 <Lock className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong className="text-white">Server-Side AES-256-GCM:</strong> Refresh tokens are encrypted with a 256-bit secret key and never exposed to the frontend browser.
+                  <strong className="text-white">{t('developer.serverSideAes', undefined, 'Server-Side AES-256-GCM:')}</strong> {t('developer.serverSideAesDesc', undefined, 'Refresh tokens are encrypted with a 256-bit secret key and never exposed to the frontend browser.')}
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <Lock className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong className="text-white">HMAC-Signed OAuth State:</strong> Anti-CSRF verification prevents unauthorized callback hijacking.
+                  <strong className="text-white">{t('developer.hmacSignedState', undefined, 'HMAC-Signed OAuth State:')}</strong> {t('developer.hmacSignedStateDesc', undefined, 'Anti-CSRF verification prevents unauthorized callback hijacking.')}
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <Lock className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong className="text-white">Single Platform Sender:</strong> Individual customers never connect personal inboxes; all team invites originate from the verified EventGameStudio platform address.
+                  <strong className="text-white">{t('developer.singlePlatformSender', undefined, 'Single Platform Sender:')}</strong> {t('developer.singlePlatformSenderDesc', undefined, 'Individual customers never connect personal inboxes; all team invites originate from the verified EventGameStudio platform address.')}
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <Lock className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong className="text-white">Zero Third-Party Relays:</strong> No SMTP relays, Nodemailer servers, or untrusted middleman services are used.
+                  <strong className="text-white">{t('developer.zeroThirdPartyRelays', undefined, 'Zero Third-Party Relays:')}</strong> {t('developer.zeroThirdPartyRelaysDesc', undefined, 'No SMTP relays, Nodemailer servers, or untrusted middleman services are used.')}
                 </span>
               </li>
             </ul>

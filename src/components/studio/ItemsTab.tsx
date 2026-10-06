@@ -480,7 +480,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                     key={item.id || idx}
                     style={{ width: `${Math.max(4, pct)}%` }}
                     className={`h-full rounded-sm ${bgClass} transition-all duration-300`}
-                    title={`${item.name}: ${(Number(pct) || 0).toFixed(1)}% chance`}
+                    title={t('studio.itemChanceTitle', { name: item.name, pct: (Number(pct) || 0).toFixed(1) }, `${item.name}: ${(Number(pct) || 0).toFixed(1)}% chance`)}
                   />
                 );
               })}

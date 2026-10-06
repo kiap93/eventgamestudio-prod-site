@@ -1161,7 +1161,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
                       <div
                         onMouseDown={(e) => handleRotateMouseDown(e, el, parentWidth, parentHeight)}
                         className="w-4 h-4 bg-amber-400 border-2 border-slate-950 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow hover:scale-125 transition-transform"
-                        title="Drag to rotate (Shift for 15° snap)"
+                        title={t('editor.dragToRotate', undefined, 'Drag to rotate (Shift for 15° snap)')}
                       >
                         <RotateCw className="w-2.5 h-2.5 text-slate-950" />
                       </div>
@@ -1239,7 +1239,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
       {!isPreviewMode && (
         <div className="absolute top-4 left-4 z-40 bg-slate-900/85 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono shadow-xl pointer-events-none flex items-center gap-2">
           <MousePointer className="w-3.5 h-3.5 text-amber-400" />
-          <span>Space+Drag to pan • Wheel to zoom • Shift+Click multi-select • Alt to measure / bypass snap</span>
+          <span>{t('editor.canvasShortcutsHelp', undefined, 'Space+Drag to pan • Wheel to zoom • Shift+Click multi-select • Alt to measure / bypass snap')}</span>
         </div>
       )}
 
@@ -1248,7 +1248,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md border border-amber-500/50 rounded-full px-4 py-1.5 flex items-center gap-3 shadow-2xl">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-xs font-semibold text-slate-200">
-            Preview Mode • Interactive Screen Experience
+            {t('editor.previewModeInteractive', undefined, 'Preview Mode • Interactive Screen Experience')}
           </span>
           {onExitPreview && (
             <button
@@ -1461,7 +1461,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
               : 'hover:bg-slate-800 text-slate-400'
           }`}
-          title="Toggle Grid"
+          title={t('editor.toggleGrid', undefined, 'Toggle Grid')}
         >
           <Grid className="w-4 h-4" />
         </button>
@@ -1488,7 +1488,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
               : 'hover:bg-slate-800 text-slate-400'
           }`}
-          title="Toggle Magnetic Snap (Hold Alt to bypass)"
+          title={t('editor.toggleSnap', undefined, 'Toggle Magnetic Snap (Hold Alt to bypass)')}
         >
           <Magnet className="w-4 h-4" />
         </button>
@@ -1501,7 +1501,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
               : 'hover:bg-slate-800 text-slate-400'
           }`}
-          title="Toggle Distance Measurements (Hold Alt to inspect)"
+          title={t('editor.toggleMeasurements', undefined, 'Toggle Distance Measurements (Hold Alt to inspect)')}
         >
           <Ruler className="w-4 h-4" />
         </button>

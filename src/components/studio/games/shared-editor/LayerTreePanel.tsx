@@ -204,7 +204,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
                     setAddingChildToParentId(addingChildToParentId === el.id ? null : el.id);
                   }}
                   className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white"
-                  title="Add child inside container"
+                  title={t('editor.addChildInsideContainer', undefined, 'Add child inside container')}
                 >
                   <Plus className="w-3 h-3" />
                 </button>
@@ -281,7 +281,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
         <button
           onClick={onToggleCollapse}
           className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
-          title="Expand Layer Tree"
+          title={t('editor.expandLayerTree', undefined, 'Expand Layer Tree')}
         >
           <PanelLeft className="w-4 h-4" />
         </button>
@@ -298,7 +298,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-amber-400" />
           <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            Layers
+            {t('editor.layers', undefined, 'Layers')}
           </span>
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-400">
             {elements.length}
@@ -310,7 +310,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             <button
               onClick={onOpenPresets}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400"
-              title="Browse Preset Layouts"
+              title={t('editor.browsePresetLayouts', undefined, 'Browse Preset Layouts')}
             >
               <LayoutTemplate className="w-4 h-4" />
             </button>
@@ -320,7 +320,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             <button
               onClick={onToggleCollapse}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
-              title="Collapse Panel"
+              title={t('editor.collapsePanel', undefined, 'Collapse Panel')}
             >
               <PanelLeftClose className="w-4 h-4" />
             </button>
@@ -336,7 +336,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             disabled={!hasSelection}
             onClick={() => onMoveLayer(selectedIds, 'front')}
             className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
-            title="Bring to Front (Cmd Shift ])"
+            title={t('editor.bringToFrontShortcut', undefined, 'Bring to Front (Cmd Shift ])')}
           >
             <ChevronsUp className="w-3.5 h-3.5" />
           </button>
@@ -344,7 +344,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             disabled={!hasSelection}
             onClick={() => onMoveLayer(selectedIds, 'forward')}
             className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
-            title="Bring Forward (Cmd ])"
+            title={t('editor.bringForwardShortcut', undefined, 'Bring Forward (Cmd ])')}
           >
             <ArrowUp className="w-3.5 h-3.5" />
           </button>
@@ -352,7 +352,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             disabled={!hasSelection}
             onClick={() => onMoveLayer(selectedIds, 'backward')}
             className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
-            title="Send Backward (Cmd [)"
+            title={t('editor.sendBackwardShortcut', undefined, 'Send Backward (Cmd [)')}
           >
             <ArrowDown className="w-3.5 h-3.5" />
           </button>
@@ -360,7 +360,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             disabled={!hasSelection}
             onClick={() => onMoveLayer(selectedIds, 'back')}
             className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
-            title="Send to Back (Cmd Shift [)"
+            title={t('editor.sendToBackShortcut', undefined, 'Send to Back (Cmd Shift [)')}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
           </button>
@@ -432,7 +432,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             className="w-full py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Element</span>
+            <span>{t('editor.addElement', undefined, 'Add Element')}</span>
           </button>
 
           {isAddMenuOpen && (

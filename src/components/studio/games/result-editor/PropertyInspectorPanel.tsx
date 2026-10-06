@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useRef, useState, useMemo } from 'react';
 import {
   ResultScreenElement,
@@ -132,6 +133,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   isCollapsed = false,
   onToggleCollapse,
 }) => {
+  const { t } = useLocalization();
   const groupedElements = useMemo(() => getResultElementsGroupedByCategory(gameType), [gameType]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingAsset, setIsUploadingAsset] = useState(false);
@@ -342,13 +344,13 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           type="button"
           onClick={onToggleCollapse}
           className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors"
-          title="Expand Property Inspector"
+          title={t('editor.propertyInspector', undefined, 'Property Inspector')}
         >
           <PanelRight className="w-4 h-4 text-amber-400" />
         </button>
         <div className="writing-mode-vertical text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-1.5">
           <Sliders className="w-3.5 h-3.5" />
-          <span>Properties</span>
+          <span>{t('editor.propertyInspector', undefined, 'Properties')}</span>
         </div>
       </div>
     );
@@ -399,7 +401,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               type="button"
               onClick={onToggleCollapse}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-              title="Collapse Inspector"
+              title={t('common.close', undefined, 'Collapse Inspector')}
             >
               <PanelRightClose className="w-4 h-4" />
             </button>
@@ -437,7 +439,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     key={el.id}
                     onClick={() => onSelectIds([el.id])}
                     className="flex items-center gap-1 bg-slate-950 hover:bg-slate-800 border border-slate-700/80 px-2 py-1 rounded-lg text-[10px] cursor-pointer transition-colors"
-                    title="Click to isolate this element"
+                    title={t('editor.selectElementToEdit', undefined, 'Click to isolate this element')}
                   >
                     {getElementIcon(el.type)}
                     <span className="font-bold text-slate-300 capitalize">{el.type}</span>
@@ -462,7 +464,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
                 >
                   <AlignCenterHorizontal className="w-3 h-3 text-amber-400" />
-                  <span>Center X</span>
+                  <span>{t('editor.centerX', undefined, 'Center X')}</span>
                 </button>
                 <button
                   type="button"
@@ -470,7 +472,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
                 >
                   <AlignCenterVertical className="w-3 h-3 text-amber-400" />
-                  <span>Center Y</span>
+                  <span>{t('editor.centerY', undefined, 'Center Y')}</span>
                 </button>
                 <button
                   type="button"
@@ -555,7 +557,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 disabled:opacity-30 transition-colors"
                 >
                   <AlignHorizontalDistributeCenter className="w-3 h-3 text-amber-400" />
-                  <span>Horizontal</span>
+                  <span>{t('editor.horizontal', undefined, 'Horizontal')}</span>
                 </button>
                 <button
                   type="button"
@@ -564,7 +566,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 disabled:opacity-30 transition-colors"
                 >
                   <AlignVerticalDistributeCenter className="w-3 h-3 text-amber-400" />
-                  <span>Vertical</span>
+                  <span>{t('editor.vertical', undefined, 'Vertical')}</span>
                 </button>
               </div>
             </div>
@@ -582,7 +584,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
                 >
                   <ChevronsUp className="w-3 h-3 text-amber-400" />
-                  <span>Front</span>
+                  <span>{t('editor.front', undefined, 'Front')}</span>
                 </button>
                 <button
                   type="button"
@@ -590,7 +592,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
                 >
                   <ArrowUp className="w-3 h-3 text-amber-400" />
-                  <span>Forward</span>
+                  <span>{t('editor.forward', undefined, 'Forward')}</span>
                 </button>
                 <button
                   type="button"
@@ -598,7 +600,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
                 >
                   <ArrowDown className="w-3 h-3 text-amber-400" />
-                  <span>Backward</span>
+                  <span>{t('editor.backward', undefined, 'Backward')}</span>
                 </button>
                 <button
                   type="button"
@@ -624,7 +626,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     disabled={!canGroup}
                     onClick={onGroup}
                     className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 disabled:opacity-30 transition-colors"
-                    title="Group selected elements into a single group (Ctrl+G)"
+                    title={t('editor.groupTooltip', undefined, 'Group selected elements into a single group (Ctrl+G)')}
                   >
                     <FolderTree className="w-3 h-3 text-amber-400" />
                     <span>Group ({selectedElements.length})</span>
@@ -637,10 +639,10 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     disabled={!canUngroup}
                     onClick={() => onUngroup(selectedIds)}
                     className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 disabled:opacity-30 transition-colors"
-                    title="Ungroup selected group(s) (Ctrl+Shift+G)"
+                    title={t('editor.ungroupTooltip', undefined, 'Ungroup selected group(s) (Ctrl+Shift+G)')}
                   >
                     <FolderMinus className="w-3 h-3 text-sky-400" />
-                    <span>Ungroup</span>
+                    <span>{t('editor.ungroup', undefined, 'Ungroup')}</span>
                   </button>
                 )}
 
@@ -653,7 +655,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                         ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                         : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
                     }`}
-                    title="Toggle lock for all selected elements (Ctrl+L)"
+                    title={t('editor.lockSelection', undefined, 'Toggle lock for all selected elements (Ctrl+L)')}
                   >
                     {isSelectionLocked ? <Lock className="w-3 h-3 text-amber-400" /> : <Unlock className="w-3 h-3 text-slate-400" />}
                     <span>{isSelectionLocked ? 'Unlock All Selected' : 'Lock All Selected'}</span>
@@ -858,7 +860,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="flex-1 py-1 px-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-lg text-slate-300 text-[10px] font-semibold flex items-center justify-center gap-1"
                 >
                   <AlignCenterHorizontal className="w-3 h-3 text-amber-400" />
-                  <span>Center X</span>
+                  <span>{t('editor.centerX', undefined, 'Center X')}</span>
                 </button>
                 <button
                   type="button"
@@ -866,7 +868,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="flex-1 py-1 px-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-lg text-slate-300 text-[10px] font-semibold flex items-center justify-center gap-1"
                 >
                   <AlignCenterVertical className="w-3 h-3 text-amber-400" />
-                  <span>Center Y</span>
+                  <span>{t('editor.centerY', undefined, 'Center Y')}</span>
                 </button>
               </div>
 
@@ -980,7 +982,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   title="Bring To Front"
                 >
                   <ChevronsUp className="w-3 h-3 text-amber-400" />
-                  <span>Front</span>
+                  <span>{t('editor.front', undefined, 'Front')}</span>
                 </button>
                 <button
                   type="button"
@@ -989,7 +991,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   title="Bring Forward (1 step)"
                 >
                   <ArrowUp className="w-3 h-3 text-amber-400" />
-                  <span>Forward</span>
+                  <span>{t('editor.forward', undefined, 'Forward')}</span>
                 </button>
                 <button
                   type="button"
@@ -1229,7 +1231,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                         className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-200 text-[10px] font-semibold flex items-center gap-1"
                       >
                         {isUploadingAsset ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                        <span>Upload BG</span>
+                        <span>{t('editor.uploadScreenWallpaper', undefined, 'Upload BG')}</span>
                       </button>
                     </div>
                   )}
@@ -1382,7 +1384,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                       className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5"
                     >
                       {isUploadingAsset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      <span>Upload New Image</span>
+                      <span>{t('editor.uploadNewImage', undefined, 'Upload New Image')}</span>
                     </button>
                   )}
                 </div>
@@ -1507,7 +1509,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
                     <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                       <Award className="w-3.5 h-3.5" />
-                      <span>Leaderboard Settings</span>
+                      <span>{t('editor.eventLeaderboard', undefined, 'Leaderboard Settings')}</span>
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">Dynamic Ranking</span>
                   </div>
@@ -1692,7 +1694,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                         }
                         className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3.5 h-3.5"
                       />
-                      <span>Highlight Current Player Row</span>
+                      <span>{t('editor.highlightCurrentPlayerRow', undefined, 'Highlight Current Player Row')}</span>
                     </label>
                   </div>
 
@@ -1893,7 +1895,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                         title="Unpack group children into parent coordinate system (Ctrl+Shift+G)"
                       >
                         <FolderMinus className="w-4 h-4 text-sky-400" />
-                        <span>Ungroup Elements</span>
+                        <span>{t('editor.ungroupElements', undefined, 'Ungroup Elements')}</span>
                       </button>
                     )}
 
@@ -2101,7 +2103,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     className="w-full py-2 bg-slate-850 hover:bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center justify-center gap-1.5"
                   >
                     {isUploadingAsset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                    <span>Upload Screen Wallpaper</span>
+                    <span>{t('editor.uploadScreenWallpaper', undefined, 'Upload Screen Wallpaper')}</span>
                   </button>
                 </div>
               )}

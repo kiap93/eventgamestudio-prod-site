@@ -1032,20 +1032,20 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-bold text-emerald-400 mb-1">🎮 How to Play</h4>
+                  <h4 className="font-bold text-emerald-400 mb-1">🎮 {t('game.howToPlay', undefined, 'How to Play')}</h4>
                   <p>Move the catcher horizontally to catch falling {fallingItemName.toLowerCase()}s (+10 points) while avoiding {badFallingItemName.toLowerCase()}s (-10 points).</p>
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-amber-400 mb-1">⚡ Controls</h4>
+                  <h4 className="font-bold text-amber-400 mb-1">⚡ {t('game.controls', undefined, 'Controls')}</h4>
                   <ul className="list-disc list-inside space-y-1 text-slate-300">
-                    <li><strong>Keyboard:</strong> Left/Right arrow keys or A/D keys</li>
-                    <li><strong>Mouse/Touch:</strong> Move cursor or drag finger horizontally across screen</li>
+                    <li><strong>{t('game.keyboard', undefined, 'Keyboard:')}</strong> {t('game.keyboardControls', undefined, 'Left/Right arrow keys or A/D keys')}</li>
+                    <li><strong>{t('game.mouseTouch', undefined, 'Mouse/Touch:')}</strong> {t('game.mouseTouchControls', undefined, 'Move cursor or drag finger horizontally across screen')}</li>
                   </ul>
                 </div>
 
                 <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                  <h4 className="font-bold text-teal-400">🎨 Multi-Theme System</h4>
+                  <h4 className="font-bold text-teal-400">🎨 {t('game.multiThemeSystem', undefined, 'Multi-Theme System')}</h4>
                   <p>Add new themes cleanly by creating a configuration object in <code className="text-amber-300">src/themes/</code>:</p>
                   <ul className="list-disc list-inside space-y-1 font-mono text-[11px] text-amber-300">
                     <li><code className="text-slate-200">ACTIVE_THEME_ID</code>: Single configuration value in <code className="text-slate-200">src/themes/registry.ts</code>.</li>
@@ -1059,7 +1059,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                 onClick={() => setShowGuideModal(false)}
                 className="mt-5 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg"
               >
-                Close
+                {t('common.close', undefined, 'Close')}
               </button>
             </div>
           </div>

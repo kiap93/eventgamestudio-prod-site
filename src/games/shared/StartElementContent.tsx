@@ -632,15 +632,15 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
               <div className="w-10 h-10 rounded-xl bg-amber-900/60 border border-amber-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
                 <Sparkles className="w-5 h-5 text-amber-300" />
               </div>
-              <span className="text-amber-300 font-bold text-xs">Match Pairs</span>
-              <span className="text-amber-400/90 font-medium text-[11px]">+POINTS FOR MATCH</span>
+              <span className="text-amber-300 font-bold text-xs">{t('game.matchPairs', undefined, 'Match Pairs')}</span>
+              <span className="text-amber-400/90 font-medium text-[11px]">{t('game.pointsForMatch', undefined, '+POINTS FOR MATCH')}</span>
             </div>
             <div className="bg-slate-900/70 border border-slate-700/50 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
               <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-600/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
                 <Clock className="w-5 h-5 text-slate-300" />
               </div>
-              <span className="text-slate-300 font-bold text-xs">Beat Timer</span>
-              <span className="text-slate-400 font-medium text-[11px]">COMBO STREAK BONUS</span>
+              <span className="text-slate-300 font-bold text-xs">{t('game.beatTimer', undefined, 'Beat Timer')}</span>
+              <span className="text-slate-400 font-medium text-[11px]">{t('game.comboStreakBonus', undefined, 'COMBO STREAK BONUS')}</span>
             </div>
           </div>
         );
@@ -657,15 +657,15 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
               <div className="w-10 h-10 rounded-xl bg-emerald-900/60 border border-emerald-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
                 <Zap className="w-5 h-5 text-emerald-300" />
               </div>
-              <span className="text-emerald-300 font-bold text-xs">Tap On Green</span>
-              <span className="text-emerald-400/90 font-medium text-[11px]">FASTEST MILLISECONDS</span>
+              <span className="text-emerald-300 font-bold text-xs">{t('game.tapOnGreen', undefined, 'Tap On Green')}</span>
+              <span className="text-emerald-400/90 font-medium text-[11px]">{t('game.fastestMilliseconds', undefined, 'FASTEST MILLISECONDS')}</span>
             </div>
             <div className="bg-rose-950/50 border border-rose-500/40 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
               <div className="w-10 h-10 rounded-xl bg-rose-900/60 border border-rose-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
                 <AlertTriangle className="w-5 h-5 text-rose-300" />
               </div>
-              <span className="text-rose-300 font-bold text-xs">Jump Start</span>
-              <span className="text-rose-400 font-medium text-[11px]">PENALTY FOR EARLY TAP</span>
+              <span className="text-rose-300 font-bold text-xs">{t('game.jumpStart', undefined, 'Jump Start')}</span>
+              <span className="text-rose-400 font-medium text-[11px]">{t('game.penaltyEarlyTap', undefined, 'PENALTY FOR EARLY TAP')}</span>
             </div>
           </div>
         );
@@ -674,7 +674,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       // Generic rules display
       return (
         <div className="w-full h-full flex items-center justify-center p-3 bg-slate-900/80 border border-slate-800 rounded-2xl text-center text-slate-300 text-xs">
-          <span>{rulesEl.goodItemTitle || 'Follow instructions to play and win!'}</span>
+          <span>{rulesEl.goodItemTitle || t('game.followInstructions', undefined, 'Follow instructions to play and win!')}</span>
         </div>
       );
     }
@@ -768,17 +768,17 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             {!isSim && loadingLeaderboard ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-slate-400">
                 <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                <span className="text-xs font-sans">Loading rankings...</span>
+                <span className="text-xs font-sans">{t('game.loadingRankings', undefined, 'Loading rankings...')}</span>
               </div>
             ) : !isSim && leaderboardError ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
                 <AlertCircle className="w-4 h-4 text-rose-400/80" />
-                <span className="text-xs font-sans">Leaderboard unavailable</span>
+                <span className="text-xs font-sans">{t('game.leaderboardUnavailable', undefined, 'Leaderboard unavailable')}</span>
               </div>
             ) : displayRows.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
                 <Users className="w-4 h-4 text-slate-600" />
-                <span className="text-xs font-sans">No scores recorded yet</span>
+                <span className="text-xs font-sans">{t('game.noScoresRecorded', undefined, 'No scores recorded yet')}</span>
               </div>
             ) : (
               displayRows.map((entry, i) => {

@@ -188,7 +188,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             <button
               onClick={logout}
               className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer shrink-0"
-              title="Sign Out"
+              title={t('auth.signOut', undefined, 'Sign Out')}
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -197,7 +197,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 md:hidden text-slate-400 hover:text-white rounded-xl cursor-pointer shrink-0"
-              aria-label="Toggle Navigation Menu"
+              aria-label={t('nav.toggleMenu', undefined, 'Toggle Navigation Menu')}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>

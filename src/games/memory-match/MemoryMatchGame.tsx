@@ -1654,7 +1654,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             {editableLayout && selectedElementKey === 'memoryCardBoard' && (
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 px-2 py-0.5 rounded text-[10px] font-mono font-black shadow pointer-events-none whitespace-nowrap z-50 flex items-center gap-1">
                 <Move className="w-3 h-3" />
-                <span>Memory Card Board</span>
+                <span>{t('game.memoryCardBoard', undefined, 'Memory Card Board')}</span>
                 <span>
                   ({Math.round(boardX)}%, {Math.round(boardY)}%)
                 </span>
@@ -1848,7 +1848,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             {editableLayout && selectedElementKey === 'memoryCardBoard' && (
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 px-2 py-0.5 rounded text-[10px] font-mono font-black shadow pointer-events-none whitespace-nowrap z-50 flex items-center gap-1">
                 <Move className="w-3 h-3" />
-                <span>Memory Card Board</span>
+                <span>{t('game.memoryCardBoard', undefined, 'Memory Card Board')}</span>
                 <span>
                   ({Math.round(boardX)}%, {Math.round(boardY)}%)
                 </span>
@@ -2126,28 +2126,28 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {gameState === 'PAUSED' && (
           <div className="absolute inset-0 w-full h-full bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4 z-30 animate-in fade-in duration-150">
             <div className="max-w-xs w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
-              <h2 className="text-xl font-bold text-white uppercase tracking-wider">Game Paused</h2>
+              <h2 className="text-xl font-bold text-white uppercase tracking-wider">{t('game.gamePaused', undefined, 'Game Paused')}</h2>
               <div className="space-y-2">
                 <button
                   onClick={handleResume}
                   className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current" />
-                  <span>Resume Game</span>
+                  <span>{t('game.resumeGame', undefined, 'Resume Game')}</span>
                 </button>
                 <button
                   onClick={handleRestart}
                   className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Restart Board</span>
+                  <span>{t('game.restartBoard', undefined, 'Restart Board')}</span>
                 </button>
                 <button
                   onClick={stopGame}
                   className="w-full py-2.5 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-700/60 text-rose-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current text-rose-400" />
-                  <span>Stop Game</span>
+                  <span>{t('game.stopGame', undefined, 'Stop Game')}</span>
                 </button>
               </div>
             </div>
@@ -2163,7 +2163,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-amber-400" />
-                  <h3 className="font-bold text-base">High Scores</h3>
+                  <h3 className="font-bold text-base">{t('game.highScores', undefined, 'High Scores')}</h3>
                 </div>
                 <button
                   onClick={() => setShowLeaderboardModal(false)}
@@ -2176,13 +2176,13 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                 {loadingLeaderboard ? (
                   <div className="py-8 text-slate-400 text-xs flex flex-col items-center gap-2">
                     <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                    <span>Loading Leaderboard...</span>
+                    <span>{t('game.loadingLeaderboard', undefined, 'Loading Leaderboard...')}</span>
                   </div>
                 ) : leaderboardScores.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs">
                     <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
-                    <p className="font-bold text-slate-300">No Scores Yet!</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Be the first to submit a high score!</p>
+                    <p className="font-bold text-slate-300">{t('game.noScoresYetTitle', undefined, 'No Scores Yet!')}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{t('game.noScoresYet', undefined, 'Be the first to submit a high score!')}</p>
                   </div>
                 ) : (
                   leaderboardScores.map((entry) => (

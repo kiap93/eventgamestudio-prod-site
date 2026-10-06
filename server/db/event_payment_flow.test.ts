@@ -5,6 +5,7 @@ import { getWalletBalance, createTopup, processTopupOrderStatus, createTopupOrde
 import { createEventWithAtomicPayment } from './events.js';
 import { createTheme } from './themes.js';
 import { ensureDefaultGame } from './games.js';
+import { localGamePricingCache, buildDefaultPricingTiers } from './gamePricing.js';
 
 async function runTests() {
   console.log('--- STARTING CREATE EVENT PAYMENT FLOW & TOP UP SHORTFALL TESTS ---');
@@ -13,6 +14,7 @@ async function runTests() {
   const testUser = await createUser({
     email: `test-${crypto.randomUUID().slice(0, 8)}@example.com`,
     name: 'Shortfall Tester',
+    email_verified: true,
   });
   const testUserId = testUser.id;
   const org = await createOrganization({
@@ -28,6 +30,7 @@ async function runTests() {
 
   // Setup game & theme
   const game = await ensureDefaultGame(org.id, 'Test Game');
+  localGamePricingCache.set(game.id, buildDefaultPricingTiers(game.id, (game.game_type || 'catch-brand')));
   const theme = await createTheme({
     organization_id: org.id,
     game_id: game.id,

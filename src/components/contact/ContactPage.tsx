@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
+import { CustomDatePicker } from '../common/CustomDatePicker';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -667,15 +668,13 @@ export const ContactPage: React.FC = () => {
                         <label htmlFor="contact-eventDate" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                           {t('contact.eventDate')}
                         </label>
-                        <div className="relative">
-                          <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                          <input
+                        <div>
+                          <CustomDatePicker
                             id="contact-eventDate"
                             name="eventDate"
-                            type="date"
                             value={form.eventDate}
-                            onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
-                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                            onChange={(dateStr) => setForm({ ...form, eventDate: dateStr })}
+                            className="bg-white border-slate-300 text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                           />
                         </div>
                       </div>

@@ -533,7 +533,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <div>
               <h2 className="text-sm font-black text-slate-100 tracking-wider flex items-center gap-2">
-                <span>MY THEMES</span>
+                <span>{t('studio.myThemesTab', undefined, 'MY THEMES')}</span>
                 <span className="text-[11px] font-normal text-slate-400">
                   (Organization Custom Themes)
                 </span>
@@ -670,7 +670,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
               <span>
-                System themes are read-only templates. To customize images, items, scoring, and branding, click <strong>Clone</strong> to add a copy to <strong>My Themes</strong>.
+                {t('studio.systemThemesReadOnlyNotice')}
               </span>
             </div>
           </div>

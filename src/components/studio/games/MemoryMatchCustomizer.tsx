@@ -385,18 +385,18 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
             Card Theme & Accent Colors
           </h4>
 
-          {/* Card Front Background (Face-Up Opened State) */}
+          {/* {t('customizers.cardFrontBackground', undefined, 'Card Front Background')} (Face-Up Opened State) */}
           <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-4 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-200">Card Front Background</span>
+                  <span className="text-xs font-bold text-slate-200">{t('customizers.cardFrontBackground', undefined, 'Card Front Background')}</span>
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
-                    Face-Up Cards
+                    {t('customizers.faceUpCards', undefined, 'Face-Up Cards')}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Solid or semi-transparent background color shown when cards are flipped open
+                  {t('customizers.cardFrontBgDesc', undefined, 'Solid or semi-transparent background color shown when cards are flipped open')}
                 </p>
               </div>
 
@@ -413,11 +413,11 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                     },
                   });
                 }}
-                className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
-                title="Reset Card Front Background to default (#0F172A at 95%)"
+                className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                title={t('studio.cardFrontBgDefault', undefined, 'Reset Card Front Background to default (#0F172A at 95%)')}
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
+                <span>{t('common.reset', undefined, 'Reset')}</span>
               </button>
             </div>
 
@@ -439,7 +439,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1">
                   <Sparkles className="w-6 h-6 text-amber-400 animate-pulse" />
-                  <span className="text-[9px] font-bold text-slate-200">Face-Up</span>
+                  <span className="text-[9px] font-bold text-slate-200">{t('customizers.faceUp', undefined, 'Face-Up')}</span>
                 </div>
                 <span className="text-[8px] font-mono text-slate-400/90">
                   {Math.round((theme.visuals_config?.cardFrontBgOpacity ?? 0.95) * 100)}%
@@ -450,7 +450,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
               <div className="flex-1 w-full space-y-3">
                 {/* Color Input & Hex Code */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-slate-300">Background Color</label>
+                  <label className="text-[11px] font-semibold text-slate-300">{t('customizers.backgroundColor', undefined, 'Background Color')}</label>
                   <div className="flex items-center gap-2">
                     <div className="relative w-9 h-9 rounded-xl border border-slate-700 overflow-hidden shrink-0 shadow-inner bg-slate-900">
                       <input
@@ -536,7 +536,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 {/* Opacity Slider */}
                 <div className="space-y-1.5 pt-1">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-slate-300">Background Opacity</span>
+                    <span className="font-semibold text-slate-300">{t('customizers.backgroundOpacity', undefined, 'Background Opacity')}</span>
                     <span className="font-mono text-amber-400 font-bold">
                       {Math.round((theme.visuals_config?.cardFrontBgOpacity ?? 0.95) * 100)}%
                     </span>
@@ -560,7 +560,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                     className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                   />
                   <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>0% (Transparent)</span>
+                    <span>{t('customizers.transparent', undefined, '0% (Transparent)')}</span>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -611,25 +611,25 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                         100%
                       </button>
                     </div>
-                    <span>100% (Solid)</span>
+                    <span>{t('customizers.solid', undefined, '100% (Solid)')}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Match Success Background (Successfully Matched State) */}
+          {/* {t('customizers.matchSuccessBackground', undefined, 'Match Success Background')} (Successfully Matched State) */}
           <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-4 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-200">Match Success Background</span>
+                  <span className="text-xs font-bold text-slate-200">{t('customizers.matchSuccessBackground', undefined, 'Match Success Background')}</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                    Successfully Matched
+                    {t('customizers.successfullyMatched', undefined, 'Successfully Matched')}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Solid or semi-transparent background color displayed on cards after they are successfully matched
+                  {t('customizers.matchSuccessBgDesc', undefined, 'Solid or semi-transparent background color displayed on cards after they are successfully matched')}
                 </p>
               </div>
 
@@ -647,10 +647,10 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                   });
                 }}
                 className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
-                title="Reset Match Success Background to default (#064E3B at 85%)"
+                title={t('studio.matchSuccessBgDefault', undefined, 'Reset Match Success Background to default (#064E3B at 85%)')}
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
+                <span>{t('common.reset', undefined, 'Reset')}</span>
               </button>
             </div>
 
@@ -674,7 +674,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1">
                   <Sparkles className="w-6 h-6 text-emerald-400 animate-pulse" />
-                  <span className="text-[9px] font-bold text-emerald-200">Matched</span>
+                  <span className="text-[9px] font-bold text-emerald-200">{t('studio.matched', undefined, 'Matched')}</span>
                 </div>
                 <span className="text-[8px] font-mono text-emerald-300/90">
                   {Math.round((theme.visuals_config?.cardGoodBgOpacity ?? 0.85) * 100)}%
@@ -857,7 +857,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             {/* Card Matched Border Color */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-1.5">
-              <label className="text-slate-400 font-semibold">Match Success Border</label>
+              <label className="text-slate-400 font-semibold">{t('customizers.matchSuccessBorder', undefined, 'Match Success Border')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -881,7 +881,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
 
             {/* Card Mismatch Border Color */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-1.5">
-              <label className="text-slate-400 font-semibold">Mismatch Alert Border</label>
+              <label className="text-slate-400 font-semibold">{t('customizers.mismatchAlertBorder', undefined, 'Mismatch Alert Border')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -925,6 +925,7 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const memoryConfig = getMemoryMatchConfig(theme);
   const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
   const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
@@ -1010,7 +1011,7 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="text-right">
-            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block">Card Library</span>
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block">{t('customizers.cardLibrary', undefined, 'Card Library')}</span>
             <span className="text-xs font-mono font-bold text-slate-300">
               <span className="text-emerald-400">{requiredPairsCount}</span> / {pairs.length} pairs active
             </span>
@@ -1145,6 +1146,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
   theme,
   onChange,
 }) => {
+  const { t } = useLocalization();
   const memoryConfig = getMemoryMatchConfig(theme);
   const board = memoryConfig.board;
   const cardConfig = memoryConfig.card || board.card || DEFAULT_CARD_CONFIG;
@@ -1272,7 +1274,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               )}
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Board Layout & Card Arrangement</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.boardLayoutArrangement', undefined, 'Board Layout & Card Arrangement')}</h3>
               <p className="text-xs text-slate-400">
                 Choose between Grid, Random / Scattered, Up-Down, or Up-Down with Random Rotation
               </p>
@@ -1312,7 +1314,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               }`}
             >
               <Grid3X3 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-xs">Grid</span>
+              <span className="text-xs">{t('customizers.layoutGrid', undefined, 'Grid')}</span>
               {currentLayoutMode === 'grid' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
             </button>
 
@@ -1326,7 +1328,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               }`}
             >
               <Shuffle className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-xs">Random / Scattered</span>
+              <span className="text-xs">{t('customizers.layoutScattered', undefined, 'Random / Scattered')}</span>
               {currentLayoutMode === 'random' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
             </button>
 
@@ -1340,7 +1342,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               }`}
             >
               <ArrowUpDown className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-xs">Up-Down</span>
+              <span className="text-xs">{t('customizers.layoutUpDown', undefined, 'Up-Down')}</span>
               {currentLayoutMode === 'up-down' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
             </button>
 
@@ -1354,7 +1356,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               }`}
             >
               <RotateCw className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-xs">Up-Down + Random Rotation</span>
+              <span className="text-xs">{t('customizers.layoutUpDownRotated', undefined, 'Up-Down + Random Rotation')}</span>
               {currentLayoutMode === 'up-down-rotation' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
             </button>
           </div>
@@ -1610,7 +1612,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
         </div>
       </div>
 
-      {/* 2. Card Dimensions, Shape & Rotation Section */}
+      {/* 2. {t('customizers.cardDimensionsShape', undefined, 'Card Dimensions, Shape & Rotation')} Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1867,8 +1869,8 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
                   : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
               }`}
             >
-              <span className="text-xs block">Upright (0°)</span>
-              <span className="text-[10px] text-slate-500">No rotation</span>
+              <span className="text-xs block">{t('customizers.rotationUpright', undefined, 'Upright (0°)')}</span>
+              <span className="text-[10px] text-slate-500">{t('customizers.rotationNone', undefined, 'No rotation')}</span>
             </button>
 
             <button
@@ -1880,8 +1882,8 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
                   : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
               }`}
             >
-              <span className="text-xs block">Fixed Angle</span>
-              <span className="text-[10px] text-slate-500">Uniform angle</span>
+              <span className="text-xs block">{t('customizers.rotationFixed', undefined, 'Fixed Angle')}</span>
+              <span className="text-[10px] text-slate-500">{t('customizers.rotationFixedDesc', undefined, 'Uniform angle')}</span>
             </button>
 
             <button
@@ -1893,8 +1895,8 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
                   : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
               }`}
             >
-              <span className="text-xs block">Random Tilt</span>
-              <span className="text-[10px] text-slate-500">Stable per card</span>
+              <span className="text-xs block">{t('customizers.rotationRandom', undefined, 'Random Tilt')}</span>
+              <span className="text-[10px] text-slate-500">{t('customizers.rotationRandomDesc', undefined, 'Stable per card')}</span>
             </button>
           </div>
 
@@ -1976,6 +1978,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
   theme,
   onChange,
 }) => {
+  const { t } = useLocalization();
   const memoryConfig = getMemoryMatchConfig(theme);
   const gameplay = memoryConfig.gameplay;
   const showLeaderboard = memoryConfig.ui?.showLeaderboard !== false;
@@ -2033,7 +2036,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               <Clock className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Session Timer & Mismatch Reveal</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.sessionTimerMismatch', undefined, 'Session Timer & Mismatch Reveal')}</h3>
               <p className="text-xs text-slate-400">
                 Configure game session countdown duration and mismatch reveal speed
               </p>
@@ -2096,7 +2099,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               <Sparkles className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Scoring & Combo Multipliers</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.scoringComboMultipliers', undefined, 'Scoring & Combo Multipliers')}</h3>
               <p className="text-xs text-slate-400">
                 Reward players for swift matching and consecutive combos
               </p>
@@ -2108,7 +2111,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
           {/* Match Base Points */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-300">Base Match Points</span>
+              <span className="text-xs font-semibold text-slate-300">{t('customizers.baseMatchPoints', undefined, 'Base Match Points')}</span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 +{gameplay.matchPoints || 100} pts
               </span>
@@ -2124,7 +2127,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
             />
           </div>
 
-          {/* Combo Streak Bonus */}
+          {/* {t('customizers.comboStreakBonus', undefined, 'Combo Streak Bonus')} */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">Combo Streak Bonus</span>
@@ -2230,6 +2233,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const { t } = useLocalization();
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
@@ -2344,7 +2348,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
           </span>
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
-              <span>Game Screens Customization</span>
+              <span>{t('customizers.gameScreensCustomization', undefined, 'Game Screens Customization')}</span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               Independently customize backgrounds, overlays, and visibility for the Start and Game Over screens
@@ -2364,7 +2368,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             }`}
           >
             <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Start Screen</span>
+            <span>{t('customizers.startScreen', undefined, 'Start Screen')}</span>
           </button>
 
           <button
@@ -2377,7 +2381,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             }`}
           >
             <Trophy className="w-3.5 h-3.5" />
-            <span>Result Screen</span>
+            <span>{t('customizers.resultScreen', undefined, 'Result Screen')}</span>
           </button>
         </div>
       </div>
@@ -2404,7 +2408,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
-                  <span>Start Screen Visual Canvas Editor</span>
+                  <span>{t('customizers.startScreenVisualCanvasEditor', undefined, 'Start Screen Visual Canvas Editor')}</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Design layout, badges, buttons, and graphics using the 1024×576 visual canvas editor.
@@ -2416,7 +2420,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                 className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span>Open Start Screen Editor</span>
+                <span>{t('customizers.openStartScreenEditor', undefined, 'Open Start Screen Editor')}</span>
               </button>
             </div>
 
@@ -2433,7 +2437,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                 />
               </div>
               <span className="text-[11px] text-slate-500 mt-2 font-mono">
-                Interactive Scaled Canvas Preview (1024 × 576)
+                {t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}
               </span>
             </div>
           </div>
@@ -2472,7 +2476,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
-                  <span>Result Screen Visual Canvas Editor</span>
+                  <span>{t('customizers.resultScreenVisualCanvasEditor', undefined, 'Result Screen Visual Canvas Editor')}</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
                   Design layout, badges, buttons, cards, and graphics using the 1024×576 visual canvas editor.
@@ -2484,7 +2488,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span>Open Result Screen Editor</span>
+                <span>{t('customizers.openResultScreenEditor', undefined, 'Open Result Screen Editor')}</span>
               </button>
             </div>
 
@@ -2492,7 +2496,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 gap-3">
               {/* Viewport Dimension Presets for Verification */}
               <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] font-mono">
-                <span className="text-slate-400 px-2 font-medium">Viewport:</span>
+                <span className="text-slate-400 px-2 font-medium">{t('customizers.viewport', undefined, 'Viewport:')}</span>
                 {(
                   [
                     { id: 'fit', label: 'Fit (Auto)' },
@@ -2604,6 +2608,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
  * MEMORY MATCH - AUDIO SOUND TESTER
  * ========================================================================== */
 export const MemoryMatchAudioTester: React.FC = () => {
+  const { t } = useLocalization();
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
       <div className="flex items-center gap-2">
@@ -2625,7 +2630,7 @@ export const MemoryMatchAudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-850 active:scale-95 border border-slate-800 hover:border-amber-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200"
         >
           <RotateCcw className="w-4 h-4 text-amber-400" />
-          <span>Card Flip</span>
+          <span>{t('customizers.cardFlip', undefined, 'Card Flip')}</span>
         </button>
 
         <button
@@ -2634,7 +2639,7 @@ export const MemoryMatchAudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-850 active:scale-95 border border-slate-800 hover:border-emerald-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200"
         >
           <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span>Match Chime</span>
+          <span>{t('customizers.matchChime', undefined, 'Match Chime')}</span>
         </button>
 
         <button
@@ -2643,7 +2648,7 @@ export const MemoryMatchAudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-850 active:scale-95 border border-slate-800 hover:border-rose-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200"
         >
           <AlertCircle className="w-4 h-4 text-rose-400" />
-          <span>Mismatch Buzz</span>
+          <span>{t('customizers.mismatchBuzz', undefined, 'Mismatch Buzz')}</span>
         </button>
 
         <button
@@ -2652,7 +2657,7 @@ export const MemoryMatchAudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-850 active:scale-95 border border-slate-800 hover:border-amber-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200"
         >
           <Trophy className="w-4 h-4 text-amber-400" />
-          <span>Victory Fanfare</span>
+          <span>{t('customizers.victoryFanfare', undefined, 'Victory Fanfare')}</span>
         </button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { useLocalization } from '../../../../context/LocalizationContext';
 import React, { useRef, useState, useMemo } from 'react';
 import {
   StartScreenElement,
@@ -112,6 +113,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   onBulkLockToggle,
   isAllSelectedLocked,
 }) => {
+  const { t } = useLocalization();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadTarget, setUploadTarget] = useState<
     | { type: 'screenBg' }
@@ -550,7 +552,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={onClearSelection}
                 className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                title="Deselect All (Esc)"
+                title={t('editor.closeEditor', undefined, 'Deselect All (Esc)')}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -570,7 +572,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={onDuplicateSelected}
                 className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                title="Duplicate All (Ctrl+D)"
+                title={t('editor.duplicateSelection', undefined, 'Duplicate All (Ctrl+D)')}
               >
                 <Copy className="w-3.5 h-3.5" />
               </button>
@@ -579,7 +581,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={onDeleteSelected}
                 className="p-1 rounded hover:bg-rose-950 text-slate-400 hover:text-rose-400"
-                title="Delete All (Del)"
+                title={t('editor.deleteSelection', undefined, 'Delete All (Del)')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -597,7 +599,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={() => onAlignSelected && onAlignSelected('left')}
                 className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
-                title="Align Left"
+                title={t('editor.alignLeftTooltip', undefined, 'Align Left')}
               >
                 <AlignLeft className="w-4 h-4" />
                 <span className="text-[9px]">Left</span>
@@ -605,7 +607,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={() => onAlignSelected && onAlignSelected('center-h')}
                 className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
-                title="Align Center Horizontally"
+                title={t('editor.alignCenterHTooltip', undefined, 'Align Center Horizontally')}
               >
                 <AlignCenterHorizontal className="w-4 h-4" />
                 <span className="text-[9px]">Center H</span>
@@ -613,7 +615,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={() => onAlignSelected && onAlignSelected('right')}
                 className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
-                title="Align Right"
+                title={t('editor.alignRightTooltip', undefined, 'Align Right')}
               >
                 <AlignRight className="w-4 h-4" />
                 <span className="text-[9px]">Right</span>
@@ -626,7 +628,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
                     : 'text-slate-600 opacity-40 cursor-not-allowed'
                 }`}
-                title="Distribute Horizontally (requires 3+ elements)"
+                title={t('editor.distributeHTooltip', undefined, 'Distribute Horizontally (requires 3+ elements)')}
               >
                 <AlignHorizontalDistributeCenter className="w-4 h-4" />
                 <span className="text-[9px]">Dist H</span>
@@ -634,7 +636,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={() => onAlignSelected && onAlignSelected('top')}
                 className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
-                title="Align Top"
+                title={t('editor.alignTopTooltip', undefined, 'Align Top')}
               >
                 <AlignStartVertical className="w-4 h-4" />
                 <span className="text-[9px]">Top</span>
@@ -642,7 +644,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={() => onAlignSelected && onAlignSelected('center-v')}
                 className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
-                title="Align Center Vertically"
+                title={t('editor.alignCenterVTooltip', undefined, 'Align Center Vertically')}
               >
                 <AlignCenterVertical className="w-4 h-4" />
                 <span className="text-[9px]">Center V</span>
@@ -650,7 +652,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <button
                 onClick={() => onAlignSelected && onAlignSelected('bottom')}
                 className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
-                title="Align Bottom"
+                title={t('editor.alignBottomTooltip', undefined, 'Align Bottom')}
               >
                 <AlignEndVertical className="w-4 h-4" />
                 <span className="text-[9px]">Bottom</span>
@@ -663,7 +665,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
                     : 'text-slate-600 opacity-40 cursor-not-allowed'
                 }`}
-                title="Distribute Vertically (requires 3+ elements)"
+                title={t('editor.distributeVTooltip', undefined, 'Distribute Vertically (requires 3+ elements)')}
               >
                 <AlignVerticalDistributeCenter className="w-4 h-4" />
                 <span className="text-[9px]">Dist V</span>
@@ -716,7 +718,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
               >
                 <Lock className="w-4 h-4 text-slate-400" />
-                <span>Lock / Unlock Selected</span>
+                <span>{t('editor.lockSelection', undefined, 'Lock / Unlock Selected')}</span>
               </button>
             )}
           </div>
@@ -807,7 +809,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <button
               onClick={onDuplicateSelected}
               className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-              title="Duplicate"
+              title={t('editor.duplicateSelection', undefined, 'Duplicate')}
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
@@ -817,7 +819,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <button
               onClick={onDeleteSelected}
               className="p-1 rounded hover:bg-rose-950 text-slate-400 hover:text-rose-400"
-              title="Delete"
+              title={t('editor.deleteSelection', undefined, 'Delete')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -1054,7 +1056,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <div className="pt-2.5 border-t border-slate-800 space-y-2">
                 <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Plus className="w-3 h-3" />
-                  <span>Insert Element into Card</span>
+                  <span>{t('editor.insertIntoCard', undefined, 'Insert Element into Card')}</span>
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => {
@@ -1104,14 +1106,14 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition-colors"
               >
                 <FolderMinus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Ungroup Elements</span>
+                <span>{t('editor.ungroupElements', undefined, 'Ungroup Elements')}</span>
               </button>
             )}
             {onAddChildElement && (
               <div className="pt-2 border-t border-slate-800 space-y-2">
                 <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Plus className="w-3 h-3" />
-                  <span>Insert Element into Group</span>
+                  <span>{t('editor.insertIntoGroup', undefined, 'Insert Element into Group')}</span>
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => {

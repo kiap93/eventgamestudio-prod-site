@@ -668,7 +668,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>1. Visuals</span>
+              <span>1. {t('studio.tabs.visuals', undefined, 'Visuals')}</span>
             </button>
 
             <button
@@ -683,10 +683,10 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {isReactionTheme(draftTheme)
-                  ? '2. Gantry & Lights'
+                  ? `2. ${t('studio.gantryAndLights', undefined, 'Gantry & Lights')}`
                   : isMemoryMatchTheme(draftTheme)
-                  ? '2. Card Pairs'
-                  : '2. Items'}
+                  ? `2. ${t('studio.cardPairs', undefined, 'Card Pairs')}`
+                  : `2. ${t('studio.tabs.items', undefined, 'Items')}`}
               </span>
             </button>
 
@@ -700,7 +700,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               }`}
             >
               <Zap className="w-3.5 h-3.5" />
-              <span>3. Gameplay</span>
+              <span>3. {t('studio.tabs.gameplay', undefined, 'Gameplay')}</span>
             </button>
 
             <button
@@ -713,7 +713,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               }`}
             >
               <Volume2 className="w-3.5 h-3.5" />
-              <span>4. Audio</span>
+              <span>4. {t('studio.tabs.audio', undefined, 'Audio')}</span>
             </button>
 
             <button
@@ -726,7 +726,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               }`}
             >
               <Palette className="w-3.5 h-3.5" />
-              <span>5. Branding</span>
+              <span>5. {t('studio.tabs.branding', undefined, 'Branding')}</span>
             </button>
 
             <button
@@ -739,7 +739,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
-              <span>6. Layout</span>
+              <span>6. {t('studio.tabs.layout', undefined, 'Layout')}</span>
             </button>
 
             <button
@@ -752,7 +752,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               }`}
             >
               <Tv className="w-3.5 h-3.5" />
-              <span>7. Game Screens</span>
+              <span>7. {t('studio.tabs.screens', undefined, 'Game Screens')}</span>
             </button>
           </nav>
 
@@ -861,7 +861,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-base font-black text-slate-100">You have unsaved changes</h3>
+              <h3 className="text-base font-black text-slate-100">{t('studio.unsavedChangesBanner', undefined, 'You have unsaved changes')}</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 If you leave now, your recent edits to "{draftTheme.name}" will be discarded. Do you want to stay and save or leave without saving?
               </p>

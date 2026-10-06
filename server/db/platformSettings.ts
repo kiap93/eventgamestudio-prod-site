@@ -72,9 +72,114 @@ function saveLocalSettings(env?: Record<string, any>): void {
 loadLocalSettings();
 
 /**
+ * Explicitly parses a date-only value (YYYY-MM-DD or DD/MM/YYYY) into a local Date object.
+ * Avoids any timezone shift or ambiguous new Date("DD/MM/YYYY") parsing.
+ */
+export function parseDateOnly(value: string | Date | null | undefined): Date {
+  if (!value) return new Date(NaN);
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const str = String(value).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10);
+    const day = parseInt(isoMatch[3], 10);
+    return new Date(year, month - 1, day);
+  }
+  const dmyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10);
+    const year = parseInt(dmyMatch[3], 10);
+    return new Date(year, month - 1, day);
+  }
+  const dmyDashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (dmyDashMatch) {
+    const day = parseInt(dmyDashMatch[1], 10);
+    const month = parseInt(dmyDashMatch[2], 10);
+    const year = parseInt(dmyDashMatch[3], 10);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(NaN);
+}
+
+/**
+ * Converts a displayed DD/MM/YYYY string back to a Date object parsed explicitly.
+ */
+export function parseDisplayDate(value: string | Date | null | undefined): Date {
+  if (!value) return new Date(NaN);
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const str = String(value).trim();
+  const parts = str.split('/');
+  if (parts.length === 3) {
+    const [day, month, year] = parts.map(Number);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      return new Date(year, month - 1, day);
+    }
+  }
+  const dashParts = str.split('-');
+  if (dashParts.length === 3 && dashParts[0].length <= 2 && dashParts[2].length === 4) {
+    const [day, month, year] = dashParts.map(Number);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      return new Date(year, month - 1, day);
+    }
+  }
+  return parseDateOnly(str);
+}
+
+/**
+ * Normalizes any date representation (Date object, DD/MM/YYYY, YYYY-MM-DD, ISO string)
+ * into internal/API representation: 'YYYY-MM-DD'.
+ */
+export function formatDateApi(dateVal: string | Date | null | undefined): string {
+  if (!dateVal) return '';
+  if (dateVal instanceof Date) {
+    if (isNaN(dateVal.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${dateVal.getFullYear()}-${pad(dateVal.getMonth() + 1)}-${pad(dateVal.getDate())}`;
+  }
+  const str = String(dateVal).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+  const dmyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  const dmyDashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (dmyDashMatch) {
+    const day = dmyDashMatch[1].padStart(2, '0');
+    const month = dmyDashMatch[2].padStart(2, '0');
+    const year = dmyDashMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
+/**
+ * Formats any date representation into 'DD/MM/YYYY' strictly for user-facing display.
+ */
+export function formatDateDisplay(dateVal: string | Date | null | undefined): string {
+  const ymd = formatDateApi(dateVal);
+  if (!ymd) return '';
+  const [year, month, day] = ymd.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
  * Calculates calendar-day duration (Start Date to End Date).
- *
- * Examples:
+ * Inclusive:
+ * - 10/05/2026 to 10/05/2026 = 1 day
+ * - 10/05/2026 to 12/05/2026 = 3 days (10 May + 11 May + 12 May)
+ * - 2026-05-10 to 2026-05-12 = 3 days
  * - 01/09/2026 to 01/09/2026 = 1 day
  * - 01/09/2026 to 02/09/2026 = 2 days
  * - 01/09/2026 to 14/09/2026 = 14 days
@@ -86,22 +191,8 @@ export function calculateEventCalendarDays(
   startDateVal: string | Date | null | undefined,
   endDateVal: string | Date | null | undefined
 ): number {
-  const extractDate = (val: string | Date | null | undefined): string => {
-    if (!val) return '';
-    if (typeof val === 'string') {
-      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (match) return `${match[1]}-${match[2]}-${match[3]}`;
-      const dt = new Date(val);
-      if (isNaN(dt.getTime())) return '';
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
-    }
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${val.getUTCFullYear()}-${pad(val.getUTCMonth() + 1)}-${pad(val.getUTCDate())}`;
-  };
-
-  const startStr = extractDate(startDateVal);
-  const endStr = extractDate(endDateVal) || startStr;
+  const startStr = formatDateApi(startDateVal);
+  const endStr = formatDateApi(endDateVal) || startStr;
 
   if (!startStr) return 1;
 

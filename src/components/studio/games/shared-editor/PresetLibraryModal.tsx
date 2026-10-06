@@ -73,7 +73,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Built-in Presets ({presets.length})
+            {t('editor.builtinPresets', { count: presets.length }, `Built-in Presets (${presets.length})`)}
           </button>
           <button
             onClick={() => setActiveTab('custom')}
@@ -83,7 +83,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Saved Templates ({customTemplates.length})
+            {t('editor.savedTemplatesTab', { count: customTemplates.length }, `Saved Templates (${customTemplates.length})`)}
           </button>
         </div>
 
@@ -106,7 +106,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="font-bold text-sm text-slate-100">{preset.name}</span>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
-                        {preset.elements.length} elements
+                        {preset.elements.length} {t('editor.elements', undefined, 'elements')}
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 mb-3">{preset.description}</p>
@@ -131,9 +131,9 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
               {customTemplates.length === 0 ? (
                 <div className="text-center py-12">
                   <Sparkles className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">No saved custom templates yet.</p>
+                  <p className="text-sm text-slate-400">{t('editor.noSavedTemplates', undefined, 'No saved custom templates yet.')}</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    Design your ideal layout and click "Save Template" in the top bar.
+                    {t('editor.noSavedTemplatesDesc', undefined, 'Design your ideal layout and click "Save Template" in the top bar.')}
                   </p>
                 </div>
               ) : (
@@ -147,7 +147,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="font-bold text-sm text-slate-100">{template.name}</span>
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
-                            {template.elements.length} elements
+                            {template.elements.length} {t('editor.elements', undefined, 'elements')}
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 mb-3">{template.description}</p>
@@ -159,13 +159,13 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                           className="flex-1 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1 shadow transition-colors cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>Apply</span>
+                          <span>{t('common.apply', undefined, 'Apply')}</span>
                         </button>
                         {onDeleteCustomTemplate && (
                           <button
                             onClick={() => onDeleteCustomTemplate(template.id)}
                             className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Delete custom template"
+                            title={t('editor.deleteCustomTemplate', undefined, 'Delete custom template')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

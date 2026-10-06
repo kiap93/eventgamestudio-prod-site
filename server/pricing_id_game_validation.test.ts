@@ -10,6 +10,12 @@ console.log('===================================================================
 console.log('Running Pricing ID & Game Integrity Checks (Database RPC & TypeScript)');
 console.log('========================================================================\n');
 
+const testEnv = {
+  NODE_ENV: 'test',
+  SUPABASE_URL: 'https://placeholder-project.supabase.co',
+  SUPABASE_SERVICE_ROLE_KEY: 'placeholder-service-key',
+};
+
 const orgId = '11111111-1111-1111-1111-111111111111';
 const catchBrandThemeId = '22222222-2222-2222-2222-222222222222';
 const memoryMatchThemeId = '33333333-3333-3333-3333-333333333333';
@@ -120,13 +126,13 @@ async function runTests() {
   // Test 1: Retrieves a pricing tier by ID correctly
   {
     resetTestData();
-    const tier = await getGamePricingTierById('catch-tier-1d');
+    const tier = await getGamePricingTierById('catch-tier-1d', testEnv);
     assert.ok(tier !== null, 'Pricing tier should not be null');
     assert.strictEqual(tier?.id, 'catch-tier-1d');
     assert.strictEqual(tier?.game_id, 'catch-brand');
     assert.strictEqual(tier?.price, 1400);
 
-    const nonExistent = await getGamePricingTierById('unknown-tier-999');
+    const nonExistent = await getGamePricingTierById('unknown-tier-999', testEnv);
     assert.strictEqual(nonExistent, null, 'Non-existent tier must return null');
     console.log('  ✓ Test 1: Retrieves a pricing tier by ID correctly');
   }
@@ -141,10 +147,10 @@ async function runTests() {
         game_theme_id: catchBrandThemeId,
         game_id: 'catch-brand',
         name: 'Brand Activation 2026',
-        start_date: '2026-10-01',
-        end_date: '2026-10-01',
+        start_date: '2026-11-01',
+        end_date: '2026-11-01',
         pricing_id: 'memory-tier-1d', // Memory Match pricing ID supplied for Catch the Brand event!
-      });
+      }, testEnv);
     } catch (err: any) {
       threw = true;
       assert.strictEqual(err.code, 'PRICING_GAME_MISMATCH');
@@ -165,10 +171,10 @@ async function runTests() {
         game_theme_id: catchBrandThemeId,
         game_id: 'catch-brand',
         name: 'Brand Activation 2026',
-        start_date: '2026-10-01',
-        end_date: '2026-10-03', // 3 days
+        start_date: '2026-11-01',
+        end_date: '2026-11-03', // 3 days
         pricing_id: 'catch-tier-inactive', // Inactive tier
-      });
+      }, testEnv);
     } catch (err: any) {
       threw = true;
       assert.strictEqual(err.code, 'PRICING_TIER_INACTIVE');
@@ -189,10 +195,10 @@ async function runTests() {
         game_theme_id: catchBrandThemeId,
         game_id: 'catch-brand',
         name: 'Brand Activation 2026',
-        start_date: '2026-10-01',
-        end_date: '2026-10-02', // 2 days
+        start_date: '2026-11-01',
+        end_date: '2026-11-02', // 2 days
         pricing_id: 'catch-tier-1d', // 1-day tier supplied for a 2-day event!
-      });
+      }, testEnv);
     } catch (err: any) {
       threw = true;
       assert.strictEqual(err.code, 'PRICING_DURATION_MISMATCH');
@@ -213,10 +219,10 @@ async function runTests() {
         game_theme_id: catchBrandThemeId,
         game_id: 'catch-brand',
         name: 'Brand Activation 2026',
-        start_date: '2026-10-01',
-        end_date: '2026-10-01',
+        start_date: '2026-11-01',
+        end_date: '2026-11-01',
         pricing_id: 'ghost-tier-uuid',
-      });
+      }, testEnv);
     } catch (err: any) {
       threw = true;
       assert.strictEqual(err.code, 'PRICING_TIER_NOT_FOUND');
@@ -235,10 +241,10 @@ async function runTests() {
       game_theme_id: catchBrandThemeId,
       game_id: 'catch-brand',
       name: 'Brand Activation 2026',
-      start_date: '2026-10-01',
-      end_date: '2026-10-02', // 2 days
+      start_date: '2026-11-01',
+      end_date: '2026-11-02', // 2 days
       pricing_id: 'catch-tier-2d',
-    });
+    }, testEnv);
 
     assert.ok(event, 'Event should be defined');
     assert.strictEqual(event.pricing_id, 'catch-tier-2d');
@@ -256,9 +262,9 @@ async function runTests() {
       game_theme_id: catchBrandThemeId,
       game_id: 'catch-brand',
       name: 'Brand Activation 2026',
-      start_date: '2026-10-01',
-      end_date: '2026-10-01', // 1 day
-    });
+      start_date: '2026-11-01',
+      end_date: '2026-11-01', // 1 day
+    }, testEnv);
 
     assert.ok(event, 'Event should be defined');
     assert.strictEqual(event.pricing_id, 'catch-tier-1d');

@@ -293,7 +293,7 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
           >
             <span className="flex items-center gap-2">
               <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>Catcher Scale, Catch Area & Physics</span>
+              <span>{t('customizers.catcherScalePhysics', undefined, 'Catcher Scale, Catch Area & Physics')}</span>
             </span>
             {showAdvancedBasket ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -303,7 +303,7 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Catcher Name */}
                 <div className="space-y-1.5">
-                  <label className="text-slate-300 font-semibold">Catcher Name</label>
+                  <label className="text-slate-300 font-semibold">{t('customizers.catcherName', undefined, 'Catcher Name')}</label>
                   <input
                     type="text"
                     value={theme.basket_config?.name || ''}
@@ -315,14 +315,14 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
                       })
                     }
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-amber-500"
-                    placeholder="e.g. Woven Basket"
+                    placeholder={t('customizers.catcherNamePlaceholder', undefined, 'e.g. Woven Basket')}
                   />
                 </div>
 
                 {/* Catch Area Ratio */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="text-slate-300 font-semibold">Catch Sweet Spot</label>
+                    <label className="text-slate-300 font-semibold">{t('customizers.catchSweetSpot', undefined, 'Catch Sweet Spot')}</label>
                     <span className="text-amber-400 font-mono font-bold">
                       {Math.round((theme.basket_config?.catchAreaRatio ?? 0.72) * 100)}%
                     </span>
@@ -466,7 +466,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
                     value={item.name || ''}
                     onChange={(e) => handleUpdateItem(idx, { name: e.target.value })}
                     className="bg-transparent text-sm font-bold text-slate-100 border-b border-transparent hover:border-slate-700 focus:border-amber-500 focus:outline-none px-1"
-                    placeholder="Item Name"
+                    placeholder={t('customizers.itemName', undefined, 'Item Name')}
                   />
                 </div>
 
@@ -476,7 +476,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
                       type="button"
                       onClick={() => handleDeleteItem(idx)}
                       className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
-                      title="Delete item"
+                      title={t('studio.deleteItem', undefined, 'Delete item')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -488,7 +488,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 {/* Points */}
                 <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
-                  <label className="text-slate-400 font-semibold">Points Value</label>
+                  <label className="text-slate-400 font-semibold">{t('customizers.pointsValue', undefined, 'Points Value')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -509,7 +509,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
                 {/* Spawn Weight */}
                 <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="text-slate-400 font-semibold">Spawn Frequency</label>
+                    <label className="text-slate-400 font-semibold">{t('customizers.spawnFrequency', undefined, 'Spawn Frequency')}</label>
                     <span className="text-amber-400 font-mono font-bold">{item.spawnWeight || 10}</span>
                   </div>
                   <input
@@ -527,7 +527,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
                 {/* Speed Multiplier */}
                 <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="text-slate-400 font-semibold">Speed Modifier</label>
+                    <label className="text-slate-400 font-semibold">{t('customizers.speedModifier', undefined, 'Speed Modifier')}</label>
                     <span className="text-emerald-400 font-mono font-bold">
                       {(item.speedMultiplier || 1.0).toFixed(1)}x
                     </span>
@@ -548,7 +548,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
                 {/* Size Scale */}
                 <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="text-slate-400 font-semibold">Proportional Scale</label>
+                    <label className="text-slate-400 font-semibold">{t('customizers.proportionalScale', undefined, 'Proportional Scale')}</label>
                     <span className="text-amber-400 font-mono font-bold">
                       {(item.scale || 1.0).toFixed(1)}x
                     </span>
@@ -648,7 +648,7 @@ export const CatchBrandGameplayCustomizer: React.FC<CatchBrandGameplayCustomizer
               }
               className="w-full accent-amber-500 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">Session length before time expires</p>
+            <p className="text-[11px] text-slate-500">{t('customizers.sessionLengthDesc', undefined, 'Session length before time expires')}</p>
           </div>
 
           {/* Fall Speed Multiplier */}
@@ -675,7 +675,7 @@ export const CatchBrandGameplayCustomizer: React.FC<CatchBrandGameplayCustomizer
               }
               className="w-full accent-emerald-500 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">Speed rate of falling objects</p>
+            <p className="text-[11px] text-slate-500">{t('customizers.speedRateDesc', undefined, 'Speed rate of falling objects')}</p>
           </div>
 
           {/* Spawn Interval Min */}
@@ -702,7 +702,7 @@ export const CatchBrandGameplayCustomizer: React.FC<CatchBrandGameplayCustomizer
               }
               className="w-full accent-sky-500 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">Delay between consecutive item spawns</p>
+            <p className="text-[11px] text-slate-500">{t('customizers.spawnIntervalDesc', undefined, 'Delay between consecutive item spawns')}</p>
           </div>
         </div>
       </div>
@@ -862,7 +862,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
                 />
               </div>
               <span className="text-[11px] text-slate-500 mt-2 font-mono">
-                Interactive Scaled Canvas Preview (1024 × 576)
+                {t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}
               </span>
             </div>
           </div>

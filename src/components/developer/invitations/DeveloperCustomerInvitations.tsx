@@ -132,6 +132,103 @@ export const DeveloperCustomerInvitations: React.FC = () => {
   const [formErrors, setFormErrors] = useState<string | null>(null);
   const [submittingForm, setSubmittingForm] = useState<boolean>(false);
 
+  // Cross-company duplicate detection state
+  const [crossCompanyMatches, setCrossCompanyMatches] = useState<Record<string, string>>({});
+  const [pendingCrossCompanyWarning, setPendingCrossCompanyWarning] = useState<{
+    duplicates: Array<{ email: string; company_name: string; company_id: string }>;
+    targetCompanyName: string;
+    validRecipients: Array<{ id?: string; email: string; recipient_name: string }>;
+  } | null>(null);
+
+  // Real-time analysis for Case 1: Duplicates inside the same company
+  const sameCompanyDuplicateIndices = useMemo(() => {
+    const counts = new Map<string, number[]>();
+    formRecipients.forEach((r, idx) => {
+      const clean = r.email.trim().toLowerCase();
+      if (!clean) return;
+      const arr = counts.get(clean) || [];
+      arr.push(idx);
+      counts.set(clean, arr);
+    });
+
+    const duplicateIndices = new Set<number>();
+    const secondaryDuplicateIndices = new Set<number>();
+
+    counts.forEach((indices) => {
+      if (indices.length > 1) {
+        indices.forEach((idx, pos) => {
+          duplicateIndices.add(idx);
+          if (pos > 0) {
+            secondaryDuplicateIndices.add(idx);
+          }
+        });
+      }
+    });
+
+    return { duplicateIndices, secondaryDuplicateIndices, hasDuplicates: duplicateIndices.size > 0 };
+  }, [formRecipients]);
+
+  // Real-time analysis for Case 2: Cross-company duplicate detection
+  useEffect(() => {
+    if (!isCompanyModalOpen) {
+      setCrossCompanyMatches({});
+      return;
+    }
+
+    // 1. Immediate local check against loaded companies
+    const localMatches: Record<string, string> = {};
+    const emailsToCheck: string[] = [];
+
+    formRecipients.forEach((r) => {
+      const clean = r.email.trim().toLowerCase();
+      if (!clean) return;
+      emailsToCheck.push(clean);
+
+      for (const comp of companies) {
+        if (editingCompany && comp.id === editingCompany.id) continue;
+        const found = comp.recipients.some((cr) => cr.email.trim().toLowerCase() === clean);
+        if (found) {
+          localMatches[clean] = comp.company_name;
+          break;
+        }
+      }
+    });
+
+    setCrossCompanyMatches((prev) => ({ ...prev, ...localMatches }));
+
+    // 2. Debounced authoritative check against server endpoint
+    if (emailsToCheck.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch('/api/developer/customer-invitations/check-duplicates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emails: emailsToCheck,
+            exclude_company_id: editingCompany?.id,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.duplicates)) {
+            const serverMatches: Record<string, string> = { ...localMatches };
+            data.duplicates.forEach((d: any) => {
+              if (d.email && d.company_name) {
+                serverMatches[d.email.toLowerCase()] = d.company_name;
+              }
+            });
+            setCrossCompanyMatches(serverMatches);
+          }
+        }
+      } catch (err) {
+        // Silent failure for background check
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [formRecipients, companies, isCompanyModalOpen, editingCompany]);
+
   // Fetch Companies
   const fetchCompanies = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -217,6 +314,8 @@ export const DeveloperCustomerInvitations: React.FC = () => {
     setFormNotes('');
     setFormRecipients([{ email: '', recipient_name: '' }]);
     setFormErrors(null);
+    setCrossCompanyMatches({});
+    setPendingCrossCompanyWarning(null);
     setIsCompanyModalOpen(true);
   };
 
@@ -236,6 +335,8 @@ export const DeveloperCustomerInvitations: React.FC = () => {
         : [{ email: '', recipient_name: '' }]
     );
     setFormErrors(null);
+    setCrossCompanyMatches({});
+    setPendingCrossCompanyWarning(null);
     setIsCompanyModalOpen(true);
   };
 
@@ -255,9 +356,8 @@ export const DeveloperCustomerInvitations: React.FC = () => {
     setFormRecipients(updated);
   };
 
-  // Save company (Create or Update)
-  const handleSaveCompany = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Save company core executor (handles creation, update, and cross-company confirmation)
+  const executeSaveCompany = async (confirmedCrossCompany = false) => {
     setFormErrors(null);
 
     const name = formCompanyName.trim();
@@ -266,7 +366,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
       return;
     }
 
-    // Validate recipients
+    // CASE 1: Immediate verification of same-company duplicates
     const validRecipients: Array<{ id?: string; email: string; recipient_name: string }> = [];
     const seenEmails = new Set<string>();
 
@@ -295,6 +395,34 @@ export const DeveloperCustomerInvitations: React.FC = () => {
       return;
     }
 
+    // CASE 2: Pre-submission check for cross-company duplicate warning (if not explicitly confirmed)
+    if (!confirmedCrossCompany) {
+      try {
+        const checkRes = await apiFetch('/api/developer/customer-invitations/check-duplicates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emails: validRecipients.map((r) => r.email),
+            exclude_company_id: editingCompany?.id,
+          }),
+        });
+
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData.success && Array.isArray(checkData.duplicates) && checkData.duplicates.length > 0) {
+            setPendingCrossCompanyWarning({
+              duplicates: checkData.duplicates,
+              targetCompanyName: name,
+              validRecipients,
+            });
+            return;
+          }
+        }
+      } catch (checkErr) {
+        console.warn('Cross-company pre-check error:', checkErr);
+      }
+    }
+
     setSubmittingForm(true);
     try {
       if (editingCompany) {
@@ -307,10 +435,22 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             contact_person: formContactPerson.trim() || null,
             notes: formNotes.trim() || null,
             recipients: validRecipients,
+            confirm_cross_company_duplicates: confirmedCrossCompany,
           }),
         });
 
         const data = await res.json();
+
+        if (data.code === 'CROSS_COMPANY_DUPLICATE_WARNING' && Array.isArray(data.cross_company_duplicates)) {
+          setPendingCrossCompanyWarning({
+            duplicates: data.cross_company_duplicates,
+            targetCompanyName: name,
+            validRecipients,
+          });
+          setSubmittingForm(false);
+          return;
+        }
+
         if (!res.ok || !data.success) {
           throw new Error(data.error || 'Failed to update company.');
         }
@@ -326,10 +466,22 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             contact_person: formContactPerson.trim() || null,
             notes: formNotes.trim() || null,
             recipients: validRecipients,
+            confirm_cross_company_duplicates: confirmedCrossCompany,
           }),
         });
 
         const data = await res.json();
+
+        if (data.code === 'CROSS_COMPANY_DUPLICATE_WARNING' && Array.isArray(data.cross_company_duplicates)) {
+          setPendingCrossCompanyWarning({
+            duplicates: data.cross_company_duplicates,
+            targetCompanyName: name,
+            validRecipients,
+          });
+          setSubmittingForm(false);
+          return;
+        }
+
         if (!res.ok || !data.success) {
           throw new Error(data.error || 'Failed to create company.');
         }
@@ -337,6 +489,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
         setFeedback({ type: 'success', message: `Company "${name}" created with ${validRecipients.length} recipients.` });
       }
 
+      setPendingCrossCompanyWarning(null);
       setIsCompanyModalOpen(false);
       fetchCompanies();
     } catch (err: any) {
@@ -345,6 +498,19 @@ export const DeveloperCustomerInvitations: React.FC = () => {
     } finally {
       setSubmittingForm(false);
     }
+  };
+
+  // Form submit handler
+  const handleSaveCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // CASE 1: Block form save if any duplicate email exists within this company
+    if (sameCompanyDuplicateIndices.hasDuplicates) {
+      setFormErrors('Duplicate email. This email has already been added to this company.');
+      return;
+    }
+
+    await executeSaveCompany(false);
   };
 
   // Open Delete Modal
@@ -449,7 +615,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
 
       setFeedback({
         type: 'success',
-        message: `Invitations sent successfully to ${data.sent} recipient(s) belonging to "${invitingCompany.company_name}".`,
+        message: `Invitation email sent successfully to ${data.sent} recipient(s) belonging to "${invitingCompany.company_name}".`,
       });
 
       setInvitingCompany(null);
@@ -507,7 +673,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               setIsPreviewModalOpen(true);
             }}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            title="Preview the exact email template sent to customers"
+            title={t('developer.previewCustomerEmailTemplate', undefined, 'Preview the exact email template sent to customers')}
           >
             <Eye className="w-3.5 h-3.5 text-sky-400" />
             <span>{t('developer.emailTemplate')}</span>
@@ -516,7 +682,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
           <button
             onClick={loadLogs}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            title="View full audit log of all customer invitation deliveries"
+            title={t('developer.viewCustomerInvitationAuditLog', undefined, 'View full audit log of all customer invitation deliveries')}
           >
             <FileText className="w-3.5 h-3.5 text-indigo-400" />
             <span>{t('developer.deliveryAuditLogs')}</span>
@@ -526,7 +692,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             onClick={() => fetchCompanies(true)}
             disabled={refreshing}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
-            title="Refresh list"
+            title={t('common.refresh', undefined, 'Refresh list')}
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-amber-400' : ''}`} />
           </button>
@@ -691,7 +857,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-slate-400">Loading customer companies...</p>
+            <p className="text-xs text-slate-400">{t('developer.loadingCustomerCompanies', undefined, 'Loading customer companies...')}</p>
           </div>
         ) : companies.length === 0 ? (
           <div className="py-16 text-center space-y-4 px-4">
@@ -699,7 +865,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               <Building2 className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">No customer companies found</h3>
+              <h3 className="text-sm font-bold text-white">{t('developer.noCompaniesFound', undefined, 'No customer companies found')}</h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
                 {searchQuery || statusFilter !== 'all'
                   ? 'No companies match your current filters. Try changing your search query or reset the filter.'
@@ -712,7 +878,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1.5 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Your First Company</span>
+                <span>{t('developer.addFirstCompany', undefined, 'Add Your First Company')}</span>
               </button>
             )}
           </div>
@@ -740,7 +906,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                           </div>
                           {comp.contact_person && (
                             <div className="text-slate-400 text-xs flex items-center gap-1.5">
-                              <span className="text-slate-500">Contact:</span>
+                              <span className="text-slate-500">{t('common.contact', undefined, 'Contact')}:</span>
                               <span className="text-slate-300 font-medium">{comp.contact_person}</span>
                             </div>
                           )}
@@ -835,7 +1001,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                             <div className="text-white font-medium">{formatDate(comp.lastInvitedAt)}</div>
                           </div>
                         ) : (
-                          <span className="text-slate-500 italic">Never</span>
+                          <span className="text-slate-500 italic">{t('common.never', undefined, 'Never')}</span>
                         )}
                       </td>
 
@@ -846,17 +1012,17 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                           <button
                             onClick={() => handleOpenInviteModal(comp)}
                             className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-lg text-xs transition-all shadow-md shadow-amber-500/10 cursor-pointer"
-                            title="Send platform invitation email"
+                            title={t('developer.sendInvitations', undefined, 'Send platform invitation email')}
                           >
                             <Send className="w-3.5 h-3.5" />
-                            <span>Invite</span>
+                            <span>{t('developer.sendInvitations', undefined, 'Invite')}</span>
                           </button>
 
                           {/* Edit Button */}
                           <button
                             onClick={() => handleOpenEditModal(comp)}
                             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                            title="Edit company & recipients"
+                            title={t('developer.editCompany', undefined, 'Edit company & recipients')}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -865,7 +1031,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                           <button
                             onClick={() => handleOpenDeleteModal(comp)}
                             className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                            title="Delete company"
+                            title={t('developer.deleteCompany', undefined, 'Delete company')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -892,9 +1058,12 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                   <Send className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Send Customer Invitations</h3>
+                  <h3 className="text-base font-bold text-white">Send Customer Invitation</h3>
                   <p className="text-slate-400">
                     Target Company: <strong className="text-amber-400">{invitingCompany.company_name}</strong>
+                    <span className="block text-slate-400 text-[11px] mt-0.5">
+                      All selected recipients will receive ONE shared invitation email.
+                    </span>
                   </p>
                 </div>
               </div>
@@ -1031,6 +1200,9 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               <div className="text-slate-500">
                 Sender: <span className="text-slate-300">Configured via RESEND_INVITATION_FROM (Resend)</span>
               </div>
+              <div className="text-slate-500">
+                Delivery: <span className="text-amber-400/90 font-medium">ONE shared email addressed to {selectedRecipientIds.length} recipient{selectedRecipientIds.length === 1 ? '' : 's'}</span>
+              </div>
             </div>
 
             {/* Modal Actions */}
@@ -1059,7 +1231,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                   <>
                     <Send className="w-3.5 h-3.5" />
                     <span>
-                      Send {selectedRecipientIds.length} Invitation{selectedRecipientIds.length === 1 ? '' : 's'}
+                      Send Invitation to {selectedRecipientIds.length} Recipient{selectedRecipientIds.length === 1 ? '' : 's'}
                     </span>
                   </>
                 )}
@@ -1163,52 +1335,98 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                   className="flex items-center space-x-1 text-amber-400 hover:text-amber-300 font-semibold text-[11px] cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Recipient</span>
+                  <span>{t('developer.addRecipient', undefined, 'Add Recipient')}</span>
                 </button>
               </div>
 
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {formRecipients.map((rec, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="flex-1 space-y-1">
-                      <input
-                        type="email"
-                        required
-                        value={rec.email}
-                        onChange={(e) => {
-                          const updated = [...formRecipients];
-                          updated[idx].email = e.target.value;
-                          setFormRecipients(updated);
-                        }}
-                        placeholder="recipient@example.com"
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono"
-                      />
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {formRecipients.map((rec, idx) => {
+                  const cleanEmail = rec.email.trim().toLowerCase();
+                  const isDuplicateInCompany = sameCompanyDuplicateIndices.duplicateIndices.has(idx);
+                  const isSecondaryDuplicate = sameCompanyDuplicateIndices.secondaryDuplicateIndices.has(idx);
+                  const crossCompanyMatch = cleanEmail && !isDuplicateInCompany ? crossCompanyMatches[cleanEmail] : null;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-2 rounded-xl border transition-all ${
+                        isDuplicateInCompany
+                          ? 'bg-rose-950/20 border-rose-500/60'
+                          : crossCompanyMatch
+                          ? 'bg-amber-950/15 border-amber-500/50'
+                          : 'bg-slate-950 border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 space-y-1">
+                          <input
+                            type="email"
+                            required
+                            value={rec.email}
+                            onChange={(e) => {
+                              const updated = [...formRecipients];
+                              updated[idx].email = e.target.value;
+                              setFormRecipients(updated);
+                            }}
+                            placeholder={t('developer.recipientEmailPlaceholder', undefined, 'recipient@example.com')}
+                            className={`w-full px-2.5 py-1.5 bg-slate-900 border rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition-colors ${
+                              isDuplicateInCompany
+                                ? 'border-rose-500 focus:border-rose-400 focus:ring-1 focus:ring-rose-500/30 text-rose-200'
+                                : crossCompanyMatch
+                                ? 'border-amber-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-500/30'
+                                : 'border-slate-700 focus:border-amber-500'
+                            }`}
+                          />
+                        </div>
+                        <div className="w-36">
+                          <input
+                            type="text"
+                            value={rec.recipient_name}
+                            onChange={(e) => {
+                              const updated = [...formRecipients];
+                              updated[idx].recipient_name = e.target.value;
+                              setFormRecipients(updated);
+                            }}
+                            placeholder={t('developer.recipientNamePlaceholder', undefined, 'Name (optional)')}
+                            className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        {formRecipients.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRecipientField(idx)}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                            title={t('developer.removeRecipient', undefined, 'Remove recipient')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* CASE 1: Inline Error for Duplicate within same company */}
+                      {isDuplicateInCompany && (
+                        <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 bg-rose-500/15 border border-rose-500/30 rounded-lg text-[11px] text-rose-300 font-medium animate-in fade-in duration-150">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>
+                            {isSecondaryDuplicate
+                              ? 'Duplicate email. This email has already been added to this company.'
+                              : 'Duplicate email detected for this recipient address.'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* CASE 2: Inline Warning for Email already under another company */}
+                      {crossCompanyMatch && !isDuplicateInCompany && (
+                        <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 bg-amber-500/15 border border-amber-500/30 rounded-lg text-[11px] text-amber-300 font-medium animate-in fade-in duration-150">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>
+                            ⚠ This email is already associated with another company: <strong className="text-amber-200 underline font-semibold">{crossCompanyMatch}</strong>
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div className="w-36">
-                      <input
-                        type="text"
-                        value={rec.recipient_name}
-                        onChange={(e) => {
-                          const updated = [...formRecipients];
-                          updated[idx].recipient_name = e.target.value;
-                          setFormRecipients(updated);
-                        }}
-                        placeholder="Name (optional)"
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    {formRecipients.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRecipientField(idx)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                        title="Remove recipient"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <p className="text-[10px] text-slate-500">
                 All recipients added here belong to this company. When inviting, you can send to all or select individual recipients.
@@ -1234,7 +1452,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 {submittingForm ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving...</span>
+                    <span>{t('common.saving', undefined, 'Saving...')}</span>
                   </>
                 ) : (
                   <span>{editingCompany ? 'Save Changes' : 'Create Company'}</span>
@@ -1242,6 +1460,73 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 2B: CROSS-COMPANY DUPLICATE WARNING CONFIRMATION MODAL         */}
+      {/* ===================================================================== */}
+      {pendingCrossCompanyWarning && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-start space-x-3 border-b border-slate-800 pb-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                  <span>Email Already Associated With Another Company</span>
+                </h3>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  Notice: One or more recipient email addresses are already associated with an existing customer company.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-slate-300 font-medium">
+                ⚠ {pendingCrossCompanyWarning.duplicates.length === 1
+                  ? 'This email is already associated with another company:'
+                  : 'These emails are already associated with another company:'}
+              </div>
+
+              <div className="bg-slate-950/90 rounded-xl p-3 border border-amber-500/30 max-h-40 overflow-y-auto space-y-2.5">
+                {pendingCrossCompanyWarning.duplicates.map((dup, dIdx) => (
+                  <div key={dIdx} className="space-y-0.5 border-b border-slate-800/80 last:border-0 pb-2 last:pb-0">
+                    <div className="font-mono font-bold text-amber-300 text-xs">
+                      {dup.email}
+                    </div>
+                    <div className="text-slate-400 text-[11px] flex items-center gap-1">
+                      <span className="text-slate-500">Existing company:</span>
+                      <strong className="text-white font-semibold">{dup.company_name}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-slate-300 text-xs leading-relaxed pt-1">
+                Do you want to continue adding {pendingCrossCompanyWarning.duplicates.length === 1 ? 'this email' : 'these emails'} to <strong className="text-white font-semibold">{pendingCrossCompanyWarning.targetCompanyName}</strong>?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendingCrossCompanyWarning(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeSaveCompany(true)}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+              >
+                Yes, Continue and Save
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1283,7 +1568,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                   setPreviewCompanyName(e.target.value);
                   loadEmailPreview(e.target.value);
                 }}
-                placeholder="Enter sample company name..."
+                placeholder={t('developer.enterSampleCompanyName', undefined, 'Enter sample company name...')}
                 className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
               />
               <div className="flex items-center space-x-1 border-l border-slate-800 pl-2">
@@ -1333,7 +1618,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 </div>
               ) : previewViewMode === 'html' ? (
                 <iframe
-                  title="Email HTML Preview"
+                  title={t('developer.emailHtmlPreview', undefined, 'Email HTML Preview')}
                   srcDoc={previewTemplate?.html || ''}
                   className="w-full h-80 border-0 bg-slate-950"
                   sandbox="allow-same-origin"
@@ -1359,12 +1644,12 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                   {copiedText ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied to Clipboard!</span>
+                      <span className="text-emerald-400">{t('developer.copiedToClipboard', undefined, 'Copied to Clipboard!')}</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Plain Text</span>
+                      <span>{t('developer.copyPlainText', undefined, 'Copy Plain Text')}</span>
                     </>
                   )}
                 </button>
@@ -1415,7 +1700,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               {loadingLogs ? (
                 <div className="py-16 text-center space-y-2">
                   <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-slate-400 text-xs">Loading logs...</p>
+                  <p className="text-slate-400 text-xs">{t('developer.loadingLogs', undefined, 'Loading logs...')}</p>
                 </div>
               ) : logs.length === 0 ? (
                 <div className="py-12 text-center text-slate-500">
@@ -1496,7 +1781,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-white">Delete Customer Company?</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.deleteCustomerCompanyModalTitle', undefined, 'Delete Customer Company?')}</h3>
               <p className="text-slate-400">
                 Are you sure you want to delete <strong className="text-white">&ldquo;{deletingCompany.company_name}&rdquo;</strong> and its{' '}
                 <strong className="text-white">{deletingCompany.recipients.length}</strong> recipient(s)? This action cannot be undone.
@@ -1522,10 +1807,10 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 {deleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Deleting...</span>
+                    <span>{t('common.deleting', undefined, 'Deleting...')}</span>
                   </>
                 ) : (
-                  <span>Delete Company</span>
+                  <span>{t('developer.deleteCompany', undefined, 'Delete Company')}</span>
                 )}
               </button>
             </div>

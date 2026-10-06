@@ -411,7 +411,7 @@ export const AcceptInvitePage: React.FC = () => {
               href="/"
               className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 underline font-medium"
             >
-              <span>Go to Dashboard</span>
+              <span>{t('auth.goToDashboard', undefined, 'Go to Dashboard')}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </a>
           </div>
@@ -479,7 +479,7 @@ export const AcceptInvitePage: React.FC = () => {
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>Email Code</span>
+            <span>{t('auth.emailCode', undefined, 'Email Code')}</span>
           </button>
         </div>
 
@@ -609,7 +609,7 @@ export const AcceptInvitePage: React.FC = () => {
                     <span>{t('auth.verificationCode', undefined, 'Verification Code')}</span>
                     <span className="text-amber-400">*</span>
                   </label>
-                  <span className="text-[10px] text-slate-400">6 digits</span>
+                  <span className="text-[10px] text-slate-400">{t('auth.sixDigits', undefined, '6 digits')}</span>
                 </div>
                 <input
                   type="text"
@@ -642,7 +642,7 @@ export const AcceptInvitePage: React.FC = () => {
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Your Name"
+                      placeholder={t('auth.yourNamePlaceholder', undefined, 'Your Name')}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none transition-colors"
                     />
                   </div>
@@ -655,14 +655,14 @@ export const AcceptInvitePage: React.FC = () => {
                         <span>{t('auth.createPassword', undefined, 'Create Password')}</span>
                         <span className="text-amber-400">*</span>
                       </span>
-                      <span className="text-[10px] text-slate-500">min. 8 chars</span>
+                      <span className="text-[10px] text-slate-500">{t('auth.min8Chars', undefined, 'min. 8 chars')}</span>
                     </label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter password (min 8 characters)"
+                        placeholder={t('auth.enterPasswordMin8', undefined, 'Enter password (min 8 characters)')}
                         className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-slate-200 outline-none transition-colors"
                         required
                       />
@@ -671,7 +671,7 @@ export const AcceptInvitePage: React.FC = () => {
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
                         tabIndex={-1}
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? t('auth.hidePassword', undefined, 'Hide password') : t('auth.showPassword', undefined, 'Show password')}
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -681,7 +681,7 @@ export const AcceptInvitePage: React.FC = () => {
                       <div className="flex items-center gap-3 pt-1 text-[10px]">
                         <span className={`flex items-center gap-1 ${hasMinLength ? 'text-emerald-400' : 'text-slate-500'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${hasMinLength ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                          8+ characters
+                          {t('auth.chars8Plus', undefined, '8+ characters')}
                         </span>
                         <span className={`flex items-center gap-1 ${hasLetter ? 'text-emerald-400' : 'text-slate-500'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${hasLetter ? 'bg-emerald-400' : 'bg-slate-600'}`} />
@@ -705,7 +705,7 @@ export const AcceptInvitePage: React.FC = () => {
                       </span>
                       {confirmPassword && (
                         <span className={`text-[10px] font-medium ${passwordsMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+                          {passwordsMatch ? t('auth.passwordsMatch', undefined, 'Passwords match') : t('auth.passwordsDoNotMatch', undefined, 'Passwords do not match')}
                         </span>
                       )}
                     </label>
@@ -714,7 +714,7 @@ export const AcceptInvitePage: React.FC = () => {
                         type={showConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm password"
+                        placeholder={t('auth.confirmPasswordPlaceholder', undefined, 'Confirm password')}
                         className={`w-full bg-slate-950 border rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-slate-200 outline-none transition-colors ${
                           confirmPassword && !passwordsMatch ? 'border-rose-500/60 focus:border-rose-500' : 'border-slate-800 focus:border-amber-500'
                         }`}
@@ -725,7 +725,7 @@ export const AcceptInvitePage: React.FC = () => {
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
                         tabIndex={-1}
-                        aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                        aria-label={showConfirmPassword ? t('auth.hideConfirmPassword', undefined, 'Hide confirm password') : t('auth.showConfirmPassword', undefined, 'Show confirm password')}
                       >
                         {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>

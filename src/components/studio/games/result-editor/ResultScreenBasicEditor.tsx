@@ -433,10 +433,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
             type="button"
             onClick={handleResetBackground}
             className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-            title="Reset Result Screen background to Theme defaults"
+            title={t('editor.resetCanvasLayout', undefined, 'Reset Result Screen background to Theme defaults')}
           >
             <RotateCcw className="w-3 h-3" />
-            <span>Reset</span>
+            <span>{t('common.reset', undefined, 'Reset')}</span>
           </button>
         </div>
 
@@ -582,9 +582,9 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                     />
                     <div className="text-left min-w-0">
                       <span className="text-xs font-semibold text-slate-200 block truncate">
-                        Custom Result Background
+                        {t('editor.customResultBg', undefined, 'Custom Result Background')}
                       </span>
-                      <span className="text-[10px] text-emerald-400 block">Active &amp; Ready</span>
+                      <span className="text-[10px] text-emerald-400 block">{t('editor.activeAndReady', undefined, 'Active & Ready')}</span>
                     </div>
                   </div>
 
@@ -600,13 +600,13 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       ) : (
                         <Upload className="w-3.5 h-3.5" />
                       )}
-                      <span>Change</span>
+                      <span>{t('common.change', undefined, 'Change')}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleUpdateBackground({ backgroundImageUrl: null })}
                       className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/20 transition-colors cursor-pointer"
-                      title="Remove custom image"
+                      title={t('editor.removeCustomImage', undefined, 'Remove custom image')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -623,9 +623,9 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       onClick={() => fileInputRef.current?.click()}
                       className="text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-2 cursor-pointer"
                     >
-                      Click to upload
+                      {t('editor.clickToUpload', undefined, 'Click to upload')}
                     </button>
-                    <span className="text-xs text-slate-400"> or drag and drop</span>
+                    <span className="text-xs text-slate-400"> {t('editor.orDragAndDrop', undefined, 'or drag and drop')}</span>
                   </div>
                   <p className="text-[10px] text-slate-500">
                     Recommended 1920×1080 or 1024×576 PNG / WebP (Max 10MB)
@@ -648,7 +648,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <Sliders className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-semibold text-slate-300">Background Overlay Dimming</span>
+              <span className="font-semibold text-slate-300">{t('editor.bgOverlayDimming', undefined, 'Background Overlay Dimming')}</span>
             </div>
             <span className="font-mono text-amber-400 font-bold">
               {Math.round(currentOverlayOpacity * 100)}%
@@ -678,7 +678,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
             <Type className="w-4 h-4" />
           </span>
           <div>
-            <h4 className="text-sm font-bold text-slate-100">Result Screen Text &amp; Labels</h4>
+            <h4 className="text-sm font-bold text-slate-100">{t('editor.resultTextLabels', undefined, 'Result Screen Text & Labels')}</h4>
             <p className="text-xs text-slate-400">
               Customize headline greetings and button text
             </p>
@@ -687,7 +687,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 block">Headline Title</label>
+            <label className="text-xs font-semibold text-slate-300 block">{t('editor.headlineTitle', undefined, 'Headline Title')}</label>
             <input
               type="text"
               value={currentTitle}
@@ -703,7 +703,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
               type="text"
               defaultValue={currentBtnText}
               onChange={(e) => handleUpdateButtonText(e.target.value)}
-              placeholder="PLAY AGAIN"
+              placeholder={t('editor.playAgainPlaceholder', undefined, 'PLAY AGAIN')}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500"
             />
           </div>
@@ -717,7 +717,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
             <Trophy className="w-4 h-4" />
           </span>
           <div>
-            <h4 className="text-sm font-bold text-slate-100">Result Statistics &amp; Elements</h4>
+            <h4 className="text-sm font-bold text-slate-100">{t('editor.resultStatsElements', undefined, 'Result Statistics & Elements')}</h4>
             <p className="text-xs text-slate-400">
               Toggle visibility for supported result screen elements and performance metrics
             </p>
@@ -740,8 +740,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Final Score</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Total brand points collected</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.finalScore', undefined, 'Final Score')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.finalScoreDesc', undefined, 'Total brand points collected')}</span>
                       </div>
                     </div>
                     <button
@@ -773,8 +773,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Clock className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Time Elapsed</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Active catching duration</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.timeElapsed', undefined, 'Time Elapsed')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.timeElapsedDesc', undefined, 'Active catching duration')}</span>
                       </div>
                     </div>
                     <button
@@ -808,8 +808,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Target className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Catch Accuracy</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Good items caught vs missed</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.catchAccuracy', undefined, 'Catch Accuracy')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.catchAccuracyDesc', undefined, 'Good items caught vs missed')}</span>
                       </div>
                     </div>
                     <button
@@ -841,8 +841,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Event Leaderboard</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Top ranking players list</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.eventLeaderboard', undefined, 'Event Leaderboard')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.eventLeaderboardDesc', undefined, 'Top ranking players list')}</span>
                       </div>
                     </div>
                     <button
@@ -874,8 +874,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Play className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Play Again Button</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Replay game action trigger</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.playAgainBtn', undefined, 'Play Again Button')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.playAgainBtnDesc', undefined, 'Replay game action trigger')}</span>
                       </div>
                     </div>
                     <button
@@ -914,8 +914,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Final Score</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Total score and combo points</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.finalScore', undefined, 'Final Score')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.finalScoreDesc', undefined, 'Total score and combo points')}</span>
                       </div>
                     </div>
                     <button
@@ -949,8 +949,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Clock className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Moves Count</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Total card flip attempts</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.movesCount', undefined, 'Moves Count')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.movesCountDesc', undefined, 'Total card flip attempts')}</span>
                       </div>
                     </div>
                     <button
@@ -984,8 +984,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Layers className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Pairs Matched</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Completed card pairs</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.pairsMatched', undefined, 'Pairs Matched')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.pairsMatchedDesc', undefined, 'Completed card pairs')}</span>
                       </div>
                     </div>
                     <button
@@ -1019,8 +1019,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Zap className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Accuracy Rate</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Matching precision percentage</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.accuracyRate', undefined, 'Accuracy Rate')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.accuracyRateDesc', undefined, 'Matching precision percentage')}</span>
                       </div>
                     </div>
                     <button
@@ -1052,8 +1052,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Event Leaderboard</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Top ranking players list</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.eventLeaderboard', undefined, 'Event Leaderboard')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.eventLeaderboardDesc', undefined, 'Top ranking players list')}</span>
                       </div>
                     </div>
                     <button
@@ -1085,8 +1085,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Play className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Play Again Button</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Replay game action trigger</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.playAgainBtn', undefined, 'Play Again Button')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.playAgainBtnDesc', undefined, 'Replay game action trigger')}</span>
                       </div>
                     </div>
                     <button
@@ -1137,8 +1137,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Timer className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Average Reaction Time</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Primary reflex benchmark metric</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.avgReactionTime', undefined, 'Average Reaction Time')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.avgReactionTimeDesc', undefined, 'Primary reflex benchmark metric')}</span>
                       </div>
                     </div>
                     <button
@@ -1187,8 +1187,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Zap className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Best Reaction</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Fastest single round reflex</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.bestReaction', undefined, 'Best Reaction')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.bestReactionDesc', undefined, 'Fastest single round reflex')}</span>
                       </div>
                     </div>
                     <button
@@ -1237,8 +1237,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Clock className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Worst Reaction</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Slowest reaction or penalty</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.worstReaction', undefined, 'Worst Reaction')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.worstReactionDesc', undefined, 'Slowest reaction or penalty')}</span>
                       </div>
                     </div>
                     <button
@@ -1287,8 +1287,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Gauge className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Round Results</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Individual 5-round reaction times</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.roundResults', undefined, 'Round Results')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.roundResultsDesc', undefined, 'Individual 5-round reaction times')}</span>
                       </div>
                     </div>
                     <button
@@ -1339,7 +1339,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       </div>
                       <div className="min-w-0">
                         <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.reactionTierRating', undefined, 'Reaction Tier Rating')}</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Godlike, F1 Driver, Fast tier</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.reactionTierRatingDesc', undefined, 'Godlike, F1 Driver, Fast tier')}</span>
                       </div>
                     </div>
                     <button
@@ -1388,8 +1388,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Event Leaderboard</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Top ranking reaction scores</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.eventLeaderboard', undefined, 'Event Leaderboard')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.eventLeaderboardDesc', undefined, 'Top ranking reaction scores')}</span>
                       </div>
                     </div>
                     <button
@@ -1438,8 +1438,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Play className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">Play Again Button</span>
-                        <span className="text-[10px] text-slate-400 block truncate">Replay game action trigger</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.playAgainBtn', undefined, 'Play Again Button')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.playAgainBtnDesc', undefined, 'Replay game action trigger')}</span>
                       </div>
                     </div>
                     <button

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { PlatformGame } from '../../types/developer';
+import { CustomDatePicker } from '../common/CustomDatePicker';
 import {
   Coins,
   DollarSign,
@@ -355,28 +356,34 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
   const simulatedQuote = useMemo(() => {
     const days = calculatedDuration;
-    const activeTiers = tiers.filter((t) => t.is_active);
+    const activeTiers = tiers.filter((t) => t.is_active && t.price > 0);
     if (activeTiers.length === 0) {
-      return { price: 1400, ruleLabel: 'Standard Default (RM1,400)', isFallback: true };
+      return {
+        price: null,
+        ruleLabel: 'No Active Tiers Configured (Customers see "Custom Pricing / Contact Us")',
+        hasTier: false,
+      };
     }
 
     // 1. Exact match
     const exact = activeTiers.find((t) => t.min_days === days && t.max_days === days);
     if (exact) {
-      return { price: exact.price, ruleLabel: `${days} day${days > 1 ? 's' : ''} (Exact Tier)`, tier: exact };
+      return { price: exact.price, ruleLabel: `${days} day${days > 1 ? 's' : ''} (Exact Tier)`, tier: exact, hasTier: true };
     }
 
     // 2. Bracket match
     const bracket = activeTiers.find((t) => t.min_days <= days && (t.max_days === null || t.max_days >= days));
     if (bracket) {
       const label = bracket.max_days === null ? `${bracket.min_days}+ days` : `${bracket.min_days}–${bracket.max_days} days`;
-      return { price: bracket.price, ruleLabel: `${label} Bracket`, tier: bracket };
+      return { price: bracket.price, ruleLabel: `${label} Bracket`, tier: bracket, hasTier: true };
     }
 
-    // 3. Fallback to highest tier
-    const sorted = [...activeTiers].sort((a, b) => (b.max_days ?? 99999) - (a.max_days ?? 99999));
-    const highest = sorted[0];
-    return { price: highest.price, ruleLabel: `Max Available Tier (${highest.min_days}+ days)`, tier: highest };
+    // 3. No match! Fail closed: Admin panel reflects exact public behavior
+    return {
+      price: null,
+      ruleLabel: `No Active Tier Covers ${days} Days (Customers see "Custom Pricing / Contact Us")`,
+      hasTier: false,
+    };
   }, [calculatedDuration, tiers]);
 
   return (
@@ -469,7 +476,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             {loading ? (
               <div className="py-16 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-3" />
-                <p className="text-xs text-slate-400">Loading game pricing tiers...</p>
+                <p className="text-xs text-slate-400">{t('developer.loadingPricingTiers', undefined, 'Loading game pricing tiers...')}</p>
               </div>
             ) : tiers.length === 0 ? (
               <div className="text-center py-12 p-6">
@@ -528,7 +535,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                             {tier.is_base && (
                               <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                 <Star className="w-2.5 h-2.5" />
-                                <span>Base Tier</span>
+                                <span>{t('developer.baseTier', undefined, 'Base Tier')}</span>
                               </span>
                             )}
                             <span
@@ -557,7 +564,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                           <span className="text-base font-extrabold text-white">
                             {tier.currency} {tier.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
-                          <span className="text-[10px] text-slate-500 block">per event activation</span>
+                          <span className="text-[10px] text-slate-500 block">{t('developer.perEventActivation', undefined, 'per event activation')}</span>
                         </div>
 
                         <div className="flex items-center space-x-1">
@@ -577,7 +584,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                           <button
                             onClick={() => handleOpenEdit(tier)}
                             disabled={saving}
-                            title="Edit Tier"
+                            title={t('developer.editTier', undefined, 'Edit Tier')}
                             className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
                           >
                             <Edit3 className="w-4 h-4" />
@@ -586,7 +593,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                           <button
                             onClick={() => handleDeleteTier(tier)}
                             disabled={saving}
-                            title="Delete Tier"
+                            title={t('developer.deleteTier', undefined, 'Delete Tier')}
                             className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-xl transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -618,7 +625,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">Minimum Days</label>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">{t('developer.minimumDays', undefined, 'Minimum Days')}</label>
                   <input
                     type="number"
                     min="1"
@@ -631,7 +638,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-300">Maximum Days</label>
+                    <label className="text-xs font-semibold text-slate-300">{t('developer.maximumDays', undefined, 'Maximum Days')}</label>
                     <label className="flex items-center space-x-1 text-[10px] text-amber-400 cursor-pointer">
                       <input
                         type="checkbox"
@@ -639,7 +646,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                         onChange={(e) => setFormIsUnlimited(e.target.checked)}
                         className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                       />
-                      <span>Unlimited (e.g. 91+)</span>
+                      <span>{t('developer.unlimitedDays', undefined, 'Unlimited (e.g. 91+)')}</span>
                     </label>
                   </div>
                   <input
@@ -678,7 +685,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                       onChange={(e) => setFormIsActive(e.target.checked)}
                       className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                     />
-                    <span>Active Tier</span>
+                    <span>{t('developer.activeTier', undefined, 'Active Tier')}</span>
                   </label>
 
                   <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
@@ -688,7 +695,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                       onChange={(e) => setFormIsBase(e.target.checked)}
                       className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                     />
-                    <span>Base Tier (Primary 1-day quote)</span>
+                    <span>{t('developer.baseTierPrimaryQuote', undefined, 'Base Tier (Primary 1-day quote)')}</span>
                   </label>
                 </div>
 
@@ -730,27 +737,23 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>Start Date (Inclusive)</span>
+                  <span>{t('event.startDateInclusive', undefined, 'Start Date (Inclusive)')}</span>
                 </label>
-                <input
-                  type="date"
+                <CustomDatePicker
                   value={simStartDate}
-                  onChange={(e) => setSimStartDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:border-amber-500 focus:outline-none"
+                  onChange={(newStart) => setSimStartDate(newStart)}
                 />
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>End Date (Inclusive)</span>
+                  <span>{t('event.endDateInclusive', undefined, 'End Date (Inclusive)')}</span>
                 </label>
-                <input
-                  type="date"
-                  value={simEndDate}
+                <CustomDatePicker
                   min={simStartDate}
-                  onChange={(e) => setSimEndDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:border-amber-500 focus:outline-none"
+                  value={simEndDate}
+                  onChange={(newEnd) => setSimEndDate(newEnd)}
                 />
               </div>
             </div>
@@ -758,29 +761,37 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             {/* Resolved Quote Box */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Total Calendar Days:</span>
+                <span className="text-slate-400">{t('developer.totalCalendarDays', undefined, 'Total Calendar Days:')}</span>
                 <span className="font-mono font-bold text-amber-400 text-sm">
                   {calculatedDuration} {calculatedDuration === 1 ? 'day' : 'days'}
                 </span>
               </div>
 
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Matched Rule:</span>
+                <span className="text-slate-400">{t('developer.matchedRule', undefined, 'Matched Rule:')}</span>
                 <span className="font-semibold text-white text-right">{simulatedQuote.ruleLabel}</span>
               </div>
 
               <div className="border-t border-slate-800/80 pt-3 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Calculated Event Price</span>
-                  <span className="text-xl font-black text-amber-400">
-                    MYR {simulatedQuote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">{t('developer.calculatedEventPrice', undefined, 'Calculated Event Price')}</span>
+                  {simulatedQuote.price !== null ? (
+                    <span className="text-xl font-black text-amber-400">
+                      MYR {simulatedQuote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  ) : (
+                    <span className="text-lg font-bold text-amber-400">
+                      Custom Pricing / Contact Us
+                    </span>
+                  )}
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-500 block">Avg / Day</span>
+                  <span className="text-[10px] text-slate-500 block">{t('developer.avgPerDay', undefined, 'Avg / Day')}</span>
                   <span className="text-xs font-mono font-semibold text-slate-300">
-                    MYR {(simulatedQuote.price / Math.max(1, calculatedDuration)).toFixed(2)}
+                    {simulatedQuote.price !== null
+                      ? `MYR ${(simulatedQuote.price / Math.max(1, calculatedDuration)).toFixed(2)}`
+                      : 'N/A (Quote Required)'}
                   </span>
                 </div>
               </div>

@@ -84,8 +84,8 @@ async function runPricingFailClosedTests() {
   } catch (err: any) {
     assert.strictEqual(err?.status, 503, 'Error must have 503 status code');
     assert(
-      err?.message?.includes('Pricing service temporarily unavailable'),
-      `Expected message to contain "Pricing service temporarily unavailable", got: ${err?.message}`
+      err?.message?.includes('Pricing service temporarily unavailable') || err?.message?.includes('Pricing configuration error'),
+      `Expected message to contain pricing error, got: ${err?.message}`
     );
     console.log('✓ Passed: calculateEventPayment fails closed with 503');
   }

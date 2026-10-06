@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocalization } from '../../../context/LocalizationContext';
 import {
   ResultScreenElement,
   ResultCardElement,
@@ -125,6 +126,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   onUploadAsset,
   onFullscreenChange,
 }) => {
+  const { t } = useLocalization();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -2711,13 +2713,13 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           </div>
           <div>
             <h3 className="text-base font-black text-slate-100 flex items-center gap-2">
-              <span>Result Screen Visual Layout Editor</span>
+              <span>{t('editor.resultScreenLayoutEditor', undefined, 'Result Screen Visual Layout Editor')}</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 1000×1000 Canvas
               </span>
             </h3>
             <p className="text-xs text-slate-400">
-              Drag elements directly on canvas or manage hierarchy in the layer tree
+              {t('editor.dragElementsCanvasDesc', undefined, 'Drag elements directly on canvas or manage hierarchy in the layer tree')}
             </p>
           </div>
         </div>
@@ -2734,10 +2736,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                   ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
                   : 'text-slate-600 opacity-40 cursor-not-allowed'
               }`}
-              title="Undo (Ctrl+Z / Cmd+Z)"
+              title={t('common.undoShortcut', undefined, 'Undo (Ctrl+Z / Cmd+Z)')}
             >
               <Undo2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Undo</span>
+              <span className="hidden sm:inline">{t('common.undo', undefined, 'Undo')}</span>
             </button>
             <div className="w-[1px] h-4 bg-slate-800 mx-0.5" />
             <button
@@ -2749,10 +2751,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                   ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
                   : 'text-slate-600 opacity-40 cursor-not-allowed'
               }`}
-              title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)"
+              title={t('common.redoShortcut', undefined, 'Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)')}
             >
               <Redo2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Redo</span>
+              <span className="hidden sm:inline">{t('common.redo', undefined, 'Redo')}</span>
             </button>
           </div>
 
@@ -2761,10 +2763,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             type="button"
             onClick={() => setIsPresetsModalOpen(true)}
             className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 active:scale-95 text-amber-300 font-bold text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer transition-all"
-            title="Browse layout presets and saved custom templates"
+            title={t('editor.browsePresetLayouts', undefined, 'Browse layout presets and saved custom templates')}
           >
             <LayoutTemplate className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Templates</span>
+            <span className="hidden sm:inline">{t('studio.presets', undefined, 'Templates')}</span>
           </button>
 
           {/* Save As Template Button */}
@@ -2772,10 +2774,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             type="button"
             onClick={() => setIsSaveTemplateModalOpen(true)}
             className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 text-amber-300 font-bold text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer transition-all"
-            title="Save current layout as a reusable custom template"
+            title={t('editor.saveCurrentLayoutAsTemplate', undefined, 'Save current layout as a reusable custom template')}
           >
             <BookmarkPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Save Template</span>
+            <span className="hidden sm:inline">{t('studio.saveTemplate', undefined, 'Save Template')}</span>
           </button>
 
           {/* Open Pro Fullscreen Studio Modal */}
@@ -2783,10 +2785,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             type="button"
             onClick={() => setIsModalOpen(true)}
             className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer transition-all"
-            title="Open Fullscreen Studio Modal"
+            title={t('editor.openFullscreenStudio', undefined, 'Open Fullscreen Studio Modal')}
           >
             <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>Fullscreen Studio</span>
+            <span>{t('editor.fullscreenStudio', undefined, 'Fullscreen Studio')}</span>
           </button>
 
           {/* Quick Add Menu */}
@@ -2797,7 +2799,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
               className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Element</span>
+              <span>{t('editor.addElement', undefined, 'Add Element')}</span>
             </button>
 
           {addMenuOpen && (

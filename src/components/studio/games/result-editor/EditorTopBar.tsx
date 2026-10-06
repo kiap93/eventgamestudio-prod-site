@@ -264,10 +264,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 disabled={!canGroup}
                 onClick={onGroupSelected}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-amber-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-300 transition-colors flex items-center gap-1 text-[11px] font-semibold px-1.5"
-                title={canGroup ? 'Group Selected (Ctrl+G)' : 'Select 2+ sibling elements to group'}
+                title={canGroup ? t('editor.groupTooltip', undefined, 'Group Selected (Ctrl+G)') : t('editor.groupDisabledTooltip', undefined, 'Select 2+ sibling elements to group')}
               >
                 <FolderTree className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden xl:inline">Group</span>
+                <span className="hidden xl:inline">{t('editor.group', undefined, 'Group')}</span>
               </button>
             )}
 
@@ -278,10 +278,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                 disabled={!canUngroup}
                 onClick={onUngroupSelected}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-amber-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-300 transition-colors flex items-center gap-1 text-[11px] font-semibold px-1.5"
-                title={canUngroup ? 'Ungroup (Ctrl+Shift+G)' : 'Select a group to ungroup'}
+                title={canUngroup ? t('editor.ungroupTooltip', undefined, 'Ungroup (Ctrl+Shift+G)') : t('editor.ungroupDisabledTooltip', undefined, 'Select a group to ungroup')}
               >
                 <FolderMinus className="w-3.5 h-3.5 text-sky-400" />
-                <span className="hidden xl:inline">Ungroup</span>
+                <span className="hidden xl:inline">{t('editor.ungroup', undefined, 'Ungroup')}</span>
               </button>
             )}
 
@@ -506,7 +506,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105"
         >
           <Check className="w-4 h-4 stroke-[3]" />
-          <span>Save & Close</span>
+          <span>{t('editor.saveAndClose', undefined, 'Save & Close')}</span>
         </button>
       </div>
     </header>

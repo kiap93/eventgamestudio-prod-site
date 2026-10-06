@@ -3,6 +3,7 @@ import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { PlatformPricingSettings, AdminEventPricingItem, EventPricingRule, PlatformGame } from '../../types/developer';
 import { calculateEventCalendarDays } from '../../lib/dateUtils';
+import { CustomDatePicker } from '../common/CustomDatePicker';
 import { DeveloperGamePricingManager } from './DeveloperGamePricingManager';
 import { getGameTypeIcon } from '../../games';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -976,11 +977,9 @@ export const DeveloperPricingManager: React.FC = () => {
             <label className="block text-[11px] font-semibold text-slate-300 mb-1.5">
               Start Date
             </label>
-            <input
-              type="date"
+            <CustomDatePicker
               value={simStartDate}
-              onChange={(e) => setSimStartDate(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+              onChange={(newStart) => setSimStartDate(newStart)}
             />
           </div>
 
@@ -988,12 +987,10 @@ export const DeveloperPricingManager: React.FC = () => {
             <label className="block text-[11px] font-semibold text-slate-300 mb-1.5">
               End Date
             </label>
-            <input
-              type="date"
+            <CustomDatePicker
               min={simStartDate}
               value={simEndDate}
-              onChange={(e) => setSimEndDate(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+              onChange={(newEnd) => setSimEndDate(newEnd)}
             />
           </div>
 

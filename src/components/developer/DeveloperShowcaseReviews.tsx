@@ -655,7 +655,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                         title={t('developer.inspectShowcaseDetails', undefined, 'Inspect showcase details, media, and description')}
                       >
                         <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                        <span>View / Inspect</span>
+                        <span>{t('developer.viewInspect', undefined, 'View / Inspect')}</span>
                       </button>
 
                       {/* Reject Reward Button */}
@@ -787,11 +787,11 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3">{t('developer.showcaseAndEvent', undefined, 'Showcase & Event')}</th>
                   <th className="px-4 py-3">{t('developer.organizationAndClient', undefined, 'Organization & Client')}</th>
-                  <th className="px-4 py-3">Media</th>
+                  <th className="px-4 py-3">{t('developer.colMedia', undefined, 'Media')}</th>
                   <th className="px-4 py-3">{t('developer.createdPublished', undefined, 'Created / Published')}</th>
-                  <th className="px-4 py-3">RM300 Reward</th>
-                  <th className="px-4 py-3">Visibility</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3">{t('developer.colReward', undefined, 'RM300 Reward')}</th>
+                  <th className="px-4 py-3">{t('developer.colVisibility', undefined, 'Visibility')}</th>
+                  <th className="px-4 py-3 text-right">{t('developer.colActions', undefined, 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -804,7 +804,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                           <div className="font-bold text-slate-100 flex items-center gap-2">
                             <span>{sc.title}</span>
                             {sc.cover_image_url && (
-                              <span className="w-2 h-2 rounded-full bg-emerald-400" title="Has Cover Banner" />
+                              <span className="w-2 h-2 rounded-full bg-emerald-400" title={t('developer.hasCoverBanner', undefined, 'Has Cover Banner')} />
                             )}
                           </div>
                           <div className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -988,7 +988,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                               title={t('developer.approveOwnerRewardTitle', undefined, 'Approve First-Event Showcase Reward (RM300)')}
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Approve Reward</span>
+                              <span>{t('developer.approveRewardBtn', undefined, 'Approve Reward')}</span>
                             </button>
                           )}
 
@@ -1000,10 +1000,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 setRejectionReason('');
                               }}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
-                              title="Reject Showcase Reward (Showcase remains published)"
+                              title={t('developer.rejectRewardBtn', undefined, 'Reject Showcase Reward')}
                             >
                               <X className="w-3.5 h-3.5" />
-                              <span>Reject Reward</span>
+                              <span>{t('developer.rejectRewardBtn', undefined, 'Reject Reward')}</span>
                             </button>
                           )}
 
@@ -1397,7 +1397,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer"
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Unblock Showcase</span>
+                    <span>{t('developer.unblockShowcase', undefined, 'Unblock Showcase')}</span>
                   </button>
                 ) : selectedShowcase.status !== 'DELETED' ? (
                   <button
@@ -1408,7 +1408,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-500/40 transition-all cursor-pointer"
                   >
                     <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Block Showcase</span>
+                    <span>{t('developer.blockShowcase', undefined, 'Block Showcase')}</span>
                   </button>
                 ) : null}
 
@@ -1435,7 +1435,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       type="button"
                       onClick={() => window.open(`/showcase/${selectedShowcase.id || selectedShowcase.event_id}`, '_blank')}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
-                      title="Open Public Showcase in New Tab"
+                      title={t('developer.openPublicShowcaseNewTab', undefined, 'Open Public Showcase in New Tab')}
                     >
                       <Eye className="w-3.5 h-3.5 text-emerald-400" />
                       <span>View</span>
@@ -1444,7 +1444,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       type="button"
                       onClick={() => handleShareShowcase(selectedShowcase)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
-                      title="Share Public Showcase URL"
+                      title={t('developer.sharePublicShowcaseUrl', undefined, 'Share Public Showcase URL')}
                     >
                       {copiedShowcaseId === selectedShowcase.id ? (
                         <>
@@ -1477,7 +1477,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>Approve Reward (RM300)</span>
+                      <span>{t('developer.approveReward300', undefined, 'Approve Reward (RM300)')}</span>
                     </button>
                   </>
                 )}

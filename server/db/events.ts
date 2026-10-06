@@ -39,7 +39,12 @@ import {
   getPlatformPricingSettings,
   calculateEventAuthoritativePrice,
   calculateEventCalendarDays,
+  formatDateApi,
+  formatDateDisplay,
+  parseDateOnly,
+  parseDisplayDate,
 } from './platformSettings.js';
+export { formatDateApi, formatDateDisplay, parseDateOnly, parseDisplayDate };
 import {
   clearEventTestScores,
   isEventTestScoresCleared,
@@ -83,13 +88,7 @@ export function getNormalizedEventDates(event: {
   liveOpenDate: string;
 } {
   const extractDateOnly = (val: string | null | undefined): string => {
-    if (!val) return '';
-    const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
-    const dt = new Date(val);
-    if (isNaN(dt.getTime())) return '';
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+    return formatDateApi(val);
   };
 
   const rawStart =
@@ -138,15 +137,27 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null, tim
     const match = currentDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) return `${match[1]}-${match[2]}-${match[3]}`;
   }
-  const dt = currentDate instanceof Date ? currentDate : new Date();
+  // Check development/testing reference date if configured (strictly disabled in production)
+  const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production' && !process.env.ALLOW_MOCK_AUTH;
+  if (!isProd && !currentDate && typeof process !== 'undefined' && process.env.VITE_EVENT_REFERENCE_DATE) {
+    const refMatch = process.env.VITE_EVENT_REFERENCE_DATE.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (refMatch) return `${refMatch[1]}-${refMatch[2]}-${refMatch[3]}`;
+  }
+  const dt = currentDate instanceof Date && !isNaN(currentDate.getTime()) ? currentDate : new Date();
   try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
+    const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timeZone || PLATFORM_BUSINESS_TIMEZONE,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     });
-    return formatter.format(dt);
+    const parts = formatter.formatToParts(dt);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && d) {
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
   } catch (e) {
     const utcTime = dt.getTime();
     const sgTime = new Date(utcTime + 8 * 60 * 60 * 1000);
@@ -234,27 +245,15 @@ export function getUtcBoundaryInTimezone(
  */
 export function formatDateOnly(
   dateVal: string | Date | null | undefined,
-  options?: { fullMonth?: boolean }
+  options?: { fullMonth?: boolean; numeric?: boolean }
 ): string {
   if (!dateVal) return '';
-  const match = typeof dateVal === 'string'
-    ? dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    : null;
-  let year = '';
-  let month = '';
-  let day = '';
-  if (match) {
-    year = match[1];
-    month = match[2];
-    day = match[3];
-  } else {
-    const dt = dateVal instanceof Date ? dateVal : new Date(dateVal);
-    if (isNaN(dt.getTime())) return '';
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    year = dt.getUTCFullYear().toString();
-    month = pad(dt.getUTCMonth() + 1);
-    day = pad(dt.getUTCDate());
+  if (options?.numeric) {
+    return formatDateDisplay(dateVal);
   }
+  const apiDate = formatDateApi(dateVal);
+  if (!apiDate) return '';
+  const [year, month, day] = apiDate.split('-');
   const monthNames = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -267,7 +266,7 @@ export function formatDateOnly(
   const monthStr = options?.fullMonth
     ? fullMonthNames[mIndex] || month
     : monthNames[mIndex] || month;
-  return `${day} ${monthStr} ${year}`;
+  return `${day} ${monthStr} ${year}`.trim();
 }
 
 /**
@@ -1034,15 +1033,7 @@ export function normalizeEventDateBoundaries(
   setup_starts_at: string;
 } {
   const extractDateOnly = (val: string | null | undefined): string => {
-    if (!val) return '';
-    const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      return `${match[1]}-${match[2]}-${match[3]}`;
-    }
-    const dt = new Date(val);
-    if (isNaN(dt.getTime())) return '';
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+    return formatDateApi(val);
   };
 
   let rawStart = params.start_date || params.startDate || params.event_date;
@@ -1147,15 +1138,7 @@ export function getSetupDayStartTime(event: {
   const timeZone = resolveEventTimezone(event);
 
   // Derive calendar date from start_date, event_date, or starts_at
-  let dateStr = event.start_date || event.event_date;
-  if (!dateStr && event.starts_at) {
-    const match = event.starts_at.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      dateStr = `${match[1]}-${match[2]}-${match[3]}`;
-    } else {
-      dateStr = event.starts_at.split('T')[0];
-    }
-  }
+  let dateStr = formatDateApi(event.start_date || event.event_date || event.starts_at);
 
   if (dateStr) {
     const parts = dateStr.split('-');
@@ -3966,6 +3949,7 @@ export async function updateEvent(
     payload.end_date = norm.end_date;
     payload.starts_at = norm.starts_at;
     payload.expires_at = norm.expires_at;
+    payload.setup_starts_at = norm.setup_starts_at;
   }
 
   if (updates.status !== undefined) {

@@ -141,7 +141,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                   branding: { ...branding, gameTitle: e.target.value },
                 });
               }}
-              placeholder="e.g. CATCH THE BRAND, BRAND CAMPAIGN"
+              placeholder={t('studio.brandingGameTitlePlaceholder', undefined, 'e.g. CATCH THE BRAND, BRAND CAMPAIGN')}
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-amber-500"
             />
           </div>
@@ -152,7 +152,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               type="text"
               value={branding.subtitle || theme.subtitle || ''}
               onChange={(e) => handleUpdateBranding({ subtitle: e.target.value })}
-              placeholder="e.g. Catch fresh fruits, avoid rotten hazards!"
+              placeholder={t('studio.brandingTaglinePlaceholder', undefined, 'e.g. Catch fresh fruits, avoid rotten hazards!')}
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
             />
           </div>
@@ -163,7 +163,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               rows={2}
               value={theme.description || ''}
               onChange={(e) => onChange({ ...theme, description: e.target.value })}
-              placeholder="Event activation notes, brand campaign info, or designer guidelines..."
+              placeholder={t('studio.brandingDescriptionPlaceholder', undefined, 'Event activation notes, brand campaign info, or designer guidelines...')}
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
             />
           </div>
@@ -297,7 +297,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                 />
                 <button
                   type="button"
-                  title="Remove Logo"
+                  title={t('studio.removeLogo', undefined, 'Remove Logo')}
                   onClick={() => {
                     handleUpdateBranding({
                       clientLogoUrl: '',

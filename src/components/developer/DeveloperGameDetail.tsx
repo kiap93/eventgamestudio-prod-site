@@ -96,8 +96,8 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
     return (
       <div className="text-center py-20 bg-slate-900/50 border border-slate-800 rounded-2xl p-8">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-white mb-2">Game Not Found</h3>
-        <p className="text-xs text-slate-400 mb-4">The specified platform game could not be retrieved.</p>
+        <h3 className="text-lg font-bold text-white mb-2">{t('developer.gameNotFound', undefined, 'Game Not Found')}</h3>
+        <p className="text-xs text-slate-400 mb-4">{t('developer.gameNotFoundDesc', undefined, 'The specified platform game could not be retrieved.')}</p>
         <button
           onClick={onBack}
           className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl cursor-pointer"
@@ -125,7 +125,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
           <button
             onClick={onBack}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors shrink-0"
-            title="Back to Platform Games"
+            title={t('developer.backToPlatformGames', undefined, 'Back to Platform Games')}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -164,7 +164,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
             className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors"
           >
             <Edit2 className="w-3.5 h-3.5" />
-            <span>Edit Game Metadata</span>
+            <span>{t('developer.editGameMetadata', undefined, 'Edit Game Metadata')}</span>
           </button>
 
           <button
@@ -172,7 +172,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
             className="flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-950/30 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Default Theme</span>
+            <span>{t('developer.createDefaultTheme', undefined, 'Create Default Theme')}</span>
           </button>
         </div>
       </div>
@@ -200,7 +200,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
           }`}
         >
           <Coins className="w-4 h-4" />
-          <span>Game Pricing Tiers</span>
+          <span>{t('developer.gamePricingTiers', undefined, 'Game Pricing Tiers')}</span>
         </button>
 
         <button
@@ -212,7 +212,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span>Game Engine Defaults & Schema</span>
+          <span>{t('developer.gameEngineDefaults', undefined, 'Game Engine Defaults & Schema')}</span>
         </button>
       </div>
 
@@ -287,7 +287,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                           {isDefault && (
                             <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase shadow-lg">
                               <Star className="w-3 h-3 fill-slate-950" />
-                              <span>Primary Default</span>
+                              <span>{t('developer.primaryDefault', undefined, 'Primary Default')}</span>
                             </span>
                           )}
                           <span
@@ -305,7 +305,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                         <button
                           onClick={() => setPlaytestingTheme(theme)}
                           className="absolute top-3 right-3 p-2 bg-slate-900/80 hover:bg-emerald-600 text-slate-200 hover:text-white rounded-xl backdrop-blur-sm border border-slate-700 hover:border-emerald-500 transition-all shadow-lg group-hover:scale-110"
-                          title="Test Play Theme"
+                          title={t('developer.testPlayTheme', undefined, 'Test Play Theme')}
                         >
                           <Play className="w-4 h-4 fill-current" />
                         </button>
@@ -348,7 +348,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                             type="button"
                             onClick={() => setThemeToUnsetDefault(theme)}
                             className="p-2 text-amber-400 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-500/50 hover:text-amber-300 rounded-lg transition-colors cursor-pointer shadow-sm"
-                            title="Unset Primary Default"
+                            title={t('developer.unsetPrimaryDefault', undefined, 'Unset Primary Default')}
                           >
                             <Star className="w-4 h-4 fill-current" />
                           </button>
@@ -365,7 +365,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                               }
                             }}
                             className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer"
-                            title="Set as Primary Default"
+                            title={t('developer.setAsPrimaryDefault', undefined, 'Set as Primary Default')}
                           >
                             <Star className="w-4 h-4" />
                           </button>
@@ -377,7 +377,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                             await loadData();
                           }}
                           className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-                          title="Duplicate Theme"
+                          title={t('developer.duplicateTheme', undefined, 'Duplicate Theme')}
                         >
                           <Copy className="w-4 h-4" />
                         </button>
@@ -390,7 +390,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                             }
                           }}
                           className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                          title="Delete Theme"
+                          title={t('developer.deleteTheme', undefined, 'Delete Theme')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -402,7 +402,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                           className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors"
                         >
                           <Play className="w-3 h-3 fill-current" />
-                          <span>Test</span>
+                          <span>{t('developer.test', undefined, 'Test')}</span>
                         </button>
 
                         <button
@@ -410,7 +410,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                           className="flex items-center space-x-1 px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500 text-xs font-semibold rounded-xl transition-all"
                         >
                           <Edit2 className="w-3 h-3" />
-                          <span>Configure</span>
+                          <span>{t('developer.configure', undefined, 'Configure')}</span>
                         </button>
                       </div>
                     </div>
@@ -437,7 +437,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-6">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
-              <h3 className="text-base font-bold text-white">Engine Specifications & Physics Baseline</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.engineSpecifications', undefined, 'Engine Specifications & Physics Baseline')}</h3>
               <p className="text-xs text-slate-400">
                 Core physics, gameplay parameters, and configuration schema for <strong>{game.name}</strong>.
               </p>
@@ -449,23 +449,23 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-              <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">Game Engine Key</label>
+              <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">{t('developer.gameEngineKey', undefined, 'Game Engine Key')}</label>
               <p className="text-sm font-mono font-bold text-white">{game.game_type}</p>
-              <p className="text-[11px] text-slate-500 mt-1">Mapped to engine module in registry</p>
+              <p className="text-[11px] text-slate-500 mt-1">{t('developer.mappedToEngineModule', undefined, 'Mapped to engine module in registry')}</p>
             </div>
 
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-              <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">Ownership Model</label>
+              <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">{t('developer.ownershipModel', undefined, 'Ownership Model')}</label>
               <p className="text-sm font-bold text-emerald-400">{game.ownership_type?.toUpperCase() || 'SYSTEM'}</p>
-              <p className="text-[11px] text-slate-500 mt-1">Platform-wide standard game</p>
+              <p className="text-[11px] text-slate-500 mt-1">{t('developer.platformWideGame', undefined, 'Platform-wide standard game')}</p>
             </div>
 
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-              <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">Active Default Theme</label>
+              <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">{t('developer.activeDefaultTheme', undefined, 'Active Default Theme')}</label>
               <p className="text-sm font-mono font-bold text-amber-400">
                 {themes.find((t) => t.is_default)?.name || 'None (No Primary Default)'}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1">Theme provided to new tenants</p>
+              <p className="text-[11px] text-slate-500 mt-1">{t('developer.themeProvidedToNewTenants', undefined, 'Theme provided to new tenants')}</p>
             </div>
           </div>
         </div>
@@ -482,7 +482,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                 <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   <Star className="w-5 h-5 fill-current" />
                 </div>
-                <h3 className="text-base font-bold text-white">Unset Primary Default?</h3>
+                <h3 className="text-base font-bold text-white">{t('developer.unsetPrimaryDefaultTitle', undefined, 'Unset Primary Default?')}</h3>
               </div>
               <button
                 type="button"
@@ -514,7 +514,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                 </div>
                 <div className="min-w-0">
                   <h4 className="text-sm font-semibold text-white truncate">{themeToUnsetDefault.name}</h4>
-                  <p className="text-xs text-amber-400/80">Current Primary Default</p>
+                  <p className="text-xs text-amber-400/80">{t('developer.currentPrimaryDefault', undefined, 'Current Primary Default')}</p>
                 </div>
               </div>
 

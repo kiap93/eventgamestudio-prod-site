@@ -421,17 +421,17 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
         {!isSimulation && !isEditor && loadingLeaderboard ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-            <span style={{ fontSize: statFontSize }}>Loading rankings...</span>
+            <span style={{ fontSize: statFontSize }}>{t('game.loadingRankings', undefined, 'Loading rankings...')}</span>
           </div>
         ) : !isSimulation && !isEditor && leaderboardError ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
             <AlertCircle className="w-4 h-4 text-rose-400/80" />
-            <span style={{ fontSize: statFontSize }}>Leaderboard unavailable</span>
+            <span style={{ fontSize: statFontSize }}>{t('game.leaderboardUnavailable', undefined, 'Leaderboard unavailable')}</span>
           </div>
         ) : displayRows.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
             <Users className="w-4 h-4 text-slate-600" />
-            <span style={{ fontSize: statFontSize }}>No scores recorded yet</span>
+            <span style={{ fontSize: statFontSize }}>{t('game.noScoresRecorded', undefined, 'No scores recorded yet')}</span>
           </div>
         ) : (
           displayRows.map((entry, idx) => {
@@ -512,7 +512,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                     <span
                       className="font-mono text-cyan-400 text-right"
                       style={{ fontSize: statFontSize }}
-                      title="Moves"
+                      title={t('game.moves', undefined, 'Moves')}
                     >
                       {entry.metadata.moves}m
                     </span>
@@ -523,7 +523,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                       <span
                         className="font-mono text-sky-400 text-right"
                         style={{ fontSize: statFontSize }}
-                        title="Duration"
+                        title={t('game.duration', undefined, 'Duration')}
                       >
                         {entry.metadata.duration ?? entry.metadata.timeElapsedSeconds}s
                       </span>
@@ -532,7 +532,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                     <span
                       className="font-mono text-purple-400 text-right"
                       style={{ fontSize: statFontSize }}
-                      title="Accuracy"
+                      title={t('game.accuracy', undefined, 'Accuracy')}
                     >
                       {entry.metadata.accuracyPercent}%
                     </span>
@@ -588,7 +588,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                   <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
                   PRE-EVENT TEST MODE
                 </span>
-                <span className="text-slate-400 text-[8px]">Cleared on event start</span>
+                <span className="text-slate-400 text-[8px]">{t('game.clearedOnEventStart', undefined, 'Cleared on event start')}</span>
               </div>
             )}
             <div className="flex items-center gap-1.5">
@@ -621,7 +621,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Submitting...</span>
+                    <span>{t('game.submitting', undefined, 'Submitting...')}</span>
                   </>
                 ) : (
                   <>

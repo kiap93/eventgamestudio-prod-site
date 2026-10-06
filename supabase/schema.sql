@@ -4070,6 +4070,7 @@ CREATE POLICY "Developer admins can manage google_mail_settings"
 CREATE TABLE IF NOT EXISTS public.game_pricing (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   game_id UUID NOT NULL REFERENCES public.games(id) ON DELETE CASCADE,
+  country_code VARCHAR(2) NOT NULL DEFAULT 'MY',
   min_days INT NOT NULL CHECK (min_days >= 1),
   max_days INT CHECK (max_days IS NULL OR max_days >= min_days),
   price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
@@ -4081,8 +4082,10 @@ CREATE TABLE IF NOT EXISTS public.game_pricing (
 );
 
 CREATE INDEX IF NOT EXISTS idx_game_pricing_game_id ON public.game_pricing(game_id);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_country ON public.game_pricing(country_code);
 CREATE INDEX IF NOT EXISTS idx_game_pricing_active ON public.game_pricing(is_active);
 CREATE INDEX IF NOT EXISTS idx_game_pricing_game_days ON public.game_pricing(game_id, min_days, max_days);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_game_country_days ON public.game_pricing(game_id, country_code, min_days, max_days);
 CREATE INDEX IF NOT EXISTS idx_game_pricing_is_base ON public.game_pricing(game_id, is_base) WHERE is_base = true;
 
 ALTER TABLE public.game_pricing ENABLE ROW LEVEL SECURITY;

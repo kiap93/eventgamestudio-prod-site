@@ -209,7 +209,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                   setAddingChildToParentId(addingChildToParentId === el.id ? null : el.id);
                 }}
                 className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-amber-400"
-                title="Add Child Element inside Container"
+                title={t('editor.addChildInsideContainer', undefined, 'Add Child Element inside Container')}
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -223,7 +223,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
               className={`p-1 rounded hover:bg-slate-700 ${
                 el.locked ? 'text-rose-400 opacity-100' : 'text-slate-400'
               }`}
-              title={el.locked ? 'Unlock Layer' : 'Lock Layer'}
+              title={el.locked ? t('editor.unlockLayer', undefined, 'Unlock Layer') : t('editor.lockLayer', undefined, 'Lock Layer')}
             >
               {el.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
             </button>
@@ -236,7 +236,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
               className={`p-1 rounded hover:bg-slate-700 ${
                 el.visible === false ? 'text-slate-600 opacity-100' : 'text-slate-400'
               }`}
-              title={el.visible === false ? 'Show Layer' : 'Hide Layer'}
+              title={el.visible === false ? t('editor.showLayer', undefined, 'Show Layer') : t('editor.hideLayer', undefined, 'Hide Layer')}
             >
               {el.visible === false ? (
                 <EyeOff className="w-3 h-3" />
@@ -251,7 +251,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onDuplicateElement(el.id);
               }}
               className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white"
-              title="Duplicate"
+              title={t('common.duplicate', undefined, 'Duplicate')}
             >
               <Copy className="w-3 h-3" />
             </button>
@@ -262,7 +262,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onDeleteElement(el.id);
               }}
               className="p-1 rounded hover:bg-rose-950 text-slate-400 hover:text-rose-400"
-              title="Delete"
+              title={t('common.delete', undefined, 'Delete')}
             >
               <Trash2 className="w-3 h-3" />
             </button>

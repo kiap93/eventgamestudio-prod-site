@@ -306,7 +306,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                           <button
                             disabled
                             className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border bg-slate-800/60 text-slate-500 border-slate-700/60 cursor-not-allowed whitespace-nowrap shrink-0"
-                            title="Cannot activate: Game engine is under development"
+                            title={t('developer.gameUnderDevelopment', undefined, 'Cannot activate: Game engine is under development')}
                           >
                             <span className="whitespace-nowrap cjk-keep-all">{t('common.unavailable', undefined, 'Unavailable')}</span>
                           </button>

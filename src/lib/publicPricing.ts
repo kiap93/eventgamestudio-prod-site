@@ -70,7 +70,11 @@ export function matchGamePricingTier(
   if (!Array.isArray(tiers) || tiers.length === 0) return null;
   const days = Math.max(1, Math.floor(Number(selectedDays) || 1));
   const matched = tiers.find(
-    (t) => days >= t.min_days && (t.max_days === null || t.max_days === undefined || days <= t.max_days)
+    (t) =>
+      (t as any).is_active !== false &&
+      Number(t.price) > 0 &&
+      days >= t.min_days &&
+      (t.max_days === null || t.max_days === undefined || days <= t.max_days)
   );
   return matched || null;
 }
@@ -83,23 +87,29 @@ export function getGameStartingPrice(
 ): { price: number; currency: string } | null {
   if (!game || !Array.isArray(game.tiers) || game.tiers.length === 0) return null;
 
+  const validTiers = game.tiers.filter(
+    (t) => (t as any).is_active !== false && Number(t.price) > 0
+  );
+  if (validTiers.length === 0) return null;
+
   // 1. Look for tier with min_days === 1 and (max_days === 1 or max_days === null)
-  const oneDayTier = game.tiers.find(
-    (t) => t.min_days === 1 && (t.max_days === 1 || t.max_days === null) && t.price > 0
+  const oneDayTier = validTiers.find(
+    (t) => t.min_days === 1 && (t.max_days === 1 || t.max_days === null)
   );
   if (oneDayTier) {
     return { price: Number(oneDayTier.price), currency: oneDayTier.currency || 'MYR' };
   }
 
   // 2. Look for base tier
-  const baseTier = game.tiers.find((t) => t.is_base && t.price > 0);
+  const baseTier = validTiers.find((t) => t.is_base);
   if (baseTier) {
     return { price: Number(baseTier.price), currency: baseTier.currency || 'MYR' };
   }
 
   // 3. Fallback to lowest min_days tier
-  const lowestTier = game.tiers[0];
-  if (lowestTier && lowestTier.price > 0) {
+  const sorted = [...validTiers].sort((a, b) => a.min_days - b.min_days);
+  const lowestTier = sorted[0];
+  if (lowestTier) {
     return { price: Number(lowestTier.price), currency: lowestTier.currency || 'MYR' };
   }
 

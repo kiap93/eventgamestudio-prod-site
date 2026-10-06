@@ -3,6 +3,7 @@ import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { WalletBalanceSummary, WalletTransactionRecord, TopupOrderRecord } from '../../types';
+import { CustomDatePicker } from '../common/CustomDatePicker';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
   Wallet,
@@ -872,27 +873,28 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-slate-500 w-10">{t('payment.startDate')}</span>
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => {
-                            setStartDate(e.target.value);
-                            setDatePreset('CUSTOM');
-                          }}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 flex-1 focus:outline-none focus:border-amber-500/50"
-                        />
+                        <div className="flex-1">
+                          <CustomDatePicker
+                            value={startDate}
+                            onChange={(newStart) => {
+                              setStartDate(newStart);
+                              setDatePreset('CUSTOM');
+                            }}
+                          />
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-slate-500 w-10">{t('payment.endDate')}</span>
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => {
-                            setEndDate(e.target.value);
-                            setDatePreset('CUSTOM');
-                          }}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 flex-1 focus:outline-none focus:border-amber-500/50"
-                        />
+                        <div className="flex-1">
+                          <CustomDatePicker
+                            min={startDate}
+                            value={endDate}
+                            onChange={(newEnd) => {
+                              setEndDate(newEnd);
+                              setDatePreset('CUSTOM');
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

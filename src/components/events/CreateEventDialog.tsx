@@ -11,12 +11,18 @@ import {
 } from '../../types';
 import {
   getTodayDateString,
+  getCalendarDateInTimezone,
   addDaysToDateString,
   formatDateOnly,
+  formatDateDisplay,
+  formatDateApi,
   formatEventDateRange,
   calculateEventCalendarDays,
+  isDateBefore,
+  fetchServerDate,
 } from '../../lib/dateUtils';
 import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone } from '../../lib/countryUtils';
+import { CustomDatePicker } from '../common/CustomDatePicker';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
 import { normalizeGameType } from '../../games/gameIcons';
@@ -104,20 +110,65 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [eventTimezone, setEventTimezone] = useState<string>(() => {
     return resolveEventTimezone(undefined, currentOrganization);
   });
+
   const [startDate, setStartDate] = useState<string>(() => getTodayDateString(resolveEventTimezone(undefined, currentOrganization)));
   const [endDate, setEndDate] = useState<string>(() => getTodayDateString(resolveEventTimezone(undefined, currentOrganization)));
 
   // Date and duration validation states
   const hasSelectedBothDates = Boolean(startDate && endDate);
-  const isEndDateBeforeStartDate = Boolean(hasSelectedBothDates && endDate < startDate);
+  const isEndDateBeforeStartDate = Boolean(hasSelectedBothDates && isDateBefore(endDate, startDate));
   const currentDurationDays = hasSelectedBothDates && !isEndDateBeforeStartDate
     ? calculateEventCalendarDays(startDate, endDate)
     : 0;
   const isDateRangeInvalid = !hasSelectedBothDates || isEndDateBeforeStartDate;
 
   useEffect(() => {
+    if (isOpen) {
+      setStep('configure');
+      setDurationPreset('1day');
+      const tz = resolveEventTimezone(undefined, currentOrganization);
+      setEventTimezone(tz);
+
+      // 1. Immediately set initial date using synchronized server date if available
+      const initialDate = getTodayDateString(tz);
+      setStartDate(initialDate);
+      setEndDate(initialDate);
+
+      // 2. Authoritatively fetch/refresh server date from Cloudflare Worker (/api/time)
+      let isMounted = true;
+      fetchServerDate(tz)
+        .then(({ date: serverToday }) => {
+          if (!isMounted) return;
+          setStartDate(serverToday);
+          setEndDate(serverToday);
+        })
+        .catch((err) => {
+          console.warn('[CreateEventDialog] Failed to fetch authoritative server date:', err);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [isOpen, currentOrganization]);
+
+  useEffect(() => {
     if (currentOrganization?.country_code) {
-      setEventTimezone(resolveEventTimezone(undefined, currentOrganization));
+      const tz = resolveEventTimezone(undefined, currentOrganization);
+      setEventTimezone(tz);
+
+      let isMounted = true;
+      fetchServerDate(tz)
+        .then(({ date: serverToday }) => {
+          if (!isMounted) return;
+          setStartDate(serverToday);
+          setEndDate(serverToday);
+        })
+        .catch(() => {});
+
+      return () => {
+        isMounted = false;
+      };
     }
   }, [currentOrganization?.country_code]);
 
@@ -313,10 +364,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           useWelcomeCredit: useWelcome,
           useEventCredit: useEvent,
           event_price: createdEvent?.event_price || undefined,
-          start_date: createdEvent?.start_date || startDate || undefined,
-          end_date: createdEvent?.end_date || endDate || undefined,
-          startDate: createdEvent?.start_date || startDate || undefined,
-          endDate: createdEvent?.end_date || endDate || undefined,
+          start_date: formatDateApi(createdEvent?.start_date || startDate) || undefined,
+          end_date: formatDateApi(createdEvent?.end_date || endDate) || undefined,
+          startDate: formatDateApi(createdEvent?.start_date || startDate) || undefined,
+          endDate: formatDateApi(createdEvent?.end_date || endDate) || undefined,
         }),
       });
 
@@ -355,6 +406,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setActiveCalculation(null);
     setUseWelcomeCredit(true);
     setUseEventCredit(true);
+    setDurationPreset('1day');
+    const tz = resolveEventTimezone(undefined, currentOrganization);
+    const today = getTodayDateString(tz);
+    setStartDate(today);
+    setEndDate(today);
     onClose();
   };
 
@@ -394,7 +450,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       return;
     }
 
-    if (endDate < startDate) {
+    if (isDateBefore(endDate, startDate)) {
       setCreationError('The event end date cannot be earlier than the start date. Please select a valid date range.');
       return;
     }
@@ -412,9 +468,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           name: name.trim(),
           game_id: gameIdToUse || undefined,
           game_theme_id: themeIdToUse,
-          start_date: startDate,
-          end_date: endDate,
-          event_date: startDate,
+          start_date: formatDateApi(startDate),
+          end_date: formatDateApi(endDate),
+          event_date: formatDateApi(startDate),
           status: 'pending_payment',
           event_timezone: eventTimezone,
         }),
@@ -868,41 +924,50 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 {/* Start Date & End Date Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
-                    <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('event.startDate', undefined, 'Start Date')}
+                    <span className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('event.startDate', undefined, 'Start Date')}
+                      </span>
+                      {startDate && (
+                        <span className="text-[11px] text-amber-300 font-mono font-semibold">
+                          {formatDateDisplay(startDate)}
+                        </span>
+                      )}
                     </span>
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       required
                       value={startDate}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
+                      onChange={(newStart) => {
                         setStartDate(newStart);
                         if (durationPreset !== 'custom') {
                           handleDurationPresetChange(durationPreset, newStart);
                         }
                       }}
-                      className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-xs focus:outline-none cursor-pointer"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('event.endDate', undefined, 'End Date')}
+                    <span className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('event.endDate', undefined, 'End Date')}
+                      </span>
+                      {endDate && (
+                        <span className="text-[11px] text-amber-300 font-mono font-semibold">
+                          {formatDateDisplay(endDate)}
+                        </span>
+                      )}
                     </span>
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       required
                       disabled={durationPreset !== 'custom'}
+                      min={startDate}
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className={`w-full px-3 py-2.5 bg-slate-950 border ${
-                        durationPreset === 'custom'
-                          ? isEndDateBeforeStartDate
-                            ? 'border-rose-500/60 focus:border-rose-500 text-slate-100 cursor-pointer'
-                            : 'border-slate-800 focus:border-amber-500 text-slate-100 cursor-pointer'
-                          : 'border-slate-800/60 text-slate-400 opacity-80 cursor-not-allowed'
-                      } rounded-xl text-xs focus:outline-none`}
+                      onChange={(newEnd) => setEndDate(newEnd)}
+                      className={
+                        durationPreset === 'custom' && isEndDateBeforeStartDate
+                          ? 'border-rose-500/60 focus:border-rose-500'
+                          : ''
+                      }
                     />
                   </div>
                 </div>
@@ -1023,7 +1088,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {calculateEventCalendarDays(createdEvent.start_date || startDate, createdEvent.end_date || endDate)} {t('common.days', undefined, 'calendar days')}
                   {createdEvent.start_date && (
                     <span className="text-[11px] font-normal text-slate-400 ml-1.5">
-                      ({createdEvent.start_date} to {createdEvent.end_date || createdEvent.start_date})
+                      ({formatDateDisplay(createdEvent.start_date)} to {formatDateDisplay(createdEvent.end_date || createdEvent.start_date)})
                     </span>
                   )}
                 </span>

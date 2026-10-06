@@ -227,7 +227,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
             title={t('editor.resetCanvasLayout', undefined, 'Reset Start Screen background to Theme defaults')}
           >
             <RotateCcw className="w-3 h-3" />
-            <span>Reset</span>
+            <span>{t('common.reset', undefined, 'Reset')}</span>
           </button>
         </div>
 
@@ -376,7 +376,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                       className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-xl border border-rose-500/30 transition-all flex items-center gap-1.5"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove</span>
+                      <span>{t('common.remove', undefined, 'Remove')}</span>
                     </button>
                   </div>
                 </div>
@@ -634,7 +634,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Leaderboard Button</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.leaderboardBtn', undefined, 'Leaderboard Button')}</span>
                         <span className="text-[10px] text-slate-400">{t('editor.leaderboardBtnDesc', undefined, 'Shortcut button to scores')}</span>
                       </div>
                     </div>
@@ -753,7 +753,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Grid3X3 className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Grid Dimensions Pill</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.gridDimensionsPill', undefined, 'Grid Dimensions Pill')}</span>
                         <span className="text-[10px] text-slate-400">
                           Shows "{rows}×{cols} ({totalCards} Cards)"
                         </span>
@@ -793,7 +793,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Layers className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Pairs Count Pill</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.pairsCountPill', undefined, 'Pairs Count Pill')}</span>
                         <span className="text-[10px] text-slate-400">
                           Shows "{totalPairs} Pairs to Match"
                         </span>
@@ -833,7 +833,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Timer Duration Pill</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.timerDurationPill', undefined, 'Timer Duration Pill')}</span>
                         <span className="text-[10px] text-slate-400">Shows "{duration}s Timer"</span>
                       </div>
                     </div>
@@ -870,8 +870,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Leaderboard Button</span>
-                        <span className="text-[10px] text-slate-400">Shortcut button to scores</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.leaderboardBtn', undefined, 'Leaderboard Button')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.leaderboardBtnDesc', undefined, 'Shortcut button to scores')}</span>
                       </div>
                     </div>
 
@@ -950,7 +950,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Sliders className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Rounds Count Pill</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.roundsCountPill', undefined, 'Rounds Count Pill')}</span>
                         <span className="text-[10px] text-slate-400">Shows "{rounds} Rounds"</span>
                       </div>
                     </div>
@@ -988,7 +988,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Gantry Lights Pill</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.gantryLightsPill', undefined, 'Gantry Lights Pill')}</span>
                         <span className="text-[10px] text-slate-400">Shows "{lights} Lights"</span>
                       </div>
                     </div>
@@ -1025,8 +1025,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Leaderboard Button</span>
-                        <span className="text-[10px] text-slate-400">Shortcut button to scores</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.leaderboardBtn', undefined, 'Leaderboard Button')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.leaderboardBtnDesc', undefined, 'Shortcut button to scores')}</span>
                       </div>
                     </div>
 

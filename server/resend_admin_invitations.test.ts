@@ -134,8 +134,14 @@ async function runResendAdminInvitationsTests() {
   console.log('Test 3: Admin invitation flow, company contact association & Resend dispatch...');
 
   let capturedAuthHeader = '';
-  const mockResendSuccessFetch = async (_url: string, init?: any) => {
+  const capturedResendRequests: Array<{ url: string; body: any }> = [];
+  const mockResendSuccessFetch = async (url: string, init?: any) => {
     capturedAuthHeader = init?.headers?.Authorization || '';
+    let parsedBody: any = null;
+    try {
+      parsedBody = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body;
+    } catch {}
+    capturedResendRequests.push({ url, body: parsedBody });
     return new Response(JSON.stringify({ id: `re_test_${Date.now()}` }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -178,6 +184,18 @@ async function runResendAdminInvitationsTests() {
   assert.strictEqual(inviteResult.failed, 0);
   assert.strictEqual(capturedAuthHeader, 'Bearer re_worker_secret_123', 'Worker secret passed to Resend API Authorization header');
 
+  // Verify that exactly ONE Resend email was sent containing both recipient emails
+  assert.strictEqual(
+    capturedResendRequests.length,
+    1,
+    'Exactly ONE Resend email must be sent for the company, NOT separate per-recipient emails'
+  );
+  assert.deepStrictEqual(
+    capturedResendRequests[0].body.to,
+    ['elena@starlight.com', 'creative@starlight.com'],
+    'Resend payload "to" must contain all recipients in ONE email'
+  );
+
   // Verify recipient records and provider log
   const refreshed = await getCustomerCompanyById(company.id, testEnv);
   assert.ok(refreshed);
@@ -197,6 +215,107 @@ async function runResendAdminInvitationsTests() {
   assert.strictEqual(companyLogs[0].status, 'sent');
 
   console.log('  ✓ PASSED: Admin invitations use Resend and record provider logs and recipient status.\n');
+
+  // --------------------------------------------------------------------------
+  // TEST 3b: Company Grouping & Edge Cases (Single recipient, Multi-recipient, Cross-Company Isolation, Deduplication)
+  // --------------------------------------------------------------------------
+  console.log('Test 3b: Company email grouping, single vs multiple recipients, and cross-company isolation...');
+
+  const edgeRequests: Array<{ url: string; body: any }> = [];
+  const edgeFetch = async (url: string, init?: any) => {
+    let parsedBody: any = null;
+    try {
+      parsedBody = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body;
+    } catch {}
+    edgeRequests.push({ url, body: parsedBody });
+    return new Response(JSON.stringify({ id: `re_edge_${Date.now()}` }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  // Case 1: Company with single recipient
+  const singleRecCompany = await createCustomerCompany(
+    {
+      company_name: 'Single Recipient Co',
+      recipients: [{ email: 'solo@singlerec.com', recipient_name: 'Solo User' }],
+    },
+    testEnv
+  );
+  const singleResult = await sendCompanyInvitations(singleRecCompany.id, {
+    env: testEnv,
+    fetchFn: edgeFetch,
+  });
+  assert.strictEqual(singleResult.success, true);
+  assert.strictEqual(singleResult.sent, 1);
+  assert.strictEqual(edgeRequests.length, 1);
+  assert.deepStrictEqual(edgeRequests[0].body.to, ['solo@singlerec.com']);
+
+  // Case 2: Company with multiple recipients (ABC Events)
+  const abcCompany = await createCustomerCompany(
+    {
+      company_name: 'ABC Events',
+      recipients: [
+        { email: 'john@abc.com', recipient_name: 'John' },
+        { email: 'mary@abc.com', recipient_name: 'Mary' },
+        { email: 'peter@abc.com', recipient_name: 'Peter' },
+      ],
+    },
+    testEnv
+  );
+  const abcResult = await sendCompanyInvitations(abcCompany.id, {
+    env: testEnv,
+    fetchFn: edgeFetch,
+  });
+  assert.strictEqual(abcResult.success, true);
+  assert.strictEqual(abcResult.sent, 3);
+  assert.strictEqual(edgeRequests.length, 2);
+  assert.deepStrictEqual(edgeRequests[1].body.to, ['john@abc.com', 'mary@abc.com', 'peter@abc.com']);
+
+  // Case 3: Another company (XYZ Events) - separate email, never combined
+  const xyzCompany = await createCustomerCompany(
+    {
+      company_name: 'XYZ Events',
+      recipients: [
+        { email: 'alice@xyz.com', recipient_name: 'Alice' },
+        { email: 'bob@xyz.com', recipient_name: 'Bob' },
+      ],
+    },
+    testEnv
+  );
+  const xyzResult = await sendCompanyInvitations(xyzCompany.id, {
+    env: testEnv,
+    fetchFn: edgeFetch,
+  });
+  assert.strictEqual(xyzResult.success, true);
+  assert.strictEqual(xyzResult.sent, 2);
+  assert.strictEqual(edgeRequests.length, 3);
+  // Email #3 must only contain XYZ recipients and NEVER ABC recipients
+  assert.deepStrictEqual(edgeRequests[2].body.to, ['alice@xyz.com', 'bob@xyz.com']);
+
+  // Verify individual recipient records are preserved for each company
+  const abcRefreshed = await getCustomerCompanyById(abcCompany.id, testEnv);
+  assert.ok(abcRefreshed);
+  assert.strictEqual(abcRefreshed.recipients.length, 3);
+  for (const r of abcRefreshed.recipients) {
+    assert.strictEqual(r.last_invitation_status, 'sent');
+    assert.strictEqual(r.invitation_count, 1);
+  }
+
+  const xyzRefreshed = await getCustomerCompanyById(xyzCompany.id, testEnv);
+  assert.ok(xyzRefreshed);
+  assert.strictEqual(xyzRefreshed.recipients.length, 2);
+  for (const r of xyzRefreshed.recipients) {
+    assert.strictEqual(r.last_invitation_status, 'sent');
+    assert.strictEqual(r.invitation_count, 1);
+  }
+
+  // Cleanup test companies
+  await deleteCustomerCompany(singleRecCompany.id, testEnv);
+  await deleteCustomerCompany(abcCompany.id, testEnv);
+  await deleteCustomerCompany(xyzCompany.id, testEnv);
+
+  console.log('  ✓ PASSED: Company grouping, single/multi recipients, and cross-company isolation verified.\n');
 
   // --------------------------------------------------------------------------
   // TEST 4: Re-invitation Protections & Safe Retries for Failed Invitations

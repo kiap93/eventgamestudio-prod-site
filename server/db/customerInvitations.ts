@@ -108,6 +108,13 @@ export function isMissingTableOrRpcError(err: any): boolean {
 }
 
 /**
+ * Validates whether a value is a valid UUID string
+ */
+function isUUID(val: string | null | undefined): boolean {
+  return typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
+/**
  * Creates a stable migration-required error (HTTP 503).
  */
 export function createMigrationRequiredError(operationName?: string, detail?: string): Error {
@@ -919,12 +926,55 @@ export async function sendCompanyInvitations(
     throw configErr;
   }
 
-  // 3. Generate email content reusing existing template
+  // 3. Collect and deduplicate recipient emails for the company
+  const uniqueEmails: string[] = [];
+  const seenEmails = new Set<string>();
+
+  for (const recipient of check.allTargetRecipients) {
+    const trimmed = typeof recipient.email === 'string' ? recipient.email.trim() : '';
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (!seenEmails.has(lower)) {
+      seenEmails.add(lower);
+      uniqueEmails.push(trimmed);
+    }
+  }
+
+  if (uniqueEmails.length === 0) {
+    throw new Error('No valid recipient email addresses found for invitation');
+  }
+
+  // 4. Generate email content reusing existing template (addressed to the company team)
   const emailContent = generateCustomerInvitationEmail({
     companyName: company.company_name,
   });
 
+  // 5. Send ONE shared invitation email to all recipients belonging to the company via dedicated Resend service
+  let sendResult: any;
+  try {
+    sendResult = await sendEmailViaResend({
+      to: uniqueEmails,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+      fromEmail: senderCheck.fromAddress,
+      replyTo: 'eventgamestudio@gmail.com',
+      env,
+      fetchFn,
+    });
+  } catch (sendErr: any) {
+    sendResult = {
+      success: false,
+      error: sendErr?.message || 'Failed sending email via Resend',
+      status: 'failed',
+    };
+  }
+
   const now = new Date().toISOString();
+  const status: 'sent' | 'failed' = sendResult.success ? 'sent' : 'failed';
+  const messageId = sendResult.messageId;
+  const errorMessage = sendResult.error || (status === 'failed' ? 'Delivery failed' : null);
+
   const results: Array<{
     recipientId: string;
     email: string;
@@ -936,30 +986,17 @@ export async function sendCompanyInvitations(
   let sentCount = 0;
   let failedCount = 0;
 
+  // 6. Update individual recipient invitation records & audit logs
   for (const recipient of check.allTargetRecipients) {
     try {
-      // 4. Send each invitation through dedicated Resend service
-      const sendResult = await sendEmailViaResend({
-        to: recipient.email,
-        subject: emailContent.subject,
-        html: emailContent.html,
-        text: emailContent.text,
-        fromEmail: senderCheck.fromAddress,
-        replyTo: 'eventgamestudio@gmail.com',
-        env,
-        fetchFn,
-      });
-
       const logId = crypto.randomUUID();
-      const status: 'sent' | 'failed' = sendResult.success ? 'sent' : 'failed';
-
       if (status === 'sent') {
         sentCount++;
       } else {
         failedCount++;
       }
 
-      // 5. Record delivery-provider status and message ID in audit log
+      // Record delivery-provider status and message ID in audit log per recipient
       const logRecord: CustomerInvitationLogRecord = {
         id: logId,
         company_id: companyId,
@@ -967,10 +1004,10 @@ export async function sendCompanyInvitations(
         email: recipient.email,
         subject: emailContent.subject,
         provider: 'resend',
-        provider_message_id: sendResult.messageId || null,
+        provider_message_id: messageId || null,
         status,
-        error_message: sendResult.error || null,
-        sent_by_user_id: sentByUserId,
+        error_message: errorMessage,
+        sent_by_user_id: isUUID(sentByUserId) ? sentByUserId : null,
         created_at: now,
       };
 
@@ -980,7 +1017,7 @@ export async function sendCompanyInvitations(
         invitation_count: newCount,
         last_invited_at: status === 'sent' ? now : recipient.last_invited_at,
         last_invitation_status: status,
-        last_invitation_error: status === 'failed' ? (sendResult.error || 'Delivery failed') : null,
+        last_invitation_error: status === 'failed' ? errorMessage : null,
         updated_at: now,
       };
 
@@ -993,10 +1030,10 @@ export async function sendCompanyInvitations(
           p_email: recipient.email,
           p_subject: emailContent.subject,
           p_provider: 'resend',
-          p_provider_message_id: sendResult.messageId || null,
+          p_provider_message_id: messageId || null,
           p_status: status,
-          p_error_message: sendResult.error || null,
-          p_sent_by_user_id: sentByUserId,
+          p_error_message: errorMessage,
+          p_sent_by_user_id: isUUID(sentByUserId) ? sentByUserId : null,
         });
 
         if (dispatchErr) {
@@ -1030,12 +1067,15 @@ export async function sendCompanyInvitations(
         recipientId: recipient.id,
         email: recipient.email,
         status,
-        messageId: sendResult.messageId,
-        error: sendResult.error,
+        messageId,
+        error: status === 'failed' ? (errorMessage || undefined) : undefined,
       });
-    } catch (sendErr: any) {
-      failedCount++;
-      const errorMsg = sendErr?.message || 'Failed sending email';
+    } catch (recordErr: any) {
+      if (status === 'sent') {
+        sentCount = Math.max(0, sentCount - 1);
+        failedCount++;
+      }
+      const errorMsg = recordErr?.message || 'Failed recording recipient status';
       results.push({
         recipientId: recipient.id,
         email: recipient.email,
@@ -1046,7 +1086,7 @@ export async function sendCompanyInvitations(
   }
 
   return {
-    success: sentCount > 0,
+    success: sendResult.success && sentCount > 0,
     total: check.allTargetRecipients.length,
     sent: sentCount,
     failed: failedCount,
@@ -1075,14 +1115,25 @@ export async function handleCustomerInvitationWebhook(
   const now = new Date().toISOString();
 
   // Try Supabase first
+  const targetEmail = processed.recipient
+    ? processed.recipient.trim().toLowerCase()
+    : (Array.isArray(payload?.data?.to) && payload.data.to.length > 0
+        ? String(payload.data.to[0]).trim().toLowerCase()
+        : null);
+
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      const { data: logs, error } = await supabase
+      let query = supabase
         .from('customer_invitation_logs')
         .select('*')
-        .eq('provider_message_id', processed.emailId)
-        .limit(1);
+        .eq('provider_message_id', processed.emailId);
+
+      if (targetEmail) {
+        query = query.ilike('email', targetEmail);
+      }
+
+      const { data: logs, error } = await query.limit(1);
 
       if (!error && logs && logs.length > 0) {
         const log = logs[0];
@@ -1139,7 +1190,9 @@ export async function handleCustomerInvitationWebhook(
   }
 
   const store = readLocalStorage(env);
-  const log = store.logs.find((l) => l.provider_message_id === processed.emailId);
+  const log = store.logs.find(
+    (l) => l.provider_message_id === processed.emailId && (!targetEmail || l.email.trim().toLowerCase() === targetEmail)
+  ) || store.logs.find((l) => l.provider_message_id === processed.emailId);
   if (log) {
     if (processed.deliveryStatus === 'bounced' || processed.deliveryStatus === 'complained') {
       log.status = 'failed';
@@ -1289,3 +1342,129 @@ export async function getCustomerInvitationStats(env?: Record<string, any>): Pro
     totalInvitationsSent,
   };
 }
+
+export interface CrossCompanyDuplicateMatch {
+  email: string;
+  company_id: string;
+  company_name: string;
+}
+
+/**
+ * Checks if any of the provided emails are already associated with another customer company.
+ * Case-insensitively normalizes emails and excludes the specified company (if editing).
+ */
+export async function findCrossCompanyDuplicates(
+  emails: string[],
+  excludeCompanyId?: string,
+  env?: Record<string, any>
+): Promise<CrossCompanyDuplicateMatch[]> {
+  assertProductionCustomerInvitationsSafe('findCrossCompanyDuplicates', env);
+
+  if (!Array.isArray(emails) || emails.length === 0) {
+    return [];
+  }
+
+  // Normalize emails: lowercase and trim
+  const cleanEmails = Array.from(
+    new Set(
+      emails
+        .map((e) => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+        .filter((e) => e.length > 0)
+    )
+  );
+
+  if (cleanEmails.length === 0) {
+    return [];
+  }
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+
+    let query = supabase
+      .from('customer_company_recipients')
+      .select('email, company_id')
+      .in('email', cleanEmails);
+
+    if (excludeCompanyId && isUUID(excludeCompanyId)) {
+      query = query.neq('company_id', excludeCompanyId);
+    }
+
+    const { data: recData, error: recErr } = await query;
+
+    if (recErr) {
+      console.error('[findCrossCompanyDuplicates] Database error querying recipients:', recErr);
+      if (isMissingTableOrRpcError(recErr)) {
+        throw createMigrationRequiredError('findCrossCompanyDuplicates', recErr.message);
+      }
+      throw new Error(`Database error querying cross-company duplicates: ${recErr.message}`);
+    }
+
+    if (!recData || recData.length === 0) {
+      return [];
+    }
+
+    // Load company names for matched company IDs
+    const matchedCompanyIds = Array.from(new Set(recData.map((r) => r.company_id)));
+    const { data: compData, error: compErr } = await supabase
+      .from('customer_companies')
+      .select('id, company_name')
+      .in('id', matchedCompanyIds);
+
+    if (compErr) {
+      console.error('[findCrossCompanyDuplicates] Database error querying company names:', compErr);
+    }
+
+    const compNameMap = new Map((compData || []).map((c) => [c.id, c.company_name]));
+
+    const results: CrossCompanyDuplicateMatch[] = [];
+    const seenPairs = new Set<string>();
+
+    for (const r of recData) {
+      const emailLower = r.email.toLowerCase();
+      const pairKey = `${emailLower}:${r.company_id}`;
+      if (!seenPairs.has(pairKey)) {
+        seenPairs.add(pairKey);
+        results.push({
+          email: emailLower,
+          company_id: r.company_id,
+          company_name: compNameMap.get(r.company_id) || 'Existing Customer Company',
+        });
+      }
+    }
+
+    return results;
+  }
+
+  // Local storage fallback ONLY when allowed in non-production
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    throw new Error(
+      'Fatal: Customer duplicate lookup requires a valid Supabase database in production/Worker environment. Local database fallback is strictly prohibited.'
+    );
+  }
+
+  const store = readLocalStorage(env);
+  const compNameMap = new Map(store.companies.map((c) => [c.id, c.company_name]));
+  const results: CrossCompanyDuplicateMatch[] = [];
+  const seenPairs = new Set<string>();
+
+  for (const r of store.recipients) {
+    if (excludeCompanyId && r.company_id === excludeCompanyId) {
+      continue;
+    }
+    const emailLower = (r.email || '').trim().toLowerCase();
+    if (cleanEmails.includes(emailLower)) {
+      const pairKey = `${emailLower}:${r.company_id}`;
+      if (!seenPairs.has(pairKey)) {
+        seenPairs.add(pairKey);
+        results.push({
+          email: emailLower,
+          company_id: r.company_id,
+          company_name: compNameMap.get(r.company_id) || 'Existing Customer Company',
+        });
+      }
+    }
+  }
+
+  return results;
+}
+

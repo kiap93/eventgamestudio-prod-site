@@ -1,0 +1,4317 @@
+[
+  {
+    "file": "src/components/events/showcase/ShowcaseMediaPreviewModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 23,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 206,
+        "type": "placeholder",
+        "text": "https://.../video-poster.jpg"
+      }
+    ]
+  },
+  {
+    "file": "src/components/events/showcase/ShowcaseMediaCard.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 23,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/events/PublicShowcaseView.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 287,
+        "type": "aria-label",
+        "text": "EventGameStudio Home"
+      },
+      {
+        "line": 294,
+        "type": "jsx-text",
+        "text": "Studio"
+      },
+      {
+        "line": 840,
+        "type": "jsx-text",
+        "text": "EventGameStudio"
+      }
+    ]
+  },
+  {
+    "file": "src/components/events/EventShowcaseTab.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 454,
+        "type": "placeholder",
+        "text": "https://.../logo.png"
+      },
+      {
+        "line": 469,
+        "type": "placeholder",
+        "text": "https://.../cover-banner.jpg"
+      },
+      {
+        "line": 678,
+        "type": "placeholder",
+        "text": "https://.../logo.png"
+      },
+      {
+        "line": 707,
+        "type": "placeholder",
+        "text": "https://.../cover.jpg"
+      }
+    ]
+  },
+  {
+    "file": "src/components/events/EventShowcasePage.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 1101,
+        "type": "placeholder",
+        "text": "https://.../client-logo.png"
+      },
+      {
+        "line": 1141,
+        "type": "placeholder",
+        "text": "https://.../showcase-hero-banner.jpg"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperEmailSettings.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 440,
+        "type": "placeholder",
+        "text": "developer@yourcompany.com"
+      },
+      {
+        "line": 537,
+        "type": "jsx-text",
+        "text": "Environment Variables"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperGameDetail.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 36,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 37,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 38,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 39,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 40,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 41,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 42,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 99,
+        "type": "jsx-text",
+        "text": "Game Not Found"
+      },
+      {
+        "line": 231,
+        "type": "jsx-text",
+        "text": "No System Themes Configured"
+      },
+      {
+        "line": 249,
+        "type": "jsx-text",
+        "text": "i.points"
+      },
+      {
+        "line": 270,
+        "type": "jsx-text",
+        "text": "No Custom Background"
+      },
+      {
+        "line": 328,
+        "type": "jsx-text",
+        "text": "Items"
+      },
+      {
+        "line": 332,
+        "type": "jsx-text",
+        "text": "Rewards"
+      },
+      {
+        "line": 336,
+        "type": "jsx-text",
+        "text": "Hazards"
+      },
+      {
+        "line": 485,
+        "type": "jsx-text",
+        "text": "Unset Primary Default?"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperContactSettings.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 215,
+        "type": "jsx-text",
+        "text": "Contact & Enquiry Variables"
+      },
+      {
+        "line": 228,
+        "type": "title",
+        "text": "Reload settings from database"
+      },
+      {
+        "line": 231,
+        "type": "jsx-text",
+        "text": "Refresh"
+      },
+      {
+        "line": 331,
+        "type": "jsx-text",
+        "text": "Client Enquiries & Form Submissions"
+      },
+      {
+        "line": 358,
+        "type": "jsx-text",
+        "text": "Refresh"
+      },
+      {
+        "line": 371,
+        "type": "jsx-text",
+        "text": "No Enquiries Received Yet"
+      },
+      {
+        "line": 553,
+        "type": "placeholder",
+        "text": "e.g. 60162128913"
+      },
+      {
+        "line": 572,
+        "type": "placeholder",
+        "text": "e.g. +60 16-212 8913"
+      },
+      {
+        "line": 590,
+        "type": "placeholder",
+        "text": "e.g. Hello Event Game Studio! I"
+      },
+      {
+        "line": 658,
+        "type": "placeholder",
+        "text": "contact@eventgamestudio.com"
+      },
+      {
+        "line": 679,
+        "type": "placeholder",
+        "text": "Kuala Lumpur, Malaysia (UTC+8)"
+      },
+      {
+        "line": 700,
+        "type": "placeholder",
+        "text": "Mon – Sat, 9:00 AM – 7:00 PM (UTC+8) | <15 min reply during live events"
+      },
+      {
+        "line": 732,
+        "type": "jsx-text",
+        "text": "Public Surface Impact"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperShowcaseReviews.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 658,
+        "type": "jsx-text",
+        "text": "View / Inspect"
+      },
+      {
+        "line": 790,
+        "type": "jsx-text",
+        "text": "Media"
+      },
+      {
+        "line": 792,
+        "type": "jsx-text",
+        "text": "RM300 Reward"
+      },
+      {
+        "line": 793,
+        "type": "jsx-text",
+        "text": "Visibility"
+      },
+      {
+        "line": 794,
+        "type": "jsx-text",
+        "text": "Actions"
+      },
+      {
+        "line": 967,
+        "type": "jsx-text",
+        "text": "Share"
+      },
+      {
+        "line": 991,
+        "type": "jsx-text",
+        "text": "Approve Reward"
+      },
+      {
+        "line": 1091,
+        "type": "jsx-text",
+        "text": "atomically."
+      },
+      {
+        "line": 1092,
+        "type": "jsx-text",
+        "text": "RM300 Showcase Credit"
+      },
+      {
+        "line": 1092,
+        "type": "jsx-text",
+        "text": "into the organization wallet."
+      },
+      {
+        "line": 1425,
+        "type": "jsx-text",
+        "text": "Delete"
+      },
+      {
+        "line": 1452,
+        "type": "jsx-text",
+        "text": "Link copied"
+      },
+      {
+        "line": 1457,
+        "type": "jsx-text",
+        "text": "Share"
+      },
+      {
+        "line": 1505,
+        "type": "jsx-text",
+        "text": "Block Showcase"
+      },
+      {
+        "line": 1558,
+        "type": "jsx-text",
+        "text": "Unblock Showcase"
+      },
+      {
+        "line": 1610,
+        "type": "jsx-text",
+        "text": "Soft Delete Showcase"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/CreateGameModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 13,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 229,
+        "type": "placeholder",
+        "text": "catch-brand"
+      },
+      {
+        "line": 294,
+        "type": "placeholder",
+        "text": "Gamepad2"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperAdminLayout.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 152,
+        "type": "jsx-text",
+        "text": "Platform"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/invitations/DeveloperCustomerInvitations.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 618,
+        "type": "jsx-text",
+        "text": "Resend"
+      },
+      {
+        "line": 895,
+        "type": "jsx-text",
+        "text": "Send Customer Invitations"
+      },
+      {
+        "line": 1028,
+        "type": "jsx-text",
+        "text": "Invitation to Try EventGameStudio"
+      },
+      {
+        "line": 1029,
+        "type": "jsx-text",
+        "text": "Service: Dedicated Resend API"
+      },
+      {
+        "line": 1056,
+        "type": "jsx-text",
+        "text": "Delivering via Resend..."
+      },
+      {
+        "line": 1116,
+        "type": "jsx-text",
+        "text": "Required"
+      },
+      {
+        "line": 1123,
+        "type": "placeholder",
+        "text": "e.g. ABC Event Management Ltd"
+      },
+      {
+        "line": 1136,
+        "type": "placeholder",
+        "text": "e.g. Sarah Tan"
+      },
+      {
+        "line": 1142,
+        "type": "jsx-text",
+        "text": "Notes / Industry"
+      },
+      {
+        "line": 1147,
+        "type": "placeholder",
+        "text": "e.g. Event agency, corporate roadshows"
+      },
+      {
+        "line": 1260,
+        "type": "jsx-text",
+        "text": "Email Invitation Template Preview"
+      },
+      {
+        "line": 1315,
+        "type": "jsx-text",
+        "text": "Invitation to Try EventGameStudio"
+      },
+      {
+        "line": 1332,
+        "type": "jsx-text",
+        "text": "Rendering preview..."
+      },
+      {
+        "line": 1399,
+        "type": "jsx-text",
+        "text": "Customer Invitation Audit Logs"
+      },
+      {
+        "line": 1428,
+        "type": "jsx-text",
+        "text": "Date / Time"
+      },
+      {
+        "line": 1429,
+        "type": "jsx-text",
+        "text": "Recipient Email"
+      },
+      {
+        "line": 1430,
+        "type": "jsx-text",
+        "text": "Provider"
+      },
+      {
+        "line": 1431,
+        "type": "jsx-text",
+        "text": "Status"
+      },
+      {
+        "line": 1432,
+        "type": "jsx-text",
+        "text": "Details"
+      },
+      {
+        "line": 1499,
+        "type": "jsx-text",
+        "text": "Delete Customer Company?"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperErrorLogs.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 296,
+        "type": "jsx-text",
+        "text": "PostgreSQL"
+      },
+      {
+        "line": 297,
+        "type": "jsx-text",
+        "text": "Supabase"
+      },
+      {
+        "line": 298,
+        "type": "jsx-text",
+        "text": "Stripe"
+      },
+      {
+        "line": 299,
+        "type": "jsx-text",
+        "text": "Storage"
+      },
+      {
+        "line": 301,
+        "type": "jsx-text",
+        "text": "Auth / Token"
+      },
+      {
+        "line": 302,
+        "type": "jsx-text",
+        "text": "Validation"
+      },
+      {
+        "line": 303,
+        "type": "jsx-text",
+        "text": "Unknown"
+      },
+      {
+        "line": 341,
+        "type": "jsx-text",
+        "text": "All Time"
+      },
+      {
+        "line": 342,
+        "type": "jsx-text",
+        "text": "Last 24 Hours"
+      },
+      {
+        "line": 343,
+        "type": "jsx-text",
+        "text": "Last 7 Days"
+      },
+      {
+        "line": 344,
+        "type": "jsx-text",
+        "text": "Last 30 Days"
+      },
+      {
+        "line": 351,
+        "type": "jsx-text",
+        "text": "Active filters applied"
+      },
+      {
+        "line": 376,
+        "type": "jsx-text",
+        "text": "Status & Time"
+      },
+      {
+        "line": 377,
+        "type": "jsx-text",
+        "text": "Request / Correlation ID"
+      },
+      {
+        "line": 378,
+        "type": "jsx-text",
+        "text": "Method & Endpoint"
+      },
+      {
+        "line": 379,
+        "type": "jsx-text",
+        "text": "Service"
+      },
+      {
+        "line": 380,
+        "type": "jsx-text",
+        "text": "Error Message / Type"
+      },
+      {
+        "line": 381,
+        "type": "jsx-text",
+        "text": "Action"
+      },
+      {
+        "line": 661,
+        "type": "jsx-text",
+        "text": "Copy Stack"
+      },
+      {
+        "line": 688,
+        "type": "jsx-text",
+        "text": "Copy JSON"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperGamePricingManager.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 628,
+        "type": "placeholder",
+        "text": "e.g. 1"
+      },
+      {
+        "line": 667,
+        "type": "placeholder",
+        "text": "e.g. 1400.00"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperPricingManager.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 530,
+        "type": "title",
+        "text": "Execute background maintenance job to cancel expired unpaid events and complete expired live events"
+      },
+      {
+        "line": 758,
+        "type": "placeholder",
+        "text": "0.00"
+      },
+      {
+        "line": 814,
+        "type": "jsx-text",
+        "text": "Duration Tiers"
+      },
+      {
+        "line": 822,
+        "type": "jsx-text",
+        "text": "Platform Events"
+      },
+      {
+        "line": 830,
+        "type": "jsx-text",
+        "text": "Custom Overrides"
+      },
+      {
+        "line": 838,
+        "type": "jsx-text",
+        "text": "Credit Coverage"
+      },
+      {
+        "line": 889,
+        "type": "jsx-text",
+        "text": "Authoritative Price"
+      },
+      {
+        "line": 891,
+        "type": "jsx-text",
+        "text": "Status"
+      },
+      {
+        "line": 892,
+        "type": "jsx-text",
+        "text": "Actions"
+      },
+      {
+        "line": 1096,
+        "type": "jsx-text",
+        "text": "Organization"
+      },
+      {
+        "line": 1101,
+        "type": "jsx-text",
+        "text": "Payment Status"
+      },
+      {
+        "line": 1102,
+        "type": "jsx-text",
+        "text": "Actions"
+      },
+      {
+        "line": 1351,
+        "type": "placeholder",
+        "text": "0.00"
+      },
+      {
+        "line": 1458,
+        "type": "placeholder",
+        "text": "0.00"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperOrganizationDetail.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 251,
+        "type": "jsx-text",
+        "text": "Error Loading Organization"
+      },
+      {
+        "line": 381,
+        "type": "jsx-text",
+        "text": "Wallet & Ledger Balances"
+      },
+      {
+        "line": 420,
+        "type": "jsx-text",
+        "text": "Deposited cash balance"
+      },
+      {
+        "line": 443,
+        "type": "jsx-text",
+        "text": "Promotional manual grant"
+      },
+      {
+        "line": 478,
+        "type": "jsx-text",
+        "text": "RM300 review reward"
+      },
+      {
+        "line": 489,
+        "type": "jsx-text",
+        "text": "Deposit bonus credits"
+      },
+      {
+        "line": 663,
+        "type": "jsx-text",
+        "text": "Member"
+      },
+      {
+        "line": 664,
+        "type": "jsx-text",
+        "text": "Email"
+      },
+      {
+        "line": 666,
+        "type": "jsx-text",
+        "text": "Joined Date"
+      },
+      {
+        "line": 738,
+        "type": "jsx-text",
+        "text": "Event Title"
+      },
+      {
+        "line": 740,
+        "type": "jsx-text",
+        "text": "Status"
+      },
+      {
+        "line": 741,
+        "type": "jsx-text",
+        "text": "Event Price"
+      },
+      {
+        "line": 742,
+        "type": "jsx-text",
+        "text": "Created"
+      },
+      {
+        "line": 743,
+        "type": "jsx-text",
+        "text": "Public Link"
+      },
+      {
+        "line": 801,
+        "type": "jsx-text",
+        "text": "Source of Truth"
+      },
+      {
+        "line": 813,
+        "type": "jsx-text",
+        "text": "Type / Description"
+      },
+      {
+        "line": 814,
+        "type": "jsx-text",
+        "text": "Amount"
+      },
+      {
+        "line": 815,
+        "type": "jsx-text",
+        "text": "Balance After"
+      },
+      {
+        "line": 816,
+        "type": "jsx-text",
+        "text": "Reference"
+      },
+      {
+        "line": 817,
+        "type": "jsx-text",
+        "text": "Timestamp"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/CreateDefaultThemeModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 12,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/developer/DeveloperGamesList.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 32,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 33,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 34,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/result-editor/LayerTreePanel.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 271,
+        "type": "title",
+        "text": "Ungroup this Group"
+      },
+      {
+        "line": 311,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 324,
+        "type": "title",
+        "text": "Bring Forward (1 step)"
+      },
+      {
+        "line": 337,
+        "type": "title",
+        "text": "Send Backward (1 step)"
+      },
+      {
+        "line": 350,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 369,
+        "type": "title",
+        "text": "Add child into container"
+      },
+      {
+        "line": 499,
+        "type": "title",
+        "text": "Duplicate"
+      },
+      {
+        "line": 512,
+        "type": "title",
+        "text": "Delete"
+      },
+      {
+        "line": 538,
+        "type": "title",
+        "text": "Expand Layers Panel"
+      },
+      {
+        "line": 576,
+        "type": "title",
+        "text": "Browse Result Screen Presets"
+      },
+      {
+        "line": 579,
+        "type": "jsx-text",
+        "text": "Presets"
+      },
+      {
+        "line": 589,
+        "type": "title",
+        "text": "Add New Root Element"
+      },
+      {
+        "line": 716,
+        "type": "title",
+        "text": "Collapse Layers Panel"
+      },
+      {
+        "line": 732,
+        "type": "placeholder",
+        "text": "Search layers..."
+      },
+      {
+        "line": 760,
+        "type": "title",
+        "text": "Group selected elements (Ctrl+G)"
+      },
+      {
+        "line": 763,
+        "type": "jsx-text",
+        "text": "Group"
+      },
+      {
+        "line": 773,
+        "type": "title",
+        "text": "Ungroup selected (Ctrl+Shift+G)"
+      },
+      {
+        "line": 776,
+        "type": "jsx-text",
+        "text": "Ungroup"
+      },
+      {
+        "line": 812,
+        "type": "jsx-text",
+        "text": "Click to select"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/result-editor/PropertyInspectorPanel.tsx",
+    "hasUseLoc": false,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 95,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 345,
+        "type": "title",
+        "text": "Expand Property Inspector"
+      },
+      {
+        "line": 351,
+        "type": "jsx-text",
+        "text": "Properties"
+      },
+      {
+        "line": 375,
+        "type": "jsx-text",
+        "text": "Property Inspector"
+      },
+      {
+        "line": 402,
+        "type": "title",
+        "text": "Collapse Inspector"
+      },
+      {
+        "line": 440,
+        "type": "title",
+        "text": "Click to isolate this element"
+      },
+      {
+        "line": 456,
+        "type": "jsx-text",
+        "text": "Container Centering"
+      },
+      {
+        "line": 465,
+        "type": "jsx-text",
+        "text": "Center X"
+      },
+      {
+        "line": 473,
+        "type": "jsx-text",
+        "text": "Center Y"
+      },
+      {
+        "line": 490,
+        "type": "jsx-text",
+        "text": "Relative Alignment"
+      },
+      {
+        "line": 507,
+        "type": "jsx-text",
+        "text": "Center"
+      },
+      {
+        "line": 515,
+        "type": "jsx-text",
+        "text": "Right"
+      },
+      {
+        "line": 531,
+        "type": "jsx-text",
+        "text": "Middle"
+      },
+      {
+        "line": 539,
+        "type": "jsx-text",
+        "text": "Bottom"
+      },
+      {
+        "line": 558,
+        "type": "jsx-text",
+        "text": "Horizontal"
+      },
+      {
+        "line": 567,
+        "type": "jsx-text",
+        "text": "Vertical"
+      },
+      {
+        "line": 576,
+        "type": "jsx-text",
+        "text": "Layer Stacking"
+      },
+      {
+        "line": 585,
+        "type": "jsx-text",
+        "text": "Front"
+      },
+      {
+        "line": 593,
+        "type": "jsx-text",
+        "text": "Forward"
+      },
+      {
+        "line": 601,
+        "type": "jsx-text",
+        "text": "Backward"
+      },
+      {
+        "line": 618,
+        "type": "jsx-text",
+        "text": "Group & Layer Control"
+      },
+      {
+        "line": 627,
+        "type": "title",
+        "text": "Group selected elements into a single group (Ctrl+G)"
+      },
+      {
+        "line": 640,
+        "type": "title",
+        "text": "Ungroup selected group(s) (Ctrl+Shift+G)"
+      },
+      {
+        "line": 643,
+        "type": "jsx-text",
+        "text": "Ungroup"
+      },
+      {
+        "line": 656,
+        "type": "title",
+        "text": "Toggle lock for all selected elements (Ctrl+L)"
+      },
+      {
+        "line": 741,
+        "type": "title",
+        "text": "Duplicate"
+      },
+      {
+        "line": 751,
+        "type": "title",
+        "text": "Delete"
+      },
+      {
+        "line": 782,
+        "type": "jsx-text",
+        "text": "X Pos"
+      },
+      {
+        "line": 800,
+        "type": "jsx-text",
+        "text": "Y Pos"
+      },
+      {
+        "line": 818,
+        "type": "jsx-text",
+        "text": "Width"
+      },
+      {
+        "line": 836,
+        "type": "jsx-text",
+        "text": "Height"
+      },
+      {
+        "line": 861,
+        "type": "jsx-text",
+        "text": "Center X"
+      },
+      {
+        "line": 869,
+        "type": "jsx-text",
+        "text": "Center Y"
+      },
+      {
+        "line": 876,
+        "type": "jsx-text",
+        "text": "Rotation"
+      },
+      {
+        "line": 920,
+        "type": "jsx-text",
+        "text": "Opacity"
+      },
+      {
+        "line": 980,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 983,
+        "type": "jsx-text",
+        "text": "Front"
+      },
+      {
+        "line": 989,
+        "type": "title",
+        "text": "Bring Forward (1 step)"
+      },
+      {
+        "line": 992,
+        "type": "jsx-text",
+        "text": "Forward"
+      },
+      {
+        "line": 998,
+        "type": "title",
+        "text": "Send Backward (1 step)"
+      },
+      {
+        "line": 1007,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 1010,
+        "type": "jsx-text",
+        "text": "Bottom"
+      },
+      {
+        "line": 1028,
+        "type": "jsx-text",
+        "text": "Content String"
+      },
+      {
+        "line": 1044,
+        "type": "jsx-text",
+        "text": "Font Family"
+      },
+      {
+        "line": 1064,
+        "type": "jsx-text",
+        "text": "Font Size"
+      },
+      {
+        "line": 1141,
+        "type": "jsx-text",
+        "text": "Border Radius"
+      },
+      {
+        "line": 1159,
+        "type": "jsx-text",
+        "text": "Border Width"
+      },
+      {
+        "line": 1232,
+        "type": "jsx-text",
+        "text": "Upload BG"
+      },
+      {
+        "line": 1260,
+        "type": "jsx-text",
+        "text": "Custom Label"
+      },
+      {
+        "line": 1276,
+        "type": "jsx-text",
+        "text": "Layout"
+      },
+      {
+        "line": 1296,
+        "type": "jsx-text",
+        "text": "Value Font Size"
+      },
+      {
+        "line": 1359,
+        "type": "jsx-text",
+        "text": "Image URL"
+      },
+      {
+        "line": 1363,
+        "type": "placeholder",
+        "text": "https://... or upload"
+      },
+      {
+        "line": 1385,
+        "type": "jsx-text",
+        "text": "Upload New Image"
+      },
+      {
+        "line": 1403,
+        "type": "jsx-text",
+        "text": "Button Label"
+      },
+      {
+        "line": 1419,
+        "type": "jsx-text",
+        "text": "Action"
+      },
+      {
+        "line": 1431,
+        "type": "jsx-text",
+        "text": "Exit Game"
+      },
+      {
+        "line": 1436,
+        "type": "jsx-text",
+        "text": "Corner Radius"
+      },
+      {
+        "line": 1510,
+        "type": "jsx-text",
+        "text": "Leaderboard Settings"
+      },
+      {
+        "line": 1512,
+        "type": "jsx-text",
+        "text": "Dynamic Ranking"
+      },
+      {
+        "line": 1518,
+        "type": "jsx-text",
+        "text": "Header Title"
+      },
+      {
+        "line": 1554,
+        "type": "jsx-text",
+        "text": "Displayed Rows"
+      },
+      {
+        "line": 1609,
+        "type": "jsx-text",
+        "text": "Player Name"
+      },
+      {
+        "line": 1625,
+        "type": "jsx-text",
+        "text": "Score"
+      },
+      {
+        "line": 1641,
+        "type": "jsx-text",
+        "text": "Moves"
+      },
+      {
+        "line": 1673,
+        "type": "jsx-text",
+        "text": "Accuracy"
+      },
+      {
+        "line": 1695,
+        "type": "jsx-text",
+        "text": "Highlight Current Player Row"
+      },
+      {
+        "line": 1702,
+        "type": "jsx-text",
+        "text": "Base Font Size"
+      },
+      {
+        "line": 1720,
+        "type": "jsx-text",
+        "text": "Corner Radius"
+      },
+      {
+        "line": 1745,
+        "type": "jsx-text",
+        "text": "Header"
+      },
+      {
+        "line": 1760,
+        "type": "jsx-text",
+        "text": "Scores"
+      },
+      {
+        "line": 1798,
+        "type": "jsx-text",
+        "text": "Input Placeholder"
+      },
+      {
+        "line": 1815,
+        "type": "jsx-text",
+        "text": "Max Name Length"
+      },
+      {
+        "line": 1834,
+        "type": "jsx-text",
+        "text": "Button Label"
+      },
+      {
+        "line": 1851,
+        "type": "jsx-text",
+        "text": "Success Message"
+      },
+      {
+        "line": 1893,
+        "type": "title",
+        "text": "Unpack group children into parent coordinate system (Ctrl+Shift+G)"
+      },
+      {
+        "line": 1896,
+        "type": "jsx-text",
+        "text": "Ungroup Elements"
+      },
+      {
+        "line": 1903,
+        "type": "jsx-text",
+        "text": "No children"
+      },
+      {
+        "line": 1952,
+        "type": "jsx-text",
+        "text": "Add Elements to Canvas"
+      },
+      {
+        "line": 1967,
+        "type": "jsx-text",
+        "text": "Card Container"
+      },
+      {
+        "line": 1975,
+        "type": "jsx-text",
+        "text": "Group Wrapper"
+      },
+      {
+        "line": 1992,
+        "type": "jsx-text",
+        "text": "Text Block"
+      },
+      {
+        "line": 2000,
+        "type": "jsx-text",
+        "text": "Image / Icon"
+      },
+      {
+        "line": 2047,
+        "type": "jsx-text",
+        "text": "Button"
+      },
+      {
+        "line": 2057,
+        "type": "jsx-text",
+        "text": "Screen Background"
+      },
+      {
+        "line": 2061,
+        "type": "jsx-text",
+        "text": "Background Type"
+      },
+      {
+        "line": 2104,
+        "type": "jsx-text",
+        "text": "Upload Screen Wallpaper"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/result-editor/ResultScreenBasicEditor.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 56,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 603,
+        "type": "jsx-text",
+        "text": "Change"
+      },
+      {
+        "line": 609,
+        "type": "title",
+        "text": "Remove custom image"
+      },
+      {
+        "line": 628,
+        "type": "jsx-text",
+        "text": "or drag and drop"
+      },
+      {
+        "line": 651,
+        "type": "jsx-text",
+        "text": "Background Overlay Dimming"
+      },
+      {
+        "line": 681,
+        "type": "jsx-text",
+        "text": "Result Screen Text &amp; Labels"
+      },
+      {
+        "line": 690,
+        "type": "jsx-text",
+        "text": "Headline Title"
+      },
+      {
+        "line": 706,
+        "type": "placeholder",
+        "text": "PLAY AGAIN"
+      },
+      {
+        "line": 720,
+        "type": "jsx-text",
+        "text": "Result Statistics &amp; Elements"
+      },
+      {
+        "line": 743,
+        "type": "jsx-text",
+        "text": "Final Score"
+      },
+      {
+        "line": 744,
+        "type": "jsx-text",
+        "text": "Total brand points collected"
+      },
+      {
+        "line": 776,
+        "type": "jsx-text",
+        "text": "Time Elapsed"
+      },
+      {
+        "line": 777,
+        "type": "jsx-text",
+        "text": "Active catching duration"
+      },
+      {
+        "line": 811,
+        "type": "jsx-text",
+        "text": "Catch Accuracy"
+      },
+      {
+        "line": 812,
+        "type": "jsx-text",
+        "text": "Good items caught vs missed"
+      },
+      {
+        "line": 844,
+        "type": "jsx-text",
+        "text": "Event Leaderboard"
+      },
+      {
+        "line": 845,
+        "type": "jsx-text",
+        "text": "Top ranking players list"
+      },
+      {
+        "line": 877,
+        "type": "jsx-text",
+        "text": "Play Again Button"
+      },
+      {
+        "line": 878,
+        "type": "jsx-text",
+        "text": "Replay game action trigger"
+      },
+      {
+        "line": 917,
+        "type": "jsx-text",
+        "text": "Final Score"
+      },
+      {
+        "line": 918,
+        "type": "jsx-text",
+        "text": "Total score and combo points"
+      },
+      {
+        "line": 952,
+        "type": "jsx-text",
+        "text": "Moves Count"
+      },
+      {
+        "line": 953,
+        "type": "jsx-text",
+        "text": "Total card flip attempts"
+      },
+      {
+        "line": 987,
+        "type": "jsx-text",
+        "text": "Pairs Matched"
+      },
+      {
+        "line": 988,
+        "type": "jsx-text",
+        "text": "Completed card pairs"
+      },
+      {
+        "line": 1022,
+        "type": "jsx-text",
+        "text": "Accuracy Rate"
+      },
+      {
+        "line": 1023,
+        "type": "jsx-text",
+        "text": "Matching precision percentage"
+      },
+      {
+        "line": 1055,
+        "type": "jsx-text",
+        "text": "Event Leaderboard"
+      },
+      {
+        "line": 1056,
+        "type": "jsx-text",
+        "text": "Top ranking players list"
+      },
+      {
+        "line": 1088,
+        "type": "jsx-text",
+        "text": "Play Again Button"
+      },
+      {
+        "line": 1089,
+        "type": "jsx-text",
+        "text": "Replay game action trigger"
+      },
+      {
+        "line": 1140,
+        "type": "jsx-text",
+        "text": "Average Reaction Time"
+      },
+      {
+        "line": 1141,
+        "type": "jsx-text",
+        "text": "Primary reflex benchmark metric"
+      },
+      {
+        "line": 1190,
+        "type": "jsx-text",
+        "text": "Best Reaction"
+      },
+      {
+        "line": 1191,
+        "type": "jsx-text",
+        "text": "Fastest single round reflex"
+      },
+      {
+        "line": 1240,
+        "type": "jsx-text",
+        "text": "Worst Reaction"
+      },
+      {
+        "line": 1241,
+        "type": "jsx-text",
+        "text": "Slowest reaction or penalty"
+      },
+      {
+        "line": 1290,
+        "type": "jsx-text",
+        "text": "Round Results"
+      },
+      {
+        "line": 1291,
+        "type": "jsx-text",
+        "text": "Individual 5-round reaction times"
+      },
+      {
+        "line": 1342,
+        "type": "jsx-text",
+        "text": "Godlike, F1 Driver, Fast tier"
+      },
+      {
+        "line": 1391,
+        "type": "jsx-text",
+        "text": "Event Leaderboard"
+      },
+      {
+        "line": 1392,
+        "type": "jsx-text",
+        "text": "Top ranking reaction scores"
+      },
+      {
+        "line": 1441,
+        "type": "jsx-text",
+        "text": "Play Again Button"
+      },
+      {
+        "line": 1442,
+        "type": "jsx-text",
+        "text": "Replay game action trigger"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/result-editor/SaveTemplateModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 121,
+        "type": "placeholder",
+        "text": "e.g. Neon Cyberpunk Victory Screen"
+      },
+      {
+        "line": 136,
+        "type": "placeholder",
+        "text": "Brief summary of layout design, target theme, or branding notes..."
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/result-editor/ResultScreenVisualEditorModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 51,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/result-editor/PresetLibraryModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 332,
+        "type": "jsx-text",
+        "text": "No Custom Templates Saved"
+      },
+      {
+        "line": 346,
+        "type": "jsx-text",
+        "text": "Save Current Screen as Template"
+      },
+      {
+        "line": 385,
+        "type": "title",
+        "text": "Delete template"
+      },
+      {
+        "line": 479,
+        "type": "jsx-text",
+        "text": "Replace Existing Layout?"
+      },
+      {
+        "line": 488,
+        "type": "jsx-text",
+        "text": "Dynamic game statistics (Score, Time, Moves, Accuracy) will automatically link to the new layout."
+      },
+      {
+        "line": 509,
+        "type": "jsx-text",
+        "text": "Replace & Apply"
+      },
+      {
+        "line": 524,
+        "type": "jsx-text",
+        "text": "Delete Custom Template?"
+      },
+      {
+        "line": 545,
+        "type": "jsx-text",
+        "text": "Delete Template"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/MemoryMatchCustomizer.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 137,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 489,
+        "type": "placeholder",
+        "text": "#0F172A"
+      },
+      {
+        "line": 626,
+        "type": "jsx-text",
+        "text": "Match Success Background"
+      },
+      {
+        "line": 653,
+        "type": "jsx-text",
+        "text": "Reset"
+      },
+      {
+        "line": 688,
+        "type": "jsx-text",
+        "text": "Background Color"
+      },
+      {
+        "line": 724,
+        "type": "placeholder",
+        "text": "#064E3B"
+      },
+      {
+        "line": 774,
+        "type": "jsx-text",
+        "text": "Background Opacity"
+      },
+      {
+        "line": 918,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 1623,
+        "type": "jsx-text",
+        "text": "Card Dimensions, Shape & Rotation"
+      },
+      {
+        "line": 2133,
+        "type": "jsx-text",
+        "text": "Combo Streak Bonus"
+      },
+      {
+        "line": 2159,
+        "type": "jsx-text",
+        "text": "Leaderboard & Social Display"
+      },
+      {
+        "line": 2216,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 2619,
+        "type": "jsx-text",
+        "text": "Memory Sound FX Previews"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/shared-editor/LayerTreePanel.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 207,
+        "type": "title",
+        "text": "Add child inside container"
+      },
+      {
+        "line": 284,
+        "type": "title",
+        "text": "Expand Layer Tree"
+      },
+      {
+        "line": 313,
+        "type": "title",
+        "text": "Browse Preset Layouts"
+      },
+      {
+        "line": 323,
+        "type": "title",
+        "text": "Collapse Panel"
+      },
+      {
+        "line": 339,
+        "type": "title",
+        "text": "Bring to Front (Cmd Shift ])"
+      },
+      {
+        "line": 347,
+        "type": "title",
+        "text": "Bring Forward (Cmd ])"
+      },
+      {
+        "line": 355,
+        "type": "title",
+        "text": "Send Backward (Cmd [)"
+      },
+      {
+        "line": 363,
+        "type": "title",
+        "text": "Send to Back (Cmd Shift [)"
+      },
+      {
+        "line": 376,
+        "type": "title",
+        "text": "Group Selection (Cmd G)"
+      },
+      {
+        "line": 387,
+        "type": "title",
+        "text": "Ungroup (Cmd Shift G)"
+      },
+      {
+        "line": 397,
+        "type": "title",
+        "text": "Duplicate (Cmd D)"
+      },
+      {
+        "line": 406,
+        "type": "title",
+        "text": "Delete Layer"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/shared-editor/EditorTopBar.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 132,
+        "type": "title",
+        "text": "Undo (Cmd Z)"
+      },
+      {
+        "line": 140,
+        "type": "title",
+        "text": "Redo (Cmd Shift Z)"
+      },
+      {
+        "line": 152,
+        "type": "title",
+        "text": "Apply preset layout template"
+      },
+      {
+        "line": 163,
+        "type": "title",
+        "text": "Save current layout as a custom template"
+      },
+      {
+        "line": 179,
+        "type": "title",
+        "text": "Align Left"
+      },
+      {
+        "line": 187,
+        "type": "title",
+        "text": "Center Horizontally"
+      },
+      {
+        "line": 195,
+        "type": "title",
+        "text": "Align Right"
+      },
+      {
+        "line": 206,
+        "type": "title",
+        "text": "Align Top"
+      },
+      {
+        "line": 214,
+        "type": "title",
+        "text": "Center Vertically"
+      },
+      {
+        "line": 222,
+        "type": "title",
+        "text": "Align Bottom"
+      },
+      {
+        "line": 234,
+        "type": "title",
+        "text": "Distribute Horizontally"
+      },
+      {
+        "line": 242,
+        "type": "title",
+        "text": "Distribute Vertically"
+      },
+      {
+        "line": 279,
+        "type": "title",
+        "text": "Toggle Live Screen Preview"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/shared-editor/SaveTemplateModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 72,
+        "type": "placeholder",
+        "text": "e.g., Cyberpunk High Scores"
+      },
+      {
+        "line": 85,
+        "type": "placeholder",
+        "text": "Describe this layout style..."
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/shared-editor/CanvasWorkspace.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 899,
+        "type": "jsx-text",
+        "text": "minX && el.y"
+      },
+      {
+        "line": 1164,
+        "type": "title",
+        "text": "Drag to rotate (Shift for 15° snap)"
+      },
+      {
+        "line": 1464,
+        "type": "title",
+        "text": "Toggle Grid"
+      },
+      {
+        "line": 1491,
+        "type": "title",
+        "text": "Toggle Magnetic Snap (Hold Alt to bypass)"
+      },
+      {
+        "line": 1504,
+        "type": "title",
+        "text": "Toggle Distance Measurements (Hold Alt to inspect)"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/StartScreenVisualEditor.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 59,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/start-editor/StartScreenVisualEditorModal.tsx",
+    "hasUseLoc": false,
+    "hasT": false,
+    "issues": [
+      {
+        "line": 14,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/start-editor/LayerTreePanel.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 212,
+        "type": "title",
+        "text": "Add Child Element inside Container"
+      },
+      {
+        "line": 254,
+        "type": "title",
+        "text": "Duplicate"
+      },
+      {
+        "line": 265,
+        "type": "title",
+        "text": "Delete"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/start-editor/StartScreenEditorErrorBoundary.tsx",
+    "hasUseLoc": false,
+    "hasT": false,
+    "issues": [
+      {
+        "line": 21,
+        "type": "jsx-text",
+        "text": "Partial"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/start-editor/PropertyInspectorPanel.tsx",
+    "hasUseLoc": false,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 79,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 198,
+        "type": "jsx-text",
+        "text": "Start Screen Canvas"
+      },
+      {
+        "line": 225,
+        "type": "jsx-text",
+        "text": "Add Elements to Canvas"
+      },
+      {
+        "line": 375,
+        "type": "jsx-text",
+        "text": "Color"
+      },
+      {
+        "line": 414,
+        "type": "jsx-text",
+        "text": "Background Image"
+      },
+      {
+        "line": 417,
+        "type": "placeholder",
+        "text": "https://... or /assets/..."
+      },
+      {
+        "line": 451,
+        "type": "jsx-text",
+        "text": "Darkness Overlay"
+      },
+      {
+        "line": 553,
+        "type": "title",
+        "text": "Deselect All (Esc)"
+      },
+      {
+        "line": 573,
+        "type": "title",
+        "text": "Duplicate All (Ctrl+D)"
+      },
+      {
+        "line": 582,
+        "type": "title",
+        "text": "Delete All (Del)"
+      },
+      {
+        "line": 600,
+        "type": "title",
+        "text": "Align Left"
+      },
+      {
+        "line": 608,
+        "type": "title",
+        "text": "Align Center Horizontally"
+      },
+      {
+        "line": 611,
+        "type": "jsx-text",
+        "text": "Center H"
+      },
+      {
+        "line": 616,
+        "type": "title",
+        "text": "Align Right"
+      },
+      {
+        "line": 619,
+        "type": "jsx-text",
+        "text": "Right"
+      },
+      {
+        "line": 629,
+        "type": "title",
+        "text": "Distribute Horizontally (requires 3+ elements)"
+      },
+      {
+        "line": 632,
+        "type": "jsx-text",
+        "text": "Dist H"
+      },
+      {
+        "line": 637,
+        "type": "title",
+        "text": "Align Top"
+      },
+      {
+        "line": 645,
+        "type": "title",
+        "text": "Align Center Vertically"
+      },
+      {
+        "line": 648,
+        "type": "jsx-text",
+        "text": "Center V"
+      },
+      {
+        "line": 653,
+        "type": "title",
+        "text": "Align Bottom"
+      },
+      {
+        "line": 656,
+        "type": "jsx-text",
+        "text": "Bottom"
+      },
+      {
+        "line": 666,
+        "type": "title",
+        "text": "Distribute Vertically (requires 3+ elements)"
+      },
+      {
+        "line": 669,
+        "type": "jsx-text",
+        "text": "Dist V"
+      },
+      {
+        "line": 719,
+        "type": "jsx-text",
+        "text": "Lock / Unlock Selected"
+      },
+      {
+        "line": 773,
+        "type": "title",
+        "text": "Deselect (View Canvas & Add Elements)"
+      },
+      {
+        "line": 810,
+        "type": "title",
+        "text": "Duplicate"
+      },
+      {
+        "line": 820,
+        "type": "title",
+        "text": "Delete"
+      },
+      {
+        "line": 858,
+        "type": "jsx-text",
+        "text": "WIDTH"
+      },
+      {
+        "line": 872,
+        "type": "jsx-text",
+        "text": "HEIGHT"
+      },
+      {
+        "line": 950,
+        "type": "jsx-text",
+        "text": "Background Color"
+      },
+      {
+        "line": 968,
+        "type": "jsx-text",
+        "text": "Border Radius"
+      },
+      {
+        "line": 985,
+        "type": "jsx-text",
+        "text": "Border Width"
+      },
+      {
+        "line": 1003,
+        "type": "jsx-text",
+        "text": "Border Color"
+      },
+      {
+        "line": 1023,
+        "type": "placeholder",
+        "text": "https://... or preset"
+      },
+      {
+        "line": 1057,
+        "type": "jsx-text",
+        "text": "Insert Element into Card"
+      },
+      {
+        "line": 1107,
+        "type": "jsx-text",
+        "text": "Ungroup Elements"
+      },
+      {
+        "line": 1114,
+        "type": "jsx-text",
+        "text": "Insert Element into Group"
+      },
+      {
+        "line": 1147,
+        "type": "jsx-text",
+        "text": "Title Text"
+      },
+      {
+        "line": 1180,
+        "type": "jsx-text",
+        "text": "Color"
+      },
+      {
+        "line": 1207,
+        "type": "jsx-text",
+        "text": "Subtitle Text"
+      },
+      {
+        "line": 1240,
+        "type": "jsx-text",
+        "text": "Color"
+      },
+      {
+        "line": 1267,
+        "type": "jsx-text",
+        "text": "Content"
+      },
+      {
+        "line": 1282,
+        "type": "jsx-text",
+        "text": "Font Size"
+      },
+      {
+        "line": 1299,
+        "type": "jsx-text",
+        "text": "Color"
+      },
+      {
+        "line": 1326,
+        "type": "jsx-text",
+        "text": "Image URL"
+      },
+      {
+        "line": 1329,
+        "type": "placeholder",
+        "text": "https://... or preset"
+      },
+      {
+        "line": 1371,
+        "type": "jsx-text",
+        "text": "Object Fit"
+      },
+      {
+        "line": 1382,
+        "type": "jsx-text",
+        "text": "Contain"
+      },
+      {
+        "line": 1383,
+        "type": "jsx-text",
+        "text": "Cover"
+      },
+      {
+        "line": 1397,
+        "type": "jsx-text",
+        "text": "Metric Type"
+      },
+      {
+        "line": 1411,
+        "type": "jsx-text",
+        "text": "Rounds Count"
+      },
+      {
+        "line": 1412,
+        "type": "jsx-text",
+        "text": "Lights Count"
+      },
+      {
+        "line": 1413,
+        "type": "jsx-text",
+        "text": "Target Item"
+      },
+      {
+        "line": 1414,
+        "type": "jsx-text",
+        "text": "Hazard Item"
+      },
+      {
+        "line": 1415,
+        "type": "jsx-text",
+        "text": "Custom Text"
+      },
+      {
+        "line": 1419,
+        "type": "jsx-text",
+        "text": "Label"
+      },
+      {
+        "line": 1423,
+        "type": "placeholder",
+        "text": "AUTO (e.g. GRID)"
+      },
+      {
+        "line": 1434,
+        "type": "jsx-text",
+        "text": "Override Value"
+      },
+      {
+        "line": 1438,
+        "type": "placeholder",
+        "text": "AUTO"
+      },
+      {
+        "line": 1450,
+        "type": "jsx-text",
+        "text": "Value Color"
+      },
+      {
+        "line": 1467,
+        "type": "jsx-text",
+        "text": "Label Color"
+      },
+      {
+        "line": 1494,
+        "type": "jsx-text",
+        "text": "Button Label"
+      },
+      {
+        "line": 1508,
+        "type": "jsx-text",
+        "text": "Action Trigger"
+      },
+      {
+        "line": 1527,
+        "type": "jsx-text",
+        "text": "Start Game / Play"
+      },
+      {
+        "line": 1528,
+        "type": "jsx-text",
+        "text": "Open Leaderboard"
+      },
+      {
+        "line": 1529,
+        "type": "jsx-text",
+        "text": "Open Rules / How to Play"
+      },
+      {
+        "line": 1530,
+        "type": "jsx-text",
+        "text": "Open Settings"
+      },
+      {
+        "line": 1535,
+        "type": "jsx-text",
+        "text": "Background"
+      },
+      {
+        "line": 1552,
+        "type": "jsx-text",
+        "text": "Text Color"
+      },
+      {
+        "line": 1599,
+        "type": "jsx-text",
+        "text": "Header Title"
+      },
+      {
+        "line": 1613,
+        "type": "jsx-text",
+        "text": "Description"
+      },
+      {
+        "line": 1636,
+        "type": "jsx-text",
+        "text": "Header Title"
+      },
+      {
+        "line": 1650,
+        "type": "jsx-text",
+        "text": "Max Rows"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/start-editor/PresetLibraryModal.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 169,
+        "type": "title",
+        "text": "Delete Template"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/start-editor/StartScreenBasicEditor.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 53,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 637,
+        "type": "jsx-text",
+        "text": "Leaderboard Button"
+      },
+      {
+        "line": 756,
+        "type": "jsx-text",
+        "text": "Grid Dimensions Pill"
+      },
+      {
+        "line": 796,
+        "type": "jsx-text",
+        "text": "Pairs Count Pill"
+      },
+      {
+        "line": 836,
+        "type": "jsx-text",
+        "text": "Timer Duration Pill"
+      },
+      {
+        "line": 873,
+        "type": "jsx-text",
+        "text": "Leaderboard Button"
+      },
+      {
+        "line": 874,
+        "type": "jsx-text",
+        "text": "Shortcut button to scores"
+      },
+      {
+        "line": 953,
+        "type": "jsx-text",
+        "text": "Rounds Count Pill"
+      },
+      {
+        "line": 991,
+        "type": "jsx-text",
+        "text": "Gantry Lights Pill"
+      },
+      {
+        "line": 1028,
+        "type": "jsx-text",
+        "text": "Leaderboard Button"
+      },
+      {
+        "line": 1029,
+        "type": "jsx-text",
+        "text": "Shortcut button to scores"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/CatchBrandCustomizer.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 52,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 363,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 719,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/ResultScreenVisualEditor.tsx",
+    "hasUseLoc": false,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 116,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 2058,
+        "type": "title",
+        "text": "Drag to Rotate (Degrees)"
+      },
+      {
+        "line": 2070,
+        "type": "title",
+        "text": "Resize Top-Left"
+      },
+      {
+        "line": 2076,
+        "type": "title",
+        "text": "Resize Top-Right"
+      },
+      {
+        "line": 2082,
+        "type": "title",
+        "text": "Resize Bottom-Left"
+      },
+      {
+        "line": 2088,
+        "type": "title",
+        "text": "Resize Bottom-Right"
+      },
+      {
+        "line": 2096,
+        "type": "title",
+        "text": "Resize Top Edge"
+      },
+      {
+        "line": 2102,
+        "type": "title",
+        "text": "Resize Bottom Edge"
+      },
+      {
+        "line": 2108,
+        "type": "title",
+        "text": "Resize Left Edge"
+      },
+      {
+        "line": 2114,
+        "type": "title",
+        "text": "Resize Right Edge"
+      },
+      {
+        "line": 2247,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 2260,
+        "type": "title",
+        "text": "Bring Forward (1 step)"
+      },
+      {
+        "line": 2273,
+        "type": "title",
+        "text": "Send Backward (1 step)"
+      },
+      {
+        "line": 2286,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 2305,
+        "type": "title",
+        "text": "Add child element into container"
+      },
+      {
+        "line": 2369,
+        "type": "title",
+        "text": "Duplicate"
+      },
+      {
+        "line": 2382,
+        "type": "title",
+        "text": "Delete"
+      },
+      {
+        "line": 2714,
+        "type": "jsx-text",
+        "text": "Result Screen Visual Layout Editor"
+      },
+      {
+        "line": 2737,
+        "type": "title",
+        "text": "Undo (Ctrl+Z / Cmd+Z)"
+      },
+      {
+        "line": 2752,
+        "type": "title",
+        "text": "Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)"
+      },
+      {
+        "line": 2764,
+        "type": "title",
+        "text": "Browse layout presets and saved custom templates"
+      },
+      {
+        "line": 2767,
+        "type": "jsx-text",
+        "text": "Templates"
+      },
+      {
+        "line": 2775,
+        "type": "title",
+        "text": "Save current layout as a reusable custom template"
+      },
+      {
+        "line": 2778,
+        "type": "jsx-text",
+        "text": "Save Template"
+      },
+      {
+        "line": 2786,
+        "type": "title",
+        "text": "Open Fullscreen Studio Modal"
+      },
+      {
+        "line": 2789,
+        "type": "jsx-text",
+        "text": "Fullscreen Studio"
+      },
+      {
+        "line": 2800,
+        "type": "jsx-text",
+        "text": "Add Element"
+      },
+      {
+        "line": 2822,
+        "type": "jsx-text",
+        "text": "Card Container"
+      },
+      {
+        "line": 2830,
+        "type": "jsx-text",
+        "text": "Group Wrapper"
+      },
+      {
+        "line": 2842,
+        "type": "jsx-text",
+        "text": "Text Block"
+      },
+      {
+        "line": 2850,
+        "type": "jsx-text",
+        "text": "Image / Icon"
+      },
+      {
+        "line": 2862,
+        "type": "jsx-text",
+        "text": "Final Score"
+      },
+      {
+        "line": 2870,
+        "type": "jsx-text",
+        "text": "Total Moves"
+      },
+      {
+        "line": 2878,
+        "type": "jsx-text",
+        "text": "Matched Pairs"
+      },
+      {
+        "line": 2886,
+        "type": "jsx-text",
+        "text": "Time Elapsed"
+      },
+      {
+        "line": 2894,
+        "type": "jsx-text",
+        "text": "Accuracy"
+      },
+      {
+        "line": 2902,
+        "type": "jsx-text",
+        "text": "Leaderboard"
+      },
+      {
+        "line": 2914,
+        "type": "jsx-text",
+        "text": "Button"
+      },
+      {
+        "line": 2936,
+        "type": "jsx-text",
+        "text": "No elements on canvas"
+      },
+      {
+        "line": 2957,
+        "type": "title",
+        "text": "Center Horizontally (X)"
+      },
+      {
+        "line": 2966,
+        "type": "title",
+        "text": "Center Vertically (Y)"
+      },
+      {
+        "line": 2975,
+        "type": "title",
+        "text": "Center Both (X & Y)"
+      },
+      {
+        "line": 2990,
+        "type": "title",
+        "text": "Align Left"
+      },
+      {
+        "line": 2999,
+        "type": "title",
+        "text": "Align Center"
+      },
+      {
+        "line": 3008,
+        "type": "title",
+        "text": "Align Right"
+      },
+      {
+        "line": 3017,
+        "type": "title",
+        "text": "Align Top"
+      },
+      {
+        "line": 3026,
+        "type": "title",
+        "text": "Align Middle"
+      },
+      {
+        "line": 3035,
+        "type": "title",
+        "text": "Align Bottom"
+      },
+      {
+        "line": 3074,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 3083,
+        "type": "title",
+        "text": "Bring Forward (1 step)"
+      },
+      {
+        "line": 3092,
+        "type": "title",
+        "text": "Send Backward (1 step)"
+      },
+      {
+        "line": 3101,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 3119,
+        "type": "title",
+        "text": "Toggle Grid (Design Space 1000×1000)"
+      },
+      {
+        "line": 3129,
+        "type": "title",
+        "text": "Grid Unit Size"
+      },
+      {
+        "line": 3149,
+        "type": "title",
+        "text": "Toggle Spacing & Measurement Indicators (or hold Alt)"
+      },
+      {
+        "line": 3152,
+        "type": "jsx-text",
+        "text": "Measure"
+      },
+      {
+        "line": 3164,
+        "type": "title",
+        "text": "Toggle Smart Snapping & Alignment Guides (Hold Alt to bypass)"
+      },
+      {
+        "line": 3179,
+        "type": "title",
+        "text": "Clear Selection (Esc)"
+      },
+      {
+        "line": 3276,
+        "type": "jsx-text",
+        "text": "Alt to measure / bypass snap"
+      },
+      {
+        "line": 3285,
+        "type": "jsx-text",
+        "text": "Property Inspector"
+      },
+      {
+        "line": 3338,
+        "type": "title",
+        "text": "Click to isolate this element"
+      },
+      {
+        "line": 3360,
+        "type": "title",
+        "text": "Center group horizontally in container"
+      },
+      {
+        "line": 3363,
+        "type": "jsx-text",
+        "text": "Center X"
+      },
+      {
+        "line": 3369,
+        "type": "title",
+        "text": "Center group vertically in container"
+      },
+      {
+        "line": 3372,
+        "type": "jsx-text",
+        "text": "Center Y"
+      },
+      {
+        "line": 3378,
+        "type": "title",
+        "text": "Center group both horizontally and vertically"
+      },
+      {
+        "line": 3381,
+        "type": "jsx-text",
+        "text": "Center Both"
+      },
+      {
+        "line": 3390,
+        "type": "jsx-text",
+        "text": "Align Relative to Selection"
+      },
+      {
+        "line": 3399,
+        "type": "jsx-text",
+        "text": "Align Left"
+      },
+      {
+        "line": 3407,
+        "type": "jsx-text",
+        "text": "Align Center"
+      },
+      {
+        "line": 3415,
+        "type": "jsx-text",
+        "text": "Align Right"
+      },
+      {
+        "line": 3423,
+        "type": "jsx-text",
+        "text": "Align Top"
+      },
+      {
+        "line": 3431,
+        "type": "jsx-text",
+        "text": "Align Middle"
+      },
+      {
+        "line": 3439,
+        "type": "jsx-text",
+        "text": "Align Bottom"
+      },
+      {
+        "line": 3458,
+        "type": "jsx-text",
+        "text": "Distribute Horizontally"
+      },
+      {
+        "line": 3467,
+        "type": "jsx-text",
+        "text": "Distribute Vertically"
+      },
+      {
+        "line": 3483,
+        "type": "title",
+        "text": "Bring selected elements to the very front"
+      },
+      {
+        "line": 3486,
+        "type": "jsx-text",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 3492,
+        "type": "title",
+        "text": "Bring selected elements forward 1 step"
+      },
+      {
+        "line": 3495,
+        "type": "jsx-text",
+        "text": "Bring Forward"
+      },
+      {
+        "line": 3501,
+        "type": "title",
+        "text": "Send selected elements backward 1 step"
+      },
+      {
+        "line": 3504,
+        "type": "jsx-text",
+        "text": "Send Backward"
+      },
+      {
+        "line": 3510,
+        "type": "title",
+        "text": "Send selected elements to the very back"
+      },
+      {
+        "line": 3513,
+        "type": "jsx-text",
+        "text": "Send To Back"
+      },
+      {
+        "line": 3566,
+        "type": "title",
+        "text": "Duplicate"
+      },
+      {
+        "line": 3574,
+        "type": "title",
+        "text": "Delete"
+      },
+      {
+        "line": 3599,
+        "type": "title",
+        "text": "Select Parent Container"
+      },
+      {
+        "line": 3623,
+        "type": "title",
+        "text": "Convert to Root element (maintains visual position)"
+      },
+      {
+        "line": 3626,
+        "type": "jsx-text",
+        "text": "Move to Root Canvas"
+      },
+      {
+        "line": 3643,
+        "type": "jsx-text",
+        "text": "Root Canvas"
+      },
+      {
+        "line": 3665,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 3668,
+        "type": "jsx-text",
+        "text": "Front"
+      },
+      {
+        "line": 3674,
+        "type": "title",
+        "text": "Bring Forward (1 step)"
+      },
+      {
+        "line": 3677,
+        "type": "jsx-text",
+        "text": "Forward"
+      },
+      {
+        "line": 3683,
+        "type": "title",
+        "text": "Send Backward (1 step)"
+      },
+      {
+        "line": 3686,
+        "type": "jsx-text",
+        "text": "Backward"
+      },
+      {
+        "line": 3692,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 3728,
+        "type": "jsx-text",
+        "text": "Text Block"
+      },
+      {
+        "line": 3729,
+        "type": "jsx-text",
+        "text": "Score Display"
+      },
+      {
+        "line": 3730,
+        "type": "jsx-text",
+        "text": "Moves Counter"
+      },
+      {
+        "line": 3731,
+        "type": "jsx-text",
+        "text": "Pairs Counter"
+      },
+      {
+        "line": 3732,
+        "type": "jsx-text",
+        "text": "Time Elapsed"
+      },
+      {
+        "line": 3733,
+        "type": "jsx-text",
+        "text": "Accuracy Stat"
+      },
+      {
+        "line": 3734,
+        "type": "jsx-text",
+        "text": "Image Box"
+      },
+      {
+        "line": 3735,
+        "type": "jsx-text",
+        "text": "Button"
+      },
+      {
+        "line": 3736,
+        "type": "jsx-text",
+        "text": "Leaderboard"
+      },
+      {
+        "line": 3737,
+        "type": "jsx-text",
+        "text": "Group Wrapper"
+      },
+      {
+        "line": 3776,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 3787,
+        "type": "title",
+        "text": "Bring Forward"
+      },
+      {
+        "line": 3798,
+        "type": "title",
+        "text": "Send Backward"
+      },
+      {
+        "line": 3809,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 3820,
+        "type": "title",
+        "text": "Move out to Root"
+      },
+      {
+        "line": 3831,
+        "type": "title",
+        "text": "Delete"
+      },
+      {
+        "line": 3848,
+        "type": "jsx-text",
+        "text": "Alignment & Centering"
+      },
+      {
+        "line": 3857,
+        "type": "title",
+        "text": "Center element horizontally in parent container"
+      },
+      {
+        "line": 3860,
+        "type": "jsx-text",
+        "text": "Center X"
+      },
+      {
+        "line": 3866,
+        "type": "title",
+        "text": "Center element vertically in parent container"
+      },
+      {
+        "line": 3869,
+        "type": "jsx-text",
+        "text": "Center Y"
+      },
+      {
+        "line": 3875,
+        "type": "title",
+        "text": "Center element horizontally & vertically"
+      },
+      {
+        "line": 3888,
+        "type": "title",
+        "text": "Snap to Left Edge"
+      },
+      {
+        "line": 3897,
+        "type": "title",
+        "text": "Center Horizontally"
+      },
+      {
+        "line": 3900,
+        "type": "jsx-text",
+        "text": "Center"
+      },
+      {
+        "line": 3906,
+        "type": "title",
+        "text": "Snap to Right Edge"
+      },
+      {
+        "line": 3909,
+        "type": "jsx-text",
+        "text": "Right"
+      },
+      {
+        "line": 3915,
+        "type": "title",
+        "text": "Snap to Top Edge"
+      },
+      {
+        "line": 3924,
+        "type": "title",
+        "text": "Center Vertically"
+      },
+      {
+        "line": 3927,
+        "type": "jsx-text",
+        "text": "Middle"
+      },
+      {
+        "line": 3933,
+        "type": "title",
+        "text": "Snap to Bottom Edge"
+      },
+      {
+        "line": 3936,
+        "type": "jsx-text",
+        "text": "Bottom"
+      },
+      {
+        "line": 3949,
+        "type": "jsx-text",
+        "text": "POS X"
+      },
+      {
+        "line": 3961,
+        "type": "jsx-text",
+        "text": "POS Y"
+      },
+      {
+        "line": 3973,
+        "type": "jsx-text",
+        "text": "WIDTH"
+      },
+      {
+        "line": 3986,
+        "type": "jsx-text",
+        "text": "HEIGHT"
+      },
+      {
+        "line": 4010,
+        "type": "jsx-text",
+        "text": "Rotation"
+      },
+      {
+        "line": 4043,
+        "type": "jsx-text",
+        "text": "Opacity"
+      },
+      {
+        "line": 4073,
+        "type": "title",
+        "text": "Bring To Front"
+      },
+      {
+        "line": 4081,
+        "type": "title",
+        "text": "Bring Forward (1 step)"
+      },
+      {
+        "line": 4089,
+        "type": "title",
+        "text": "Send Backward (1 step)"
+      },
+      {
+        "line": 4097,
+        "type": "title",
+        "text": "Send To Back"
+      },
+      {
+        "line": 4131,
+        "type": "jsx-text",
+        "text": "Visible"
+      },
+      {
+        "line": 4136,
+        "type": "jsx-text",
+        "text": "Hidden"
+      },
+      {
+        "line": 4164,
+        "type": "jsx-text",
+        "text": "Background Color"
+      },
+      {
+        "line": 4181,
+        "type": "placeholder",
+        "text": "e.g. rgba(15, 23, 42, 0.95)"
+      },
+      {
+        "line": 4223,
+        "type": "jsx-text",
+        "text": "Background Image"
+      },
+      {
+        "line": 4228,
+        "type": "placeholder",
+        "text": "https://... (Image URL)"
+      },
+      {
+        "line": 4248,
+        "type": "title",
+        "text": "Remove Background Image"
+      },
+      {
+        "line": 4262,
+        "type": "title",
+        "text": "Upload Image to Card Background"
+      },
+      {
+        "line": 4273,
+        "type": "jsx-text",
+        "text": "Fit / Size"
+      },
+      {
+        "line": 4286,
+        "type": "jsx-text",
+        "text": "Contain"
+      },
+      {
+        "line": 4292,
+        "type": "jsx-text",
+        "text": "Position"
+      },
+      {
+        "line": 4304,
+        "type": "jsx-text",
+        "text": "Center"
+      },
+      {
+        "line": 4306,
+        "type": "jsx-text",
+        "text": "Bottom"
+      },
+      {
+        "line": 4308,
+        "type": "jsx-text",
+        "text": "Right"
+      },
+      {
+        "line": 4313,
+        "type": "jsx-text",
+        "text": "Repeat"
+      },
+      {
+        "line": 4325,
+        "type": "jsx-text",
+        "text": "No Repeat"
+      },
+      {
+        "line": 4327,
+        "type": "jsx-text",
+        "text": "Repeat X"
+      },
+      {
+        "line": 4328,
+        "type": "jsx-text",
+        "text": "Repeat Y"
+      },
+      {
+        "line": 4405,
+        "type": "jsx-text",
+        "text": "Border Color"
+      },
+      {
+        "line": 4449,
+        "type": "jsx-text",
+        "text": "Enable Soft Drop Shadow"
+      },
+      {
+        "line": 4553,
+        "type": "jsx-text",
+        "text": "Image Asset & Position Controls"
+      },
+      {
+        "line": 4563,
+        "type": "jsx-text",
+        "text": "Asset Source"
+      },
+      {
+        "line": 4587,
+        "type": "jsx-text",
+        "text": "No image selected"
+      },
+      {
+        "line": 4601,
+        "type": "title",
+        "text": "Remove Image"
+      },
+      {
+        "line": 4614,
+        "type": "placeholder",
+        "text": "https://... or /assets/..."
+      },
+      {
+        "line": 4634,
+        "type": "title",
+        "text": "Remove Image"
+      },
+      {
+        "line": 4702,
+        "type": "jsx-text",
+        "text": "Object Fit Mode"
+      },
+      {
+        "line": 4739,
+        "type": "jsx-text",
+        "text": "Object Position Alignment"
+      },
+      {
+        "line": 4780,
+        "type": "jsx-text",
+        "text": "Preset Anchor"
+      },
+      {
+        "line": 4793,
+        "type": "jsx-text",
+        "text": "Center"
+      },
+      {
+        "line": 4795,
+        "type": "jsx-text",
+        "text": "Bottom"
+      },
+      {
+        "line": 4797,
+        "type": "jsx-text",
+        "text": "Right"
+      },
+      {
+        "line": 4798,
+        "type": "jsx-text",
+        "text": "Top Left"
+      },
+      {
+        "line": 4799,
+        "type": "jsx-text",
+        "text": "Top Right"
+      },
+      {
+        "line": 4800,
+        "type": "jsx-text",
+        "text": "Bottom Left"
+      },
+      {
+        "line": 4801,
+        "type": "jsx-text",
+        "text": "Bottom Right"
+      },
+      {
+        "line": 4810,
+        "type": "placeholder",
+        "text": "50% 50%"
+      },
+      {
+        "line": 4843,
+        "type": "title",
+        "text": "Make 1:1 Square"
+      },
+      {
+        "line": 4858,
+        "type": "title",
+        "text": "Fit Container Width"
+      },
+      {
+        "line": 4874,
+        "type": "title",
+        "text": "Center in Parent"
+      },
+      {
+        "line": 4883,
+        "type": "jsx-text",
+        "text": "Frame & Border Styling"
+      },
+      {
+        "line": 4954,
+        "type": "jsx-text",
+        "text": "Border Color"
+      },
+      {
+        "line": 4998,
+        "type": "jsx-text",
+        "text": "Enable Soft Drop Shadow"
+      },
+      {
+        "line": 5020,
+        "type": "jsx-text",
+        "text": "Text Content"
+      },
+      {
+        "line": 5037,
+        "type": "jsx-text",
+        "text": "Font Family"
+      },
+      {
+        "line": 5049,
+        "type": "jsx-text",
+        "text": "Inherit / Default"
+      },
+      {
+        "line": 5078,
+        "type": "jsx-text",
+        "text": "Font Weight"
+      },
+      {
+        "line": 5103,
+        "type": "jsx-text",
+        "text": "Align H"
+      },
+      {
+        "line": 5132,
+        "type": "jsx-text",
+        "text": "Align V"
+      },
+      {
+        "line": 5161,
+        "type": "jsx-text",
+        "text": "Style"
+      },
+      {
+        "line": 5178,
+        "type": "jsx-text",
+        "text": "Italic"
+      },
+      {
+        "line": 5195,
+        "type": "jsx-text",
+        "text": "Normal"
+      },
+      {
+        "line": 5196,
+        "type": "jsx-text",
+        "text": "UPPER"
+      },
+      {
+        "line": 5197,
+        "type": "jsx-text",
+        "text": "lower"
+      },
+      {
+        "line": 5198,
+        "type": "jsx-text",
+        "text": "Capital"
+      },
+      {
+        "line": 5203,
+        "type": "jsx-text",
+        "text": "Decoration"
+      },
+      {
+        "line": 5216,
+        "type": "jsx-text",
+        "text": "Underline"
+      },
+      {
+        "line": 5217,
+        "type": "jsx-text",
+        "text": "Strike"
+      },
+      {
+        "line": 5225,
+        "type": "jsx-text",
+        "text": "Line Height"
+      },
+      {
+        "line": 5264,
+        "type": "jsx-text",
+        "text": "Text Shadow"
+      },
+      {
+        "line": 5298,
+        "type": "jsx-text",
+        "text": "Text Color"
+      },
+      {
+        "line": 5372,
+        "type": "jsx-text",
+        "text": "Live Data"
+      },
+      {
+        "line": 5378,
+        "type": "jsx-text",
+        "text": "Layout Direction"
+      },
+      {
+        "line": 5416,
+        "type": "jsx-text",
+        "text": "Alignment"
+      },
+      {
+        "line": 5489,
+        "type": "jsx-text",
+        "text": "Custom Label"
+      },
+      {
+        "line": 5493,
+        "type": "placeholder",
+        "text": "Default Stat Label"
+      },
+      {
+        "line": 5506,
+        "type": "jsx-text",
+        "text": "Label Font Family"
+      },
+      {
+        "line": 5518,
+        "type": "jsx-text",
+        "text": "Inherit / Default"
+      },
+      {
+        "line": 5546,
+        "type": "jsx-text",
+        "text": "Weight"
+      },
+      {
+        "line": 5568,
+        "type": "jsx-text",
+        "text": "Transform"
+      },
+      {
+        "line": 5580,
+        "type": "jsx-text",
+        "text": "UPPERCASE"
+      },
+      {
+        "line": 5582,
+        "type": "jsx-text",
+        "text": "Capitalize"
+      },
+      {
+        "line": 5583,
+        "type": "jsx-text",
+        "text": "lowercase"
+      },
+      {
+        "line": 5587,
+        "type": "jsx-text",
+        "text": "Label Color"
+      },
+      {
+        "line": 5618,
+        "type": "jsx-text",
+        "text": "Value Font Family"
+      },
+      {
+        "line": 5658,
+        "type": "jsx-text",
+        "text": "Value Weight"
+      },
+      {
+        "line": 5680,
+        "type": "jsx-text",
+        "text": "Value Color"
+      },
+      {
+        "line": 5701,
+        "type": "jsx-text",
+        "text": "Letter Spacing"
+      },
+      {
+        "line": 5722,
+        "type": "jsx-text",
+        "text": "Value Text Shadow"
+      },
+      {
+        "line": 5827,
+        "type": "jsx-text",
+        "text": "Card Background"
+      },
+      {
+        "line": 5844,
+        "type": "placeholder",
+        "text": "e.g. rgba(2, 6, 23, 0.6) or #020617"
+      },
+      {
+        "line": 5860,
+        "type": "jsx-text",
+        "text": "Border Color"
+      },
+      {
+        "line": 5905,
+        "type": "jsx-text",
+        "text": "Interactive"
+      },
+      {
+        "line": 5910,
+        "type": "jsx-text",
+        "text": "Trigger Action"
+      },
+      {
+        "line": 5923,
+        "type": "jsx-text",
+        "text": "Exit to Menu"
+      },
+      {
+        "line": 5929,
+        "type": "jsx-text",
+        "text": "Button Label Text"
+      },
+      {
+        "line": 5946,
+        "type": "jsx-text",
+        "text": "Font Family"
+      },
+      {
+        "line": 5958,
+        "type": "jsx-text",
+        "text": "Inherit / Default"
+      },
+      {
+        "line": 5987,
+        "type": "jsx-text",
+        "text": "Font Weight"
+      },
+      {
+        "line": 6011,
+        "type": "jsx-text",
+        "text": "Style"
+      },
+      {
+        "line": 6023,
+        "type": "jsx-text",
+        "text": "Normal"
+      },
+      {
+        "line": 6024,
+        "type": "jsx-text",
+        "text": "Italic"
+      },
+      {
+        "line": 6040,
+        "type": "jsx-text",
+        "text": "UPPER"
+      },
+      {
+        "line": 6041,
+        "type": "jsx-text",
+        "text": "Normal"
+      },
+      {
+        "line": 6042,
+        "type": "jsx-text",
+        "text": "Capital"
+      },
+      {
+        "line": 6068,
+        "type": "jsx-text",
+        "text": "Background"
+      },
+      {
+        "line": 6097,
+        "type": "jsx-text",
+        "text": "Text Color"
+      },
+      {
+        "line": 6179,
+        "type": "jsx-text",
+        "text": "Border Color"
+      },
+      {
+        "line": 6196,
+        "type": "placeholder",
+        "text": "#b45309"
+      },
+      {
+        "line": 6261,
+        "type": "jsx-text",
+        "text": "Button Text Shadow"
+      },
+      {
+        "line": 6307,
+        "type": "jsx-text",
+        "text": "Enable Button Glow & Shadow"
+      },
+      {
+        "line": 6335,
+        "type": "jsx-text",
+        "text": "Leaderboard Settings"
+      },
+      {
+        "line": 6337,
+        "type": "jsx-text",
+        "text": "Dynamic Ranking"
+      },
+      {
+        "line": 6343,
+        "type": "jsx-text",
+        "text": "Header Title"
+      },
+      {
+        "line": 6379,
+        "type": "jsx-text",
+        "text": "Displayed Rows"
+      },
+      {
+        "line": 6434,
+        "type": "jsx-text",
+        "text": "Player Name"
+      },
+      {
+        "line": 6450,
+        "type": "jsx-text",
+        "text": "Score"
+      },
+      {
+        "line": 6466,
+        "type": "jsx-text",
+        "text": "Moves"
+      },
+      {
+        "line": 6498,
+        "type": "jsx-text",
+        "text": "Accuracy"
+      },
+      {
+        "line": 6520,
+        "type": "jsx-text",
+        "text": "Highlight Current Player Row"
+      },
+      {
+        "line": 6527,
+        "type": "jsx-text",
+        "text": "Base Font Size"
+      },
+      {
+        "line": 6545,
+        "type": "jsx-text",
+        "text": "Corner Radius"
+      },
+      {
+        "line": 6570,
+        "type": "jsx-text",
+        "text": "Header"
+      },
+      {
+        "line": 6585,
+        "type": "jsx-text",
+        "text": "Scores"
+      },
+      {
+        "line": 6623,
+        "type": "jsx-text",
+        "text": "Input Placeholder"
+      },
+      {
+        "line": 6640,
+        "type": "jsx-text",
+        "text": "Max Name Length"
+      },
+      {
+        "line": 6659,
+        "type": "jsx-text",
+        "text": "Button Label"
+      },
+      {
+        "line": 6676,
+        "type": "jsx-text",
+        "text": "Success Message"
+      },
+      {
+        "line": 6718,
+        "type": "jsx-text",
+        "text": "Duplicate"
+      },
+      {
+        "line": 6726,
+        "type": "jsx-text",
+        "text": "Delete"
+      },
+      {
+        "line": 6733,
+        "type": "jsx-text",
+        "text": "Select any element on the canvas or layer tree to view and edit its properties."
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/games/ReactionGameCustomizer.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 327,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/ThemeCard.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 351,
+        "type": "jsx-text",
+        "text": "Formula Reflex"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/RenameThemeDialog.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 17,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/ItemsTab.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 26,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 39,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/ScreensTab.tsx",
+    "hasUseLoc": false,
+    "hasT": false,
+    "issues": [
+      {
+        "line": 10,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/BrandingTab.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 19,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 144,
+        "type": "placeholder",
+        "text": "e.g. CATCH THE BRAND, BRAND CAMPAIGN"
+      },
+      {
+        "line": 155,
+        "type": "placeholder",
+        "text": "e.g. Catch fresh fruits, avoid rotten hazards!"
+      },
+      {
+        "line": 166,
+        "type": "placeholder",
+        "text": "Event activation notes, brand campaign info, or designer guidelines..."
+      },
+      {
+        "line": 215,
+        "type": "placeholder",
+        "text": "https://example.com/logo.png"
+      },
+      {
+        "line": 300,
+        "type": "title",
+        "text": "Remove Logo"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/CreateThemeDialog.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 12,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 13,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/AudioTab.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 319,
+        "type": "placeholder",
+        "text": "https://example.com/chime.mp3"
+      },
+      {
+        "line": 332,
+        "type": "placeholder",
+        "text": "https://example.com/buzz.mp3"
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/VisualsTab.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 39,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 346,
+        "type": "jsx-text",
+        "text": "PNG / JPG / WebP"
+      },
+      {
+        "line": 660,
+        "type": "placeholder",
+        "text": "#0F172A"
+      },
+      {
+        "line": 895,
+        "type": "placeholder",
+        "text": "#064E3B"
+      }
+    ]
+  },
+  {
+    "file": "src/components/landing/LandingHeader.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 129,
+        "type": "aria-label",
+        "text": "EventGameStudio Home"
+      },
+      {
+        "line": 135,
+        "type": "jsx-text",
+        "text": "Studio"
+      }
+    ]
+  },
+  {
+    "file": "src/components/landing/LandingFooter.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 27,
+        "type": "jsx-text",
+        "text": "Studio"
+      }
+    ]
+  },
+  {
+    "file": "src/components/wallet/OrganizationWalletPage.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 627,
+        "type": "jsx-text",
+        "text": "RM1,400"
+      }
+    ]
+  },
+  {
+    "file": "src/components/auth/VerifyEmailPage.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 251,
+        "type": "placeholder",
+        "text": "you@company.com"
+      }
+    ]
+  },
+  {
+    "file": "src/components/auth/AcceptInvitePage.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 467,
+        "type": "jsx-text",
+        "text": "Google"
+      },
+      {
+        "line": 621,
+        "type": "placeholder",
+        "text": "123456"
+      }
+    ]
+  },
+  {
+    "file": "src/components/auth/LoginPage.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 793,
+        "type": "placeholder",
+        "text": "••••••••"
+      },
+      {
+        "line": 821,
+        "type": "placeholder",
+        "text": "••••••••"
+      },
+      {
+        "line": 953,
+        "type": "jsx-text",
+        "text": "Event Game Studio"
+      }
+    ]
+  },
+  {
+    "file": "src/components/contact/ContactPage.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 522,
+        "type": "jsx-text",
+        "text": "Website"
+      }
+    ]
+  },
+  {
+    "file": "src/components/ArcadeUI.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 1049,
+        "type": "jsx-text",
+        "text": "Add new themes cleanly by creating a configuration object in"
+      },
+      {
+        "line": 1051,
+        "type": "jsx-text",
+        "text": "src/themes/registry.ts"
+      },
+      {
+        "line": 1052,
+        "type": "jsx-text",
+        "text": "GameTheme interface"
+      },
+      {
+        "line": 1053,
+        "type": "jsx-text",
+        "text": "Fallback Protection"
+      }
+    ]
+  },
+  {
+    "file": "src/games/shared/ResultScreenRenderer.tsx",
+    "hasUseLoc": false,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 147,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/games/shared/ResultElementContent.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 175,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 196,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 383,
+        "type": "jsx-text",
+        "text": "s.score"
+      }
+    ]
+  },
+  {
+    "file": "src/games/memory-match/MemoryMatchGame.tsx",
+    "hasUseLoc": true,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 1657,
+        "type": "jsx-text",
+        "text": "Memory Card Board"
+      },
+      {
+        "line": 1851,
+        "type": "jsx-text",
+        "text": "Memory Card Board"
+      },
+      {
+        "line": 2129,
+        "type": "jsx-text",
+        "text": "Game Paused"
+      },
+      {
+        "line": 2166,
+        "type": "jsx-text",
+        "text": "High Scores"
+      },
+      {
+        "line": 2179,
+        "type": "jsx-text",
+        "text": "Loading Leaderboard..."
+      },
+      {
+        "line": 2184,
+        "type": "jsx-text",
+        "text": "No Scores Yet!"
+      },
+      {
+        "line": 2185,
+        "type": "jsx-text",
+        "text": "Be the first to submit a high score!"
+      }
+    ]
+  },
+  {
+    "file": "src/context/NotificationContext.tsx",
+    "hasUseLoc": false,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 22,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 23,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 24,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 25,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 26,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  },
+  {
+    "file": "src/context/AuthContext.tsx",
+    "hasUseLoc": false,
+    "hasT": true,
+    "issues": [
+      {
+        "line": 47,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 51,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 52,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 53,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 54,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 55,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 56,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 57,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 58,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 59,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 62,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 63,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 64,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 65,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 66,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 67,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 68,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 69,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 70,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 71,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 72,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 73,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 79,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 80,
+        "type": "jsx-text",
+        "text": "Promise"
+      },
+      {
+        "line": 81,
+        "type": "jsx-text",
+        "text": "Promise"
+      }
+    ]
+  }
+]

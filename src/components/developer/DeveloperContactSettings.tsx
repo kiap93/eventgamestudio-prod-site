@@ -225,7 +225,7 @@ export const DeveloperContactSettings: React.FC = () => {
             onClick={() => fetchSettings()}
             disabled={loading || saving}
             className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
-            title="Reload settings from database"
+            title={t('developer.reloadSettingsDatabase', undefined, 'Reload settings from database')}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -296,7 +296,7 @@ export const DeveloperContactSettings: React.FC = () => {
           }`}
         >
           <Sliders className="w-3.5 h-3.5" />
-          <span>Channel Configuration</span>
+          <span>{t('developer.channelConfiguration', undefined, 'Channel Configuration')}</span>
         </button>
 
         <button
@@ -312,7 +312,7 @@ export const DeveloperContactSettings: React.FC = () => {
           }`}
         >
           <Inbox className="w-3.5 h-3.5" />
-          <span>Received Enquiries</span>
+          <span>{t('developer.receivedEnquiries', undefined, 'Received Enquiries')}</span>
           {enquiriesCount > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-slate-950">
               {enquiriesCount}
@@ -341,7 +341,7 @@ export const DeveloperContactSettings: React.FC = () => {
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
-                  placeholder="Search ticket, name, email..."
+                  placeholder={t('developer.searchTicketPlaceholder', undefined, 'Search ticket, name, email...')}
                   value={enquiriesSearch}
                   onChange={(e) => setEnquiriesSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
@@ -363,12 +363,12 @@ export const DeveloperContactSettings: React.FC = () => {
           {enquiriesLoading && enquiries.length === 0 ? (
             <div className="py-16 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
               <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
-              <span>Loading received enquiries...</span>
+              <span>{t('developer.loadingReceivedEnquiries', undefined, 'Loading received enquiries...')}</span>
             </div>
           ) : enquiries.length === 0 ? (
             <div className="p-12 text-center rounded-3xl bg-slate-900/50 border border-slate-800/80 space-y-3">
               <Inbox className="w-10 h-10 text-slate-600 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-300">No Enquiries Received Yet</h3>
+              <h3 className="text-sm font-bold text-slate-300">{t('developer.noEnquiriesReceivedYet', undefined, 'No Enquiries Received Yet')}</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
                 When visitors or event agencies submit the Contact Us form, their enquiry details and ticket numbers will appear here immediately.
               </p>
@@ -610,7 +610,7 @@ export const DeveloperContactSettings: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5 fill-[#25D366]" />
-                <span>Test WhatsApp Link</span>
+                <span>{t('developer.testWhatsAppLink', undefined, 'Test WhatsApp Link')}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
@@ -719,7 +719,7 @@ export const DeveloperContactSettings: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold transition-colors shrink-0 ml-4"
             >
               <Mail className="w-3.5 h-3.5" />
-              <span>Test Mailto Link</span>
+              <span>{t('developer.testMailtoLink', undefined, 'Test Mailto Link')}</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
@@ -806,7 +806,7 @@ export const DeveloperContactSettings: React.FC = () => {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            <span>Save Contact Settings</span>
+            <span>{t('developer.saveContactSettings', undefined, 'Save Contact Settings')}</span>
           </button>
         </div>
       </form>

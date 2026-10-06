@@ -3,10 +3,14 @@ import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
   formatDateOnly,
+  formatDateDisplay,
+  formatDateApi,
   formatEventDateRange,
   getTodayDateString,
+  isDateBefore,
 } from '../../lib/dateUtils';
 import { SUPPORTED_TIMEZONES, resolveEventTimezone } from '../../lib/countryUtils';
+import { CustomDatePicker } from '../common/CustomDatePicker';
 import { getGameTypeIcon } from '../../games';
 import { useLocalization } from '../../context/LocalizationContext';
 import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
@@ -79,11 +83,12 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 
     setName(event.name || '');
     setSelectedThemeId(event.game_theme_id || '');
-    const start = event.start_date || extractDateOnly(event.starts_at) || getTodayDateString();
-    const end = event.end_date || extractDateOnly(event.expires_at) || start;
+    const tz = resolveEventTimezone(event);
+    const start = formatDateApi(event.start_date || event.starts_at) || getTodayDateString(tz);
+    const end = formatDateApi(event.end_date || event.expires_at) || start;
     setStartDate(start);
     setEndDate(end);
-    setEventTimezone(resolveEventTimezone(event));
+    setEventTimezone(tz);
     setStatus(event.status || 'scheduled');
   }, [event, isOpen]);
 
@@ -152,7 +157,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
       return;
     }
 
-    if (endDate < startDate) {
+    if (isDateBefore(endDate, startDate)) {
       setError('End date must be on or after Start date');
       return;
     }
@@ -164,9 +169,9 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
         body: JSON.stringify({
           name: name.trim(),
           game_theme_id: selectedThemeId,
-          start_date: startDate,
-          end_date: endDate,
-          event_date: startDate,
+          start_date: formatDateApi(startDate),
+          end_date: formatDateApi(endDate),
+          event_date: formatDateApi(startDate),
           event_timezone: eventTimezone,
           status,
         }),
@@ -457,27 +462,26 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                         </span>
                       )}
                     </label>
+                    {startDate && (
+                      <span className="text-[11px] text-amber-300 font-mono font-semibold">
+                        {formatDateDisplay(startDate)}
+                      </span>
+                    )}
                   </div>
                   <div className="relative">
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       value={startDate}
                       disabled={isPaid}
                       readOnly={isPaid}
-                      onChange={(e) => {
+                      onChange={(newStart) => {
                         if (isPaid) return;
-                        const newStart = e.target.value;
                         setStartDate(newStart);
-                        if (endDate < newStart) {
+                        if (isDateBefore(endDate, newStart)) {
                           setEndDate(newStart);
                         }
                       }}
                       required
-                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all ${
-                        isPaid
-                          ? 'opacity-70 cursor-not-allowed bg-slate-950/60 border-slate-800 text-slate-400 pr-9'
-                          : 'border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 cursor-pointer'
-                      }`}
+                      className={isPaid ? 'opacity-70 cursor-not-allowed bg-slate-950/60 pr-9' : ''}
                     />
                     {isPaid && (
                       <Lock className="w-3.5 h-3.5 text-amber-400/70 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -496,21 +500,23 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                         </span>
                       )}
                     </label>
+                    {endDate && (
+                      <span className="text-[11px] text-amber-300 font-mono font-semibold">
+                        {formatDateDisplay(endDate)}
+                      </span>
+                    )}
                   </div>
                   <div className="relative">
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       min={startDate}
                       value={endDate}
                       disabled={isPaid}
                       readOnly={isPaid}
-                      onChange={(e) => !isPaid && setEndDate(e.target.value)}
+                      onChange={(newEnd) => {
+                        if (!isPaid) setEndDate(newEnd);
+                      }}
                       required
-                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all ${
-                        isPaid
-                          ? 'opacity-70 cursor-not-allowed bg-slate-950/60 border-slate-800 text-slate-400 pr-9'
-                          : 'border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 cursor-pointer'
-                      }`}
+                      className={isPaid ? 'opacity-70 cursor-not-allowed bg-slate-950/60 pr-9' : ''}
                     />
                     {isPaid && (
                       <Lock className="w-3.5 h-3.5 text-amber-400/70 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -521,8 +527,8 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 
               {startDate && endDate && (
                 <p className="text-[11px] text-slate-400 font-medium">
-                  Active for whole calendar day{startDate === endDate ? '' : 's'}: <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
-                  {isPaid && <span className="ml-2 text-slate-500">· Duration locked to paid license</span>}
+                  {t('event.activeForWholeCalendarDays', { plural: startDate === endDate ? '' : 's' }, 'Active for whole calendar day')} <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
+                  {isPaid && <span className="ml-2 text-slate-500">{t('event.durationLockedPaid', undefined, '· Duration locked to paid license')}</span>}
                 </p>
               )}
 

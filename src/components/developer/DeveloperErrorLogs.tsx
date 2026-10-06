@@ -335,13 +335,13 @@ export const DeveloperErrorLogs: React.FC = () => {
                 setSelectedTimeRange(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by Time Range"
+              aria-label={t('developer.filterByTimeRange', undefined, 'Filter by Time Range')}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-emerald-500/50"
             >
-              <option value="all">All Time</option>
-              <option value="24h">Last 24 Hours</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
+              <option value="all">{t('developer.allTime', undefined, 'All Time')}</option>
+              <option value="24h">{t('developer.last24Hours', undefined, 'Last 24 Hours')}</option>
+              <option value="7d">{t('developer.last7Days', undefined, 'Last 7 Days')}</option>
+              <option value="30d">{t('developer.last30Days', undefined, 'Last 30 Days')}</option>
             </select>
           </div>
         </div>
@@ -439,7 +439,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                               handleCopy(log.request_id, `req-${log.id}`);
                             }}
                             className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 transition-colors"
-                            title="Copy full Request ID"
+                            title={t('developer.copyFullRequestId', undefined, 'Copy full Request ID')}
                           >
                             {copiedField === `req-${log.id}` ? (
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -491,7 +491,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                           className="inline-flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-[11px] font-medium transition-colors"
                         >
                           <Eye className="w-3 h-3 text-emerald-400" />
-                          <span>Inspect</span>
+                          <span>{t('developer.inspect', undefined, 'Inspect')}</span>
                         </button>
                       </td>
                     </tr>
@@ -505,14 +505,14 @@ export const DeveloperErrorLogs: React.FC = () => {
         {/* Pagination Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400">
           <div className="flex items-center space-x-2">
-            <span>Rows per page:</span>
+            <span>{t('developer.rowsPerPage', undefined, 'Rows per page:')}</span>
             <select
               value={pageSize}
               onChange={e => {
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              aria-label="Rows per page"
+              aria-label={t('developer.rowsPerPage', undefined, 'Rows per page')}
               className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 focus:outline-none"
             >
               <option value={10}>10</option>
@@ -658,7 +658,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
-                      <span>Copy Stack</span>
+                      <span>{t('developer.copyStack', undefined, 'Copy Stack')}</span>
                     </button>
                   </div>
                   <pre className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-400 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-56 select-all">
@@ -685,7 +685,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
-                      <span>Copy JSON</span>
+                      <span>{t('developer.copyJson', undefined, 'Copy JSON')}</span>
                     </button>
                   </div>
                   <pre className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-300 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-56 select-all">
