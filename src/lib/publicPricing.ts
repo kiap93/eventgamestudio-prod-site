@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import { getCurrencyForCountry } from './countryUtils';
 
 export interface PublicGamePricingTier {
   id?: string;
@@ -6,6 +7,7 @@ export interface PublicGamePricingTier {
   max_days: number | null;
   price: number;
   currency: string;
+  country_code?: string;
   is_base?: boolean;
 }
 
@@ -20,43 +22,84 @@ export interface PublicGameWithPricing {
 
 export interface PublicGamesPricingResponse {
   success: boolean;
+  requestedCountry?: string;
+  pricingCountry?: string;
+  currency?: string;
+  isFallback?: boolean;
+  defaultPricingCountry?: string;
   games: PublicGameWithPricing[];
 }
 
-// In-memory cache to prevent redundant fetches across landing sections
-let cachedPricingPromise: Promise<PublicGameWithPricing[]> | null = null;
-let cacheTimestamp = 0;
+// In-memory cache by country code to prevent redundant fetches across landing sections
+const cachedPricingMap = new Map<string, { promise: Promise<PublicGamesPricingResponse>; timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
 
 /**
- * Authoritatively fetches active platform public games and their active pricing tiers.
- * Reuses in-flight or cached promises so LandingGameShowcase and LandingPricing don't make duplicate calls.
+ * Authoritatively fetches active platform public games and their active pricing tiers with full country metadata.
  */
-export async function fetchPublicGamesPricing(forceRefresh = false): Promise<PublicGameWithPricing[]> {
+export async function fetchPublicPricingDetails(
+  countryCode?: string,
+  forceRefresh = false
+): Promise<PublicGamesPricingResponse> {
+  const normKey = (countryCode || '').trim().toUpperCase();
   const now = Date.now();
-  if (!forceRefresh && cachedPricingPromise && now - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedPricingPromise;
+  const cached = cachedPricingMap.get(normKey);
+
+  if (!forceRefresh && cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.promise;
   }
 
-  cachedPricingPromise = (async () => {
+  const promise = (async () => {
     try {
-      const res = await apiFetch('/api/public/games/pricing');
+      const url = normKey
+        ? `/api/public/games/pricing?country=${encodeURIComponent(normKey)}`
+        : '/api/public/games/pricing';
+      const res = await apiFetch(url);
       if (!res.ok) {
         throw new Error(`Failed to fetch public game pricing (HTTP ${res.status})`);
       }
       const data: PublicGamesPricingResponse = await res.json();
       if (data && Array.isArray(data.games)) {
-        cacheTimestamp = Date.now();
-        return data.games;
+        return data;
       }
-      return [];
+      return {
+        success: true,
+        requestedCountry: normKey,
+        pricingCountry: normKey || 'US',
+        currency: (normKey ? getCurrencyForCountry(normKey) : undefined) || 'USD',
+        isFallback: false,
+        defaultPricingCountry: 'US',
+        games: [],
+      };
     } catch (err) {
-      cachedPricingPromise = null; // Clear so subsequent calls can retry
+      cachedPricingMap.delete(normKey);
       throw err;
     }
   })();
 
-  return cachedPricingPromise;
+  cachedPricingMap.set(normKey, { promise, timestamp: now });
+  return promise;
+}
+
+/**
+ * Backward-compatible helper returning games array directly.
+ */
+export async function fetchPublicGamesPricing(
+  forceRefreshOrCountry?: boolean | string,
+  maybeCountry?: string
+): Promise<PublicGameWithPricing[]> {
+  let forceRefresh = false;
+  let countryCode: string | undefined = undefined;
+
+  if (typeof forceRefreshOrCountry === 'boolean') {
+    forceRefresh = forceRefreshOrCountry;
+    countryCode = maybeCountry;
+  } else if (typeof forceRefreshOrCountry === 'string') {
+    countryCode = forceRefreshOrCountry;
+  }
+
+  const response = await fetchPublicPricingDetails(countryCode, forceRefresh);
+  return response.games || [];
 }
 
 /**
@@ -97,35 +140,51 @@ export function getGameStartingPrice(
     (t) => t.min_days === 1 && (t.max_days === 1 || t.max_days === null)
   );
   if (oneDayTier) {
-    return { price: Number(oneDayTier.price), currency: oneDayTier.currency || 'MYR' };
+    return {
+      price: Number(oneDayTier.price),
+      currency: oneDayTier.currency || getCurrencyForCountry(oneDayTier.country_code) || 'USD',
+    };
   }
 
   // 2. Look for base tier
   const baseTier = validTiers.find((t) => t.is_base);
   if (baseTier) {
-    return { price: Number(baseTier.price), currency: baseTier.currency || 'MYR' };
+    return {
+      price: Number(baseTier.price),
+      currency: baseTier.currency || getCurrencyForCountry(baseTier.country_code) || 'USD',
+    };
   }
 
   // 3. Fallback to lowest min_days tier
   const sorted = [...validTiers].sort((a, b) => a.min_days - b.min_days);
   const lowestTier = sorted[0];
   if (lowestTier) {
-    return { price: Number(lowestTier.price), currency: lowestTier.currency || 'MYR' };
+    return {
+      price: Number(lowestTier.price),
+      currency: lowestTier.currency || getCurrencyForCountry(lowestTier.country_code) || 'USD',
+    };
   }
 
   return null;
 }
 
 /**
- * Formats a currency value cleanly (e.g. RM1,400 or USD 1,400)
+ * Formats a currency value cleanly (e.g. RM1,400 or $1,400)
  */
-export function formatPublicPrice(price: number, currency: string = 'MYR'): string {
+export function formatPublicPrice(price: number, currency: string = 'USD'): string {
+  const normCur = (currency || 'USD').toUpperCase();
   const formatted = Number(price).toLocaleString('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
-  if (currency.toUpperCase() === 'MYR') {
+  if (normCur === 'MYR') {
     return `RM${formatted}`;
   }
-  return `${currency} ${formatted}`;
+  if (normCur === 'USD') {
+    return `$${formatted}`;
+  }
+  if (normCur === 'SGD') {
+    return `S$${formatted}`;
+  }
+  return `${normCur} ${formatted}`;
 }

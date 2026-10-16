@@ -1058,7 +1058,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                   <Send className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Send Customer Invitation</h3>
+                  <h3 className="text-base font-bold text-white">{t('developer.sendInvitationModalTitle', undefined, 'Send Customer Invitation')}</h3>
                   <p className="text-slate-400">
                     Target Company: <strong className="text-amber-400">{invitingCompany.company_name}</strong>
                     <span className="block text-slate-400 text-[11px] mt-0.5">
@@ -1194,11 +1194,11 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             {/* Email Preview Snippet */}
             <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1 text-[11px]">
               <div className="text-slate-400 flex items-center justify-between">
-                <span>Subject: <strong className="text-white">Invitation to Try EventGameStudio</strong></span>
-                <span className="text-slate-500">Service: Dedicated Resend API</span>
+                <span>{t('developer.subjectLabel', undefined, 'Subject:')} <strong className="text-white">{t('developer.invitationSubject', undefined, 'Invitation to Try EventGameStudio')}</strong></span>
+                <span className="text-slate-500">{t('developer.serviceDedicatedResend', undefined, 'Service: Dedicated Resend API')}</span>
               </div>
               <div className="text-slate-500">
-                Sender: <span className="text-slate-300">Configured via RESEND_INVITATION_FROM (Resend)</span>
+                Sender: <span className="text-slate-300">{t('developer.configuredViaResend', undefined, 'Configured via RESEND_INVITATION_FROM (Resend)')}</span>
               </div>
               <div className="text-slate-500">
                 Delivery: <span className="text-amber-400/90 font-medium">ONE shared email addressed to {selectedRecipientIds.length} recipient{selectedRecipientIds.length === 1 ? '' : 's'}</span>
@@ -1225,7 +1225,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 {sendingInvite ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Delivering via Resend...</span>
+                    <span>{t('developer.deliveringViaResend', undefined, 'Delivering via Resend...')}</span>
                   </>
                 ) : (
                   <>
@@ -1284,8 +1284,8 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             {/* Company Name */}
             <div className="space-y-1.5">
               <label className="text-slate-300 font-semibold flex items-center justify-between">
-                <span>Company Name *</span>
-                <span className="text-[10px] text-slate-500">Required</span>
+                <span>{t('developer.companyNameRequired', undefined, 'Company Name *')}</span>
+                <span className="text-[10px] text-slate-500">{t('common.required', undefined, 'Required')}</span>
               </label>
               <input
                 type="text"
@@ -1300,7 +1300,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
             {/* Contact Person Name & Notes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-slate-300 font-semibold">Contact Person (Optional)</label>
+                <label className="text-slate-300 font-semibold">{t('developer.contactPersonOptional', undefined, 'Contact Person (Optional)')}</label>
                 <input
                   type="text"
                   value={formContactPerson}
@@ -1327,7 +1327,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               <div className="flex items-center justify-between">
                 <label className="text-slate-300 font-semibold flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Recipient Email Addresses * (At least 1 required)</span>
+                  <span>{t('developer.recipientEmailAddressesRequired', undefined, 'Recipient Email Addresses * (At least 1 required)')}</span>
                 </label>
                 <button
                   type="button"
@@ -1475,7 +1475,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-1.5">
-                  <span>Email Already Associated With Another Company</span>
+                  <span>{t('developer.emailAlreadyAssociatedTitle', undefined, 'Email Already Associated With Another Company')}</span>
                 </h3>
                 <p className="text-slate-400 text-[11px] mt-0.5">
                   Notice: One or more recipient email addresses are already associated with an existing customer company.
@@ -1497,7 +1497,7 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                       {dup.email}
                     </div>
                     <div className="text-slate-400 text-[11px] flex items-center gap-1">
-                      <span className="text-slate-500">Existing company:</span>
+                      <span className="text-slate-500">{t('developer.existingCompanyLabel', undefined, 'Existing company:')}</span>
                       <strong className="text-white font-semibold">{dup.company_name}</strong>
                     </div>
                   </div>
@@ -1710,11 +1710,11 @@ export const DeveloperCustomerInvitations: React.FC = () => {
                 <table className="w-full text-left text-[11px]">
                   <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-semibold tracking-wider">
                     <tr>
-                      <th className="py-2.5 px-3">Date / Time</th>
-                      <th className="py-2.5 px-3">Recipient Email</th>
-                      <th className="py-2.5 px-3">Provider</th>
-                      <th className="py-2.5 px-3">Status</th>
-                      <th className="py-2.5 px-3">Details</th>
+                      <th className="py-2.5 px-3">{t('developer.colDateTime', undefined, 'Date / Time')}</th>
+                      <th className="py-2.5 px-3">{t('developer.colRecipientEmail', undefined, 'Recipient Email')}</th>
+                      <th className="py-2.5 px-3">{t('developer.colProvider', undefined, 'Provider')}</th>
+                      <th className="py-2.5 px-3">{t('common.status', undefined, 'Status')}</th>
+                      <th className="py-2.5 px-3">{t('developer.colDetails', undefined, 'Details')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">

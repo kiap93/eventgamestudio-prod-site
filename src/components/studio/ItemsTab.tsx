@@ -5,11 +5,13 @@ import {
   ThemeDropItem,
   isMemoryMatchTheme,
   isReactionTheme,
+  isMatch3Theme,
   getDropItemDisplaySize,
   DEFAULT_MAX_DROP_ITEM_SIZE,
   memoryMatchTheme,
 } from '../../themes';
 import { MemoryMatchCardsCustomizer } from './games/MemoryMatchCustomizer';
+import { Match3TilesCustomizer } from './games/Match3Customizer';
 import {
   Sparkles,
   Plus,
@@ -22,9 +24,11 @@ import {
 
 interface ItemsTabProps {
   theme: GameTheme;
-  onChange: (updated: GameTheme) => void;
-  onUploadAsset: (file: File, fieldKey: string) => Promise<string>;
-  uploadingAsset: string | null;
+  onChange?: (updated: GameTheme) => void;
+  onFieldChange?: (field: keyof GameTheme, value: any) => void;
+  onUploadAsset?: (file: File, fieldKey: string) => Promise<string | { url: string; path?: string }>;
+  uploadingAsset?: string | null;
+  isViewer?: boolean;
 }
 
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -254,11 +258,39 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
 export const ItemsTab: React.FC<ItemsTabProps> = ({
   theme,
   onChange,
+  onFieldChange,
   onUploadAsset,
-  uploadingAsset,
+  uploadingAsset = null,
 }) => {
   const { t } = useLocalization();
   const isMemoryMatch = isMemoryMatchTheme(theme);
+
+  // Authoritative theme change dispatcher: supports onChange and adapts onFieldChange
+  const handleThemeChange = (updated: GameTheme) => {
+    if (typeof onChange === 'function') {
+      onChange(updated);
+    } else if (typeof onFieldChange === 'function') {
+      if (updated.game_config !== theme.game_config) {
+        onFieldChange('game_config', updated.game_config);
+      }
+      if (updated.items_config !== theme.items_config) {
+        onFieldChange('items_config', updated.items_config);
+      }
+    }
+  };
+
+  // Safe asset uploader guaranteeing valid string URL
+  const safeUploadAsset = async (file: File, fieldKey: string): Promise<string> => {
+    if (typeof onUploadAsset !== 'function') {
+      throw new Error('Asset uploader is not available.');
+    }
+    const res = await onUploadAsset(file, fieldKey);
+    const url = typeof res === 'string' ? res : (res as any)?.url;
+    if (!url || typeof url !== 'string') {
+      throw new Error('No valid image URL returned from upload.');
+    }
+    return url;
+  };
 
   if (isReactionTheme(theme)) {
     return (
@@ -276,12 +308,23 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
     );
   }
 
+  if (isMatch3Theme(theme)) {
+    return (
+      <Match3TilesCustomizer
+        theme={theme}
+        onChange={handleThemeChange}
+        onUploadAsset={safeUploadAsset}
+        uploadingAsset={uploadingAsset}
+      />
+    );
+  }
+
   if (isMemoryMatch) {
     return (
       <MemoryMatchCardsCustomizer
         theme={theme}
-        onChange={onChange}
-        onUploadAsset={onUploadAsset}
+        onChange={handleThemeChange}
+        onUploadAsset={safeUploadAsset}
         uploadingAsset={uploadingAsset}
       />
     );
@@ -291,7 +334,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
 
   const handleResetDefaultPairs = () => {
     const defaultPairs: ThemeDropItem[] = memoryMatchTheme.items_config || [];
-    onChange({
+    handleThemeChange({
       ...theme,
       items_config: defaultPairs,
     });
@@ -310,7 +353,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
       isBonus: false,
     };
 
-    onChange({
+    handleThemeChange({
       ...theme,
       items_config: [...items, newItem],
     });
@@ -329,7 +372,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
       isBonus: nextPoints >= 50,
     };
 
-    onChange({
+    handleThemeChange({
       ...theme,
       items_config: updated,
     });
@@ -342,7 +385,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
       id: `item_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       name: `${source.name} (Copy)`,
     };
-    onChange({
+    handleThemeChange({
       ...theme,
       items_config: [...items, duplicate],
     });
@@ -354,7 +397,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
       return;
     }
     const updated = items.filter((_, i) => i !== index);
-    onChange({
+    handleThemeChange({
       ...theme,
       items_config: updated,
     });
@@ -362,7 +405,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
 
   const handleItemUpload = async (file: File, index: number) => {
     const itemId = items[index]?.id || `item_${index}`;
-    const url = await onUploadAsset(file, `item_${itemId}`);
+    const url = await safeUploadAsset(file, `item_${itemId}`);
     handleUpdateItem(index, { imageUrl: url });
   };
 

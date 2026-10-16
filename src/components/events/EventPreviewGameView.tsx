@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
 import { GameContainer } from '../GameContainer';
+import { getThemeGameType, normalizeGameType, resolveAuthoritativeGameType } from '../../themes';
 import { apiFetch } from '../../lib/api';
 import {
   canAccessPreviewEvent,
@@ -306,7 +307,11 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   }
 
   const theme = eventData.game_theme;
-  const gameType = eventData.game?.game_type || 'catch-brand';
+  const gameType = resolveAuthoritativeGameType({
+    event: eventData,
+    game: eventData.game,
+    theme,
+  });
   const gameName = eventData.game?.name || 'Catch The Brand';
   const themeName = eventData.game_theme?.name || 'Theme';
 

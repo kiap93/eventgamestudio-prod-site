@@ -10,16 +10,25 @@ import {
   ShoppingBasket,
   Grid3X3,
   Zap,
+  Globe,
+  Info,
 } from 'lucide-react';
 import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
-  fetchPublicGamesPricing,
+  fetchPublicPricingDetails,
   matchGamePricingTier,
   formatPublicPrice,
   PublicGameWithPricing,
+  PublicGamesPricingResponse,
 } from '../../lib/publicPricing';
+import {
+  COUNTRIES,
+  getCountryByCode,
+  getCountryDisplayName,
+  getCountryFromBrowserTimezone,
+} from '../../lib/countryUtils';
 
 export const LandingPricing: React.FC = () => {
   const { t } = useLocalization();
@@ -31,14 +40,38 @@ export const LandingPricing: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPricing = async (forceRefresh = false) => {
+  // Country-based pricing state
+  const [selectedCountry, setSelectedCountry] = useState<string>(() => {
+    try {
+      const stored = localStorage.getItem('preferred_pricing_country');
+      if (stored && stored.length === 2) return stored.toUpperCase();
+    } catch (_) {}
+    return getCountryFromBrowserTimezone() || 'US';
+  });
+
+  const [pricingMeta, setPricingMeta] = useState<{
+    requestedCountry?: string;
+    pricingCountry?: string;
+    currency?: string;
+    isFallback?: boolean;
+    defaultPricingCountry?: string;
+  }>({});
+
+  const loadPricing = async (countryCode = selectedCountry, forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchPublicGamesPricing(forceRefresh);
-      setGames(data);
-      if (data.length > 0 && (!selectedGameId || !data.some((g) => g.id === selectedGameId))) {
-        setSelectedGameId(data[0].id);
+      const data: PublicGamesPricingResponse = await fetchPublicPricingDetails(countryCode, forceRefresh);
+      setGames(data.games || []);
+      setPricingMeta({
+        requestedCountry: data.requestedCountry,
+        pricingCountry: data.pricingCountry,
+        currency: data.currency,
+        isFallback: data.isFallback,
+        defaultPricingCountry: data.defaultPricingCountry,
+      });
+      if (data.games && data.games.length > 0 && (!selectedGameId || !data.games.some((g) => g.id === selectedGameId))) {
+        setSelectedGameId(data.games[0].id);
       }
     } catch (err: any) {
       console.error('Failed to load public game pricing:', err);
@@ -49,8 +82,16 @@ export const LandingPricing: React.FC = () => {
   };
 
   useEffect(() => {
-    loadPricing();
-  }, []);
+    loadPricing(selectedCountry);
+  }, [selectedCountry]);
+
+  const handleCountryChange = (newCountry: string) => {
+    const code = newCountry.toUpperCase();
+    setSelectedCountry(code);
+    try {
+      localStorage.setItem('preferred_pricing_country', code);
+    } catch (_) {}
+  };
 
   const selectedGame = games.find((g) => g.id === selectedGameId) || games[0] || null;
   const selectedGameTiers = selectedGame?.tiers || [];
@@ -121,6 +162,53 @@ export const LandingPricing: React.FC = () => {
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
             {t('landing.pricingSubtitle')}
           </p>
+
+          {/* Country Selector */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="inline-flex items-center gap-2.5 bg-slate-50 border border-slate-300 rounded-2xl px-4 py-2 text-xs shadow-xs">
+              <Globe className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="font-bold text-slate-700">
+                {t('landing.countryAndCurrency', undefined, 'Country & Currency:')}
+              </span>
+              <select
+                value={selectedCountry}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                className="bg-transparent font-black text-slate-900 cursor-pointer focus:outline-none pr-1"
+                aria-label={t('landing.selectCountryForPricing', undefined, 'Select country for pricing')}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {pricingMeta.currency && (
+              <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                {t('landing.currencyLabel', undefined, 'Currency:')}{' '}
+                <span className="font-mono text-slate-800">{pricingMeta.currency}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Fallback Notice Banner */}
+          {pricingMeta.isFallback && (
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-900 text-xs flex items-center justify-center gap-2 text-left sm:text-center max-w-2xl mx-auto">
+              <Info className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>{t('landing.fallbackPricing', undefined, 'Fallback Pricing:')}</strong>{' '}
+                {t(
+                  'landing.fallbackPricingDesc',
+                  {
+                    country: getCountryDisplayName(selectedCountry),
+                    currency: pricingMeta.currency,
+                    defaultCountry: getCountryDisplayName(pricingMeta.pricingCountry || 'US'),
+                  },
+                  `Dedicated pricing is not yet configured for ${getCountryDisplayName(selectedCountry)}. Showing default country pricing in ${pricingMeta.currency} (${getCountryDisplayName(pricingMeta.pricingCountry || 'US')}).`
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Loading State */}

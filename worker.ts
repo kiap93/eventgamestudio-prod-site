@@ -213,11 +213,67 @@ import {
   rejectShowcaseRewardSubmission,
   getShowcaseRewardEligibility,
   checkShowcaseRewardEligibility,
+  getSalesPartnerProfileByUserId,
+  listSalesPartnerProfiles,
+  createSalesPartnerApplication,
+  updateSalesPartnerStatus,
+  updateSalesPartnerRate,
+  getSalesPartnerAuditLogs,
+  getApprovedSalesGames,
+  getApprovedSalesGameById,
+  getOrCreateSalesReferralCode,
+  getReferralCodeByCode,
+  validateReferralCode,
+  recordCustomerReferral,
+  linkOrganizationToPendingAttribution,
+  getAttributionById,
+  listCustomerAttributions,
+  getAttributionAuditLogs,
+  approveCustomerAttribution,
+  rejectCustomerAttribution,
+  reassignCustomerAttribution,
+  revokeSalesReferralCode,
+  getSalesCommissionSettings,
+  updateSalesCommissionSettings,
+  listAdminCommissions,
+  getCommissionById,
+  approveCommission,
+  voidCommission,
+  adjustCommission,
+  getPartnerCommissions,
+  getPartnerCommissionSummary,
+  getPartnerCustomerAttributionSummary,
+  createSalesOpportunityRequest,
+  listSalesOpportunities,
+  approveSalesOpportunity,
+  rejectSalesOpportunity,
+  getCommissionsReadyForPayout,
+  createPayoutBatch,
+  listPayoutBatches,
+  getPayoutBatchById,
+  markPayoutBatchPaid,
+  getCommissionAuditLogs,
+  listSalesPartnerCustomers,
+  getSalesPartnerCustomerDetail,
+  getSalesDashboardSummary,
+  listInvoicesByOrganization,
+  getInvoiceById,
+  getInvoiceByEventId,
+  getInvoicePdfBytes,
+  listAllInvoicesForDeveloper,
+  createCreditNote,
+  listCreditNotesByInvoice,
+  listInvoiceAuditLogs,
+  getPlatformInvoiceSettings,
+  updatePlatformInvoiceSettings,
+  retryInvoicePdf,
+  retryInvoiceEmail,
+  generateEventInvoice,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
 import { translationService } from './server/translation/service.js';
-import { isValidTimezone } from './src/lib/countryUtils.js';
+import { isValidTimezone, getCurrencyForCountry } from './src/lib/countryUtils.js';
 import {
   getAuthoritativeNow,
   getAuthoritativeNowMs,
@@ -252,6 +308,7 @@ import {
   findCrossCompanyDuplicates,
 } from './server/db/customerInvitations.js';
 import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
+import { handleResendInboundWebhookRequest } from './server/email/inbound.js';
 
 import {
   buildGoogleAuthUrl,
@@ -287,6 +344,7 @@ import {
   hasRolePermission,
   hashToken,
   isUserDeveloperAdmin,
+  isUserActiveSalesPartner,
   resolveAuthToken,
   AppJWTPayload,
 } from './server/auth.js';
@@ -323,6 +381,7 @@ export interface Env {
   EXPOSE_API_ERRORS?: string;
   RESEND_API_KEY?: string;
   RESEND_INVITATION_FROM?: string;
+  RESEND_WEBHOOK_SECRET?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   JWT_SECRET?: string;
@@ -615,6 +674,27 @@ async function authenticateWorkerRequest(
     authenticated: false,
     errorResponse: errorResponse('Unauthenticated: Invalid or expired token', 401, cors),
   };
+}
+
+async function authenticateWorkerDeveloperAdmin(
+  request: Request,
+  env: Env,
+  cors: Record<string, string>
+): Promise<{
+  authenticated: boolean;
+  user?: any;
+  jwtPayload?: AppJWTPayload;
+  errorResponse?: Response;
+}> {
+  const auth = await authenticateWorkerRequest(request, env, cors);
+  if (!auth.authenticated) return auth;
+  if (!isUserDeveloperAdmin(auth.user, env)) {
+    return {
+      authenticated: false,
+      errorResponse: errorResponse('Forbidden: Developer Admin access required', 403, cors),
+    };
+  }
+  return auth;
 }
 
 /**
@@ -1185,7 +1265,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
       }
 
       // GET /api/debug/time - Diagnostic endpoint for authoritative server time (Strictly uncached)
+      // Development: enabled; Production: 404
       if (pathname === '/api/debug/time' && method === 'GET') {
+        if (env?.NODE_ENV === 'production' || env?.ENVIRONMENT === 'production') {
+          return new Response(JSON.stringify({ error: 'Not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors },
+          });
+        }
+
         const reqTz = url.searchParams.get('timezone') || PLATFORM_BUSINESS_TIMEZONE;
         const targetTz = isValidTimezone(reqTz) ? reqTz : PLATFORM_BUSINESS_TIMEZONE;
         const now = getAuthoritativeNow();
@@ -1243,6 +1331,24 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           if (!user) {
             console.error(`[Google Auth Error][${correlationId}] GOOGLE_USER_NOT_FOUND: Failed to create or load user record`);
             return errorResponse('Google authentication failed', 401, { ...cors, 'x-correlation-id': correlationId });
+          }
+
+          // Capture referral context if present
+          const referralCode = typeof body?.referral_code === 'string' ? body.referral_code.trim() : undefined;
+          if (referralCode && user) {
+            try {
+              await recordCustomerReferral(
+                {
+                  referralCode,
+                  referredUserId: user.id,
+                  prospectEmail: user.email,
+                  referralMethod: 'link',
+                },
+                env
+              );
+            } catch (refErr: any) {
+              console.warn(`[worker][Google Auth][${correlationId}] Non-blocking warning recording referral:`, refErr?.message);
+            }
           }
 
           stage = 'GOOGLE_LOAD_MEMBERSHIPS';
@@ -1400,6 +1506,24 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               503,
               { ...cors, 'x-correlation-id': correlationId }
             );
+          }
+
+          // Capture referral context if present
+          const referralCode = typeof body?.referral_code === 'string' ? body.referral_code.trim() : undefined;
+          if (referralCode) {
+            try {
+              await recordCustomerReferral(
+                {
+                  referralCode,
+                  referredUserId: user.id,
+                  prospectEmail: normalizedEmail,
+                  referralMethod: 'code',
+                },
+                env
+              );
+            } catch (refErr: any) {
+              console.warn(`[worker][AUTH][${correlationId}] Non-blocking warning recording referral:`, refErr?.message);
+            }
           }
 
           return jsonResponse(
@@ -1826,7 +1950,20 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const payload = auth.jwtPayload!;
 
         try {
-          const memberships = await getUserOrganizations(user.id, env);
+          const [memberships] = await Promise.all([
+            getUserOrganizations(user.id, env),
+          ]);
+
+          let salesPartner: any = null;
+          let salesPartnerUnavailable = false;
+
+          try {
+            salesPartner = await getSalesPartnerProfileByUserId(user.id, env);
+          } catch (err: any) {
+            console.error('[Worker Auth /me] Database lookup failure fetching sales partner profile:', err);
+            salesPartnerUnavailable = true;
+          }
+
           let activeOrgId = payload.organizationId;
           let activeMember = memberships.find((m) => m.id === activeOrgId);
 
@@ -1855,6 +1992,20 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
                     country_code: activeMember.country_code || null,
                   }
                 : null,
+              salesPartner: salesPartnerUnavailable
+                ? undefined
+                : salesPartner
+                ? {
+                    id: salesPartner.id,
+                    status: salesPartner.status,
+                    applied_at: salesPartner.applied_at,
+                    activated_at: salesPartner.activated_at,
+                    suspended_at: salesPartner.suspended_at,
+                    agency_name: salesPartner.agency_name || null,
+                    application_notes: salesPartner.application_notes || null,
+                  }
+                : null,
+              salesPartnerUnavailable: salesPartnerUnavailable ? true : undefined,
             },
             200,
             { ...cors, 'x-correlation-id': correlationId }
@@ -2003,6 +2154,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             },
             env
           );
+
+          // 1b. Associate newly established organization to pending referral attribution if exists
+          try {
+            await linkOrganizationToPendingAttribution(user.id, organization.id, env);
+          } catch (attrErr: any) {
+            console.warn('[worker][POST /api/organizations] Non-blocking warning linking pending attribution:', attrErr?.message);
+          }
 
           let gameId = 'catch-brand';
           try {
@@ -2902,6 +3060,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           declaredMime: rawMime,
           maxSizeBytes: MAX_ASSET_SIZE,
           allowedMediaTypes,
+          allowSvg: true,
+          isEdgeRuntime: true,
         });
 
         if (!validation.valid) {
@@ -3627,8 +3787,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
         const { gameId } = gamePricingMatch;
+        const country = url.searchParams.get('country') || url.searchParams.get('country_code') || undefined;
         try {
-          const tiers = await getActiveGamePricing(gameId, env);
+          const tiers = await getActiveGamePricing(gameId, country, env);
           return jsonResponse({ success: true, tiers, game_id: gameId }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -3637,8 +3798,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
       // GET /api/public/games/pricing (Public landing page endpoint)
       if (pathname === '/api/public/games/pricing' && method === 'GET') {
+        const country = url.searchParams.get('country') || url.searchParams.get('country_code') || undefined;
         try {
-          const data = await getPublicGamesPricing(env);
+          const data = await getPublicGamesPricing(country, env);
           return jsonResponse(data, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -4086,10 +4248,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         } = body;
 
         let price: number | undefined = undefined;
-        let currency = 'MYR';
+        let currency = '';
         let durationDays = 1;
         let ruleLabel = '1 day';
         let targetGameId = body.game_id || body.gameId;
+        let pricingCountry: string | undefined = undefined;
+        let requestedCountry: string | undefined = undefined;
+        let isFallbackPricing: boolean = false;
 
         if (event_id) {
           // Existing event: event.event_price and event.event_currency MUST be authoritative
@@ -4127,6 +4292,14 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
 
           try {
+            let quoteCountry = body.country_code || body.countryCode;
+            if (!quoteCountry && organizationId) {
+              try {
+                const org = await getOrganizationById(organizationId, env);
+                if (org?.country_code) quoteCountry = org.country_code;
+              } catch (_) {}
+            }
+
             const pricing = await calculateEventAuthoritativePrice({
               game_id: targetGameId,
               start_date: start_date || startDate,
@@ -4134,11 +4307,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               event_date,
               starts_at,
               expires_at,
+              country_code: quoteCountry,
             }, env);
             price = pricing.price;
             currency = pricing.currency;
             durationDays = pricing.durationDays;
             ruleLabel = pricing.ruleLabel;
+            requestedCountry = pricing.requestedCountry;
+            pricingCountry = pricing.pricingCountry;
+            isFallbackPricing = Boolean(pricing.isFallback);
           } catch (e: any) {
             console.error('Authoritative pricing calculation failed in quote (worker):', e);
             return handleWorkerApiError(e, request, cors, env);
@@ -4238,11 +4415,14 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         return jsonResponse({
           standard_price: price,
           event_price: price,
-          currency: currency || 'MYR',
+          currency: currency,
           duration_days: durationDays,
           durationDays,
           pricing_rule_label: ruleLabel,
           pricingRuleLabel: ruleLabel,
+          requested_country: requestedCountry,
+          pricing_country: pricingCountry,
+          is_fallback: isFallbackPricing,
           theme: themeInfo,
           selected_mode: selectedMode,
           calculation: selectedCalculation,
@@ -4365,6 +4545,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               event_price,
               event_timezone: resolvedTz,
               currentDate: serverToday,
+              country_code: orgRecord?.country_code || undefined,
             },
             env
           );
@@ -6522,8 +6703,9 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
         const { gameId } = devGamePricingMatch;
+        const country = url.searchParams.get('country') || url.searchParams.get('country_code') || undefined;
         try {
-          const tiers = await getGamePricing(gameId, env);
+          const tiers = await getGamePricing(gameId, country, env);
           return jsonResponse({ success: true, tiers, game_id: gameId }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -6557,9 +6739,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
         const { gameId } = devGamePricingSeedMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
         try {
           const game = await getGameById(gameId, env);
-          const tiers = await ensureDefaultGamePricing(gameId, game?.slug || game?.game_type, env);
+          const tiers = await ensureDefaultGamePricing(gameId, game?.slug || game?.game_type, body.country_code, body.currency, env);
           return jsonResponse({ success: true, tiers, message: 'Default pricing tiers seeded successfully' }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -6584,6 +6767,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             max_days: body.max_days !== undefined ? body.max_days : null,
             price: body.price,
             currency: body.currency,
+            country_code: body.country_code,
             is_active: body.is_active,
             is_base: body.is_base,
           }, env);
@@ -6608,6 +6792,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             max_days: body.max_days,
             price: body.price,
             currency: body.currency,
+            country_code: body.country_code,
             is_active: body.is_active,
             is_base: body.is_base,
           }, env);
@@ -6712,10 +6897,6 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         const { themeId } = devThemeDetailParams;
-        if (!isUUID(themeId)) {
-          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
-        }
-
         const theme = await getThemeById(themeId, env);
         if (!theme) {
           return errorResponse('System theme not found', 404, cors);
@@ -7250,7 +7431,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { default_price, default_currency, pricing_rules } = body;
+        const { default_price, default_currency, default_pricing_country, pricing_rules } = body;
         
         let priceNum: number | undefined;
         if (default_price !== undefined) {
@@ -7265,6 +7446,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             {
               default_price: priceNum,
               default_currency: default_currency ? String(default_currency).trim().toUpperCase() : undefined,
+              default_pricing_country: default_pricing_country ? String(default_pricing_country).trim().toUpperCase() : undefined,
               pricing_rules: Array.isArray(pricing_rules) ? pricing_rules : undefined,
             },
             auth.user?.id,
@@ -7728,11 +7910,1181 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
       // POST /api/developer/customer-invitations/resend-webhook or /api/webhooks/resend
       if ((pathname === '/api/developer/customer-invitations/resend-webhook' || pathname === '/api/webhooks/resend') && method === 'POST') {
-        const payload = (await request.json().catch(() => ({}))) as any;
-        const result = await handleCustomerInvitationWebhook(payload, env);
-        return jsonResponse({ success: true, result }, 200, cors);
+        const rawBody = await request.text().catch(() => '');
+        const headers: Record<string, string> = {};
+        for (const [key, value] of request.headers.entries()) {
+          headers[key] = value;
+        }
+
+        // 1. Process Svix verification & inbound email receiving/forwarding
+        const inboundResult = await handleResendInboundWebhookRequest({
+          rawBody,
+          headers,
+          env,
+        });
+
+        if (inboundResult.statusCode !== 200) {
+          return jsonResponse(inboundResult.responseBody, inboundResult.statusCode, cors);
+        }
+
+        // 2. If it was an email.received event that got forwarded, return its response
+        if (inboundResult.responseBody?.eventType === 'email.received') {
+          return jsonResponse(inboundResult.responseBody, 200, cors);
+        }
+
+        // 3. For delivery status events (email.delivered, email.bounced, etc.), update audit logs
+        let parsedPayload: any = {};
+        try {
+          parsedPayload = JSON.parse(rawBody);
+        } catch {
+          // ignore
+        }
+        const deliveryResult = await handleCustomerInvitationWebhook(parsedPayload, env);
+        return jsonResponse({ success: true, result: deliveryResult, webhook: inboundResult.responseBody }, 200, cors);
       }
 
+      // ====================================================
+      // SALES PARTNER ENDPOINTS (PHASE 2 FOUNDATIONS)
+      // ====================================================
+
+      // GET /api/sales/me
+      if (pathname === '/api/sales/me' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const isActive = await isUserActiveSalesPartner(user.id, env);
+        const profile = await getSalesPartnerProfileByUserId(user.id, env);
+
+        if (!isActive || !profile) {
+          return jsonResponse(
+            {
+              error: 'Forbidden: Active Sales Partner access required.',
+              code: 'SALES_PARTNER_ACCESS_REQUIRED',
+              partnerStatus: profile ? profile.status : 'none',
+            },
+            403,
+            cors
+          );
+        }
+
+        return jsonResponse(
+          {
+            success: true,
+            salesPartner: {
+              id: profile.id,
+              user_id: profile.user_id,
+              status: profile.status,
+              applied_at: profile.applied_at,
+              activated_at: profile.activated_at,
+              suspended_at: profile.suspended_at,
+              agency_name: profile.agency_name || null,
+              application_notes: profile.application_notes || null,
+              custom_commission_rate: profile.custom_commission_rate ?? null,
+              first_order_commission_rate: profile.first_order_commission_rate ?? null,
+              repeat_order_commission_rate: profile.repeat_order_commission_rate ?? null,
+              created_at: profile.created_at,
+              updated_at: profile.updated_at,
+            },
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+            },
+          },
+          200,
+          cors
+        );
+      }
+
+      // POST /api/sales/apply
+      if (pathname === '/api/sales/apply' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body: any = await request.json().catch(() => ({}));
+
+          const agencyName = typeof body.agencyName === 'string'
+            ? body.agencyName.trim()
+            : typeof body.agency_name === 'string'
+            ? body.agency_name.trim()
+            : undefined;
+
+          const applicationNotes = typeof body.applicationNotes === 'string'
+            ? body.applicationNotes.trim()
+            : typeof body.application_notes === 'string'
+            ? body.application_notes.trim()
+            : typeof body.notes === 'string'
+            ? body.notes.trim()
+            : typeof body.adminNotes === 'string'
+            ? body.adminNotes.trim()
+            : undefined;
+
+          // Strict length limits validation
+          if (agencyName && agencyName.length > 150) {
+            return jsonResponse({ error: 'Agency name cannot exceed 150 characters.' }, 400, cors);
+          }
+          if (applicationNotes && applicationNotes.length > 1000) {
+            return jsonResponse({ error: 'Application details cannot exceed 1,000 characters.' }, 400, cors);
+          }
+
+          const profile = await createSalesPartnerApplication(
+            auth.user!.id,
+            { agencyName, applicationNotes },
+            env
+          );
+
+          if (profile && 'admin_notes' in profile) {
+            delete (profile as any).admin_notes;
+          }
+
+          return jsonResponse(
+            {
+              success: true,
+              salesPartner: profile,
+              message: 'Sales Partner application submitted successfully. Your application is now pending review.',
+            },
+            201,
+            cors
+          );
+        } catch (err: any) {
+          if (err.message?.includes('already exists')) {
+            return jsonResponse({ error: err.message }, 409, cors);
+          }
+          if (err.message?.includes('cannot exceed')) {
+            return jsonResponse({ error: err.message }, 400, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/games
+      if (pathname === '/api/sales/games' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          const profile = await getSalesPartnerProfileByUserId(auth.user!.id, env);
+          return jsonResponse(
+            {
+              error: 'Forbidden: Active Sales Partner access required.',
+              code: 'SALES_PARTNER_ACCESS_REQUIRED',
+              partnerStatus: profile ? profile.status : 'none',
+            },
+            403,
+            cors
+          );
+        }
+
+        try {
+          const country = url.searchParams.get('country') || url.searchParams.get('country_code') || undefined;
+          const games = await getApprovedSalesGames(country, env);
+          return jsonResponse({ success: true, games, count: games.length }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/games/:gameId
+      const salesGameDetailMatch = parseRoute('/api/sales/games/:gameId', pathname);
+      if (salesGameDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          const profile = await getSalesPartnerProfileByUserId(auth.user!.id, env);
+          return jsonResponse(
+            {
+              error: 'Forbidden: Active Sales Partner access required.',
+              code: 'SALES_PARTNER_ACCESS_REQUIRED',
+              partnerStatus: profile ? profile.status : 'none',
+            },
+            403,
+            cors
+          );
+        }
+
+        try {
+          const { gameId } = salesGameDetailMatch;
+          const country = url.searchParams.get('country') || url.searchParams.get('country_code') || undefined;
+          const game = await getApprovedSalesGameById(gameId, country, env);
+          if (!game) {
+            return jsonResponse({ error: 'Game not found or not approved for sales demonstration' }, 404, cors);
+          }
+          return jsonResponse({ success: true, game }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-partners or /api/admin/sales-partners
+      if ((pathname === '/api/developer/sales-partners' || pathname === '/api/admin/sales-partners') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const statusQuery = url.searchParams.get('status')?.trim();
+          const searchQuery = url.searchParams.get('search')?.trim();
+          const validStatuses = ['pending', 'active', 'suspended', 'rejected'];
+          const filterStatus = statusQuery && validStatuses.includes(statusQuery) ? (statusQuery as any) : undefined;
+          const partners = await listSalesPartnerProfiles({ status: filterStatus, search: searchQuery }, env);
+          return jsonResponse({ success: true, salesPartners: partners }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-partners/:userId/status or /api/admin/sales-partners/:userId/status
+      const devPartnerStatusMatch = parseRoute('/api/developer/sales-partners/:userId/status', pathname) ||
+                                    parseRoute('/api/admin/sales-partners/:userId/status', pathname);
+      if (devPartnerStatusMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { userId } = devPartnerStatusMatch;
+          const body: any = await request.json().catch(() => ({}));
+          const { status, admin_notes, reason } = body;
+
+          const validStatuses = ['pending', 'active', 'suspended', 'rejected'];
+          if (!status || !validStatuses.includes(status)) {
+            return jsonResponse(
+              { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
+              422,
+              cors
+            );
+          }
+
+          const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+          if ((status === 'suspended' || status === 'rejected') && !trimmedReason) {
+            return jsonResponse(
+              { error: 'A non-empty reason is required for status changes' },
+              422,
+              cors
+            );
+          }
+
+          const updated = await updateSalesPartnerStatus(
+            userId,
+            status,
+            admin_notes,
+            auth.user!.id,
+            trimmedReason,
+            env
+          );
+          return jsonResponse(
+            {
+              success: true,
+              salesPartner: updated,
+              message: `Sales Partner status updated to ${status}.`,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          if (err.message?.includes('not found')) {
+            return jsonResponse({ error: err.message }, 404, cors);
+          }
+          if (err.message?.includes('reason is required')) {
+            return jsonResponse({ error: err.message }, 422, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-partners/:userId/rates or /api/admin/sales-partners/:userId/rates
+      const devPartnerRatesMatch = parseRoute('/api/developer/sales-partners/:userId/rates', pathname) ||
+                                   parseRoute('/api/admin/sales-partners/:userId/rates', pathname);
+      if (devPartnerRatesMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { userId } = devPartnerRatesMatch;
+          const body: any = await request.json().catch(() => ({}));
+          const { custom_commission_rate, first_order_commission_rate, repeat_order_commission_rate, reason } = body;
+
+          const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+          if (!trimmedReason) {
+            return jsonResponse(
+              { error: 'A non-empty reason is required to update commission rates' },
+              422,
+              cors
+            );
+          }
+
+          // Validate rates independently
+          const validateRate = (val: any, fieldName: string) => {
+            if (val === undefined || val === null) return null;
+            if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 0.50) {
+              return `${fieldName} must be null or a finite number between 0.00 and 0.50 (maximum 50%)`;
+            }
+            return null;
+          };
+
+          const customErr = validateRate(custom_commission_rate, 'Custom commission rate');
+          if (customErr) return jsonResponse({ error: customErr }, 422, cors);
+          const firstErr = validateRate(first_order_commission_rate, 'First order commission rate');
+          if (firstErr) return jsonResponse({ error: firstErr }, 422, cors);
+          const repeatErr = validateRate(repeat_order_commission_rate, 'Repeat order commission rate');
+          if (repeatErr) return jsonResponse({ error: repeatErr }, 422, cors);
+
+          if (
+            custom_commission_rate === undefined &&
+            first_order_commission_rate === undefined &&
+            repeat_order_commission_rate === undefined
+          ) {
+            return jsonResponse(
+              { error: 'At least one commission rate field must be provided' },
+              422,
+              cors
+            );
+          }
+
+          const ratesPayload: {
+            custom_commission_rate?: number | null;
+            first_order_commission_rate?: number | null;
+            repeat_order_commission_rate?: number | null;
+          } = {};
+
+          if (custom_commission_rate !== undefined) ratesPayload.custom_commission_rate = custom_commission_rate;
+          if (first_order_commission_rate !== undefined) ratesPayload.first_order_commission_rate = first_order_commission_rate;
+          if (repeat_order_commission_rate !== undefined) ratesPayload.repeat_order_commission_rate = repeat_order_commission_rate;
+
+          const updated = await updateSalesPartnerRate(
+            userId,
+            ratesPayload,
+            auth.user!.id,
+            trimmedReason,
+            env
+          );
+
+          return jsonResponse(
+            {
+              success: true,
+              salesPartner: updated,
+              message: 'Commission rates updated successfully.',
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          if (err.message?.includes('not found')) {
+            return jsonResponse({ error: err.message }, 404, cors);
+          }
+          if (err.message?.includes('reason is required') || err.message?.includes('must be null or a finite number')) {
+            return jsonResponse({ error: err.message }, 422, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-partners/:userId/audit-logs or /api/admin/sales-partners/:userId/audit-logs
+      const devPartnerAuditMatch = parseRoute('/api/developer/sales-partners/:userId/audit-logs', pathname) ||
+                                   parseRoute('/api/admin/sales-partners/:userId/audit-logs', pathname);
+      if (devPartnerAuditMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { userId } = devPartnerAuditMatch;
+          const logs = await getSalesPartnerAuditLogs(userId, env);
+          return jsonResponse({ success: true, auditLogs: logs }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // ====================================================
+      // SALES REFERRALS & CUSTOMER ATTRIBUTIONS (PHASE 4)
+      // ====================================================
+
+      // GET /api/sales/referral-code
+      if (pathname === '/api/sales/referral-code' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse(
+            { error: 'Forbidden: Active Sales Partner access required' },
+            403,
+            cors
+          );
+        }
+
+        try {
+          const user = auth.user!;
+          const codeRecord = await getOrCreateSalesReferralCode(user.id, env);
+          const baseUrl = getFrontendBaseUrl(env, request);
+          const referralUrl = `${baseUrl}/?ref=${codeRecord.code}`;
+
+          return jsonResponse(
+            {
+              success: true,
+              referralCode: codeRecord.code,
+              referralUrl,
+              record: codeRecord,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/attributions
+      if (pathname === '/api/sales/attributions' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse(
+            { error: 'Forbidden: Active Sales Partner access required' },
+            403,
+            cors
+          );
+        }
+
+        try {
+          const statusQuery = url.searchParams.get('status')?.trim() as any;
+          const searchQuery = url.searchParams.get('search')?.trim();
+
+          const attributions = await listCustomerAttributions(
+            {
+              partnerUserId: auth.user!.id,
+              status: statusQuery,
+              search: searchQuery,
+            },
+            env
+          );
+
+          return jsonResponse({ success: true, attributions }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/referrals/validate/:code
+      const validateReferralMatch = parseRoute('/api/referrals/validate/:code', pathname);
+      if (validateReferralMatch && method === 'GET') {
+        try {
+          const { code } = validateReferralMatch;
+          const validation = await validateReferralCode(code, env);
+
+          if (!validation.valid || !validation.codeRecord) {
+            return jsonResponse(
+              {
+                success: false,
+                valid: false,
+                reason: validation.reason || 'INVALID_REFERRAL_CODE',
+              },
+              200,
+              cors
+            );
+          }
+
+          return jsonResponse(
+            {
+              success: true,
+              valid: true,
+              code: validation.codeRecord.code,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/referrals/capture
+      if (pathname === '/api/referrals/capture' && method === 'POST') {
+        try {
+          const body: any = await request.json().catch(() => ({}));
+          const { referralCode, email } = body;
+
+          if (!referralCode || typeof referralCode !== 'string') {
+            return jsonResponse({ error: 'Referral code is required' }, 422, cors);
+          }
+
+          const validation = await validateReferralCode(referralCode, env);
+          if (!validation.valid) {
+            return jsonResponse(
+              { error: 'Invalid or inactive referral code', reason: validation.reason },
+              400,
+              cors
+            );
+          }
+
+          if (email && typeof email === 'string' && email.trim()) {
+            await recordCustomerReferral(
+              {
+                referralCode: referralCode.trim(),
+                prospectEmail: email.trim().toLowerCase(),
+                referralMethod: 'link',
+              },
+              env
+            );
+          }
+
+          return jsonResponse(
+            {
+              success: true,
+              code: validation.codeRecord?.code,
+              message: 'Referral captured successfully',
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-attributions or /api/admin/sales-attributions
+      if ((pathname === '/api/developer/sales-attributions' || pathname === '/api/admin/sales-attributions') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const status = url.searchParams.get('status')?.trim() as any;
+          const partnerId = url.searchParams.get('partnerId')?.trim();
+          const organizationId = url.searchParams.get('organizationId')?.trim();
+          const search = url.searchParams.get('search')?.trim();
+
+          const attributions = await listCustomerAttributions(
+            {
+              status,
+              partnerId,
+              organizationId,
+              search,
+            },
+            env
+          );
+
+          return jsonResponse({ success: true, attributions }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-attributions/:id or /api/admin/sales-attributions/:id
+      const devAttributionDetailMatch = parseRoute('/api/developer/sales-attributions/:id', pathname) ||
+                                         parseRoute('/api/admin/sales-attributions/:id', pathname);
+      if (devAttributionDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { id } = devAttributionDetailMatch;
+          const attribution = await getAttributionById(id, env);
+          if (!attribution) {
+            return jsonResponse({ error: 'Attribution record not found' }, 404, cors);
+          }
+
+          const auditLogs = await getAttributionAuditLogs(id, env);
+          return jsonResponse({ success: true, attribution, auditLogs }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-attributions/:id/approve or /api/admin/sales-attributions/:id/approve
+      const devAttributionApproveMatch = parseRoute('/api/developer/sales-attributions/:id/approve', pathname) ||
+                                          parseRoute('/api/admin/sales-attributions/:id/approve', pathname);
+      if (devAttributionApproveMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { id } = devAttributionApproveMatch;
+          const body: any = await request.json().catch(() => ({}));
+          const reason = typeof body?.reason === 'string' ? body.reason.trim() : undefined;
+
+          const updated = await approveCustomerAttribution(id, auth.user!.id, reason, undefined, env);
+          return jsonResponse(
+            {
+              success: true,
+              attribution: updated,
+              message: 'Attribution approved successfully',
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          if (err.message?.includes('not found')) {
+            return jsonResponse({ error: err.message }, 404, cors);
+          }
+          if (err.message?.includes('Cannot approve: Organization is already attributed')) {
+            return jsonResponse({ error: err.message }, 409, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-attributions/:id/reject or /api/admin/sales-attributions/:id/reject
+      const devAttributionRejectMatch = parseRoute('/api/developer/sales-attributions/:id/reject', pathname) ||
+                                         parseRoute('/api/admin/sales-attributions/:id/reject', pathname);
+      if (devAttributionRejectMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { id } = devAttributionRejectMatch;
+          const body: any = await request.json().catch(() => ({}));
+          const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+
+          if (!reason) {
+            return jsonResponse({ error: 'A recorded rejection reason is required' }, 422, cors);
+          }
+
+          const updated = await rejectCustomerAttribution(id, auth.user!.id, reason, env);
+          return jsonResponse(
+            {
+              success: true,
+              attribution: updated,
+              message: 'Attribution rejected successfully',
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          if (err.message?.includes('not found')) {
+            return jsonResponse({ error: err.message }, 404, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-attributions/:id/reassign or /api/admin/sales-attributions/:id/reassign
+      const devAttributionReassignMatch = parseRoute('/api/developer/sales-attributions/:id/reassign', pathname) ||
+                                           parseRoute('/api/admin/sales-attributions/:id/reassign', pathname);
+      if (devAttributionReassignMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const { id } = devAttributionReassignMatch;
+          const body: any = await request.json().catch(() => ({}));
+          const { newPartnerUserId, reason } = body;
+
+          if (!newPartnerUserId || typeof newPartnerUserId !== 'string' || !newPartnerUserId.trim()) {
+            return jsonResponse({ error: 'Target partner user ID is required' }, 422, cors);
+          }
+          if (!reason || typeof reason !== 'string' || !reason.trim()) {
+            return jsonResponse({ error: 'A recorded reassignment reason is required' }, 422, cors);
+          }
+
+          const updated = await reassignCustomerAttribution(id, newPartnerUserId.trim(), auth.user!.id, reason.trim(), env);
+          return jsonResponse(
+            {
+              success: true,
+              attribution: updated,
+              message: 'Attribution reassigned successfully',
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          if (err.message?.includes('not found')) {
+            return jsonResponse({ error: err.message }, 404, cors);
+          }
+          if (err.message?.includes('not an active Sales Partner')) {
+            return jsonResponse({ error: err.message }, 400, cors);
+          }
+          if (err.message?.includes('self-referral')) {
+            return jsonResponse({ error: err.message }, 400, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // ====================================================================
+      // PHASE 5: SALES PARTNER COMMISSIONS & OPPORTUNITIES (WORKER)
+      // ====================================================================
+
+      // GET /api/sales/commissions
+      if (pathname === '/api/sales/commissions' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({ error: 'Forbidden: Active Sales Partner access required' }, 403, cors);
+        }
+
+        try {
+          const [commissions, summary] = await Promise.all([
+            getPartnerCommissions(auth.user!.id, env),
+            getPartnerCommissionSummary(auth.user!.id, env),
+          ]);
+          return jsonResponse({ success: true, commissions, summary }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/opportunities
+      if (pathname === '/api/sales/opportunities' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({ error: 'Forbidden: Active Sales Partner access required' }, 403, cors);
+        }
+
+        try {
+          const opportunities = await listSalesOpportunities({ partner_user_id: auth.user!.id }, env);
+          return jsonResponse({ success: true, opportunities }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/sales/opportunities
+      if (pathname === '/api/sales/opportunities' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({ error: 'Forbidden: Active Sales Partner access required' }, 403, cors);
+        }
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const organizationId = body.organizationId || body.organization_id;
+          const { title, description, expectedEventDate } = body;
+          if (!organizationId || !title) {
+            return jsonResponse({ error: 'organizationId and title are required' }, 400, cors);
+          }
+          const opportunity = await createSalesOpportunityRequest({
+            partnerUserId: auth.user!.id,
+            organizationId,
+            title,
+            description,
+            expectedEventDate,
+          }, env);
+          return jsonResponse({ success: true, opportunity }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/attribution-summary
+      if (pathname === '/api/sales/attribution-summary' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({ error: 'Forbidden: Active Sales Partner access required' }, 403, cors);
+        }
+
+        try {
+          const summary = await getPartnerCustomerAttributionSummary(auth.user!.id, env);
+          return jsonResponse({ success: true, summary }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/dashboard-summary
+      if (pathname === '/api/sales/dashboard-summary' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({ error: 'Forbidden: Active Sales Partner access required' }, 403, cors);
+        }
+
+        try {
+          const summary = await getSalesDashboardSummary(auth.user!.id, env);
+          return jsonResponse({ success: true, summary }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/customers
+      if (pathname === '/api/sales/customers' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({
+            error: 'Forbidden: Active Sales Partner access required.',
+            code: 'SALES_PARTNER_ACCESS_REQUIRED',
+          }, 403, cors);
+        }
+
+        try {
+          const search = url.searchParams.get('search') || undefined;
+          const statusParam = url.searchParams.get('status');
+          const status = statusParam && statusParam !== 'all' ? (statusParam as any) : undefined;
+          const page = parseInt(url.searchParams.get('page') || '1', 10);
+          const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+          const sortBy = (url.searchParams.get('sort_by') as any) || undefined;
+          const sortOrder = url.searchParams.get('sort_order')?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+          const result = await listSalesPartnerCustomers(
+            auth.user!.id,
+            { search, status, page, limit, sort_by: sortBy, sort_order: sortOrder },
+            env
+          );
+
+          return jsonResponse({ success: true, ...result }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/sales/customers/:customerId
+      if (pathname.startsWith('/api/sales/customers/') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isActive = await isUserActiveSalesPartner(auth.user!.id, env);
+        if (!isActive) {
+          return jsonResponse({
+            error: 'Forbidden: Active Sales Partner access required.',
+            code: 'SALES_PARTNER_ACCESS_REQUIRED',
+          }, 403, cors);
+        }
+
+        const customerId = pathname.replace('/api/sales/customers/', '').trim();
+        if (!customerId) {
+          return jsonResponse({ error: 'Customer ID is required' }, 400, cors);
+        }
+
+        try {
+          const customer = await getSalesPartnerCustomerDetail(auth.user!.id, customerId, env);
+          if (!customer) {
+            return jsonResponse(
+              { error: 'Customer not found or not attributed to your partner account' },
+              404,
+              cors
+            );
+          }
+
+          return jsonResponse({ success: true, customer }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // ====================================================================
+      // PHASE 5: DEVELOPER ADMIN COMMISSIONS & PAYOUTS (WORKER)
+      // ====================================================================
+
+      // GET /api/developer/sales-commissions or /api/admin/sales-commissions
+      if ((pathname === '/api/developer/sales-commissions' || pathname === '/api/admin/sales-commissions') && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const status = url.searchParams.get('status')?.trim() as any;
+          const orderType = url.searchParams.get('order_type')?.trim() as any;
+          const search = url.searchParams.get('search')?.trim();
+          const partnerId = url.searchParams.get('sales_partner_id')?.trim();
+          const orgId = url.searchParams.get('organization_id')?.trim();
+          const batchId = url.searchParams.get('payout_batch_id')?.trim();
+          const page = parseInt(url.searchParams.get('page') || '1', 10);
+          const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+
+          const result = await listAdminCommissions({
+            status,
+            order_type: orderType,
+            search,
+            sales_partner_id: partnerId,
+            organization_id: orgId,
+            payout_batch_id: batchId,
+            page,
+            limit,
+          }, env);
+          return jsonResponse({ success: true, ...result }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-commissions/:id
+      const devCommissionDetailMatch = parseRoute('/api/developer/sales-commissions/:id', pathname);
+      if (devCommissionDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const commission = await getCommissionById(devCommissionDetailMatch.id, env);
+          if (!commission) {
+            return jsonResponse({ error: 'Commission record not found' }, 404, cors);
+          }
+          return jsonResponse({ success: true, commission }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-commissions/:id/audit-logs
+      const devCommissionAuditLogsMatch = parseRoute('/api/developer/sales-commissions/:id/audit-logs', pathname);
+      if (devCommissionAuditLogsMatch && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const logs = await getCommissionAuditLogs(devCommissionAuditLogsMatch.id, env);
+          return jsonResponse({ success: true, logs }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-commissions/:id/approve
+      const devCommissionApproveMatch = parseRoute('/api/developer/sales-commissions/:id/approve', pathname);
+      if (devCommissionApproveMatch && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const updated = await approveCommission(devCommissionApproveMatch.id, auth.user!.id, body.notes, env);
+          return jsonResponse({ success: true, commission: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-commissions/:id/void
+      const devCommissionVoidMatch = parseRoute('/api/developer/sales-commissions/:id/void', pathname);
+      if (devCommissionVoidMatch && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          if (!body.reason || !body.reason.trim()) {
+            return jsonResponse({ error: 'Reason is required when voiding a commission' }, 400, cors);
+          }
+          const updated = await voidCommission(devCommissionVoidMatch.id, auth.user!.id, body.reason.trim(), env);
+          return jsonResponse({ success: true, commission: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-commissions/:id/adjust
+      const devCommissionAdjustMatch = parseRoute('/api/developer/sales-commissions/:id/adjust', pathname);
+      if (devCommissionAdjustMatch && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          if (typeof body.newAmount !== 'number' || isNaN(body.newAmount) || body.newAmount < 0) {
+            return jsonResponse({ error: 'Valid non-negative newAmount is required' }, 400, cors);
+          }
+          if (!body.reason || !body.reason.trim()) {
+            return jsonResponse({ error: 'Reason is required when adjusting commission amount' }, 400, cors);
+          }
+          const updated = await adjustCommission(devCommissionAdjustMatch.id, body.newAmount, auth.user!.id, body.reason.trim(), env);
+          return jsonResponse({ success: true, commission: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-opportunities
+      if ((pathname === '/api/developer/sales-opportunities' || pathname === '/api/admin/sales-opportunities') && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const status = url.searchParams.get('status')?.trim() as any;
+          const partnerId = url.searchParams.get('sales_partner_id')?.trim();
+          const opportunities = await listSalesOpportunities({ status, sales_partner_id: partnerId }, env);
+          return jsonResponse({ success: true, opportunities }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-opportunities/:id/approve
+      const devOppApproveMatch = parseRoute('/api/developer/sales-opportunities/:id/approve', pathname);
+      if (devOppApproveMatch && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const updated = await approveSalesOpportunity(devOppApproveMatch.id, auth.user!.id, {
+            validUntil: body.validUntil,
+            decisionNotes: body.decisionNotes,
+          }, env);
+          return jsonResponse({ success: true, opportunity: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-opportunities/:id/reject
+      const devOppRejectMatch = parseRoute('/api/developer/sales-opportunities/:id/reject', pathname);
+      if (devOppRejectMatch && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          if (!body.reason || !body.reason.trim()) {
+            return jsonResponse({ error: 'Reason is required when rejecting a sales opportunity' }, 400, cors);
+          }
+          const updated = await rejectSalesOpportunity(devOppRejectMatch.id, auth.user!.id, body.reason.trim(), env);
+          return jsonResponse({ success: true, opportunity: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-payouts/ready
+      if ((pathname === '/api/developer/sales-payouts/ready' || pathname === '/api/admin/sales-payouts/ready') && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const ready = await getCommissionsReadyForPayout(env);
+          return jsonResponse({ success: true, ...ready }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-payouts/batches
+      if ((pathname === '/api/developer/sales-payouts/batches' || pathname === '/api/admin/sales-payouts/batches') && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          if (!Array.isArray(body.commissionIds) || body.commissionIds.length === 0) {
+            return jsonResponse({ error: 'commissionIds array is required' }, 400, cors);
+          }
+          const batch = await createPayoutBatch(body.commissionIds, auth.user!.id, body.notes, env);
+          return jsonResponse({ success: true, batch }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-payouts/batches
+      if ((pathname === '/api/developer/sales-payouts/batches' || pathname === '/api/admin/sales-payouts/batches') && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const batches = await listPayoutBatches(env);
+          return jsonResponse({ success: true, batches }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-payouts/batches/:id
+      const devBatchDetailMatch = parseRoute('/api/developer/sales-payouts/batches/:id', pathname);
+      if (devBatchDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const batch = await getPayoutBatchById(devBatchDetailMatch.id, env);
+          if (!batch) {
+            return jsonResponse({ error: 'Payout batch not found' }, 404, cors);
+          }
+          const commissionsResult = await listAdminCommissions({ payout_batch_id: batch.id, limit: 100 }, env);
+          return jsonResponse({ success: true, batch, commissions: commissionsResult.commissions }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/sales-payouts/batches/:id/pay
+      const devBatchPayMatch = parseRoute('/api/developer/sales-payouts/batches/:id/pay', pathname);
+      if (devBatchPayMatch && method === 'POST') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          if (!body.paymentReference || !body.paymentReference.trim()) {
+            return jsonResponse({ error: 'paymentReference is required when marking a payout batch as paid' }, 400, cors);
+          }
+          const updated = await markPayoutBatchPaid(devBatchPayMatch.id, body.paymentReference.trim(), auth.user!.id, body.notes, env);
+          return jsonResponse({ success: true, batch: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/sales-commissions/settings
+      if ((pathname === '/api/developer/sales-commissions/settings' || pathname === '/api/admin/sales-commissions/settings') && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const settings = await getSalesCommissionSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // PUT /api/developer/sales-commissions/settings
+      if ((pathname === '/api/developer/sales-commissions/settings' || pathname === '/api/admin/sales-commissions/settings') && method === 'PUT') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const updated = await updateSalesCommissionSettings(body, auth.user!.id, env);
+          return jsonResponse({ success: true, settings: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
 
       // POST /api/contact (public contact enquiry with persistence first and Gmail delivery)
       if (pathname === '/api/contact' && method === 'POST') {
@@ -7948,7 +9300,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             eventId,
             {
               event_price: priceNum,
-              event_currency: event_currency ? String(event_currency).trim().toUpperCase() : 'MYR',
+              event_currency: event_currency ? String(event_currency).trim().toUpperCase() : undefined,
             },
             auth.user?.id,
             env
@@ -7957,7 +9309,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return jsonResponse({
             success: true,
             event: updatedEvent,
-            message: `Event price updated to ${updatedEvent.event_currency || 'MYR'} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
+            message: `Event price updated to ${updatedEvent.event_currency || ''} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin update event price error:', err);
@@ -8511,7 +9863,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         const amount = Number(url.searchParams.get('amount')) || 0;
-        const currency = url.searchParams.get('currency') || 'MYR';
+        let currency = url.searchParams.get('currency');
+        if (!currency) {
+          try {
+            const org = await getOrganizationById(orgId, env);
+            currency = getCurrencyForCountry(org?.country_code) || 'USD';
+          } catch (_) {
+            currency = 'USD';
+          }
+        }
 
         try {
           const quote = await getTopupQuote({ organizationId: orgId, amount, currency }, env);
@@ -8575,13 +9935,23 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           );
         }
 
+        let topupCurrency = body.currency ? String(body.currency).trim().toUpperCase() : undefined;
+        if (!topupCurrency) {
+          try {
+            const org = await getOrganizationById(orgId, env);
+            topupCurrency = getCurrencyForCountry(org?.country_code) || 'USD';
+          } catch (_) {
+            topupCurrency = 'USD';
+          }
+        }
+
         try {
           const order = await createTopupOrder(
             {
               organizationId: orgId,
               userId: auth.user.id,
               amount,
-              currency: body.currency || 'MYR',
+              currency: topupCurrency,
               paymentReference: body.payment_reference || body.paymentReference,
               paymentMethod: body.payment_method || body.paymentMethod,
               notes: body.notes,
@@ -9667,6 +11037,311 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
       }
 
+      // ==========================================
+      // INVOICE & BILLING ENDPOINTS (WORKER PARITY)
+      // ==========================================
+
+      // GET /api/organizations/:organizationId/invoices
+      const orgInvoicesMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/invoices$/);
+      if (orgInvoicesMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const organizationId = orgInvoicesMatch[1];
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, organizationId, 'organization.view', env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+
+        if (!isMember && !isDev) {
+          return errorResponse('Access denied: You are not a member of this organization', 403, cors);
+        }
+
+        try {
+          const invoices = await listInvoicesByOrganization(organizationId, env);
+          return jsonResponse({ invoices }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/invoices/:id/pdf
+      const invoicePdfMatch = pathname.match(/^\/api\/invoices\/([^\/]+)\/pdf$/);
+      if (invoicePdfMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const invoiceId = invoicePdfMatch[1];
+        try {
+          const invoice = await getInvoiceById(invoiceId, env);
+          if (!invoice) {
+            return errorResponse('Invoice not found', 404, cors);
+          }
+
+          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, invoice.organization_id, 'organization.view', env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+
+          if (!isMember && !isDev) {
+            return errorResponse('Access denied: You do not have permission to view this invoice PDF', 403, cors);
+          }
+
+          const pdfBytes = await getInvoicePdfBytes(invoiceId, env);
+          if (!pdfBytes) {
+            return errorResponse('Failed to generate or retrieve invoice PDF', 500, cors);
+          }
+
+          return new Response(pdfBytes, {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `inline; filename="${invoice.invoice_number}.pdf"`,
+              'Cache-Control': 'private, max-age=3600',
+              ...cors,
+            },
+          });
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/invoices/:id/credit-notes
+      const invoiceCreditNotesMatch = pathname.match(/^\/api\/invoices\/([^\/]+)\/credit-notes$/);
+      if (invoiceCreditNotesMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const invoiceId = invoiceCreditNotesMatch[1];
+        try {
+          const invoice = await getInvoiceById(invoiceId, env);
+          if (!invoice) {
+            return errorResponse('Invoice not found', 404, cors);
+          }
+
+          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, invoice.organization_id, 'organization.view', env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+
+          if (!isMember && !isDev) {
+            return errorResponse('Access denied', 403, cors);
+          }
+
+          const creditNotes = await listCreditNotesByInvoice(invoiceId, env);
+          return jsonResponse({ credit_notes: creditNotes }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/invoices/:id
+      const invoiceDetailMatch = pathname.match(/^\/api\/invoices\/([^\/]+)$/);
+      if (invoiceDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const invoiceId = invoiceDetailMatch[1];
+        try {
+          const invoice = await getInvoiceById(invoiceId, env);
+          if (!invoice) {
+            return errorResponse('Invoice not found', 404, cors);
+          }
+
+          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, invoice.organization_id, 'organization.view', env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+
+          if (!isMember && !isDev) {
+            return errorResponse('Access denied', 403, cors);
+          }
+
+          return jsonResponse({ invoice }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/events/:eventId/invoice
+      const eventInvoiceMatch = pathname.match(/^\/api\/events\/([^\/]+)\/invoice$/);
+      if (eventInvoiceMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const eventId = eventInvoiceMatch[1];
+        try {
+          const ev = await getEventById(eventId, env);
+          if (!ev) {
+            return errorResponse('Event not found', 404, cors);
+          }
+
+          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, ev.organization_id, 'organization.view', env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+
+          if (!isMember && !isDev) {
+            return errorResponse('Access denied', 403, cors);
+          }
+
+          const invoice = await getInvoiceByEventId(eventId, env);
+          return jsonResponse({ invoice: invoice || null }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/invoices
+      if (pathname === '/api/developer/invoices' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const result = await listAllInvoicesForDeveloper({
+            page: url.searchParams.get('page') ? Number(url.searchParams.get('page')) : 1,
+            pageSize: url.searchParams.get('pageSize') ? Number(url.searchParams.get('pageSize')) : 25,
+            search: url.searchParams.get('search') || undefined,
+            status: url.searchParams.get('status') || undefined,
+            organizationId: url.searchParams.get('organizationId') || undefined,
+            startDate: url.searchParams.get('startDate') || undefined,
+            endDate: url.searchParams.get('endDate') || undefined,
+          }, env);
+
+          return jsonResponse({
+            success: true,
+            data: result.data,
+            pagination: result.pagination,
+          }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/invoices/:id/retry-pdf
+      const devRetryPdfMatch = pathname.match(/^\/api\/developer\/invoices\/([^\/]+)\/retry-pdf$/);
+      if (devRetryPdfMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const invoiceId = devRetryPdfMatch[1];
+        try {
+          const invoice = await retryInvoicePdf(invoiceId, env, auth.user.id, auth.user.email);
+          return jsonResponse({ success: true, invoice }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/invoices/:id/retry-email
+      const devRetryEmailMatch = pathname.match(/^\/api\/developer\/invoices\/([^\/]+)\/retry-email$/);
+      if (devRetryEmailMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const invoiceId = devRetryEmailMatch[1];
+        try {
+          const result = await retryInvoiceEmail(invoiceId, env, auth.user.id, auth.user.email);
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/invoices/:id/credit-notes
+      const devCreditNoteMatch = pathname.match(/^\/api\/developer\/invoices\/([^\/]+)\/credit-notes$/);
+      if (devCreditNoteMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const invoiceId = devCreditNoteMatch[1];
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { amount, reason } = body || {};
+
+        if (amount === undefined || amount === null || isNaN(Number(amount)) || Number(amount) <= 0) {
+          return errorResponse('A positive credit note amount is required', 400, cors);
+        }
+
+        try {
+          const creditNote = await createCreditNote(invoiceId, Number(amount), String(reason || ''), env, auth.user.id);
+          return jsonResponse({ success: true, credit_note: creditNote }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/invoices/:id
+      const devInvoiceDetailMatch = pathname.match(/^\/api\/developer\/invoices\/([^\/]+)$/);
+      if (devInvoiceDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const invoiceId = devInvoiceDetailMatch[1];
+        try {
+          const invoice = await getInvoiceById(invoiceId, env);
+          if (!invoice) {
+            return errorResponse('Invoice not found', 404, cors);
+          }
+
+          const creditNotes = await listCreditNotesByInvoice(invoiceId, env);
+          const auditLogs = await listInvoiceAuditLogs(invoiceId, env);
+
+          return jsonResponse({
+            success: true,
+            invoice,
+            credit_notes: creditNotes,
+            audit_logs: auditLogs,
+          }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/invoice-settings
+      if (pathname === '/api/developer/invoice-settings' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const settings = await getPlatformInvoiceSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // PUT or POST /api/developer/invoice-settings
+      if (pathname === '/api/developer/invoice-settings' && (method === 'PUT' || method === 'POST')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const updated = await updatePlatformInvoiceSettings(body || {}, auth.user.id, env);
+          return jsonResponse({ success: true, settings: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
       return errorResponse('Not found', 404, cors);
     } catch (err: any) {
       return handleWorkerApiError(err, request, cors, env);
@@ -9678,21 +11353,26 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
    * Periodically runs event lifecycle maintenance (configured via [triggers] crons in wrangler.toml)
    */
   async scheduled(_controller: any, env: Env, ctx: any): Promise<void> {
+    const correlationId = `cron_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     try {
-      const maintenancePromise = runEventLifecycleMaintenance(env);
+      const maintenancePromise = runEventLifecycleMaintenance(env, new Date(), { correlationId });
       if (ctx && typeof ctx.waitUntil === 'function') {
         ctx.waitUntil(maintenancePromise);
       }
       const result = await maintenancePromise;
-      console.log(
-        `[Worker Cron Maintenance] Processed: ` +
-        `${result.completedCount} completed, ` +
-        `${result.expiredCount} expired, ` +
-        `${result.testScoresClearedCount} test scores cleared`
-      );
-    } catch (err) {
-      console.error('[Worker Cron Maintenance] Fatal error running event lifecycle maintenance:', err);
-      throw err;
+      if (result.skippedDueToLease) {
+        console.log(`[Worker Cron Maintenance][${correlationId}] Maintenance cycle skipped: lease held by another worker/process`);
+      } else {
+        console.log(
+          `[Worker Cron Maintenance][${correlationId}] Processed: ` +
+          `${result.completedCount} completed, ` +
+          `${result.expiredCount} expired, ` +
+          `${result.testScoresClearedCount} test scores cleared`
+        );
+      }
+    } catch (err: any) {
+      console.error(`[Worker Cron Maintenance][${correlationId}] Maintenance error:`, err?.message || err);
+      // Do not rethrow in worker scheduled to prevent uncaught worker exceptions from breaking edge isolate
     }
   },
 };

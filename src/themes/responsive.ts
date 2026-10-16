@@ -234,6 +234,43 @@ export const DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
 };
 
 /**
+ * Default portrait HUD layout for Match-3 (576 x 1024 space)
+ */
+export const DEFAULT_PORTRAIT_MATCH3_LAYOUT: GameLayoutConfig = {
+  orientation: 'auto',
+  clientLogo: {
+    visible: true,
+    x: 4,
+    y: 7.5,
+    width: 18,
+  },
+  gameTitle: {
+    visible: true,
+    x: 24,
+    y: 2.5,
+    width: 52,
+  },
+  scoreHud: {
+    visible: true,
+    x: 4,
+    y: 13,
+    width: 44,
+  },
+  timer: {
+    visible: true,
+    x: 52,
+    y: 13,
+    width: 44,
+  },
+  footerSponsor: {
+    visible: true,
+    x: 6,
+    y: 94,
+    width: 88,
+  },
+};
+
+/**
  * Default portrait HUD layout for Memory Match (576 x 1024 space)
  */
 export const DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
@@ -315,6 +352,8 @@ export function getEditableGameLayout(
 
   const portraitDefaults = isMemory
     ? DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT
+    : gameType === 'match-3'
+    ? DEFAULT_PORTRAIT_MATCH3_LAYOUT
     : DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT;
 
   const portraitCustom =

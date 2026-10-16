@@ -125,7 +125,16 @@ async function ensureTestOrg(orgId: string, ownerId?: string) {
 async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean = true, isCompleted: boolean = true, createdBy?: string) {
   const supabase = getSupabaseServerClient();
   try {
-    const themeId = '1a480be3-5313-49ba-a9c2-f5b2293576cf';
+    let themeId = '9bfb95dc-383e-45fb-ac04-d3f75a6aa023';
+    let targetGameId = 'catch-brand';
+    try {
+      const { data: themes } = await supabase.from('game_themes').select('id, game_id').limit(1);
+      if (themes && themes.length > 0 && themes[0].id) {
+        themeId = themes[0].id;
+        if (themes[0].game_id) targetGameId = themes[0].game_id;
+      }
+    } catch {}
+
     const now = new Date().toISOString();
     const startDate = isCompleted ? '2026-09-01' : '2026-09-30';
     const endDate = isCompleted ? '2026-09-02' : '2026-09-30';
@@ -136,6 +145,7 @@ async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean =
       id: userId,
       email: `test-creator-${userId.slice(0, 8)}@example.com`,
       name: 'Test Creator',
+      email_verified: true,
       created_at: now,
       updated_at: now,
     });
@@ -143,7 +153,7 @@ async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean =
     localEventsCache.set(eventId, {
       id: eventId,
       organization_id: orgId,
-      game_id: null,
+      game_id: targetGameId,
       game_theme_id: themeId,
       name: `Test Event ${eventId.slice(0, 8)}`,
       event_date: startDate,
@@ -160,22 +170,30 @@ async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean =
       updated_at: now,
     });
 
-    await supabase.from('events').upsert({
+    const { error: eventErr } = await supabase.from('events').upsert({
       id: eventId,
       organization_id: orgId,
+      game_id: targetGameId,
       game_theme_id: themeId,
       name: `Test Event ${eventId.slice(0, 8)}`,
       event_date: startDate,
+      start_date: startDate,
+      end_date: endDate,
       starts_at: `${startDate}T00:00:00.000Z`,
       expires_at: `${endDate}T23:59:59.000Z`,
-      status: isCompleted ? 'COMPLETED' : 'LIVE',
+      status: isCompleted ? 'completed' : 'live',
+      event_status: isCompleted ? 'COMPLETED' : 'LIVE',
+      payment_status: isPaid ? 'PAID' : 'PENDING',
       public_token: token,
       created_by: userId,
       created_at: now,
       updated_at: now,
     });
-  } catch {
-    // Local fallback handled
+    if (eventErr) {
+      console.error('ensureTestEvent Supabase error:', eventErr);
+    }
+  } catch (err: any) {
+    console.error('ensureTestEvent exception:', err);
   }
 }
 
@@ -205,6 +223,27 @@ async function runTests() {
   console.log('========================================================================\n');
 
   const adminUserId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  try {
+    const supabase = getSupabaseServerClient();
+    await supabase.from('users').upsert({
+      id: adminUserId,
+      email: 'test-admin-showcase@example.com',
+      name: 'Test Admin',
+      is_developer: true,
+      email_verified: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {}
+  localUsersCache.set(adminUserId, {
+    id: adminUserId,
+    email: 'test-admin-showcase@example.com',
+    name: 'Test Admin',
+    is_developer: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any);
+
   const ownerA = crypto.randomUUID();
   const orgA1 = crypto.randomUUID();
   const eventA1 = crypto.randomUUID();

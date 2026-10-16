@@ -5,8 +5,21 @@ import { MemoryMatchConfig } from './memory-match/types';
 import { ReactionGame } from './reaction-time/ReactionGame';
 import { DEFAULT_REACTION_CONFIG, ReactionGameConfig } from './reaction-time/types';
 import { SpeedQuizUnavailablePlaceholder } from './speed-quiz/SpeedQuizUnavailablePlaceholder';
+import { Match3Game } from './match-3/Match3Game';
+import { DEFAULT_MATCH3_CONFIG, Match3GameConfig } from './match-3/types';
+import {
+  normalizeGameType,
+  tryNormalizeGameType,
+  resolveAuthoritativeGameType,
+  AuthoritativeGameTypeContext,
+} from '../themes/types';
 
-export { DEFAULT_GAME_TYPE };
+export {
+  DEFAULT_GAME_TYPE,
+  tryNormalizeGameType,
+  resolveAuthoritativeGameType,
+  type AuthoritativeGameTypeContext,
+};
 
 const CANONICAL_GAME_REGISTRY: Record<string, GameDefinition<any>> = {
   'catch-brand': {
@@ -96,6 +109,21 @@ const CANONICAL_GAME_REGISTRY: Record<string, GameDefinition<any>> = {
     isAvailable: false,
     comingSoon: true,
   },
+  'match-3': {
+    id: 'match-3',
+    name: 'Match-3',
+    shortName: 'Match-3',
+    description: 'Swap matching tiles to create combinations, trigger special tiles, build combos, and achieve the highest score before time runs out.',
+    iconName: 'Sparkles',
+    category: 'puzzle',
+    minPlayers: 1,
+    maxPlayers: 1,
+    defaultDurationSeconds: 60,
+    supportedInputTypes: ['touch', 'mouse', 'keyboard'],
+    defaultConfig: DEFAULT_MATCH3_CONFIG as Match3GameConfig,
+    component: Match3Game,
+    isAvailable: true,
+  },
 };
 
 /**
@@ -134,24 +162,9 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = new Proxy(CANO
  * Defaults to 'catch-brand' if the specified type does not exist or is empty.
  */
 export function getGameDefinition(gameType?: string | null): GameDefinition {
-  if (!gameType) {
-    return GAME_REGISTRY[DEFAULT_GAME_TYPE];
-  }
-  const normalized = gameType.trim().toLowerCase().replace(/_/g, '-');
+  const normalized = normalizeGameType(gameType, DEFAULT_GAME_TYPE);
   if (GAME_REGISTRY[normalized]) {
     return GAME_REGISTRY[normalized];
-  }
-  if (normalized.includes('reaction') || normalized.includes('reflex')) {
-    return GAME_REGISTRY['reaction-tap'];
-  }
-  if (normalized.includes('memory') || normalized.includes('match')) {
-    return GAME_REGISTRY['memory-match'];
-  }
-  if (normalized.includes('catch') || normalized.includes('catcher') || normalized.includes('basket')) {
-    return GAME_REGISTRY['catch-brand'];
-  }
-  if (normalized.includes('quiz') || normalized.includes('trivia')) {
-    return GAME_REGISTRY['speed-quiz'];
   }
   return GAME_REGISTRY[DEFAULT_GAME_TYPE];
 }

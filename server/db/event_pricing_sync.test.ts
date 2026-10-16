@@ -11,6 +11,7 @@ import {
 import { createOrganization } from './organizations.js';
 import { createTheme } from './themes.js';
 import { ensureDefaultGame } from './games.js';
+import { localGamePricingCache, buildDefaultPricingTiers } from './gamePricing.js';
 import {
   calculateEventPayment,
   processEventPayment,
@@ -29,6 +30,8 @@ async function runEventPricingSyncTests() {
   const testOrgId = org.id;
 
   const game = await ensureDefaultGame(testOrgId, 'Test Game');
+  localGamePricingCache.set(game.id, buildDefaultPricingTiers(game.id, 'catch-brand'));
+
   const theme = await createTheme({
     organization_id: testOrgId,
     game_id: game.id,
@@ -44,6 +47,7 @@ async function runEventPricingSyncTests() {
     starts_at: new Date(Date.now() + 86400000).toISOString(),
     expires_at: new Date(Date.now() + 172800000).toISOString(),
     event_price: 1400,
+    custom_price_override: true,
   });
 
   console.log('1. Created event with initial price 1400:', event.id);

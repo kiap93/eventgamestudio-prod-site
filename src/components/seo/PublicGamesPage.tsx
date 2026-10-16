@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
 import { InternalLink } from '../common/InternalLink';
-import { navigateTo } from '../../hooks/useRouteContext';
-import { useAuth } from '../../context/AuthContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import {
   Gamepad2,
@@ -13,350 +11,254 @@ import {
   ArrowRight,
   ChevronRight,
   Clock,
-  Users,
   Smartphone,
   Trophy,
-  Sliders,
-  CheckCircle2,
   Zap,
   Grid3X3,
   ShoppingBasket,
   HelpCircle,
   Play,
+  RotateCcw,
+  ShieldCheck,
+  CheckCircle2,
 } from 'lucide-react';
-import { LandingDemoModal } from '../landing/LandingDemoModal';
 
-interface PublicGameCard {
+interface PublicGameSummary {
   id: string;
   slug: string;
   name: string;
   category: string;
+  icon: React.ElementType;
   duration: string;
-  tagline: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
+  highlight: string;
   isAvailable: boolean;
   comingSoon?: boolean;
-  features: string[];
-  eventTypes: string[];
-  bannerBg: string;
 }
 
-const PUBLIC_GAMES: PublicGameCard[] = [
+const PUBLIC_GAMES: PublicGameSummary[] = [
   {
     id: 'catch-brand',
-    slug: '/game-showcase/catch-the-brand',
+    slug: 'catch-the-brand',
     name: 'Catch the Brand',
-    category: 'Arcade Action',
-    duration: '20 seconds default',
-    tagline: 'Fast-paced item catching challenge with scoring multipliers.',
-    description:
-      'Participants catch falling brand items while dodging hazardous obstacles and snagging golden multiplier bonuses before time expires. Ideal for high crowd turnover.',
+    category: 'Arcade Catcher',
     icon: ShoppingBasket,
+    duration: '20s - 60s',
+    description: 'Fast-paced arcade catcher! Catch falling branded items, dodge hazards, and collect golden bonus multipliers.',
+    highlight: 'Highest attendee throughput (60+ players/hr). Perfect for roadshows & booth activations.',
     isAvailable: true,
-    features: ['Custom catcher avatar & basket', 'Branded good & hazard items', 'Golden bonus multipliers', 'Touch, mouse & keyboard controls'],
-    eventTypes: ['Roadshows', 'Exhibition Booths', 'Annual Dinners', 'Product Launches'],
-    bannerBg: 'from-amber-500/20 via-orange-500/10 to-transparent',
   },
   {
-    id: 'memory-match',
-    slug: '/game-showcase/memory-match',
-    name: 'Brand Memory Match',
-    category: 'Memory Puzzle',
-    duration: '45 seconds default',
-    tagline: 'Classic card flip matching custom branded product pairs.',
-    description:
-      'Players flip cards across a 4x4 grid to match 8 pairs of branded items, logos, or executive portraits with combo bonuses for rapid consecutive matches.',
+    id: 'match-3',
+    slug: 'brand-match-3',
+    name: 'Match-3 Puzzle Challenge',
+    category: 'Puzzle',
     icon: Grid3X3,
+    duration: '30s - 60s',
+    description: 'Swap adjacent custom branded tiles to make rows or columns of 3, 4, or 5 with cascading combos and explosive power-ups.',
+    highlight: 'Universal appeal for all age demographics. Custom tile icons, special gems, and audio.',
     isAvailable: true,
-    features: ['8 custom card pairs', 'Branded card back cover', 'Combo multiplier streaks', 'Portrait & landscape support'],
-    eventTypes: ['Trade Shows', 'Corporate Galas', 'Retail Activations', 'Summit Lounges'],
-    bannerBg: 'from-blue-500/20 via-indigo-500/10 to-transparent',
   },
   {
     id: 'reaction-tap',
-    slug: '/game-showcase/reaction-challenge',
+    slug: 'formula-reaction-lights',
     name: 'Formula Reaction Lights',
-    category: 'Reflex Challenge',
-    duration: '15 seconds default',
-    tagline: 'Millisecond reflex contest based on motorsport starting lights.',
-    description:
-      'Five red lights light up one-by-one. When the lights extinguish at a random split-second interval, players react instantly to clock their reaction time in milliseconds.',
+    category: 'Precision Reflex',
     icon: Zap,
+    duration: '10s - 20s',
+    description: 'Measure reaction speed in an F1-style starting gantry light sequence. When the lights go out, tap as fast as possible!',
+    highlight: 'Instant competitive excitement with millisecond-precision timing. Perfect for sports & auto events.',
     isAvailable: true,
-    features: ['Millisecond accuracy', 'Jump-start penalty detection', 'Branded backdrops', 'Instant competitive leaderboard'],
-    eventTypes: ['Auto Shows', 'VIP Lounges', 'Tech Summits', 'Sports Activations'],
-    bannerBg: 'from-emerald-500/20 via-teal-500/10 to-transparent',
+  },
+  {
+    id: 'memory-match',
+    slug: 'card-memory-match',
+    name: 'Card Memory Match',
+    category: 'Memory & Recall',
+    icon: RotateCcw,
+    duration: '30s - 60s',
+    description: 'Flip cards and match branded pairs against the countdown clock. Showcases multiple products or corporate trivia.',
+    highlight: 'Exceptional brand retention. Features 8 custom branded product pair faces and custom card back.',
+    isAvailable: true,
   },
   {
     id: 'speed-quiz',
-    slug: '/game-showcase/speed-quiz',
-    name: 'Event Trivia Speed Quiz',
-    category: 'Trivia Challenge',
-    duration: '30 seconds (Roadmap)',
-    tagline: 'Interactive timed multiple-choice brand trivia challenge.',
-    description:
-      'Test crowd knowledge with custom company trivia, multiple-choice questions, and live buzzer scoring. Currently scheduled on the platform roadmap.',
+    slug: 'speed-trivia-quiz',
+    name: 'Speed Trivia Quiz',
+    category: 'Trivia & Education',
     icon: HelpCircle,
+    duration: '30s - 60s',
+    description: 'Rapid-fire multiple choice trivia questions testing product knowledge, brand history, or annual summit themes.',
+    highlight: 'Coming soon. Educational activations and corporate training summits.',
     isAvailable: false,
     comingSoon: true,
-    features: ['Timed question rounds', 'Custom brand trivia questions', 'Live buzzer mechanics', 'In active development'],
-    eventTypes: ['Town Halls', 'Training Seminars', 'Corporate Quizzes'],
-    bannerBg: 'from-purple-500/20 via-pink-500/10 to-transparent',
   },
 ];
 
 export const PublicGamesPage: React.FC = () => {
   const { t } = useLocalization();
-  const { isAuthenticated } = useAuth();
   const pageSeo = getPageSeo('/game-showcase');
-  const [demoModalOpen, setDemoModalOpen] = useState(false);
-  const [selectedDemoGameId, setSelectedDemoGameId] = useState<string>('catch-brand');
-
-  const handleLaunchDemo = (gameId: string) => {
-    setSelectedDemoGameId(gameId);
-    setDemoModalOpen(true);
-  };
-
-  const handleGetStarted = () => {
-    if (isAuthenticated) {
-      navigateTo('/events');
-    } else {
-      navigateTo('/login');
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
-      <SEO config={pageSeo} />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+      <SEO
+        title={pageSeo.title}
+        description={pageSeo.description}
+        canonical={pageSeo.canonical}
+        h1={pageSeo.h1}
+        breadcrumbs={pageSeo.breadcrumbs}
+      />
 
-      <LandingHeader onExploreGames={() => {}} />
+      <LandingHeader onOpenCatalog={() => {}} />
 
-      <main className="flex-1">
-        {/* Breadcrumbs */}
-        <div className="w-full bg-slate-50 border-b border-slate-200/80 py-2.5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <InternalLink href="/" className="hover:text-amber-600 transition-colors">
-                {t('nav.home')}
-              </InternalLink>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-slate-900 font-semibold">{t('nav.games')}</span>
-            </nav>
-          </div>
-        </div>
-
-        {/* Hero */}
-        <section className="pt-12 pb-14 md:pt-16 md:pb-20 bg-gradient-to-b from-amber-500/5 via-white to-white border-b border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-800 text-xs font-bold uppercase tracking-wider">
-              <Gamepad2 className="w-3.5 h-3.5 text-amber-600" />
-              <span>{t('gamesCatalog.heroTitle')}</span>
+      <main className="flex-1 pt-24 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Hero Section */}
+          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide">
+              <Gamepad2 className="w-3.5 h-3.5" />
+              <span>{t('games.catalogBadge', undefined, 'Interactive Event Mini-Game Suite')}</span>
             </div>
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight">
-              {t('gamesCatalog.catalogHeading', undefined, 'Interactive Event Games')}
+
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-100 tracking-tight">
+              {t('games.catalogTitle', undefined, 'Branded Mini-Games for Live Events')}
             </h1>
-            <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              {t('gamesCatalog.heroSubtitle')}
+
+            <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-2xl mx-auto">
+              {t('games.catalogSubtitle', undefined, 'Choose from our proven event game engines. Customize artwork, sound effects, scoring rules, and leaderboards in minutes.')}
             </p>
           </div>
-        </section>
 
-        {/* Games Grid */}
-        <section className="py-14 md:py-20 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {PUBLIC_GAMES.map((game) => {
-                const IconComponent = game.icon;
-                return (
-                  <div
-                    key={game.id}
-                    className="rounded-3xl border border-slate-200/90 bg-white hover:border-amber-400/80 hover:shadow-xl hover:shadow-slate-900/5 transition-all p-7 sm:p-8 flex flex-col justify-between space-y-6 relative overflow-hidden group"
-                  >
-                    {/* Top ambient banner */}
-                    <div className={`absolute top-0 left-0 right-0 h-28 bg-gradient-to-b ${game.bannerBg} pointer-events-none`} />
-
-                    <div className="relative space-y-5">
-                      {/* Category & Status Pill */}
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-                          {game.category}
-                        </span>
-                        {game.isAvailable ? (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>{t('event.statusLive')}</span>
+          {/* Game Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-20">
+            {PUBLIC_GAMES.map((game) => {
+              const IconComp = game.icon;
+              return (
+                <div
+                  key={game.id}
+                  className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xl hover:border-amber-500/40 transition-all flex flex-col justify-between group"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                        <IconComp className="w-6 h-6" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {game.comingSoon ? (
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            {t('common.comingSoon', undefined, 'Coming Soon')}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                            <Clock className="w-3 h-3 text-amber-600" />
-                            <span>{t('gamesCatalog.comingSoon')}</span>
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            {t('common.readyToPlay', undefined, 'Ready to Deploy')}
                           </span>
                         )}
                       </div>
-
-                      {/* Title & Tagline */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center shrink-0">
-                            <IconComponent className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <h2 className="text-2xl font-black text-slate-900 group-hover:text-amber-700 transition-colors">
-                              {game.name}
-                            </h2>
-                            <p className="text-xs text-slate-500 font-medium">{game.duration}</p>
-                          </div>
-                        </div>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-2">
-                          {game.description}
-                        </p>
-                      </div>
-
-                      {/* Feature Checklist */}
-                      <div className="space-y-2 pt-2 border-t border-slate-100">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          {t('gamesCatalog.keyFeatures')}
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
-                          {game.features.map((feat, fIdx) => (
-                            <div key={fIdx} className="flex items-center gap-2">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>{feat}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Event Types */}
-                      <div className="flex flex-wrap gap-1.5 pt-2">
-                        {game.eventTypes.map((et, etIdx) => (
-                          <span key={etIdx} className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 border border-slate-200/70">
-                            {et}
-                          </span>
-                        ))}
-                      </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
-                      {game.isAvailable ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleLaunchDemo(game.id)}
-                            className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>{t('gamesCatalog.launchDemo')}</span>
-                          </button>
-                          <InternalLink
-                            href={game.slug}
-                            className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center gap-1.5"
-                          >
-                            <span>{t('gamesCatalog.viewGameDetails')}</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </InternalLink>
-                        </>
-                      ) : (
-                        <InternalLink
-                          href={game.slug}
-                          className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 text-center"
-                        >
-                          <span>{t('landing.preOrderEnquire')}</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </InternalLink>
-                      )}
+                    <div>
+                      <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">
+                        {game.category}
+                      </span>
+                      <h3 className="text-lg font-bold text-slate-100 mt-0.5 group-hover:text-amber-400 transition-colors">
+                        {game.name}
+                      </h3>
+                    </div>
+
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {game.description}
+                    </p>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl text-[11px] text-slate-300 leading-relaxed">
+                      <span className="font-semibold text-amber-300">{t('games.keyAdvantage', undefined, 'Best For')}: </span>
+                      {game.highlight}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
 
-        {/* Event Solutions Link Matrix */}
-        <section className="py-14 bg-slate-50 border-t border-slate-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-            <div className="text-center max-w-2xl mx-auto space-y-2">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                {t('seoSolutions.provenUseCases')}
+                  <div className="pt-6 mt-6 border-t border-slate-800/80 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{game.duration}</span>
+                    </div>
+
+                    <InternalLink
+                      to={`/game-showcase/${game.slug}`}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors"
+                    >
+                      <span>{t('games.viewDetails', undefined, 'Details & Specs')}</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </InternalLink>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Solutions Cross-Links Grid */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl">
+            <div className="max-w-2xl mb-8">
+              <h2 className="text-xl font-bold text-slate-100 mb-2">
+                {t('games.solutionsTitle', undefined, 'Tailored for Every Event Format')}
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600">
-                {t('seoSolutions.exploreRelatedSolutions')}
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {t('games.solutionsSubtitle', undefined, 'Explore specialized play setups and live leaderboard architectures designed for different event environments.')}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs font-semibold">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <InternalLink
-                href="/corporate-event-games"
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
+                to="/corporate-event-games"
+                className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
               >
-                <span className="text-slate-900 block">{t('seoSolutions.corporateGamesTitle')}</span>
-                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.corporateGamesSubtitle')}</span>
+                <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                  Corporate Event Games
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Annual Dinners & Galas →
+                </p>
               </InternalLink>
-              <InternalLink
-                href="/brand-activation-games"
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
-              >
-                <span className="text-slate-900 block">{t('seoSolutions.brandActivationsTitle')}</span>
-                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.brandActivationsSubtitle')}</span>
-              </InternalLink>
-              <InternalLink
-                href="/roadshow-games"
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
-              >
-                <span className="text-slate-900 block">{t('seoSolutions.roadshowGamesTitle')}</span>
-                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.roadshowGamesSubtitle')}</span>
-              </InternalLink>
-              <InternalLink
-                href="/exhibition-games"
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
-              >
-                <span className="text-slate-900 block">{t('seoSolutions.exhibitionGamesTitle')}</span>
-                <span className="text-[11px] text-slate-500 font-normal">{t('seoSolutions.exhibitionGamesSubtitle')}</span>
-              </InternalLink>
-            </div>
-          </div>
-        </section>
 
-        {/* Bottom CTA */}
-        <section className="py-14 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-center">
-          <div className="max-w-4xl mx-auto px-4 space-y-4">
-            <h2 className="text-2xl sm:text-4xl font-black">
-              {t('landing.finalCtaHeadline')}
-            </h2>
-            <p className="text-sm sm:text-base font-medium max-w-xl mx-auto text-slate-900/80">
-              {t('landing.finalCtaSubtitle')}
-            </p>
-            <div className="pt-2 flex justify-center gap-3">
-              <button
-                type="button"
-                onClick={handleGetStarted}
-                className="px-7 py-3.5 rounded-2xl bg-slate-950 text-white font-black text-xs hover:bg-slate-900 transition-colors shadow-lg cursor-pointer"
-              >
-                {t('event.createEvent')}
-              </button>
               <InternalLink
-                href="/contact"
-                className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors inline-block text-center"
+                to="/brand-activation-games"
+                className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
               >
-                {t('nav.contact')}
+                <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                  Brand Activations
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Pop-Ups & Retail Tours →
+                </p>
+              </InternalLink>
+
+              <InternalLink
+                to="/roadshow-games"
+                className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
+              >
+                <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                  Roadshow Games
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Mall Kiosks & Touchscreens →
+                </p>
+              </InternalLink>
+
+              <InternalLink
+                to="/exhibition-games"
+                className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
+              >
+                <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                  Exhibition Games
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Trade Booth Crowd Magnets →
+                </p>
               </InternalLink>
             </div>
           </div>
-        </section>
+        </div>
       </main>
 
       <LandingFooter />
-
-      {demoModalOpen && (
-        <LandingDemoModal
-          isOpen={demoModalOpen}
-          onClose={() => setDemoModalOpen(false)}
-          initialGameId={selectedDemoGameId}
-        />
-      )}
     </div>
   );
 };

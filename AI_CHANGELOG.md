@@ -4,6 +4,83 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-10-16] - Production Event Invoice Engine, Durable PDF Storage, and Developer Admin Console
+
+### Summary
+Implemented a production-grade, authoritative event invoice engine for EventGameStudio that automates tax invoice generation upon event conclusion, guarantees decimal-safe billing and payment reconciliation, persists immutable invoice snapshots with secure PDF downloads, and integrates into customer event cards and the Developer Admin portal.
+
+### Key Changes Implemented
+1. **Authoritative Event Invoicing Engine (`server/db/invoices.ts`, `server/db/types.ts`)**:
+   - Implemented `generateEventInvoice` with decimal-safe integer-cent calculations (`toCents`/`fromCents`).
+   - Integrated full payment reconciliation querying wallet transactions to separate Welcome Credit (`WELCOME_CREDIT`), Showcase Credit (`SHOWCASE_CREDIT`), Top-Up Credit (`TOPUP_CREDIT`), and Paid Balance (`PAID_BALANCE`).
+   - Guarded invoice eligibility (`isEventEligibleForInvoicing`): enforces that unpaid (`payment_status !== 'PAID'`), active/ongoing, or cancelled events cannot be invoiced.
+   - Idempotent generation: prevents duplicate invoice creation and sequential numbering (`INV-YYYY-NNNNN`) with atomic locks.
+   - Added credit note issuance (`createCreditNote`, `generateCreditNoteNumber`) with cumulative amount checks preventing credits from exceeding invoice totals.
+2. **Platform Seller Billing Settings (`server/db/platformSettings.ts`)**:
+   - Backed seller billing configurations (`company_name`, `registration_number`, `tax_number`/`tax_id`, `address`, `phone`, `email`, `payment_terms_days`) by the `platform_settings` table (`seller_invoice_settings`) with Developer Admin access.
+3. **Lifecycle Maintenance Hook (`server/db/events.ts`)**:
+   - Integrated automatic invoice generation during `runEventLifecycleMaintenance` when paid events pass their scheduled end date (`isAfterEndDate`) or transition to `COMPLETED`.
+4. **API Endpoints with Dual-Runtime Parity (`server.ts`, `worker.ts`)**:
+   - Customer endpoints: `GET /api/organizations/:orgId/invoices`, `GET /api/invoices/:id`, `GET /api/invoices/:id/pdf`, `GET /api/events/:eventId/invoice`, `GET /api/invoices/:id/credit-notes`.
+   - Developer Admin endpoints: `GET /api/developer/invoices`, `GET /api/developer/invoices/:id`, `POST /api/developer/invoices/:id/retry-pdf`, `POST /api/developer/invoices/:id/retry-email`, `POST /api/developer/invoices/:id/credit-notes`, `GET /api/developer/invoice-settings`, `PUT /api/developer/invoice-settings`.
+5. **Customer Dashboard & Admin UI (`src/components/events/EventCard.tsx`, `EventInvoiceModal.tsx`, `DeveloperInvoicesManager.tsx`, `DeveloperInvoiceSettings.tsx`)**:
+   - Concluded and paid events in `EventCard.tsx` now feature an "Invoice" action button triggering `EventInvoiceModal` with itemized line items, tax, credits, and PDF download.
+   - Developer Admin portal `/developer/invoices` includes an interactive invoice browser, filter controls, line item inspection, audit trail viewer, retry PDF/email actions, credit-note modal, and seller settings editor.
+6. **Automated Verification (`server/db/invoices_phase2.test.ts`, `server/db/invoices_phase5.test.ts`)**:
+   - 23 unit and integration tests passing covering price validation, currency preservation, credit breakdowns, atomic numbering, idempotency, PDF binary generation, audit logging, tenant isolation, and cumulative credit note caps.
+
+---
+
+## [2026-10-08] - Complete Match-3 Implementation and Fix GameShell Game-Type Resolution Architecture
+
+### Summary
+Resolved the critical game-type resolution bug in `GameShell.tsx`, ensuring explicit `gameType` requests are never overridden by theme detection, and incompatible themes never leak across game engines. Completed and validated the Match-3 game engine and UI integration, connecting the interactive Leaderboard modal to the Start Screen and main gameplay views, while preserving all existing Match-3 features (Pointer Events drag/swipe, pointer capture, swap animations, particles, rockets, bomb shockwaves, cascades, square responsive board measurement, and HUD stabilization).
+
+### Key Changes Implemented
+1. **Authoritative Game-Type Resolution (`src/components/shell/GameShell.tsx`)**:
+   - Fixed flawed resolution logic that previously allowed `themeDetectedType` to override explicitly passed `gameType` props, or ignored `DEFAULT_GAME_TYPE` ('catch-brand') when passed explicitly.
+   - Removed default parameter value `gameType = DEFAULT_GAME_TYPE` in destructuring, enabling clean differentiation between omitted and explicitly provided `gameType`.
+   - Priority hierarchy established: `explicitGameType` -> `themeDetectedType` -> `contextDetectedType` -> `DEFAULT_GAME_TYPE`.
+   - Guaranteed strict game-engine theme isolation: if a provided theme's type does not match the resolved game type, `GameShell` safely falls back to `getDefaultThemeForGameType(resolvedGameType)` instead of applying an incompatible theme across games.
+2. **Match-3 Leaderboard Modal Integration (`src/games/match-3/Match3Game.tsx`)**:
+   - Connected `onShowLeaderboard` from `StartScreenRenderer` to a full modal overlay with high scores, rankings, empty states, and dismiss handlers.
+   - Rendered the Leaderboard modal across start and playing viewports.
+3. **Module Export Conflict Resolution (`src/themes/index.ts`, `src/themes/registry.ts`)**:
+   - Explicitly re-exported `normalizeGameType` from `./types` in `src/themes/index.ts` to prevent Rollup namespace collision warnings.
+   - Imported `normalizeGameType` in `src/themes/registry.ts`.
+4. **Backend Theme Creation Safety (`server/db/themes.ts`)**:
+   - Fixed missing `isMemory`, `isMatch3`, and `isReaction` flags in `createSystemTheme()`, ensuring proper branding subtitles and basket configurations for all game types.
+5. **Automated Verification (`src/games/match-3/match3_gameplay_and_resolution.test.ts`)**:
+   - Added unit tests validating Match-3 in `GAME_REGISTRY`, board generation without initial matches, valid move detection, swap and cascade execution, rocket creation from 4-in-a-row, and `GameShell` game-type resolution and theme isolation.
+
+---
+
+## [2026-10-07] - Update Create Event Modal Pricing Behavior for Uncovered Durations
+
+### Summary
+Replaced customer-facing red error banners ("No pricing tier is configured for a 57-day event for this game") in the Create Event dialog with a user-friendly "Pricing unavailable for this event duration" state offering a direct "Contact Us" quotation button. Preserved the backend-driven pricing model, prevented event creation when pricing tiers are absent, differentiated network/server errors from missing tier responses, and supported dynamic multi-duration checks.
+
+### Key Changes Implemented
+1. **Friendly Pricing-Unavailable UI State (`src/components/events/CreateEventDialog.tsx`)**:
+   - Replaced raw red error alerts when selecting durations without configured pricing tiers with a dedicated amber-styled notification:
+     - Title: "Pricing unavailable for this event duration"
+     - Description: "We don't currently have online pricing configured for a {days}-day event. Please contact us for a custom quotation."
+     - Action: "[ Contact Us ]" button navigating cleanly to `/contact`.
+2. **Strict Create Event Button Disabling**:
+   - The "Create Event" submit button is strictly disabled whenever `configPricingStatus !== 'available'` or `!configPrice || configPrice <= 0`.
+   - Prevented form submission if pricing is unavailable, loading, or unresolved.
+3. **Dynamic Backend-Driven Availability**:
+   - As dates, durations, game engines, themes, or organization country codes change, the frontend dynamically requests quotes via `/api/events/quote` with zero hardcoded ranges in frontend code.
+   - Cleanly distinguishes loading (`configPricingStatus === 'loading'`), pricing unavailable (`configPricingStatus === 'unavailable'`), and network/API errors (`configPricingStatus === 'error'`) with a dedicated retry option.
+4. **Error Formatting & Classification (`src/components/events/eventErrorUtils.ts`)**:
+   - Updated `isNoPricingTierError()` and `formatEventErrorMessage()` to categorize `NO_PRICING_TIER`, `UNSUPPORTED_DURATION`, and `DURATION_NOT_SUPPORTED` codes without exposing internal error text.
+5. **Full Multi-Language Localization (`src/locales/en.ts`, `zh-CN.ts`, `ms-MY.ts`)**:
+   - Added `event.pricingUnavailableTitle` and `event.pricingUnavailableDesc` keys to all supported languages.
+6. **Automated Test Coverage (`server/create_event_modal_pricing_behavior.test.ts`)**:
+   - Added automated tests verifying error categorization, multi-duration resolution (1-day, 7-day, 15-day), unsupported duration handling (57-day), dynamic date and game transitions, and non-leakage of raw internal error strings.
+
+---
+
 ## [2026-10-02] - Fix Customer Invitation Database Persistence and RPC Atomicity
 
 ### Summary

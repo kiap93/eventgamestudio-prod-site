@@ -1,134 +1,45 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLocalization } from '../../context/LocalizationContext';
 import { useAuth } from '../../context/AuthContext';
-import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
+import { navigateTo } from '../../hooks/useRouteContext';
 import { GameRecord } from '../../types';
-import { GameCatalogView } from './GameCatalogView';
 import { GameDetailView } from './GameDetailView';
-import { ThemeEditor } from '../studio/ThemeEditor';
-import { GameShell } from '../shell/GameShell';
-import { getActiveTheme } from '../../themes';
+import { getGameTypeIconComponent, formatGameTypeName, normalizeGameType } from '../../games';
 import {
   Gamepad2,
+  Sparkles,
+  ArrowRight,
+  Layers,
   Play,
   RotateCcw,
-  Maximize2,
-  Minimize2,
+  CheckCircle2,
+  Clock,
+  Search,
+  Filter,
 } from 'lucide-react';
 
 export const GamesPage: React.FC = () => {
   const { t } = useLocalization();
-  const { currentOrganization, fetchThemes } = useAuth();
-  const routeContext = useRouteContext();
+  const { currentOrganization, themes, fetchThemes } = useAuth();
 
   const [games, setGames] = useState<GameRecord[]>([]);
-  const [isLoadingGames, setIsLoadingGames] = useState<boolean>(true);
-  const [gamesError, setGamesError] = useState<string | null>(null);
+  const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // URL parsing helper
-  const parseGamesRoute = () => {
-    const pathname = window.location.pathname;
-    const searchParams = new URLSearchParams(window.location.search);
-    const queryThemeId = searchParams.get('editTheme');
-
-    // Pattern 1: /games/:gameId/themes/:themeId/edit
-    const matchNestedEdit = pathname.match(/^\/games\/([^/]+)\/themes\/([^/]+)\/edit$/);
-    if (matchNestedEdit) {
-      return { gameId: matchNestedEdit[1], themeId: matchNestedEdit[2] };
-    }
-
-    // Pattern 2: /game-themes/:themeId/edit (backward-compat)
-    const matchLegacyEdit = pathname.match(/^\/game-themes\/([^/]+)\/edit$/);
-    if (matchLegacyEdit) {
-      return { gameId: null, themeId: matchLegacyEdit[1] };
-    }
-
-    // Pattern 3: query param ?editTheme=...
-    if (queryThemeId) {
-      return { gameId: null, themeId: queryThemeId };
-    }
-
-    // Pattern 4: /games/:gameId
-    const matchGameDetail = pathname.match(/^\/games\/([^/]+)$/);
-    if (matchGameDetail && matchGameDetail[1] !== 'themes') {
-      return { gameId: matchGameDetail[1], themeId: null };
-    }
-
-    return { gameId: null, themeId: null };
-  };
-
-  const initialRoute = parseGamesRoute();
-  const [selectedGameId, setSelectedGameId] = useState<string | null>(initialRoute.gameId);
-  const [editingThemeId, setEditingThemeId] = useState<string | null>(initialRoute.themeId);
-
-  // Check if current flow is onboarding
-  const isOnboarding = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('onboarding') === 'true';
-
-  // Quick Demo Play Modal
-  const [demoPlayingGame, setDemoPlayingGame] = useState<GameRecord | null>(null);
-  const [demoRestartKey, setDemoRestartKey] = useState<number>(0);
-  const [isDemoFullscreen, setIsDemoFullscreen] = useState<boolean>(false);
-
-  // Synchronize fullscreen state with browser events
-  useEffect(() => {
-    const handleFsChange = () => {
-      setIsDemoFullscreen(
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
-      );
-    };
-
-    document.addEventListener('fullscreenchange', handleFsChange);
-    document.addEventListener('webkitfullscreenchange', handleFsChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFsChange);
-      document.removeEventListener('webkitfullscreenchange', handleFsChange);
-    };
-  }, []);
-
-  const handleToggleDemoFullscreen = () => {
-    const isCurrentlyFs =
-      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
-    if (!isCurrentlyFs && !isDemoFullscreen) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      setIsDemoFullscreen(true);
-    } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
-        }
-      }
-      setIsDemoFullscreen(false);
-    }
-  };
-
-  // Fetch games list
   const loadGames = useCallback(async () => {
-    setIsLoadingGames(true);
-    setGamesError(null);
+    setLoading(true);
     try {
       const res = await apiFetch('/api/games');
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.games)) {
-          setGames(data.games);
-        }
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setGamesError(err.error || 'Failed to load games catalog');
+        setGames(data.games || []);
       }
-    } catch (err: any) {
-      console.error('Error fetching games:', err);
-      setGamesError(err.message || 'Network error loading games');
+    } catch (err) {
+      console.warn('Failed to load games:', err);
     } finally {
-      setIsLoadingGames(false);
+      setLoading(false);
     }
   }, []);
 
@@ -137,196 +48,125 @@ export const GamesPage: React.FC = () => {
     fetchThemes();
   }, [loadGames, fetchThemes]);
 
-  // Handle browser back / forward navigation and global route synchronization
-  useEffect(() => {
-    const handlePopState = () => {
-      const route = parseGamesRoute();
-      setSelectedGameId(route.gameId);
-      setEditingThemeId(route.themeId);
-      if (!route.gameId && !route.themeId) {
-        setDemoPlayingGame(null);
-        setIsDemoFullscreen(false);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  // React immediately to routeContext changes (e.g. clicking global Games tab)
-  useEffect(() => {
-    const route = parseGamesRoute();
-    setSelectedGameId(route.gameId);
-    setEditingThemeId(route.themeId);
-    if (!route.gameId && !route.themeId) {
-      setDemoPlayingGame(null);
-      setIsDemoFullscreen(false);
-    }
-  }, [routeContext.pathname]);
-
-  // Navigation Handlers
-  const handleSelectGame = (game: GameRecord) => {
-    const newPath = `/games/${game.id}`;
-    setSelectedGameId(game.id);
-    setEditingThemeId(null);
-    fetchThemes(game.id);
-    navigateTo(newPath, { gameId: game.id });
-  };
-
-  const handleBackToCatalog = () => {
-    setSelectedGameId(null);
-    setEditingThemeId(null);
-    loadGames();
-    navigateTo('/games');
-  };
-
-  const handleOpenThemeEditor = (themeId: string) => {
-    const gameId = selectedGameId || (games.length > 0 ? games[0].id : 'default');
-    const newPath = `/games/${gameId}/themes/${themeId}/edit`;
-    setEditingThemeId(themeId);
-    navigateTo(newPath, { gameId, themeId });
-  };
-
-  const handleBackFromThemeEditor = () => {
-    if (selectedGameId) {
-      const newPath = `/games/${selectedGameId}`;
-      setEditingThemeId(null);
-      fetchThemes(selectedGameId);
-      navigateTo(newPath, { gameId: selectedGameId });
-    } else {
-      handleBackToCatalog();
-    }
-  };
-
-  // Find the currently selected game object
-  const selectedGame = selectedGameId
-    ? games.find((g) => g.id === selectedGameId) || {
-        id: selectedGameId,
-        name: 'Catch The Brand',
-        slug: 'catch-brand',
-        game_type: 'catch-brand',
-        status: 'active',
-        description: 'Interactive customizable arcade experience.',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-    : null;
-
-  // View 1: Theme Editor
-  if (editingThemeId) {
-    return (
-      <ThemeEditor
-        themeId={editingThemeId}
-        onBack={handleBackFromThemeEditor}
-        isOnboarding={isOnboarding}
-      />
-    );
-  }
-
-  // View 2: Game Detail & Scoped Theme Management
   if (selectedGame) {
     return (
       <GameDetailView
         game={selectedGame}
-        onBack={handleBackToCatalog}
-        onEditTheme={handleOpenThemeEditor}
+        onBack={() => setSelectedGame(null)}
+        onEditTheme={(themeId) => navigateTo(`/studio/${themeId}`)}
       />
     );
   }
 
-  // View 3: Games Catalog View (Default)
+  const filteredGames = games.filter((g) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      g.name.toLowerCase().includes(q) ||
+      (g.description && g.description.toLowerCase().includes(q)) ||
+      g.game_type.toLowerCase().includes(q)
+    );
+  });
+
   return (
-    <>
-      <GameCatalogView
-        games={games}
-        isLoading={isLoadingGames}
-        onSelectGame={handleSelectGame}
-        onPlayDemo={(game) => {
-          setDemoPlayingGame(game);
-          setDemoRestartKey((k) => k + 1);
-        }}
-        onRefresh={loadGames}
-      />
-
-      {/* Quick Play Demo Modal */}
-      {demoPlayingGame && (
-        <div
-          className={`fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 ${
-            isDemoFullscreen ? 'p-0' : ''
-          }`}
-        >
-          <div
-            className={`bg-slate-900 border border-slate-800 flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
-              isDemoFullscreen
-                ? 'w-full h-full rounded-none border-none max-w-none max-h-none'
-                : 'w-full max-w-5xl xl:max-w-6xl h-[88vh] max-h-[840px] rounded-3xl'
-            }`}
-          >
-            <div className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400">
-                  <Play className="w-4 h-4 fill-current" />
-                </div>
-                <div>
-                  <h3 className="text-xs sm:text-sm font-black text-slate-100 flex items-center gap-2">
-                    <span>{t('gamesCatalog.demoEngine', { name: demoPlayingGame.name })}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 text-slate-400 rounded-full">
-                      {demoPlayingGame.game_type || 'catch-brand'}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400 hidden sm:block">
-                    {t('gamesCatalog.interactiveEngineTest')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setDemoRestartKey((k) => k + 1)}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title={t('gamesCatalog.restart')}
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{t('gamesCatalog.restart')}</span>
-                </button>
-
-                <button
-                  onClick={handleToggleDemoFullscreen}
-                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer"
-                  title={isDemoFullscreen ? t('gamesCatalog.exitFullscreen') : t('gamesCatalog.fullscreen')}
-                >
-                  {isDemoFullscreen ? (
-                    <Minimize2 className="w-4 h-4" />
-                  ) : (
-                    <Maximize2 className="w-4 h-4" />
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setDemoPlayingGame(null)}
-                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                >
-                  {t('gamesCatalog.close')}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
-              <GameShell
-                key={`demo-${demoPlayingGame.id}-${demoRestartKey}`}
-                theme={getActiveTheme()}
-                gameType={demoPlayingGame.game_type || 'catch-brand'}
-                organizationSlug={currentOrganization?.slug || 'preview'}
-                isStudioPreview={true}
-                isFullscreen={isDemoFullscreen}
-                onToggleFullscreen={handleToggleDemoFullscreen}
-              />
-            </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 shrink-0">
+            <Gamepad2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-100">
+              {t('common.interactiveEventGames', undefined, 'Interactive Event Games')}
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {t(
+                'games.catalogSubtitle',
+                undefined,
+                'Manage your branded themes, playtest mechanics, and configure games for upcoming live events.'
+              )}
+            </p>
           </div>
         </div>
+
+        {/* Search */}
+        <div className="relative w-full sm:w-64 shrink-0">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('common.search', undefined, 'Search games...')}
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 transition-all placeholder:text-slate-600"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-16 space-y-3">
+          <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400">{t('common.loading', undefined, 'Loading games...')}</p>
+        </div>
+      ) : filteredGames.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center text-slate-500 text-xs">
+          <Gamepad2 className="w-10 h-10 mx-auto opacity-30 mb-3" />
+          <p>{t('games.noGamesFound', undefined, 'No games found matching your search.')}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredGames.map((game) => {
+            const normalizedType = normalizeGameType(game.game_type);
+            const GameIcon = getGameTypeIconComponent(normalizedType);
+            const gameThemes = themes.filter((th) => {
+              const thType = normalizeGameType(th.game_type || '');
+              return thType === normalizedType || th.game_id === game.id;
+            });
+
+            return (
+              <div
+                key={game.id}
+                onClick={() => setSelectedGame(game)}
+                className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl hover:border-amber-500/50 transition-all cursor-pointer flex flex-col justify-between group"
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                      <GameIcon className="w-6 h-6" />
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                      <Layers className="w-3 h-3" />
+                      {gameThemes.length} {gameThemes.length === 1 ? 'Theme' : 'Themes'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
+                      {formatGameTypeName(normalizedType)}
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
+                      {game.name}
+                    </h3>
+                  </div>
+
+                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">
+                    {game.description || t('games.defaultDescription', undefined, 'Customizable interactive mini-game for live brand activations.')}
+                  </p>
+                </div>
+
+                <div className="pt-6 mt-6 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-200 transition-colors">
+                    {t('games.manageThemes', undefined, 'Manage Themes & Playtest')}
+                  </span>
+                  <div className="p-2 rounded-xl bg-slate-800 group-hover:bg-amber-500 text-slate-400 group-hover:text-slate-950 transition-all">
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
-    </>
+    </div>
   );
 };

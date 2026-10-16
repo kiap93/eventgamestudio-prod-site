@@ -151,6 +151,7 @@ Contains the canonical timestamp migrations:
 - `20260929000000_fix_showcase_service_role_trigger.sql` — Hardens prevent_event_showcase_unauthorized_client_mutations trigger to recognize service_role backend connections across all PostgREST versions, and adds atomic SECURITY DEFINER RPCs save_event_showcase_atomic and publish_event_showcase_atomic with strict null semantics
 - `20261008000000_create_customer_invitations.sql` — Creates prospective customer companies, recipients, invitation audit logs, and atomic creation procedure create_customer_company_atomic with developer-admin RLS policies
 - `20261009000000_add_invitation_email_verification.sql` — Adds single-use email verification code columns to public.organization_invitations allowing invited users from all email providers (Outlook, Hotmail, Yahoo, custom domains, etc.) to securely verify email ownership and accept invitations.
+- `20261020000000_fix_game_status_in_atomic_create_event.sql` — Fixes create_event_atomic RPC to use authoritative status column on public.games ('active', 'inactive', 'archived', 'draft') instead of nonexistent is_active and engine_status columns.
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.

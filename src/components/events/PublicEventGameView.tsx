@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouteContext } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import { GameContainer } from '../GameContainer';
+import { getThemeGameType, normalizeGameType, resolveAuthoritativeGameType } from '../../themes';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
@@ -538,7 +539,11 @@ export const PublicEventGameView: React.FC = () => {
 
   // 6. Event is LIVE & PAID!
   const theme = eventData.game_theme || eventData.theme;
-  const gameType = eventData.game?.game_type || 'catch-brand';
+  const gameType = resolveAuthoritativeGameType({
+    event: eventData,
+    game: eventData.game,
+    theme,
+  });
   const showHeader = !isFullscreen;
   const localizedEventName = resolveContent(eventData.translations, eventData.name, 'title') || eventData.name;
 

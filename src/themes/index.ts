@@ -1,5 +1,6 @@
 export * from './types';
 export * from './gameAssetResolver';
+export { normalizeGameType } from './types';
 export * from './layout';
 export * from './registry';
 export * from './defaultCatchBrand';
@@ -11,6 +12,7 @@ export * from './halloween';
 export * from './mango';
 export * from './memory-match';
 export * from './reaction-time';
+export * from './match-3';
 export * from './screenBackground';
 export * from './itemSizing';
 export * from './catcherSizing';

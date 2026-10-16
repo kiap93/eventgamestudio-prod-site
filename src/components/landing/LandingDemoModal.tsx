@@ -108,6 +108,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
         theme.id === 'chinese-new-year' ||
         theme.id === 'halloween' ||
         theme.id === 'mango' ||
+        theme.id === 'match-3' ||
         theme.id === 'memory-match' ||
         theme.id === 'memory-carnival' ||
         theme.id === 'reaction-tap' ||

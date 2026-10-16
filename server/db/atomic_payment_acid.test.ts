@@ -20,6 +20,7 @@ async function createTestUser(): Promise<string> {
       id,
       email: `test-${id.slice(0, 8)}@example.com`,
       name: `Test User ${id.slice(0, 6)}`,
+      email_verified: true,
     });
   } catch {}
   return id;
@@ -37,6 +38,7 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
       name: `Test Org ${orgId.slice(0, 8)}`,
       slug: `test-org-${orgId.slice(0, 8)}`,
       owner_id: validOwnerId,
+      country_code: 'MY',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -46,27 +48,51 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
   return validOwnerId;
 }
 
+import { localEventsCache } from './events.js';
+
 async function ensureTestEvent(eventId: string, orgId: string, ownerId?: string) {
   const supabase = getSupabaseServerClient();
   try {
-    const { data: themes } = await supabase.from('game_themes').select('id').limit(1);
-    const themeId = themes?.[0]?.id || '1a480be3-5313-49ba-a9c2-f5b2293576cf';
+    let themeId = '9bfb95dc-383e-45fb-ac04-d3f75a6aa023';
+    let targetGameId = 'catch-brand';
+    try {
+      const { data: themes } = await supabase.from('game_themes').select('id, game_id').limit(1);
+      if (themes && themes.length > 0 && themes[0].id) {
+        themeId = themes[0].id;
+        if (themes[0].game_id) targetGameId = themes[0].game_id;
+      }
+    } catch {}
+
     const now = new Date().toISOString();
+    const startDate = now.split('T')[0];
+    const endDate = now.split('T')[0];
     const token = crypto.randomBytes(4).toString('hex').toUpperCase();
-    await supabase.from('events').upsert({
+
+    const evRecord: any = {
       id: eventId,
       organization_id: orgId,
+      game_id: targetGameId,
       game_theme_id: themeId,
       name: `Test Event ${eventId.slice(0, 8)}`,
-      event_date: now.split('T')[0],
-      starts_at: now,
-      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      event_date: startDate,
+      start_date: startDate,
+      end_date: endDate,
+      starts_at: `${startDate}T00:00:00.000Z`,
+      expires_at: `${endDate}T23:59:59.000Z`,
       status: 'scheduled',
+      event_status: 'SCHEDULED',
+      payment_status: 'UNPAID',
+      event_price: 1400.00,
+      event_currency: 'MYR',
       public_token: token,
       created_by: ownerId || undefined,
       created_at: now,
       updated_at: now,
-    });
+    };
+
+    localEventsCache.set(eventId, evRecord);
+
+    await supabase.from('events').upsert(evRecord);
   } catch {
     // Ignore in local mode
   }

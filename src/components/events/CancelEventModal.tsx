@@ -102,6 +102,8 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
   const canRefund = eligibility?.canRefund ?? false;
   const paidAmount = eligibility?.refundPaidAmount ?? (event.paid_amount || 0);
   const discountAmount = eligibility?.creditReversalAmount ?? (event.discount_amount || 0);
+  const eventCurr = (event.event_currency || 'USD').toUpperCase();
+  const currencyPrefix = eventCurr === 'MYR' ? 'RM ' : eventCurr === 'USD' ? '$' : eventCurr === 'SGD' ? 'S$' : `${eventCurr} `;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 font-sans">
@@ -214,7 +216,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">{t('payment.purchasedBalance')}:</span>
                         <span className="font-mono font-bold text-emerald-400">
-                          + RM {(Number(paidAmount) || 0).toFixed(2)}
+                          + {currencyPrefix}{(Number(paidAmount) || 0).toFixed(2)}
                         </span>
                       </div>
 
@@ -222,7 +224,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">{t('payment.promotionalCredits')}:</span>
                           <span className="font-mono text-amber-400">
-                            - RM {(Number(discountAmount) || 0).toFixed(2)} ({eligibility?.creditType || 'Promo Credit'})
+                            - {currencyPrefix}{(Number(discountAmount) || 0).toFixed(2)} ({eligibility?.creditType || 'Promo Credit'})
                           </span>
                         </div>
                       )}

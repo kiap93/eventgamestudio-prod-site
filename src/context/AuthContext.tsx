@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { GameTheme, registerThemes, setActiveTheme, normalizeGameTheme, getActiveTheme } from '../themes';
 import { apiFetch, migrateLegacyAppToken } from '../lib/api';
-import { navigateTo } from '../hooks/useRouteContext';
+import { navigateTo, getStoredReferralCode } from '../hooks/useRouteContext';
 
 export interface User {
   id: string;
@@ -34,10 +34,25 @@ export interface GameCustomization {
   updated_at: string;
 }
 
+export interface SalesPartnerProfile {
+  id: string;
+  status: 'pending' | 'active' | 'suspended' | 'rejected';
+  applied_at: string;
+  activated_at: string | null;
+  suspended_at: string | null;
+  agency_name?: string | null;
+  application_notes?: string | null;
+  admin_notes?: string | null;
+}
+
 interface AuthContextType {
   currentUser: User | null;
   currentOrganization: Organization | null;
   organizations: Organization[];
+  salesPartner: SalesPartnerProfile | null;
+  isSalesPartner: boolean;
+  salesPartnerStatus: 'pending' | 'active' | 'suspended' | 'rejected' | null;
+  applyForSalesPartner: (payload?: { agencyName?: string; notes?: string; applicationNotes?: string } | string) => Promise<{ success: boolean; message: string }>;
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
@@ -49,7 +64,7 @@ interface AuthContextType {
     email: string,
     password: string
   ) => Promise<{ success: boolean; unverified?: boolean; email?: string; error?: string; code?: string }>;
-  registerWithEmail: (email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message: string; email: string }>;
+  registerWithEmail: (email: string, password: string, confirmPassword: string, referralCode?: string) => Promise<{ success: boolean; message: string; email: string }>;
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string; already_verified?: boolean }>;
   verifyEmail: (token: string) => Promise<{ success: boolean; message: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
@@ -83,11 +98,65 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export function resolveActiveOrganization(
+  rawActiveOrg: any,
+  orgList: Organization[]
+): Organization | null {
+  const safeOrgList = Array.isArray(orgList) ? orgList : [];
+
+  // If rawActiveOrg is a string ID
+  if (typeof rawActiveOrg === 'string' && rawActiveOrg.trim()) {
+    const trimmedId = rawActiveOrg.trim();
+    const match = safeOrgList.find((o) => o.id === trimmedId);
+    if (match) {
+      return {
+        id: match.id,
+        name: match.name || '',
+        slug: match.slug || '',
+        role: (match.role || 'viewer') as Organization['role'],
+        logo_url: match.logo_url ?? null,
+        country_code: match.country_code ?? null,
+      };
+    }
+  }
+
+  // If rawActiveOrg is an object with an ID
+  if (rawActiveOrg && typeof rawActiveOrg === 'object' && rawActiveOrg.id) {
+    const match = safeOrgList.find((o) => o.id === rawActiveOrg.id);
+    return {
+      id: rawActiveOrg.id,
+      name: rawActiveOrg.name || match?.name || '',
+      slug: rawActiveOrg.slug || match?.slug || '',
+      role: (rawActiveOrg.role || match?.role || 'viewer') as Organization['role'],
+      logo_url: rawActiveOrg.logo_url ?? match?.logo_url ?? null,
+      country_code: rawActiveOrg.country_code ?? match?.country_code ?? null,
+    };
+  }
+
+  // Fallback to first valid organization membership in orgList
+  if (safeOrgList.length > 0) {
+    const fallback = safeOrgList[0];
+    return {
+      id: fallback.id,
+      name: fallback.name || '',
+      slug: fallback.slug || '',
+      role: (fallback.role || 'viewer') as Organization['role'],
+      logo_url: fallback.logo_url ?? null,
+      country_code: fallback.country_code ?? null,
+    };
+  }
+
+  return null;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [previousActiveOrg, setPreviousActiveOrg] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [salesPartner, setSalesPartner] = useState<SalesPartnerProfile | null>(null);
+  const isSalesPartner = salesPartner?.status === 'active';
+  const salesPartnerStatus = salesPartner?.status || null;
   const [token, setToken] = useState<string | null>(() => {
     migrateLegacyAppToken();
     return typeof localStorage !== 'undefined' ? localStorage.getItem('app_token') : null;
@@ -313,19 +382,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
-        setOrganizations(data.organizations || []);
-        setCurrentOrganization(data.activeOrganization || null);
-        if (data.activeOrganization) {
-          fetchActiveGame();
-          fetchThemes();
+        const orgList: Organization[] = Array.isArray(data.organizations) ? data.organizations : [];
+        setOrganizations(orgList);
+        if (data.salesPartnerUnavailable) {
+          console.warn('[AuthContext] Sales Partner lookup temporarily unavailable; preserving existing status');
+        } else if (data.salesPartner !== undefined) {
+          setSalesPartner(data.salesPartner || null);
+        }
+
+        // 1 & 2: Restore currentOrganization from data.activeOrganization.
+        // If absent, fallback to valid organization membership in orgList.
+        // Ensure restored organization contains ID, name, role, country_code, logo_url.
+        const rawActive = data.activeOrganization || data.activeOrganizationId || null;
+        const resolvedOrg = resolveActiveOrganization(rawActive, orgList);
+        setCurrentOrganization(resolvedOrg);
+
+        if (resolvedOrg) {
+          try {
+            localStorage.setItem('active_org_id', resolvedOrg.id);
+          } catch {}
+          // 3: Restore organization-scoped game and theme data only after active organization is resolved.
+          await Promise.all([fetchActiveGame(), fetchThemes()]);
+        } else {
+          try {
+            localStorage.removeItem('active_org_id');
+          } catch {}
+          // Clear stale organization-scoped state when no organization membership exists.
+          setActiveGame(null);
+          setThemes([]);
+          setActiveThemeState(null);
         }
       } else {
         try { localStorage.removeItem('app_token'); } catch {}
         try { localStorage.removeItem('durian_app_token'); } catch {}
+        try { localStorage.removeItem('active_org_id'); } catch {}
         setToken(null);
         setCurrentUser(null);
         setCurrentOrganization(null);
         setOrganizations([]);
+        setSalesPartner(null);
+        setActiveGame(null);
+        setThemes([]);
+        setActiveThemeState(null);
       }
     } catch (err) {
       console.error('Failed to refresh session:', err);
@@ -343,30 +441,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('app_token', data.token);
     setToken(data.token);
     setCurrentUser(data.user);
-    setOrganizations(data.organizations || []);
+    const orgList: Organization[] = Array.isArray(data.organizations) ? data.organizations : [];
+    setOrganizations(orgList);
+    setSalesPartner(data.salesPartner || null);
 
-    const active = data.organizations?.find((o: Organization) => o.id === data.activeOrganizationId) || null;
-    setCurrentOrganization(active);
+    const activeRaw = data.activeOrganization || (data.activeOrganizationId ? orgList.find((o: Organization) => o.id === data.activeOrganizationId) : null) || data.activeOrganizationId || null;
+    const resolvedOrg = resolveActiveOrganization(activeRaw, orgList);
+    setCurrentOrganization(resolvedOrg);
 
-    if (active) {
-      const gameRes = await authFetch('/api/games');
-      if (gameRes.ok) {
-        const gameData = await gameRes.json();
-        if (gameData.games && gameData.games.length > 0) {
-          setActiveGame(gameData.games[0]);
-        }
-      }
-      await fetchThemes();
+    if (resolvedOrg) {
+      try {
+        localStorage.setItem('active_org_id', resolvedOrg.id);
+      } catch {}
+      await Promise.all([fetchActiveGame(), fetchThemes()]);
+    } else {
+      try {
+        localStorage.removeItem('active_org_id');
+      } catch {}
+      setActiveGame(null);
+      setThemes([]);
+      setActiveThemeState(null);
     }
-  }, [authFetch, fetchThemes]);
+  }, [authFetch, fetchActiveGame, fetchThemes]);
 
   const login = async (idToken: string) => {
     setIsLoading(true);
     try {
+      const storedReferralCode = getStoredReferralCode() || undefined;
       const res = await apiFetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ idToken, referral_code: storedReferralCode }),
       });
 
       if (!res.ok) {
@@ -433,12 +538,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const registerWithEmail = async (
     email: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
+    referralCode?: string
   ): Promise<{ success: boolean; message: string; email: string }> => {
+    const storedReferralCode = referralCode || getStoredReferralCode() || undefined;
     const res = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, confirmPassword }),
+      body: JSON.stringify({ email, password, confirmPassword, referral_code: storedReferralCode }),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -562,12 +669,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     try { localStorage.removeItem('app_token'); } catch {}
     try { localStorage.removeItem('durian_app_token'); } catch {}
+    try { localStorage.removeItem('active_org_id'); } catch {}
     setToken(null);
     setCurrentUser(null);
     setCurrentOrganization(null);
     setOrganizations([]);
     setActiveGame(null);
     setThemes([]);
+    setActiveThemeState(null);
+    setSalesPartner(null);
+  };
+
+  const applyForSalesPartner = async (
+    payload?: { agencyName?: string; notes?: string; applicationNotes?: string } | string
+  ): Promise<{ success: boolean; message: string }> => {
+    let bodyPayload: Record<string, any> = {};
+    if (typeof payload === 'string') {
+      bodyPayload = { notes: payload };
+    } else if (payload && typeof payload === 'object') {
+      bodyPayload = {
+        agencyName: payload.agencyName?.trim() || undefined,
+        applicationNotes: (payload.applicationNotes || payload.notes)?.trim() || undefined,
+      };
+    }
+
+    const res = await authFetch('/api/sales/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyPayload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to submit Sales Partner application');
+    }
+
+    if (data.salesPartner) {
+      setSalesPartner(data.salesPartner);
+    }
+    return { success: true, message: data.message || 'Application submitted successfully' };
   };
 
   const switchOrganization = async (orgId: string) => {
@@ -587,12 +727,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       localStorage.setItem('app_token', data.token);
       setToken(data.token);
-      setCurrentOrganization(data.activeOrganization);
+      const orgList: Organization[] = Array.isArray(data.organizations) ? data.organizations : [];
       if (data.organizations) {
-        setOrganizations(data.organizations);
+        setOrganizations(orgList);
       }
-      await fetchActiveGame();
-      await fetchThemes();
+      const rawActive = data.activeOrganization || orgList.find((o) => o.id === orgId) || orgId;
+      const targetOrg = resolveActiveOrganization(rawActive, orgList);
+      setCurrentOrganization(targetOrg);
+
+      if (targetOrg) {
+        try { localStorage.setItem('active_org_id', targetOrg.id); } catch {}
+        await Promise.all([fetchActiveGame(), fetchThemes()]);
+      } else {
+        try { localStorage.removeItem('active_org_id'); } catch {}
+        setActiveGame(null);
+        setThemes([]);
+        setActiveThemeState(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -604,6 +755,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPreviousActiveOrg(currentOrganization);
     }
     setCurrentOrganization(null);
+    try { localStorage.removeItem('active_org_id'); } catch {}
     navigateTo('/create-organization');
   }, [currentOrganization]);
 
@@ -611,8 +763,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('[AuthContext] Cancelling organization creation flow, restoring active organization');
     if (previousActiveOrg) {
       setCurrentOrganization(previousActiveOrg);
+      try { localStorage.setItem('active_org_id', previousActiveOrg.id); } catch {}
     } else if (organizations.length > 0) {
-      setCurrentOrganization(organizations[0]);
+      const fallbackOrg = resolveActiveOrganization(null, organizations);
+      setCurrentOrganization(fallbackOrg);
+      if (fallbackOrg) {
+        try { localStorage.setItem('active_org_id', fallbackOrg.id); } catch {}
+      }
     }
   }, [previousActiveOrg, organizations]);
 
@@ -662,6 +819,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     localStorage.setItem('app_token', data.token);
+    try { localStorage.setItem('active_org_id', data.organization.id); } catch {}
     setToken(data.token);
     setCurrentOrganization(data.organization);
     setOrganizations((prev) => {
@@ -736,9 +894,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveGame(updatedData.game);
   };
 
-  const uploadAsset = async (file: File): Promise<string> => {
+  const uploadAsset = async (file: File, category: string = 'general'): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
+    if (category) {
+      formData.append('category', category);
+    }
+    if (currentOrganization?.id) {
+      formData.append('organizationId', currentOrganization.id);
+    }
 
     const res = await authFetch('/api/upload', {
       method: 'POST',
@@ -746,7 +910,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to upload asset');
     }
 
@@ -777,6 +941,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         currentOrganization,
         organizations,
+        salesPartner,
+        isSalesPartner,
+        salesPartnerStatus,
+        applyForSalesPartner,
         isAuthenticated: !!currentUser,
         isLoading,
         token,

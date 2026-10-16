@@ -197,7 +197,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
         <div className="h-12 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Palette className="w-4 h-4 text-amber-400" />
-            <span className="font-bold text-xs text-slate-200">Start Screen Canvas</span>
+            <span className="font-bold text-xs text-slate-200">{t('editor.startScreenCanvas', undefined, 'Start Screen Canvas')}</span>
           </div>
           <span className="text-[10px] font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
             {canvasWidth} × {canvasHeight}
@@ -208,15 +208,15 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Canvas Dimensions & Stats */}
           <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
             <div className="flex items-center justify-between font-mono text-xs">
-              <span className="text-slate-400">Logical Space:</span>
+              <span className="text-slate-400">{t('editor.logicalSpace', undefined, 'Logical Space:')}</span>
               <span className="text-amber-400 font-bold">{canvasWidth} × {canvasHeight} px</span>
             </div>
             <div className="flex items-center justify-between font-mono text-xs pt-1 border-t border-slate-800/80">
-              <span className="text-slate-400">Total Elements:</span>
+              <span className="text-slate-400">{t('editor.totalElements', undefined, 'Total Elements:')}</span>
               <span className="text-slate-200 font-semibold">{elements.length}</span>
             </div>
             <p className="text-[10px] text-slate-500 pt-0.5 leading-relaxed">
-              Auto-scales responsively to match any device viewport.
+              {t('editor.responsiveScaleNotice', undefined, 'Auto-scales responsively to match any device viewport.')}
             </p>
           </div>
 
@@ -224,14 +224,14 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-3">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5 text-amber-400" />
-              <span>Add Elements to Canvas</span>
+              <span>{t('editor.addElementsToCanvas', undefined, 'Add Elements to Canvas')}</span>
             </span>
 
             {/* CONTAINERS */}
             {groupedElements.containers.length > 0 && (
               <div className="space-y-1.5">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Containers
+                  {t('editor.containers', undefined, 'Containers')}
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {groupedElements.containers.map((item) => {
@@ -259,7 +259,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             {groupedElements.visuals.length > 0 && (
               <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Visual Elements
+                  {t('editor.visuals', undefined, 'Visual Elements')}
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {groupedElements.visuals.map((item) => {
@@ -287,7 +287,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             {groupedElements.info.length > 0 && (
               <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Game Info & Content
+                  {t('editor.infoAndText', undefined, 'Game Info & Content')}
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {groupedElements.info.map((item) => {
@@ -315,7 +315,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             {groupedElements.controls.length > 0 && (
               <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Interactive Controls
+                  {t('editor.controls', undefined, 'Interactive Controls')}
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {groupedElements.controls.map((item) => {
@@ -343,7 +343,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Background Mode */}
           <div className="border-t border-slate-800 pt-3">
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Screen Background
+              {t('editor.screenBackground', undefined, 'Screen Background')}
             </label>
             <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
               {(['theme', 'color', 'image'] as const).map((mode) => (
@@ -374,7 +374,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Color Background */}
           {currentBgType === 'color' && (
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Color</label>
+              <label className="block text-[11px] text-slate-400 mb-1">{t('editor.colorLabel', undefined, 'Color')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -413,7 +413,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Image Background */}
           {currentBgType === 'image' && (
             <div className="space-y-2">
-              <label className="block text-[11px] text-slate-400">Background Image</label>
+              <label className="block text-[11px] text-slate-400">{t('editor.backgroundImage', undefined, 'Background Image')}</label>
               <input
                 type="text"
                 placeholder="https://... or /assets/..."
@@ -441,7 +441,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   className="w-full py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
                 >
                   <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{isUploading ? 'Uploading Image...' : 'Upload Background Image'}</span>
+                  <span>{isUploading ? t('editor.uploadingBgImage', undefined, 'Uploading Image...') : t('editor.uploadBgImage', undefined, 'Upload Background Image')}</span>
                 </button>
               )}
             </div>
@@ -450,7 +450,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Overlay Darkening */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="text-[11px] text-slate-400">Darkness Overlay</label>
+              <label className="text-[11px] text-slate-400">{t('editor.darknessOverlay', undefined, 'Darkness Overlay')}</label>
               <span className="text-[10px] text-amber-400 font-mono">
                 {Math.round(
                   (startConfig.backgroundOverlayOpacity !== undefined
@@ -490,14 +490,14 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
 
           <div className="border-t border-slate-800 pt-4">
             <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Canvas Dimensions
+              {t('editor.canvasDimensions', undefined, 'Canvas Dimensions')}
             </span>
             <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between font-mono text-xs text-slate-400">
-              <span>Logical Space:</span>
+              <span>{t('editor.logicalSpace', undefined, 'Logical Space:')}</span>
               <span className="text-amber-400 font-bold">{canvasWidth} × {canvasHeight} px</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
-              Responsive canvas automatically scales seamlessly across all desktop, tablet, and mobile screens.
+              {t('editor.responsiveScaleNotice', undefined, 'Responsive canvas automatically scales seamlessly across all desktop, tablet, and mobile screens.')}
             </p>
           </div>
         </div>
@@ -544,7 +544,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-amber-400" />
             <span className="font-bold text-xs text-slate-200 uppercase tracking-wide">
-              {selectedIds.length} Elements Selected
+              {t('editor.elementsSelectedCount', { count: selectedIds.length }, `${selectedIds.length} Elements Selected`)}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -563,7 +563,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 className={`p-1 rounded hover:bg-slate-800 ${
                   isAllSelectedLocked ? 'text-rose-400' : 'text-slate-400'
                 }`}
-                title={isAllSelectedLocked ? 'Unlock All' : 'Lock All'}
+                title={isAllSelectedLocked ? t('editor.unlockAll', undefined, 'Unlock All') : t('editor.lockAll', undefined, 'Lock All')}
               >
                 {isAllSelectedLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
               </button>
@@ -593,7 +593,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Alignment Suite */}
           <div>
             <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Align & Distribute
+              {t('editor.alignAndDistribute', undefined, 'Align & Distribute')}
             </span>
             <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
               <button
@@ -602,7 +602,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.alignLeftTooltip', undefined, 'Align Left')}
               >
                 <AlignLeft className="w-4 h-4" />
-                <span className="text-[9px]">Left</span>
+                <span className="text-[9px]">{t('common.left', undefined, 'Left')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('center-h')}
@@ -610,7 +610,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.alignCenterHTooltip', undefined, 'Align Center Horizontally')}
               >
                 <AlignCenterHorizontal className="w-4 h-4" />
-                <span className="text-[9px]">Center H</span>
+                <span className="text-[9px]">{t('common.center', undefined, 'Center H')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('right')}
@@ -618,7 +618,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.alignRightTooltip', undefined, 'Align Right')}
               >
                 <AlignRight className="w-4 h-4" />
-                <span className="text-[9px]">Right</span>
+                <span className="text-[9px]">{t('common.right', undefined, 'Right')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('distribute-h')}
@@ -631,7 +631,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.distributeHTooltip', undefined, 'Distribute Horizontally (requires 3+ elements)')}
               >
                 <AlignHorizontalDistributeCenter className="w-4 h-4" />
-                <span className="text-[9px]">Dist H</span>
+                <span className="text-[9px]">{t('editor.distributeHorizontally', undefined, 'Dist H')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('top')}
@@ -639,7 +639,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.alignTopTooltip', undefined, 'Align Top')}
               >
                 <AlignStartVertical className="w-4 h-4" />
-                <span className="text-[9px]">Top</span>
+                <span className="text-[9px]">{t('common.top', undefined, 'Top')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('center-v')}
@@ -647,7 +647,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.alignCenterVTooltip', undefined, 'Align Center Vertically')}
               >
                 <AlignCenterVertical className="w-4 h-4" />
-                <span className="text-[9px]">Center V</span>
+                <span className="text-[9px]">{t('common.middle', undefined, 'Center V')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('bottom')}
@@ -655,7 +655,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.alignBottomTooltip', undefined, 'Align Bottom')}
               >
                 <AlignEndVertical className="w-4 h-4" />
-                <span className="text-[9px]">Bottom</span>
+                <span className="text-[9px]">{t('common.bottom', undefined, 'Bottom')}</span>
               </button>
               <button
                 onClick={() => onAlignSelected && onAlignSelected('distribute-v')}
@@ -668,7 +668,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 title={t('editor.distributeVTooltip', undefined, 'Distribute Vertically (requires 3+ elements)')}
               >
                 <AlignVerticalDistributeCenter className="w-4 h-4" />
-                <span className="text-[9px]">Dist V</span>
+                <span className="text-[9px]">{t('editor.distributeVertically', undefined, 'Dist V')}</span>
               </button>
             </div>
           </div>
@@ -676,23 +676,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Combined Selection Bounding Box */}
           <div>
             <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Combined Bounds
+              {t('editor.canvasDimensions', undefined, 'Combined Bounds')}
             </span>
             <div className="grid grid-cols-2 gap-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-500">Min X:</span>
+                <span className="text-slate-500">{t('editor.xPos', undefined, 'Min X:')}</span>
                 <span className="text-amber-400">{Math.round(minX)}px</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Min Y:</span>
+                <span className="text-slate-500">{t('editor.yPos', undefined, 'Min Y:')}</span>
                 <span className="text-amber-400">{Math.round(minY)}px</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Width:</span>
+                <span className="text-slate-500">{t('editor.width', undefined, 'Width:')}</span>
                 <span className="text-amber-400">{Math.round(boundWidth)}px</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Height:</span>
+                <span className="text-slate-500">{t('editor.height', undefined, 'Height:')}</span>
                 <span className="text-amber-400">{Math.round(boundHeight)}px</span>
               </div>
             </div>
@@ -701,7 +701,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           {/* Multi-selection Grouping & Actions */}
           <div className="space-y-2 border-t border-slate-800 pt-3">
             <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Group & Actions
+              {t('editor.groupLayerControl', undefined, 'Group & Actions')}
             </span>
             {canGroup && onGroupSelected && (
               <button
@@ -709,7 +709,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
               >
                 <FolderTree className="w-4 h-4 text-amber-400" />
-                <span>Group Selected Elements (Ctrl+G)</span>
+                <span>{t('editor.groupTooltip', undefined, 'Group Selected Elements (Ctrl+G)')}</span>
               </button>
             )}
             {onToggleLockSelected && (
@@ -772,7 +772,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <button
               onClick={onClearSelection}
               className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white mr-0.5"
-              title="Deselect (View Canvas & Add Elements)"
+              title={t('editor.closeEditor', undefined, 'Deselect (View Canvas & Add Elements)')}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -831,11 +831,11 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
         {/* SECTION 1: Transform & Layout */}
         <div>
           <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-            Position & Size
+            {t('editor.canvasDimensions', undefined, 'Position & Size')}
           </span>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-500 font-mono">X (px)</label>
+              <label className="text-[10px] text-slate-500 font-mono">{t('editor.xPos', undefined, 'X (px)')}</label>
               <input
                 type="number"
                 value={Math.round(el.x)}
@@ -846,7 +846,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 font-mono">Y (px)</label>
+              <label className="text-[10px] text-slate-500 font-mono">{t('editor.yPos', undefined, 'Y (px)')}</label>
               <input
                 type="number"
                 value={Math.round(el.y)}
@@ -857,7 +857,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 font-mono">WIDTH</label>
+              <label className="text-[10px] text-slate-500 font-mono">{t('editor.width', undefined, 'WIDTH')}</label>
               <input
                 type="number"
                 value={Math.round(el.width)}
@@ -871,7 +871,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 font-mono">HEIGHT</label>
+              <label className="text-[10px] text-slate-500 font-mono">{t('editor.height', undefined, 'HEIGHT')}</label>
               <input
                 type="number"
                 value={Math.round(el.height)}
@@ -888,7 +888,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
 
           <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
-              <label className="text-[10px] text-slate-500 font-mono">ROTATION (°)</label>
+              <label className="text-[10px] text-slate-500 font-mono">{t('editor.rotation', undefined, 'ROTATION (°)')}</label>
               <input
                 type="number"
                 value={Math.round(el.rotation || 0)}
@@ -899,7 +899,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 font-mono">OPACITY (%)</label>
+              <label className="text-[10px] text-slate-500 font-mono">{t('editor.opacity', undefined, 'OPACITY (%)')}</label>
               <input
                 type="number"
                 min="0"
@@ -949,7 +949,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Card Style
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Background Color</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.backgroundColor', undefined, 'Background Color')}</label>
               <input
                 type="text"
                 value={(el as StartScreenCardElement).style?.backgroundColor || 'rgba(15, 23, 42, 0.95)'}
@@ -967,7 +967,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Border Radius</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.borderRadius', undefined, 'Border Radius')}</label>
                 <input
                   type="number"
                   value={(el as StartScreenCardElement).style?.borderRadius ?? 24}
@@ -984,7 +984,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Border Width</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.borderWidth', undefined, 'Border Width')}</label>
                 <input
                   type="number"
                   value={(el as StartScreenCardElement).style?.borderWidth ?? 1}
@@ -1002,7 +1002,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               </div>
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Border Color</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.borderColor', undefined, 'Border Color')}</label>
               <input
                 type="text"
                 value={(el as StartScreenCardElement).style?.borderColor || '#334155'}
@@ -1019,7 +1019,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Card Background Image (Optional)</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.cardBgImageOptional', undefined, 'Card Background Image (Optional)')}</label>
               <input
                 type="text"
                 placeholder="https://... or preset"
@@ -1090,7 +1090,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </span>
             <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg space-y-1 text-[11px]">
               <div className="flex justify-between text-slate-400">
-                <span>Contained Children:</span>
+                <span>{t('editor.containedChildren', undefined, 'Contained Children:')}</span>
                 <span className="text-slate-200 font-semibold font-mono">
                   {((el as StartScreenGroupElement).children || []).length} elements
                 </span>
@@ -1146,7 +1146,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Title Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Title Text</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.titleText', undefined, 'Title Text')}</label>
               <input
                 type="text"
                 value={(el as StartScreenTitleElement).text || ''}
@@ -1162,7 +1162,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Font Size (px)</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.fontSize', undefined, 'Font Size (px)')}</label>
                 <input
                   type="number"
                   value={(el as StartScreenTitleElement).style?.fontSize ?? 38}
@@ -1179,7 +1179,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Color</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.colorLabel', undefined, 'Color')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenTitleElement).style?.color || '#ffffff'}
@@ -1206,7 +1206,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Subtitle Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Subtitle Text</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.subtitleText', undefined, 'Subtitle Text')}</label>
               <textarea
                 rows={2}
                 value={(el as StartScreenDescriptionElement).text || ''}
@@ -1222,7 +1222,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Font Size (px)</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.fontSize', undefined, 'Font Size (px)')}</label>
                 <input
                   type="number"
                   value={(el as StartScreenDescriptionElement).style?.fontSize ?? 16}
@@ -1239,7 +1239,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Color</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.colorLabel', undefined, 'Color')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenDescriptionElement).style?.color || '#cbd5e1'}
@@ -1266,7 +1266,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Text Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Content</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.contentString', undefined, 'Content')}</label>
               <input
                 type="text"
                 value={(el as StartScreenTextElement).text || ''}
@@ -1281,7 +1281,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Font Size</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.fontSize', undefined, 'Font Size')}</label>
                 <input
                   type="number"
                   value={(el as StartScreenTextElement).style?.fontSize ?? 14}
@@ -1298,7 +1298,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Color</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.colorLabel', undefined, 'Color')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenTextElement).style?.color || '#94a3b8'}
@@ -1325,7 +1325,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Image Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Image URL</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.imageUrl', undefined, 'Image URL')}</label>
               <input
                 type="text"
                 placeholder="https://... or preset"
@@ -1370,7 +1370,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               </div>
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Object Fit</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.objectFit', undefined, 'Object Fit')}</label>
               <select
                 value={(el as StartScreenImageElement).objectFit || 'contain'}
                 onChange={(e) =>
@@ -1381,9 +1381,9 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 }
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
               >
-                <option value="contain">Contain</option>
-                <option value="cover">Cover</option>
-                <option value="fill">Fill</option>
+                <option value="contain">{t('editor.contain', undefined, 'Contain')}</option>
+                <option value="cover">{t('editor.cover', undefined, 'Cover')}</option>
+                <option value="fill">{t('editor.fill', undefined, 'Fill')}</option>
               </select>
             </div>
           </div>
@@ -1396,7 +1396,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Badge Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Metric Type</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.metricType', undefined, 'Metric Type')}</label>
               <select
                 value={(el as StartScreenBadgeElement).metric}
                 onChange={(e) =>
@@ -1407,22 +1407,22 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 }
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200"
               >
-                <option value="grid">Grid Dimensions (e.g. 4×4 Cards)</option>
-                <option value="pairs">Pairs Count (e.g. 8 Pairs)</option>
-                <option value="timer">Time Limit (e.g. 45s)</option>
-                <option value="rounds">Rounds Count</option>
-                <option value="lights">Lights Count</option>
-                <option value="target-item">Target Item</option>
-                <option value="hazard-item">Hazard Item</option>
-                <option value="custom">Custom Text</option>
+                <option value="grid">{t('editor.gridDimensionsMetric', undefined, 'Grid Dimensions (e.g. 4×4 Cards)')}</option>
+                <option value="pairs">{t('editor.pairsCountMetric', undefined, 'Pairs Count (e.g. 8 Pairs)')}</option>
+                <option value="timer">{t('editor.timeLimitMetric', undefined, 'Time Limit (e.g. 45s)')}</option>
+                <option value="rounds">{t('editor.roundsCountMetric', undefined, 'Rounds Count')}</option>
+                <option value="lights">{t('editor.lightsCountMetric', undefined, 'Lights Count')}</option>
+                <option value="target-item">{t('editor.targetItemMetric', undefined, 'Target Item')}</option>
+                <option value="hazard-item">{t('editor.hazardItemMetric', undefined, 'Hazard Item')}</option>
+                <option value="custom">{t('editor.customTextMetric', undefined, 'Custom Text')}</option>
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Label</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.labelField', undefined, 'Label')}</label>
               <input
                 type="text"
                 value={(el as StartScreenBadgeElement).label || ''}
-                placeholder="AUTO (e.g. GRID)"
+                placeholder={t('editor.placeholderAutoGrid', undefined, 'AUTO (e.g. GRID)')}
                 onChange={(e) =>
                   onUpdateElement((prev) => ({
                     ...prev,
@@ -1433,7 +1433,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Override Value</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.overrideValue', undefined, 'Override Value')}</label>
               <input
                 type="text"
                 value={(el as StartScreenBadgeElement).value || ''}
@@ -1449,7 +1449,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Value Color</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.valueColor', undefined, 'Value Color')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenBadgeElement).style?.valueColor || '#fbbf24'}
@@ -1466,7 +1466,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Label Color</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.labelColor', undefined, 'Label Color')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenBadgeElement).style?.labelColor || '#94a3b8'}
@@ -1493,7 +1493,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Button Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Button Label</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.buttonLabel', undefined, 'Button Label')}</label>
               <input
                 type="text"
                 value={(el as StartScreenButtonElement).text}
@@ -1507,7 +1507,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Action Trigger</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.actionTrigger', undefined, 'Action Trigger')}</label>
               <select
                 value={
                   (el as StartScreenButtonElement).action === 'start'
@@ -1534,7 +1534,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Background</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.backgroundColor', undefined, 'Background')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenButtonElement).style?.backgroundColor || '#f59e0b'}
@@ -1551,7 +1551,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Text Color</label>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('editor.textColor', undefined, 'Text Color')}</label>
                 <input
                   type="text"
                   value={(el as StartScreenButtonElement).style?.textColor || '#020617'}
@@ -1598,7 +1598,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Rules Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Header Title</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.headerTitle', undefined, 'Header Title')}</label>
               <input
                 type="text"
                 value={(el as StartScreenRulesElement).title || 'HOW TO PLAY'}
@@ -1612,7 +1612,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Description</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.description', undefined, 'Description')}</label>
               <textarea
                 rows={3}
                 value={(el as StartScreenRulesElement).description || ''}
@@ -1635,7 +1635,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Leaderboard Settings
             </span>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Header Title</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.headerTitle', undefined, 'Header Title')}</label>
               <input
                 type="text"
                 value={(el as StartScreenLeaderboardElement).headerText || 'TOP PLAYERS'}
@@ -1649,7 +1649,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Max Rows</label>
+              <label className="text-[10px] text-slate-400 block mb-1">{t('editor.displayedRows', undefined, 'Max Rows')}</label>
               <input
                 type="number"
                 min="1"

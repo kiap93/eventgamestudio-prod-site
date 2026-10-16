@@ -32,6 +32,7 @@ import {
   XCircle,
   PlusCircle,
 } from 'lucide-react';
+import { getCurrencyForCountry } from '../../lib/countryUtils';
 
 interface TopUpPageProps {
   onBackToWallet?: () => void;
@@ -89,7 +90,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   const isSubmittingOrderRef = useRef<boolean>(false);
   const isProcessingPaymentRef = useRef<boolean>(false);
 
-  const currencyCode = wallet?.currency || 'MYR';
+  const currencyCode = wallet?.currency || getCurrencyForCountry(currentOrganization?.country_code) || 'USD';
 
   const formatCurrency = (amount?: number | null, overrideCurrency?: string) => {
     const num = Number(amount) || 0;

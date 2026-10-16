@@ -9,7 +9,7 @@ import { TopUpPage } from '../wallet/TopUpPage';
 import { navigateTo, useRouteContext } from '../../hooks/useRouteContext';
 import { apiFetch } from '../../lib/api';
 import { WalletBalanceSummary } from '../../types';
-import { getCountryByCode } from '../../lib/countryUtils';
+import { getCountryByCode, getCurrencyForCountry } from '../../lib/countryUtils';
 import {
   Gamepad2,
   Building2,
@@ -24,6 +24,10 @@ import {
   ShieldCheck,
   Menu,
   X,
+  Briefcase,
+  Clock,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { LanguageSelector } from '../common/LanguageSelector';
@@ -47,6 +51,8 @@ export const DashboardLayout: React.FC = () => {
     switchOrganization,
     startCreateOrganization,
     logout,
+    isSalesPartner,
+    salesPartnerStatus,
   } = useAuth();
 
   const isDesigner = currentOrganization?.role === 'designer';
@@ -245,7 +251,7 @@ export const DashboardLayout: React.FC = () => {
     return `${prefix}${formatted}`;
   };
 
-  const currencyCode = wallet?.currency || 'MYR';
+  const currencyCode = wallet?.currency || getCurrencyForCountry(currentOrganization?.country_code) || 'USD';
   const availableBalanceText = formatCurrency(wallet?.total_balance, currencyCode);
 
   return (
@@ -322,6 +328,45 @@ export const DashboardLayout: React.FC = () => {
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>{t('developer.admin', undefined, 'Dev Admin')}</span>
+              </button>
+            )}
+
+            {/* Sales Partner Link (Dynamic based on partner status) */}
+            {isSalesPartner ? (
+              <button
+                onClick={() => navigateTo('/sales/games')}
+                title="Sales Partner Game Catalogue"
+                className="hidden xl:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                <span>Sales Catalogue</span>
+              </button>
+            ) : salesPartnerStatus === 'pending' ? (
+              <button
+                onClick={() => navigateTo('/sales/apply')}
+                title="Sales Partner Application Under Review"
+                className="hidden xl:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 animate-pulse" />
+                <span>Partner Pending</span>
+              </button>
+            ) : salesPartnerStatus === 'suspended' || salesPartnerStatus === 'rejected' ? (
+              <button
+                onClick={() => navigateTo('/sales/apply')}
+                title="View Sales Partner Status"
+                className="hidden xl:flex items-center gap-1.5 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+              >
+                <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                <span>Partner Status</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => navigateTo('/sales/apply')}
+                title="Become an Event Game Studio Sales Partner (Earn 10% on first qualifying order & 5% repeat within 12 months, subject to eligibility)"
+                className="hidden xl:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Become a Partner</span>
               </button>
             )}
 
@@ -548,6 +593,95 @@ export const DashboardLayout: React.FC = () => {
                     </button>
                   )}
 
+                  {isSalesPartner ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          navigateTo('/sales/games');
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
+                      >
+                        <Gamepad2 className="w-4 h-4" />
+                        <span>Sales Game Catalogue</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          navigateTo('/sales');
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
+                      >
+                        <Briefcase className="w-4 h-4" />
+                        <span>Sales Partner Portal</span>
+                      </button>
+                    </>
+                  ) : salesPartnerStatus === 'pending' ? (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        navigateTo('/sales/apply');
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl transition-colors font-medium border border-amber-500/30 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                        <span>Partner Application</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                        Pending
+                      </span>
+                    </button>
+                  ) : salesPartnerStatus === 'suspended' ? (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        navigateTo('/sales/apply');
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl transition-colors font-medium border border-rose-500/30 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-400" />
+                        <span>Partner Access</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">
+                        Suspended
+                      </span>
+                    </button>
+                  ) : salesPartnerStatus === 'rejected' ? (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        navigateTo('/sales/apply');
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-slate-300 bg-slate-800/80 hover:bg-slate-800 rounded-xl transition-colors font-medium border border-slate-700/60 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <XCircle className="w-4 h-4 text-slate-400" />
+                        <span>Partner Status</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+                        Not Approved
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        navigateTo('/sales/apply');
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="w-4 h-4" />
+                        <span>Become a Sales Partner</span>
+                      </div>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        10% / 5%
+                      </span>
+                    </button>
+                  )}
+
                   <div className="border-t border-slate-800 pt-1.5">
                     <button
                       onClick={() => {
@@ -641,18 +775,66 @@ export const DashboardLayout: React.FC = () => {
 
             {/* Mobile Actions */}
             <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
-              {currentUser?.is_developer && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    navigateTo('/developer');
-                  }}
-                  className="flex items-center gap-1.5 text-emerald-400 font-semibold p-1 cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>{t('nav.developer')}</span>
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {currentUser?.is_developer && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigateTo('/developer');
+                    }}
+                    className="flex items-center gap-1.5 text-emerald-400 font-semibold p-1 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{t('nav.developer')}</span>
+                  </button>
+                )}
+
+                {isSalesPartner ? (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigateTo('/sales/games');
+                    }}
+                    className="flex items-center gap-1.5 text-amber-400 font-semibold p-1 cursor-pointer"
+                  >
+                    <Gamepad2 className="w-4 h-4" />
+                    <span>Sales</span>
+                  </button>
+                ) : salesPartnerStatus === 'pending' ? (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigateTo('/sales/apply');
+                    }}
+                    className="flex items-center gap-1.5 text-amber-400 font-semibold p-1 cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4 animate-pulse" />
+                    <span>Partner Pending</span>
+                  </button>
+                ) : salesPartnerStatus === 'suspended' || salesPartnerStatus === 'rejected' ? (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigateTo('/sales/apply');
+                    }}
+                    className="flex items-center gap-1.5 text-slate-300 font-semibold p-1 cursor-pointer"
+                  >
+                    <Briefcase className="w-4 h-4 text-slate-400" />
+                    <span>Partner Status</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigateTo('/sales/apply');
+                    }}
+                    className="flex items-center gap-1.5 text-amber-400 font-semibold p-1 cursor-pointer"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    <span>Become a Partner</span>
+                  </button>
+                )}
+              </div>
 
               <button
                 onClick={() => {

@@ -1111,7 +1111,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               <span className="text-[11px] font-semibold text-slate-400">{t('showcase.clientLogoPreview', undefined, 'Client Logo Preview:')}</span>
               <img
                 src={clientLogoUrl}
-                alt="Client Logo"
+                alt={t('showcase.clientLogo', undefined, 'Client Logo')}
                 className="h-8 max-w-[160px] object-contain rounded"
                 onError={(e) => ((e.target as any).style.display = 'none')}
               />
@@ -1149,7 +1149,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="relative rounded-2xl overflow-hidden border border-slate-800 max-h-56 bg-slate-950 shadow-inner group">
               <img
                 src={coverImageUrl}
-                alt="Showcase Cover"
+                alt={t('showcase.coverImage', undefined, 'Showcase Cover')}
                 className="w-full h-56 object-cover"
                 onError={(e) => ((e.target as any).style.display = 'none')}
               />

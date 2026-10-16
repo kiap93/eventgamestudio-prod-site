@@ -11,6 +11,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useLocalization } from '../../context/LocalizationContext';
+import { InternalLink } from '../common/InternalLink';
 
 export const LandingAgencies: React.FC = () => {
   const { t } = useLocalization();
@@ -126,6 +127,36 @@ export const LandingAgencies: React.FC = () => {
             );
           })}
         </div>
+
+        {/* Public Sales Partner Program Callout Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mt-12 rounded-3xl bg-slate-900 border border-slate-800 p-8 sm:p-10 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6"
+        >
+          <div className="space-y-2 max-w-2xl text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-400 uppercase tracking-wider">
+              <span>Agency & Partner Monetization</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              Earn Commissions with the Sales Partner Program
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+              Pitch branded interactive mini-games to your corporate clients and exhibitions. Earn transparent commissions—10% on first qualifying orders and 5% on repeat qualifying bookings within 12 months (subject to eligibility and authorized overrides). Keep your customer workspace and event management fully active.
+            </p>
+          </div>
+
+          <div className="shrink-0 flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            <InternalLink
+              to="/sales/apply"
+              className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer text-center"
+            >
+              <span>Explore Partner Program</span>
+            </InternalLink>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

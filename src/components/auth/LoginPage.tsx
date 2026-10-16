@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
-import { navigateTo } from '../../hooks/useRouteContext';
+import { navigateTo, getStoredReferralCode } from '../../hooks/useRouteContext';
+import { getSafeRedirectUrl } from '../../lib/navigation';
 import { maskEmail } from '../../lib/maskEmail';
 import {
   ShieldCheck,
@@ -22,7 +23,8 @@ import {
   Sparkles, 
   Trophy, 
   Zap, 
-  AlertCircle
+  AlertCircle,
+  Tag,
 } from 'lucide-react';
 import { useLocalization } from '../../context/LocalizationContext';
 import { LanguageSelector } from '../common/LanguageSelector';
@@ -46,7 +48,31 @@ export const LoginPage: React.FC = () => {
     isLoading,
   } = useAuth();
 
-  const [authMode, setAuthMode] = useState<AuthMode>('signin');
+  const [authMode, setAuthMode] = useState<AuthMode>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const modeParam = params.get('mode');
+      if (modeParam === 'signup' || modeParam === 'register') {
+        return 'signup';
+      }
+    }
+    return 'signin';
+  });
+
+  // Preserve redirect parameter if present
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const redirectParam = new URLSearchParams(window.location.search).get('redirect');
+      if (redirectParam) {
+        const safe = getSafeRedirectUrl(redirectParam, '');
+        if (safe) {
+          try {
+            window.sessionStorage?.setItem('pending_auth_redirect', safe);
+          } catch {}
+        }
+      }
+    }
+  }, []);
 
   // Common form inputs
   const [email, setEmail] = useState('');
@@ -54,6 +80,7 @@ export const LoginPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState<string>(() => getStoredReferralCode() || '');
 
   const { t } = useLocalization();
   const [loading, setLoading] = useState(false);
@@ -191,7 +218,10 @@ export const LoginPage: React.FC = () => {
     try {
       const mockToken = `mock_google_id_token_${mockEmail.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
       await login(mockToken);
-      const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+      const queryRedirect = new URLSearchParams(window.location.search).get('redirect');
+      const sessionRedirect = typeof window !== 'undefined' ? window.sessionStorage?.getItem('pending_auth_redirect') : null;
+      const redirectUrl = getSafeRedirectUrl(queryRedirect || sessionRedirect, '/events');
+      try { window.sessionStorage?.removeItem('pending_auth_redirect'); } catch {}
       navigateTo(redirectUrl);
     } catch (err: any) {
       setError(err.message || 'Mock sign in failed');
@@ -231,7 +261,10 @@ export const LoginPage: React.FC = () => {
         setError(result.error || 'Invalid email or password');
         return;
       }
-      const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+      const queryRedirect = new URLSearchParams(window.location.search).get('redirect');
+      const sessionRedirect = typeof window !== 'undefined' ? window.sessionStorage?.getItem('pending_auth_redirect') : null;
+      const redirectUrl = getSafeRedirectUrl(queryRedirect || sessionRedirect, '/events');
+      try { window.sessionStorage?.removeItem('pending_auth_redirect'); } catch {}
       navigateTo(redirectUrl);
     } catch (err: any) {
       if (
@@ -275,12 +308,21 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await registerWithEmail(email.trim(), password, confirmPassword);
+      const res = await registerWithEmail(email.trim(), password, confirmPassword, referralCode.trim() || undefined);
       const registeredEmail = res.email || email.trim();
       setUnverifiedEmail(registeredEmail);
       sessionStorage.setItem('pending_verification_email', registeredEmail);
-      // Immediately navigate to the Verify Email page with the registered email preserved
-      navigateTo(`/verify-email?email=${encodeURIComponent(registeredEmail)}`);
+
+      const queryRedirect = new URLSearchParams(window.location.search).get('redirect');
+      const sessionRedirect = typeof window !== 'undefined' ? window.sessionStorage?.getItem('pending_auth_redirect') : null;
+      const safeRedirect = getSafeRedirectUrl(queryRedirect || sessionRedirect, '');
+
+      if (safeRedirect) {
+        try { window.sessionStorage?.setItem('pending_auth_redirect', safeRedirect); } catch {}
+        navigateTo(`/verify-email?email=${encodeURIComponent(registeredEmail)}&redirect=${encodeURIComponent(safeRedirect)}`);
+      } else {
+        navigateTo(`/verify-email?email=${encodeURIComponent(registeredEmail)}`);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
     } finally {
@@ -855,6 +897,35 @@ export const LoginPage: React.FC = () => {
                       <span>{passwordsMatch ? t('auth.passwordsMatch') : t('auth.passwordMismatch')}</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Optional Referral Code for Sign Up */}
+              {authMode === 'signup' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Referral Code <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    {referralCode.trim() && (
+                      <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Partner code applied
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                      <Tag className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. REF-ABC12345"
+                      className="w-full bg-slate-950/80 border border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600 uppercase font-mono"
+                    />
+                  </div>
                 </div>
               )}
 

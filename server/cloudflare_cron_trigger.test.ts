@@ -68,19 +68,20 @@ const testEnv = {
 const user = await createUser({
   email: `cron-owner-${Date.now()}@example.com`,
   name: 'Cron Owner',
-});
+}, testEnv);
 
 const org = await createOrganization({
   name: 'Cron Org',
   owner_id: user.id,
-});
+  country_code: 'MY',
+}, testEnv);
 
 const theme = await createTheme({
   name: 'Cron Theme',
   game_id: 'catch-brand',
   organization_id: org.id,
   is_system: false,
-});
+}, testEnv);
 
 // Event 1: Unpaid event past end date -> should be cancelled/expired by cron
 const pastUnpaidEvent = await createEvent({

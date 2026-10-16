@@ -300,14 +300,19 @@ async function resolveOrgOwnerId(orgId: string, env?: Record<string, any>): Prom
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('organizations')
         .select('owner_id')
         .eq('id', orgId)
         .maybeSingle();
+      if (error) {
+        console.error('Fatal: Failed to resolve organization owner from Supabase:', error);
+        throw new Error(`Failed to resolve organization owner: ${error.message}`);
+      }
       return data?.owner_id || null;
-    } catch {
-      return null;
+    } catch (err: any) {
+      if (err.message?.includes('Failed to resolve organization owner')) throw err;
+      throw new Error(`Failed to resolve organization owner: ${err.message}`);
     }
   } else {
     try {
@@ -501,7 +506,10 @@ export async function recalculateWalletBalances(
       .eq('status', 'COMPLETED');
 
     if (error) {
-      if (isLocalFallbackAllowed(env)) {
+      if (
+        isLocalFallbackAllowed(env) &&
+        (error.message?.includes('Placeholder') || error.code === 'PGRST000')
+      ) {
         transactions = Array.from(localTransactionsCache.values()).filter(
           (t) => t.organization_id === organizationId && t.status === 'COMPLETED'
         );
@@ -771,7 +779,10 @@ export async function getOutstandingBalance(
         .maybeSingle();
 
       if (error) {
-        if (isLocalFallbackAllowed(env)) {
+        if (
+          isLocalFallbackAllowed(env) &&
+          (error.message?.includes('Placeholder') || error.code === 'PGRST000')
+        ) {
           const cached = localWalletsCache.get(organizationId);
           return cached?.outstanding_balance ? Math.max(0, fromCents(toCents(Number(cached.outstanding_balance)))) : 0.0;
         }
@@ -1124,6 +1135,14 @@ export async function createTopup(
         if (isLocalFallbackAllowed(env)) {
           localTransactionsCache.set(existing.id, existing);
         }
+      } else if (isLocalFallbackAllowed(env)) {
+        existing = Array.from(localTransactionsCache.values()).find(
+          (t) =>
+            t.organization_id === organizationId &&
+            t.reference_id === referenceId &&
+            t.transaction_type === 'TOPUP' &&
+            t.status === 'COMPLETED'
+        );
       }
     } else {
       assertProductionSafe('createTopup', env);
@@ -1158,6 +1177,15 @@ export async function createTopup(
           if (isLocalFallbackAllowed(env)) {
             localTransactionsCache.set(promoExisting.id, promoExisting);
           }
+        } else if (isLocalFallbackAllowed(env)) {
+          promoExisting = Array.from(localTransactionsCache.values()).find(
+            (t) =>
+              t.organization_id === organizationId &&
+              (t.reference_id === `${referenceId}_promo` ||
+                t.reference_id === existing!.id ||
+                t.metadata?.parent_topup_id === existing!.id) &&
+              t.transaction_type === 'TOPUP_CREDIT'
+          ) || null;
         }
       } else {
         promoExisting = Array.from(localTransactionsCache.values()).find(
@@ -3235,6 +3263,12 @@ export async function processEventPayment(
       // ignore
     }
 
+    if (eventId) {
+      import('./salesCommissions.js')
+        .then((m) => m.evaluateAndRecordEventCommission(eventId, env))
+        .catch((err) => console.warn('[salesCommissions] Notice on payment commission evaluation:', err?.message));
+    }
+
     return {
       success: true,
       paymentCalculation: calculation,
@@ -3561,6 +3595,12 @@ export async function processEventPayment(
         },
         env
       ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch WALLET_LOW_BALANCE:', err));
+    }
+
+    if (eventId) {
+      import('./salesCommissions.js')
+        .then((m) => m.evaluateAndRecordEventCommission(eventId, env))
+        .catch((err) => console.warn('[salesCommissions] Notice on payment commission evaluation:', err?.message));
     }
 
     return {
@@ -4001,6 +4041,12 @@ export async function refundEventPayment(
     },
     env
   );
+
+    if (eventId) {
+      import('./salesCommissions.js')
+        .then((m) => m.handleEventRefundCommissionClawback(eventId, reason, createdBy, env))
+        .catch((err) => console.warn('[salesCommissions] Notice on refund commission clawback:', err?.message));
+    }
 
     return {
       success: true,

@@ -7,6 +7,28 @@
 
 export const MAX_PENDING_EVENTS_PER_ORGANIZATION = 5;
 
+/**
+ * Determines whether an error indicates no matching pricing tier for the duration/game.
+ */
+export function isNoPricingTierError(errData: any): boolean {
+  if (!errData) return false;
+  const code = String(errData?.code || '').toUpperCase();
+  const errVal = String(errData?.error || '').toUpperCase();
+  const rawMsg = String(errData?.error || errData?.message || '').toLowerCase();
+  return (
+    code === 'NO_PRICING_TIER' ||
+    errVal === 'NO_PRICING_TIER' ||
+    code === 'UNSUPPORTED_DURATION' ||
+    errVal === 'UNSUPPORTED_DURATION' ||
+    code === 'DURATION_NOT_SUPPORTED' ||
+    errVal === 'DURATION_NOT_SUPPORTED' ||
+    rawMsg.includes('no_pricing_tier') ||
+    rawMsg.includes('no pricing tier') ||
+    rawMsg.includes('unsupported duration') ||
+    rawMsg.includes('not configured for a')
+  );
+}
+
 export function formatEventErrorMessage(errData: any, statusCode?: number): string {
   if (!errData && !statusCode) {
     return 'An unexpected error occurred. Please check your inputs and try again.';
@@ -17,14 +39,8 @@ export function formatEventErrorMessage(errData: any, statusCode?: number): stri
   const lowerMsg = rawMsg.toLowerCase();
 
   // 1. No Pricing Tier Configured for Duration
-  if (
-    code === 'NO_PRICING_TIER' ||
-    code === 'UNSUPPORTED_DURATION' ||
-    code === 'DURATION_NOT_SUPPORTED' ||
-    lowerMsg.includes('no pricing tier') ||
-    lowerMsg.includes('unsupported duration')
-  ) {
-    return rawMsg || "No pricing is configured for this duration for the selected game. Please select a duration supported by the game's pricing tiers or contact the administrator.";
+  if (isNoPricingTierError(errData)) {
+    return 'Pricing unavailable for this event duration. Please contact us for a custom quotation.';
   }
 
   // 2. Invalid Date Range (End date earlier than start date)

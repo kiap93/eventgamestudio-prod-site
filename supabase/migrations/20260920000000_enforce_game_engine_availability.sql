@@ -27,7 +27,7 @@ BEGIN
     END IF;
 
     -- Positive whitelist verification
-    IF LOWER(COALESCE(NEW.game_type, '')) NOT IN ('catch-brand', 'memory-match', 'reaction-tap', 'reaction-time') THEN
+    IF LOWER(COALESCE(NEW.game_type, '')) NOT IN ('catch-brand', 'memory-match', 'reaction-tap', 'reaction-time', 'match-3') THEN
       RAISE EXCEPTION 'Cannot activate game: Game engine "%" is not a recognized production engine.', NEW.game_type
         USING ERRCODE = 'check_violation';
     END IF;
@@ -218,7 +218,7 @@ BEGIN
   -- ENFORCE ENGINE AVAILABILITY: Reject unavailable or in-development engines
   IF LOWER(COALESCE(v_game.game_type, '')) IN ('speed-quiz', 'quiz-rush', 'trivia-quiz', 'event-trivia-speed-quiz')
      OR LOWER(COALESCE(v_game.slug, '')) IN ('speed-quiz', 'quiz-rush', 'trivia-quiz', 'event-trivia-speed-quiz')
-     OR LOWER(COALESCE(v_game.game_type, '')) NOT IN ('catch-brand', 'memory-match', 'reaction-tap', 'reaction-time') THEN
+     OR LOWER(COALESCE(v_game.game_type, '')) NOT IN ('catch-brand', 'memory-match', 'reaction-tap', 'reaction-time', 'match-3') THEN
     RETURN jsonb_build_object(
       'success', false,
       'code', 'GAME_UNAVAILABLE',

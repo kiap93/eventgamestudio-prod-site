@@ -546,8 +546,10 @@ export class NotificationDispatcher {
       case 'PAYMENT_SUCCESS': {
         const isTopup = (event as any).paymentType === 'TOPUP' || !(event as any).eventId;
         const amountNum = typeof event.amount === 'number' ? event.amount : Number(event.amount);
+        const curr = (event.currency || 'USD').toUpperCase();
+        const prefix = curr === 'MYR' ? 'RM' : curr === 'USD' ? '$' : curr === 'SGD' ? 'S$' : `${curr} `;
         const amountFormatted = !isNaN(amountNum)
-          ? (amountNum % 1 === 0 ? `RM${amountNum.toLocaleString('en-US')}` : `RM${amountNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+          ? (amountNum % 1 === 0 ? `${prefix}${amountNum.toLocaleString('en-US')}` : `${prefix}${amountNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
           : String(event.amount);
         const customTitle = (event as any).customTitle || (isTopup ? 'Top Up Successful' : undefined);
         const customMessage = (event as any).customMessage || (isTopup
@@ -831,8 +833,10 @@ export class NotificationDispatcher {
       }
 
       case 'EVENT_PAYMENT_FAILED': {
+        const eventCurr = (event.currency || 'USD').toUpperCase();
+        const eventPrefix = eventCurr === 'MYR' ? 'RM' : eventCurr === 'USD' ? '$' : eventCurr === 'SGD' ? 'S$' : `${eventCurr} `;
         const amountStr = event.amount !== undefined
-          ? (typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount))
+          ? (typeof event.amount === 'number' ? `${eventPrefix}${event.amount.toLocaleString()}` : String(event.amount))
           : undefined;
         const minuteEpoch = Math.floor(Date.now() / 60000);
         const customMessage = event.reason
@@ -875,8 +879,10 @@ export class NotificationDispatcher {
       }
 
       case 'INSUFFICIENT_BALANCE': {
-        const currentBalStr = typeof event.currentBalance === 'number' ? `RM${event.currentBalance.toLocaleString()}` : String(event.currentBalance);
-        const reqAmountStr = typeof event.requiredAmount === 'number' ? `RM${event.requiredAmount.toLocaleString()}` : String(event.requiredAmount);
+        const balCurr = (event.currency || 'USD').toUpperCase();
+        const balPrefix = balCurr === 'MYR' ? 'RM' : balCurr === 'USD' ? '$' : balCurr === 'SGD' ? 'S$' : `${balCurr} `;
+        const currentBalStr = typeof event.currentBalance === 'number' ? `${balPrefix}${event.currentBalance.toLocaleString()}` : String(event.currentBalance);
+        const reqAmountStr = typeof event.requiredAmount === 'number' ? `${balPrefix}${event.requiredAmount.toLocaleString()}` : String(event.requiredAmount);
         const minuteEpoch = Math.floor(Date.now() / 60000);
         return {
           type: 'insufficient_balance',

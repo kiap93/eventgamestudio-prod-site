@@ -576,6 +576,200 @@ export function generateDefaultResultScreenElements(
 }
 
 /**
+ * Generates default Result Screen elements tailored for Match-3.
+ */
+export function generateDefaultMatch3ResultScreenElements(
+  _legacy?: Partial<ResultScreenConfig>
+): ResultScreenElement[] {
+  const cardChildren: ResultScreenElement[] = [
+    // 1. Result Title
+    {
+      id: 'title-match3',
+      type: 'text',
+      x: 40,
+      y: 30,
+      width: 640,
+      height: 48,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      text: "TIME'S UP!",
+      style: {
+        fontSize: 34,
+        fontWeight: '900',
+        color: '#ffffff',
+        textAlign: 'center',
+        letterSpacing: 1,
+      },
+    },
+    // 2. Final Score Big Metric
+    {
+      id: 'stat-score',
+      type: 'score',
+      x: 40,
+      y: 88,
+      width: 640,
+      height: 104,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'FINAL SCORE',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#fbbf24',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 18,
+        fontSize: 40,
+        textAlign: 'center',
+      },
+    },
+    // 3. Matches Cleared
+    {
+      id: 'stat-matches',
+      type: 'moves',
+      x: 40,
+      y: 204,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'MATCHES',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#38bdf8',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 4. Best Combo
+    {
+      id: 'stat-combo',
+      type: 'accuracy',
+      x: 260,
+      y: 204,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'BEST COMBO',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#f43f5e',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 5. Specials Created
+    {
+      id: 'stat-specials',
+      type: 'pairs',
+      x: 480,
+      y: 204,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'SPECIALS',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#a855f7',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 6. Leaderboard Component
+    {
+      id: 'leaderboard-match3',
+      type: 'leaderboard',
+      x: 40,
+      y: 296,
+      width: 640,
+      height: 350,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      headerText: 'EVENT LEADERBOARD',
+      style: {
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        showHeader: true,
+        headerText: 'EVENT LEADERBOARD',
+        fontSize: 14,
+        textColor: '#e2e8f0',
+        rankColor: '#fbbf24',
+        scoreColor: '#fbbf24',
+      },
+    },
+    // 7. Play Again Action Button
+    {
+      id: 'btn-play-again',
+      type: 'button',
+      x: 110,
+      y: 660,
+      width: 500,
+      height: 60,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      text: 'PLAY AGAIN',
+      action: 'playAgain',
+      style: {
+        backgroundColor: '#f59e0b',
+        textColor: '#020617',
+        fontSize: 18,
+        fontWeight: '900',
+        borderRadius: 18,
+        shadow: true,
+      },
+    },
+  ];
+
+  return [
+    {
+      id: 'card-result-main',
+      type: 'card',
+      x: 140,
+      y: 80,
+      width: 720,
+      height: 760,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 1,
+      style: {
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 28,
+        shadow: true,
+      },
+      children: cardChildren,
+    },
+  ];
+}
+
+/**
  * Generates default Result Screen elements tailored for Reaction Game.
  */
 export function generateDefaultReactionResultScreenElements(

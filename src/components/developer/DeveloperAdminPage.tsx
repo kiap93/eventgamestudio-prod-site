@@ -15,6 +15,10 @@ import { DeveloperEmailSettings } from './DeveloperEmailSettings';
 import { DeveloperErrorLogs } from './DeveloperErrorLogs';
 import { DeveloperContactSettings } from './DeveloperContactSettings';
 import { DeveloperCustomerInvitations } from './invitations/DeveloperCustomerInvitations';
+import { DeveloperSalesPartners } from './DeveloperSalesPartners';
+import { DeveloperSalesAttributions } from './DeveloperSalesAttributions';
+import { DeveloperSalesCommissions } from './DeveloperSalesCommissions';
+import { DeveloperInvoicesManager } from './DeveloperInvoicesManager';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
@@ -126,6 +130,42 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="customer-invitations">
         <DeveloperCustomerInvitations />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1f2. If viewing Sales Partner Management: /developer/sales-partners
+  if (route.developerSection === 'sales-partners') {
+    return (
+      <DeveloperAdminLayout activeSection="sales-partners">
+        <DeveloperSalesPartners />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1g. If viewing Sales Referrals & Attributions: /developer/sales-attributions
+  if (route.developerSection === 'sales-attributions') {
+    return (
+      <DeveloperAdminLayout activeSection="sales-attributions">
+        <DeveloperSalesAttributions />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1h. If viewing Sales Commissions & Payouts: /developer/sales-commissions
+  if (route.developerSection === 'sales-commissions') {
+    return (
+      <DeveloperAdminLayout activeSection="sales-commissions">
+        <DeveloperSalesCommissions />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1i. If viewing Invoices & Billing Engine: /developer/invoices
+  if (route.developerSection === 'invoices') {
+    return (
+      <DeveloperAdminLayout activeSection="invoices">
+        <DeveloperInvoicesManager />
       </DeveloperAdminLayout>
     );
   }

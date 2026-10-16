@@ -274,16 +274,16 @@ export const LandingBrandYourGame: React.FC = () => {
               </div>
               <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
-                  <img src={displayedPreset.itemNormal} alt="Collect item" className="w-full h-full object-contain" />
+                  <img src={displayedPreset.itemNormal} alt={t('landing.collectItemAlt', undefined, 'Collect item')} className="w-full h-full object-contain" />
                 </div>
                 <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
-                  <img src={displayedPreset.itemBonus} alt="Bonus item" className="w-full h-full object-contain" />
+                  <img src={displayedPreset.itemBonus} alt={t('landing.bonusItemAlt', undefined, 'Bonus item')} className="w-full h-full object-contain" />
                 </div>
                 <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
-                  <img src={displayedPreset.itemHazard} alt="Hazard item" className="w-full h-full object-contain" />
+                  <img src={displayedPreset.itemHazard} alt={t('landing.hazardItemAlt', undefined, 'Hazard item')} className="w-full h-full object-contain" />
                 </div>
                 <div className="w-14 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
-                  <img src={displayedPreset.basketPath} alt="Catcher" className="w-full h-full object-contain" />
+                  <img src={displayedPreset.basketPath} alt={t('landing.catcherAlt', undefined, 'Catcher')} className="w-full h-full object-contain" />
                 </div>
               </div>
             </div>
@@ -324,18 +324,18 @@ export const LandingBrandYourGame: React.FC = () => {
 
               {/* Floating Items */}
               <div className="absolute top-1/4 left-1/3 w-12 h-12 pointer-events-none">
-                <img src={displayedPreset.itemNormal} alt="Normal item" className="w-full h-full object-contain drop-shadow-md" />
+                <img src={displayedPreset.itemNormal} alt={t('landing.normalItemAlt', undefined, 'Normal item')} className="w-full h-full object-contain drop-shadow-md" />
               </div>
               <div className="absolute top-1/3 right-1/4 w-14 h-14 pointer-events-none">
-                <img src={displayedPreset.itemBonus} alt="Bonus item" className="w-full h-full object-contain drop-shadow-lg" />
+                <img src={displayedPreset.itemBonus} alt={t('landing.bonusItemAlt', undefined, 'Bonus item')} className="w-full h-full object-contain drop-shadow-lg" />
               </div>
               <div className="absolute top-1/2 left-1/4 w-10 h-10 pointer-events-none">
-                <img src={displayedPreset.itemHazard} alt="Hazard item" className="w-full h-full object-contain drop-shadow-md" />
+                <img src={displayedPreset.itemHazard} alt={t('landing.hazardItemAlt', undefined, 'Hazard item')} className="w-full h-full object-contain drop-shadow-md" />
               </div>
 
               {/* Bottom Catcher */}
               <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-32 h-16 pointer-events-none">
-                <img src={displayedPreset.basketPath} alt="Catcher" className="w-full h-full object-contain drop-shadow-2xl" />
+                <img src={displayedPreset.basketPath} alt={t('landing.catcherAlt', undefined, 'Catcher')} className="w-full h-full object-contain drop-shadow-2xl" />
               </div>
 
               {/* Loading State Overlay */}

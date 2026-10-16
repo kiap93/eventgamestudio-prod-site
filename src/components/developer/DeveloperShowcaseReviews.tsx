@@ -622,23 +622,23 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
                       <div className="flex items-center gap-x-4 gap-y-1 text-xs text-slate-400 flex-wrap">
                         <div>
-                          <span className="text-slate-500">Event:</span>{' '}
+                          <span className="text-slate-500">{t('developer.lblEvent', undefined, 'Event:')}</span>{' '}
                           <span className="text-slate-300 font-semibold">{sc.event_name || 'Event #' + sc.event_id.slice(0, 8)}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500">Organization:</span>{' '}
+                          <span className="text-slate-500">{t('developer.lblOrg', undefined, 'Organization:')}</span>{' '}
                           <span className="text-slate-300 font-semibold">{sc.organization_name || 'Organization #' + sc.organization_id.slice(0, 8)}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500">Owner:</span>{' '}
+                          <span className="text-slate-500">{t('developer.lblOwner', undefined, 'Owner:')}</span>{' '}
                           <span className="text-amber-300/90 font-medium">{ownerDisplay}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500">Published:</span>{' '}
+                          <span className="text-slate-500">{t('developer.lblPublished', undefined, 'Published:')}</span>{' '}
                           <span className="text-slate-300">{dateStr}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500">Media:</span>{' '}
+                          <span className="text-slate-500">{t('developer.colMedia', undefined, 'Media:')}</span>{' '}
                           <span className="text-slate-300">
                             {sc.image_count || 0} photos, {sc.video_count || 0} videos
                           </span>
@@ -948,7 +948,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 title={t('developer.openPublicShowcaseNewTab', undefined, 'Open Public Showcase in New Tab')}
                               >
                                 <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>View</span>
+                                <span>{t('common.view', undefined, 'View')}</span>
                               </button>
                               <button
                                 type="button"
@@ -964,7 +964,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                                 ) : (
                                   <>
                                     <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                                    <span>Share</span>
+                                    <span>{t('common.share', undefined, 'Share')}</span>
                                   </>
                                 )}
                               </button>
@@ -1438,7 +1438,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       title={t('developer.openPublicShowcaseNewTab', undefined, 'Open Public Showcase in New Tab')}
                     >
                       <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>View</span>
+                      <span>{t('common.view', undefined, 'View')}</span>
                     </button>
                     <button
                       type="button"
@@ -1449,12 +1449,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       {copiedShowcaseId === selectedShowcase.id ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400 font-bold">Link copied</span>
+                          <span className="text-emerald-400 font-bold">{t('developer.linkCopied', undefined, 'Link copied')}</span>
                         </>
                       ) : (
                         <>
                           <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Share</span>
+                          <span>{t('common.share', undefined, 'Share')}</span>
                         </>
                       )}
                     </button>
@@ -1502,7 +1502,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">Block Showcase</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.blockShowcase', undefined, 'Block Showcase')}</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Blocking will immediately unpublish <strong className="text-slate-200">{blockingShowcase.title}</strong> and hide it from all public gallery pages.
               </p>
@@ -1555,7 +1555,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">Unblock Showcase</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.unblockShowcase', undefined, 'Unblock Showcase')}</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Restore <strong className="text-slate-200">{unblockingShowcase.title}</strong> to published status and make it visible in the public showcase gallery.
               </p>
@@ -1607,7 +1607,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">Soft Delete Showcase</h3>
+              <h3 className="text-base font-bold text-white">{t('developer.softDeleteShowcase', undefined, 'Soft Delete Showcase')}</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Perform an administrative soft delete on <strong className="text-slate-200">{deletingShowcase.title}</strong>. This removes it from public discovery while preserving historical audit logs.
               </p>

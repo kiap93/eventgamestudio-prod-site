@@ -20,7 +20,7 @@ import {
   EventDetailedLifecycle,
   PublicEventDTO,
 } from './types.js';
-import { getThemeById, isUUID, enrichThemesWithGameData, getDefaultThemeForGameType, checkOrganizationThemeReadiness } from './themes.js';
+import { getThemeById, isUUID, enrichThemesWithGameData, getDefaultThemeForGameType, checkOrganizationThemeReadiness, resolveServerGameType } from './themes.js';
 import { calculateCatchBrandSanityLimits, CatchBrandPhysicsSanityConfig } from '../games/catchBrandScoring.js';
 import { getGameById } from './games.js';
 import { getGamePricingTierById } from './gamePricing.js';
@@ -39,6 +39,7 @@ import {
   getPlatformPricingSettings,
   calculateEventAuthoritativePrice,
   calculateEventCalendarDays,
+  getDefaultPricingCountry,
   formatDateApi,
   formatDateDisplay,
   parseDateOnly,
@@ -53,10 +54,11 @@ import {
 import { dispatchNotificationEvent, dispatchEventPaymentFailed } from '../notifications/dispatcher.js';
 import { cleanupExpiredNotifications, deleteNotificationsByEventId } from './notifications.js';
 import { getOrganizationById } from './organizations.js';
-import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone } from '../../src/lib/countryUtils.js';
+import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone, getCurrencyForCountry } from '../../src/lib/countryUtils.js';
 export { resolveEventTimezone };
 export type { EventStatus, EventLifecycleStatus, EventDeletionEligibility, DeletionErrorCode };
 import crypto from 'node:crypto';
+import { executeWithResilience, acquireMaintenanceLease, releaseMaintenanceLease } from './supabaseResilience.js';
 
 // In-memory cache fallback for mock / test environments
 export const localEventsCache = new Map<string, EventRecord>();
@@ -1749,7 +1751,7 @@ export async function getEventsByOrgId(
             id: resolvedGame.id,
             name: resolvedGame.name,
             slug: resolvedGame.slug,
-            game_type: resolvedGame.game_type || 'catch-brand',
+            game_type: resolveServerGameType(resolvedGame.game_type, resolvedGame.slug, resolvedGame.name),
             status: resolvedGame.status || 'active',
             description: resolvedGame.description || null,
             icon_name: resolvedGame.icon_name || null,
@@ -1884,7 +1886,7 @@ export async function getEventById(
           id: game.id,
           name: game.name,
           slug: game.slug,
-          game_type: game.game_type || 'catch-brand',
+          game_type: resolveServerGameType(game.game_type, game.slug, game.name),
           status: game.status || 'active',
           description: game.description || null,
           icon_name: game.icon_name || null,
@@ -1945,7 +1947,7 @@ export async function getEventByPublicToken(
         payment_mode: raw.payment_mode || cached?.payment_mode,
         paid_amount: raw.paid_amount !== undefined && raw.paid_amount !== null ? raw.paid_amount : cached?.paid_amount,
         event_price: raw.event_price !== undefined && raw.event_price !== null ? raw.event_price : cached?.event_price,
-        event_currency: raw.event_currency || cached?.event_currency || 'MYR',
+        event_currency: raw.event_currency || cached?.event_currency,
       };
       if (isLocalFallbackAllowed(env)) {
         localEventsCache.set(raw.id, eventRecord);
@@ -2037,7 +2039,7 @@ export async function getEventByPublicToken(
     end_date: rawEndDate,
     event_date: rawEventDate,
     event_price: storedPrice,
-    event_currency: eventRecord.event_currency || 'MYR',
+    event_currency: eventRecord.event_currency,
     event_status: (isExplicitlyCancelled ? 'CANCELLED' : eventLifecycleStatus) as EventLifecycleStatus,
     status: isExplicitlyCancelled ? 'cancelled' : calculatedStatus,
     payment_status: paymentStatus as any,
@@ -2053,7 +2055,7 @@ export async function getEventByPublicToken(
           id: game.id,
           name: game.name,
           slug: game.slug,
-          game_type: game.game_type || 'catch-brand',
+          game_type: resolveServerGameType(game.game_type, game.slug, game.name),
         }
       : null,
     organization_name: orgName,
@@ -2100,20 +2102,65 @@ export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
   }
 
   const rawGame = rawEvent.game;
+  const themeCandidateType = safeTheme
+    ? resolveServerGameType(safeTheme.game_type, safeTheme.game_slug || safeTheme.base_theme_id, safeTheme.name, safeTheme)
+    : null;
+  const rawGameResolved = rawGame
+    ? resolveServerGameType(rawGame.game_type, rawGame.slug, rawGame.name, rawGame)
+    : null;
+  const eventDirectResolved = rawEvent.game_id && !rawGame
+    ? resolveServerGameType(rawEvent.game_type, rawEvent.game_id, rawEvent.name, rawEvent)
+    : null;
+  const eventThemeIdResolved = rawEvent.game_theme_id
+    ? resolveServerGameType(undefined, rawEvent.game_theme_id, undefined)
+    : null;
+  const eventGameTypeResolved = rawEvent.game_type
+    ? resolveServerGameType(rawEvent.game_type, undefined, undefined)
+    : null;
+
+  const finalGameType =
+    (themeCandidateType && themeCandidateType !== 'catch-brand' ? themeCandidateType : null) ||
+    (rawGameResolved && rawGameResolved !== 'catch-brand' ? rawGameResolved : null) ||
+    (eventGameTypeResolved && eventGameTypeResolved !== 'catch-brand' ? eventGameTypeResolved : null) ||
+    (eventThemeIdResolved && eventThemeIdResolved !== 'catch-brand' ? eventThemeIdResolved : null) ||
+    (eventDirectResolved && eventDirectResolved !== 'catch-brand' ? eventDirectResolved : null) ||
+    rawGameResolved ||
+    themeCandidateType ||
+    'catch-brand';
+
+  if (safeTheme && (!safeTheme.game_type || safeTheme.game_type === 'catch-brand') && finalGameType !== 'catch-brand') {
+    safeTheme.game_type = finalGameType;
+  }
+
+  const defaultGameName =
+    finalGameType === 'match-3'
+      ? 'Match-3'
+      : finalGameType === 'memory-match'
+      ? 'Brand Memory Match'
+      : finalGameType === 'reaction-tap'
+      ? 'Formula Reaction Lights'
+      : 'Catch The Brand';
+
   const gameDTO = rawGame
     ? {
         id: rawGame.id,
         name: rawGame.name,
         slug: rawGame.slug,
-        game_type: rawGame.game_type || rawEvent.game_type || rawEvent.game_id || 'catch-brand',
+        game_type: finalGameType,
       }
     : (rawEvent.game_id
       ? {
           id: rawEvent.game_id,
-          name: rawEvent.name || 'Game',
-          game_type: rawEvent.game_type || rawEvent.game_id || 'catch-brand',
+          name: rawEvent.name || defaultGameName,
+          game_type: finalGameType,
         }
-      : null);
+      : (safeTheme
+        ? {
+            id: safeTheme.game_id || safeTheme.id || 'game',
+            name: safeTheme.name || defaultGameName,
+            game_type: finalGameType,
+          }
+        : null));
 
   const themeBranding = safeTheme?.branding || {};
   const eventBranding = rawEvent?.branding || {};
@@ -2154,18 +2201,20 @@ export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
 export async function resolveEventGameType(
   event: any,
   env?: Record<string, any>
-): Promise<'memory-match' | 'catch-brand' | 'reaction-tap' | string> {
+): Promise<'memory-match' | 'catch-brand' | 'reaction-tap' | 'match-3' | string> {
   if (!event) return 'catch-brand';
 
   // 1. Direct game object on event
   if (event.game) {
     if (event.game.game_type) {
       const gt = String(event.game.game_type).toLowerCase().trim();
+      if (gt === 'match-3' || gt === 'match3') return 'match-3';
       if (gt === 'reaction-tap' || gt === 'reaction-time') return 'reaction-tap';
       if (gt === 'memory-match' || gt === 'catch-brand') return gt;
     }
     if (event.game.slug) {
       const slug = String(event.game.slug).toLowerCase().trim();
+      if (slug === 'match-3' || slug === 'match3') return 'match-3';
       if (slug === 'reaction-tap' || slug === 'reaction-time') return 'reaction-tap';
       if (slug === 'memory-match') return 'memory-match';
       if (slug === 'catch-brand') return 'catch-brand';
@@ -2175,6 +2224,7 @@ export async function resolveEventGameType(
   // 2. Direct event.game_id
   if (event.game_id) {
     const gid = String(event.game_id).toLowerCase().trim();
+    if (gid === 'match-3' || gid === 'match3') return 'match-3';
     if (gid === 'reaction-tap' || gid === 'reaction-time') return 'reaction-tap';
     if (gid === 'memory-match') return 'memory-match';
     if (gid === 'catch-brand') return 'catch-brand';
@@ -2183,6 +2233,7 @@ export async function resolveEventGameType(
       const gameRecord = await getGameById(event.game_id, env);
       if (gameRecord) {
         const gt = (gameRecord.game_type || gameRecord.slug || '').toLowerCase().trim();
+        if (gt === 'match-3' || gt === 'match3') return 'match-3';
         if (gt === 'reaction-tap' || gt === 'reaction-time') return 'reaction-tap';
         if (gt === 'memory-match') return 'memory-match';
         if (gt === 'catch-brand') return 'catch-brand';
@@ -2197,30 +2248,35 @@ export async function resolveEventGameType(
   if (theme) {
     if (theme.game_type) {
       const tgt = String(theme.game_type).toLowerCase().trim();
+      if (tgt === 'match-3' || tgt === 'match3') return 'match-3';
       if (tgt === 'reaction-tap' || tgt === 'reaction-time') return 'reaction-tap';
       if (tgt === 'memory-match') return 'memory-match';
       if (tgt === 'catch-brand') return 'catch-brand';
     }
     if (theme.game_slug) {
       const tgs = String(theme.game_slug).toLowerCase().trim();
+      if (tgs === 'match-3' || tgs === 'match3') return 'match-3';
       if (tgs === 'reaction-tap' || tgs === 'reaction-time') return 'reaction-tap';
       if (tgs === 'memory-match') return 'memory-match';
       if (tgs === 'catch-brand') return 'catch-brand';
     }
     if (theme.base_theme_id) {
       const bti = String(theme.base_theme_id).toLowerCase().trim();
+      if (bti === 'match-3' || bti === 'match3') return 'match-3';
       if (bti === 'reaction-tap' || bti === 'reaction-time') return 'reaction-tap';
       if (bti === 'memory-match' || bti === 'memory-carnival') return 'memory-match';
       if (bti === 'catch-brand' || bti === 'carnival') return 'catch-brand';
     }
     if (theme.id) {
       const tid = String(theme.id).toLowerCase().trim();
+      if (tid === 'match-3' || tid === 'match3') return 'match-3';
       if (tid === 'reaction-tap' || tid === 'reaction-time') return 'reaction-tap';
       if (tid === 'memory-match' || tid === 'memory-carnival') return 'memory-match';
       if (tid === 'catch-brand' || tid === 'carnival') return 'catch-brand';
     }
     if (theme.slug) {
       const tslug = String(theme.slug).toLowerCase().trim();
+      if (tslug === 'match-3' || tslug === 'match3' || tslug.includes('match-3')) return 'match-3';
       if (tslug.includes('reaction') || tslug.includes('reflex')) return 'reaction-tap';
       if (tslug === 'memory-match' || tslug === 'memory-carnival' || tslug.includes('memory')) return 'memory-match';
     }
@@ -2229,6 +2285,7 @@ export async function resolveEventGameType(
         const themeGame = await getGameById(theme.game_id, env);
         if (themeGame) {
           const tgt = (themeGame.game_type || themeGame.slug || '').toLowerCase().trim();
+          if (tgt === 'match-3' || tgt === 'match3') return 'match-3';
           if (tgt === 'reaction-tap' || tgt === 'reaction-time') return 'reaction-tap';
           if (tgt === 'memory-match') return 'memory-match';
           if (tgt === 'catch-brand') return 'catch-brand';
@@ -2242,6 +2299,9 @@ export async function resolveEventGameType(
   // 4. String checks on event.game_theme_id
   if (event.game_theme_id) {
     const gtid = String(event.game_theme_id).toLowerCase().trim();
+    if (gtid === 'match-3' || gtid === 'match3' || gtid.includes('match-3')) {
+      return 'match-3';
+    }
     if (gtid === 'reaction-tap' || gtid === 'reaction-time' || gtid.includes('reaction')) {
       return 'reaction-tap';
     }
@@ -2252,6 +2312,9 @@ export async function resolveEventGameType(
 
   // 5. Fallback check on event name or slug
   const eventName = (event.name || event.slug || '').toLowerCase();
+  if (eventName.includes('match-3') || eventName.includes('match 3') || eventName.includes('match3')) {
+    return 'match-3';
+  }
   if (eventName.includes('reaction') || eventName.includes('reflex')) {
     return 'reaction-tap';
   }
@@ -2554,6 +2617,7 @@ export async function createEvent(
     event_timezone?: string | null;
     pricing_id?: string | null;
     duration_days?: number | null;
+    country_code?: string | null;
   },
   env?: Record<string, any>
 ): Promise<EventRecord> {
@@ -2628,8 +2692,8 @@ export async function createEvent(
     throw err;
   }
 
-  // Validate active status for new event creation
-  if (game.status === 'inactive') {
+  // Validate active status for new event creation - only 'active' status is allowed
+  if (!game.status || game.status !== 'active') {
     const err: any = new Error('This game is currently inactive and cannot be selected for new events.');
     err.code = 'GAME_INACTIVE';
     err.status = 422;
@@ -2667,51 +2731,73 @@ export async function createEvent(
 
   // 5. Resolve server-authoritative event pricing based on game and calendar duration
   let price = params.event_price;
-  let currency = params.event_currency || 'MYR';
+  let currency = params.event_currency ? params.event_currency.trim().toUpperCase() : undefined;
   let pricingId: string | null = (params as any).pricing_id || null;
   let durationDays: number = calculateEventCalendarDays(norm.startDate, norm.endDate);
+  const orgCountry = (params as any).country_code || (params as any).countryCode || org?.country_code || undefined;
+
+  let pricingCountry: string | null = null;
 
   if (params.custom_price_override && typeof price === 'number' && price > 0) {
     // Explicit custom price override (e.g. Developer Admin override)
-  } else if (pricingId) {
-    // Validate supplied pricing_id against targetGameId, is_active, and duration
-    const tier = await getGamePricingTierById(pricingId, env);
-    if (!tier) {
-      const err: any = new Error('The specified pricing tier does not exist.');
-      err.code = 'PRICING_TIER_NOT_FOUND';
-      err.status = 422;
-      throw err;
+    if (!currency) {
+      currency = orgCountry ? getCurrencyForCountry(orgCountry) : undefined;
+      if (!currency) {
+        const defCountry = await getDefaultPricingCountry(env);
+        currency = getCurrencyForCountry(defCountry) || 'USD';
+      }
     }
-    if (tier.game_id !== targetGameId) {
-      const err: any = new Error('The specified pricing tier does not belong to the selected game.');
-      err.code = 'PRICING_GAME_MISMATCH';
-      err.status = 422;
-      throw err;
-    }
-    if (!tier.is_active) {
-      const err: any = new Error('The specified pricing tier is inactive and cannot be used.');
-      err.code = 'PRICING_TIER_INACTIVE';
-      err.status = 422;
-      throw err;
-    }
-    if (durationDays < tier.min_days || (tier.max_days !== null && durationDays > tier.max_days)) {
-      const err: any = new Error(`The specified pricing tier does not cover this duration (${durationDays} days).`);
-      err.code = 'PRICING_DURATION_MISMATCH';
-      err.status = 422;
-      throw err;
-    }
-    price = tier.price;
-    currency = tier.currency;
   } else {
+    // If client supplied a pricing_id, validate existence, game association, status, and duration
+    if (pricingId) {
+      const tier = await getGamePricingTierById(pricingId, env);
+      if (!tier) {
+        const err: any = new Error('The specified pricing tier does not exist.');
+        err.code = 'PRICING_TIER_NOT_FOUND';
+        err.status = 422;
+        throw err;
+      }
+      if (tier.game_id !== targetGameId) {
+        const err: any = new Error('The specified pricing tier does not belong to the selected game.');
+        err.code = 'PRICING_GAME_MISMATCH';
+        err.status = 422;
+        throw err;
+      }
+      if (!tier.is_active) {
+        const err: any = new Error('The specified pricing tier is inactive and cannot be used.');
+        err.code = 'PRICING_TIER_INACTIVE';
+        err.status = 422;
+        throw err;
+      }
+      if (durationDays < tier.min_days || (tier.max_days !== null && durationDays > tier.max_days)) {
+        const err: any = new Error(`The specified pricing tier does not cover this duration (${durationDays} days).`);
+        err.code = 'PRICING_DURATION_MISMATCH';
+        err.status = 422;
+        throw err;
+      }
+    }
+
+    // Always resolve server-authoritative pricing based on game, calendar duration, and organization country
     const durationPricing = await calculateEventAuthoritativePrice({
       game_id: targetGameId,
       startDate: norm.startDate,
       endDate: norm.endDate,
+      country_code: orgCountry,
     }, env);
+
+    // If client supplied a pricing_id, verify that it matches the server-resolved tier
+    if (pricingId && durationPricing.tierId && pricingId !== durationPricing.tierId) {
+      const err: any = new Error('The specified pricing tier does not match the authoritative pricing tier for your country and duration.');
+      err.code = 'PRICING_COUNTRY_MISMATCH';
+      err.status = 422;
+      throw err;
+    }
+
     price = durationPricing.price;
     currency = durationPricing.currency;
     pricingId = durationPricing.tierId || null;
     durationDays = durationPricing.durationDays;
+    pricingCountry = durationPricing.pricingCountry || null;
 
     if (!price || price <= 0 || !pricingId) {
       const err: any = new Error(`No pricing tier is configured for a ${durationDays}-day event for this game.`);
@@ -2719,6 +2805,11 @@ export async function createEvent(
       err.status = 422;
       throw err;
     }
+  }
+
+  // Ensure resolved currency is present
+  if (!currency) {
+    currency = (orgCountry ? getCurrencyForCountry(orgCountry) : undefined) || 'USD';
   }
 
   // 6. Generate collision-resistant unique token
@@ -2794,6 +2885,7 @@ export async function createEvent(
     event_currency: currency,
     event_timezone: resolvedTimezone,
     pricing_id: pricingId,
+    pricing_country: pricingCountry,
     duration_days: durationDays,
     public_token: token,
     created_by: params.created_by || null,
@@ -3535,10 +3627,25 @@ export async function createEventWithAtomicPayment(
 
     // Resolve server-authoritative event pricing based on game and duration
     let eventPrice = params.event_price;
-    let eventCurrency = params.event_currency || 'MYR';
+    let eventCurrency = params.event_currency ? params.event_currency.trim().toUpperCase() : undefined;
     let durationPricingTierId: string | null = null;
+    let updateOrgCountry = (params as any).country_code || (params as any).countryCode;
+    if (!updateOrgCountry && organization_id) {
+      try {
+        const orgData = await getOrganizationById(organization_id, env);
+        if (orgData?.country_code) updateOrgCountry = orgData.country_code;
+      } catch (_) {}
+    }
+
     if (params.custom_price_override && typeof eventPrice === 'number' && eventPrice > 0) {
       // Explicit custom price override
+      if (!eventCurrency) {
+        eventCurrency = updateOrgCountry ? getCurrencyForCountry(updateOrgCountry) : undefined;
+        if (!eventCurrency) {
+          const defCountry = await getDefaultPricingCountry(env);
+          eventCurrency = getCurrencyForCountry(defCountry) || 'USD';
+        }
+      }
     } else {
       const durationPricing = await calculateEventAuthoritativePrice({
         game_id: targetGameId,
@@ -3547,10 +3654,15 @@ export async function createEventWithAtomicPayment(
         event_date: params.event_date,
         starts_at: params.starts_at,
         expires_at: params.expires_at,
+        country_code: updateOrgCountry,
       }, env);
       eventPrice = durationPricing.price;
       eventCurrency = durationPricing.currency;
       durationPricingTierId = (durationPricing as any)?.tierId || null;
+    }
+
+    if (!eventCurrency) {
+      eventCurrency = (updateOrgCountry ? getCurrencyForCountry(updateOrgCountry) : undefined) || 'USD';
     }
 
     if (theme.is_system || theme.ownership_type === 'system' || theme.organization_id !== organization_id) {
@@ -3587,7 +3699,7 @@ export async function createEventWithAtomicPayment(
       throw err;
     }
 
-    if (game.status === 'inactive') {
+    if (!game.status || game.status !== 'active') {
       const err: any = new Error('This game is currently inactive and cannot be selected for new events.');
       err.code = 'GAME_INACTIVE';
       err.status = 422;
@@ -4190,7 +4302,7 @@ export async function reactivateEvent(
       organizationId: existing.organization_id,
       eventType: 'ADMIN_ADJUSTMENT',
       amount: 0,
-      currency: existing.event_currency || 'MYR',
+      currency: existing.event_currency || 'USD',
       actorId: options?.adminUserId || undefined,
       metadata: {
         action: 'EVENT_REACTIVATED',
@@ -4232,7 +4344,8 @@ export async function reactivateEvent(
  */
 export async function runEventLifecycleMaintenance(
   env?: Record<string, any>,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options?: { correlationId?: string; bypassLease?: boolean }
 ): Promise<{
   paidCount: number;
   paymentFailedCount: number;
@@ -4246,106 +4359,180 @@ export async function runEventLifecycleMaintenance(
   completedEvents: string[];
   expiredEvents: string[];
   testScoresClearedEvents: string[];
+  skippedDueToLease?: boolean;
 }> {
   assertProductionMaintenanceSafe('runEventLifecycleMaintenance', env);
 
-  const supabase = getSupabaseServerClient(env);
-  const nowIso = now.toISOString();
-  const paidEvents: string[] = [];
-  const paymentFailedEvents: string[] = [];
-  const cancelledEvents: string[] = [];
-  const completedEvents: string[] = [];
-  const expiredEvents: string[] = [];
-  const testScoresClearedEvents: string[] = [];
+  const correlationId = options?.correlationId || crypto.randomUUID();
 
-  let allEvents: EventRecord[] = [];
-
-  // Query only actionable records using existing lifecycle indexes:
-  // 1. Unpaid events approaching or past end date (excluding already EXPIRED or CANCELLED)
-  //    -> utilizes idx_events_expired_cron (payment_status, expires_at, event_status) / idx_events_lifecycle_cron
-  // 2. Paid events approaching, live, or completing (excluding already COMPLETED or CANCELLED)
-  //    -> utilizes idx_events_lifecycle_cron (event_status, starts_at, payment_status) / idx_events_completed_cron
-  // 3. Events requiring test-score clearing (reached start date, not yet cleared)
-  //    -> utilizes idx_events_test_scores_cleared (test_scores_cleared_at, event_date, starts_at)
-  //
-  // Approaching horizon is set to now + 72 hours (3 days) to account for all global timezones (UTC+14 to UTC-12)
-  // and the 36-hour pre-event approaching notification window. All far-future scheduled events (> 72 hours away)
-  // and already COMPLETED/EXPIRED events with cleared test scores are excluded from database scans.
-  const approachingHorizon = new Date(now.getTime() + 72 * 60 * 60 * 1000);
-  const approachingHorizonIso = approachingHorizon.toISOString();
-
-  const [unpaidRes, paidRes, testScoreRes] = await Promise.all([
-    // Category 1: Unpaid events approaching or requiring expiration (not yet EXPIRED/CANCELLED)
-    supabase
-      .from('events')
-      .select('*')
-      .neq('payment_status', 'PAID')
-      .neq('event_status', 'EXPIRED')
-      .neq('status', 'expired')
-      .neq('event_status', 'CANCELLED')
-      .neq('status', 'cancelled')
-      .lte('starts_at', approachingHorizonIso),
-
-    // Category 2: Paid events approaching, live, or completing (not yet COMPLETED/CANCELLED)
-    supabase
-      .from('events')
-      .select('*')
-      .eq('payment_status', 'PAID')
-      .neq('event_status', 'COMPLETED')
-      .neq('status', 'completed')
-      .neq('event_status', 'CANCELLED')
-      .neq('status', 'cancelled')
-      .lte('starts_at', approachingHorizonIso),
-
-    // Category 3: Events requiring test-score clearing (not yet cleared, not cancelled)
-    supabase
-      .from('events')
-      .select('*')
-      .is('test_scores_cleared_at', null)
-      .neq('event_status', 'CANCELLED')
-      .neq('status', 'cancelled')
-      .lte('starts_at', approachingHorizonIso),
-  ]);
-
-  const queryError = unpaidRes.error || paidRes.error || testScoreRes.error;
-  const hasNullData = !unpaidRes.data || !paidRes.data || !testScoreRes.data;
-
-  if (queryError || hasNullData) {
-    if (!isLocalFallbackAllowed(env)) {
-      const errorDetail = queryError ? `[${queryError.code || 'ERROR'}] ${queryError.message}` : 'Supabase returned empty or null data response';
-      console.error(`[Event Lifecycle Maintenance] Fatal: Failed to fetch events from database in production: ${errorDetail}`);
-      throw new Error(
-        `[Event Lifecycle Maintenance] Fatal: Failed to fetch events from Supabase in production: ${errorDetail}. Local cache fallback is strictly prohibited in production.`
-      );
-    }
-    allEvents = Array.from(localEventsCache.values());
-  } else {
-    // Deduplicate across the 3 actionable queries using a Map
-    const actionableMap = new Map<string, EventRecord>();
-    for (const ev of unpaidRes.data as EventRecord[]) {
-      actionableMap.set(ev.id, ev);
-    }
-    for (const ev of paidRes.data as EventRecord[]) {
-      actionableMap.set(ev.id, ev);
-    }
-    for (const ev of testScoreRes.data as EventRecord[]) {
-      actionableMap.set(ev.id, ev);
-    }
-    allEvents = Array.from(actionableMap.values());
-
-    if (isLocalFallbackAllowed(env)) {
-      for (const ev of allEvents) {
-        localEventsCache.set(ev.id, ev);
+  // Cross-invocation coordination: acquire database-backed lease unless explicitly bypassed
+  let leaseHolder: string | null = null;
+  if (!options?.bypassLease) {
+    const leaseResult = await acquireMaintenanceLease(env, { correlationId });
+    if (!leaseResult.acquired) {
+      if (leaseResult.reason === 'DATABASE_LEASE_ERROR' && !isLocalFallbackAllowed(env)) {
+        console.error(
+          `[Event Lifecycle Maintenance][${correlationId}] Fatal: Database error acquiring maintenance lease in production:`,
+          (leaseResult as any).error
+        );
+        throw new Error(
+          `[Event Lifecycle Maintenance] Fatal: Failed to acquire database coordination lease in production: ${
+            (leaseResult as any).error?.message || 'Database unavailable'
+          }. Maintenance cycle aborted to preserve data integrity.`
+        );
       }
-      // Include any local non-database events present in local cache
-      const dbIds = new Set(allEvents.map((e) => e.id));
-      for (const [id, cachedEv] of localEventsCache.entries()) {
-        if (!dbIds.has(id)) {
-          allEvents.push(cachedEv);
+      console.log(
+        `[Event Lifecycle Maintenance][${correlationId}] Execution skipped: lease active or held by ${leaseResult.currentHolder || 'another process'}`
+      );
+      return {
+        paidCount: 0,
+        paymentFailedCount: 0,
+        cancelledCount: 0,
+        completedCount: 0,
+        expiredCount: 0,
+        testScoresClearedCount: 0,
+        paidEvents: [],
+        paymentFailedEvents: [],
+        cancelledEvents: [],
+        completedEvents: [],
+        expiredEvents: [],
+        testScoresClearedEvents: [],
+        skippedDueToLease: true,
+      };
+    }
+    leaseHolder = leaseResult.leaseHolder;
+  }
+
+  try {
+    const supabase = getSupabaseServerClient(env);
+    const nowIso = now.toISOString();
+    const paidEvents: string[] = [];
+    const paymentFailedEvents: string[] = [];
+    const cancelledEvents: string[] = [];
+    const completedEvents: string[] = [];
+    const expiredEvents: string[] = [];
+    const testScoresClearedEvents: string[] = [];
+
+    let allEvents: EventRecord[] = [];
+
+    // Query only actionable records using existing lifecycle indexes:
+    // 1. Unpaid events approaching or past end date (excluding already EXPIRED or CANCELLED)
+    // 2. Paid events approaching, live, or completing (excluding already COMPLETED or CANCELLED)
+    // 3. Events requiring test-score clearing (reached start date, not yet cleared)
+    const approachingHorizon = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+    const approachingHorizonIso = approachingHorizon.toISOString();
+
+    const ACTIONABLE_COLUMNS =
+      'id, organization_id, name, status, event_status, payment_status, starts_at, expires_at, start_date, end_date, event_timezone, test_scores_cleared_at, public_token, is_live_url_enabled';
+    const BATCH_LIMIT = 500;
+
+    let unpaidRes: any;
+    let paidRes: any;
+    let testScoreRes: any;
+
+    try {
+      const results = await executeWithResilience(
+        async () => {
+          let q1 = supabase
+            .from('events')
+            .select(ACTIONABLE_COLUMNS)
+            .neq('payment_status', 'PAID')
+            .neq('event_status', 'EXPIRED')
+            .neq('status', 'expired')
+            .neq('event_status', 'CANCELLED')
+            .neq('status', 'cancelled')
+            .lte('starts_at', approachingHorizonIso);
+          if (typeof (q1 as any).limit === 'function') q1 = (q1 as any).limit(BATCH_LIMIT);
+
+          let q2 = supabase
+            .from('events')
+            .select(ACTIONABLE_COLUMNS)
+            .eq('payment_status', 'PAID')
+            .neq('event_status', 'COMPLETED')
+            .neq('status', 'completed')
+            .neq('event_status', 'CANCELLED')
+            .neq('status', 'cancelled')
+            .lte('starts_at', approachingHorizonIso);
+          if (typeof (q2 as any).limit === 'function') q2 = (q2 as any).limit(BATCH_LIMIT);
+
+          let q3 = supabase
+            .from('events')
+            .select(ACTIONABLE_COLUMNS)
+            .is('test_scores_cleared_at', null)
+            .neq('event_status', 'CANCELLED')
+            .neq('status', 'cancelled')
+            .lte('starts_at', approachingHorizonIso);
+          if (typeof (q3 as any).limit === 'function') q3 = (q3 as any).limit(BATCH_LIMIT);
+
+          const res = await Promise.all([q1, q2, q3]);
+
+          const queryErr = res[0].error || res[1].error || res[2].error;
+          if (queryErr) throw queryErr;
+          return res;
+        },
+        {
+          operation: 'runEventLifecycleMaintenance_fetch_events',
+          correlationId,
+          maxRetries: 3,
+          initialDelayMs: 200,
+          timeoutBudgetMs: 15000,
+          env,
+        }
+      );
+      unpaidRes = results[0];
+      paidRes = results[1];
+      testScoreRes = results[2];
+    } catch (fetchErr: any) {
+      if (!isLocalFallbackAllowed(env)) {
+        console.error(`[Event Lifecycle Maintenance][${correlationId}] Fatal: Database error fetching events in production:`, fetchErr);
+        throw new Error(
+          `[Event Lifecycle Maintenance] Fatal: Failed to fetch events from Supabase in production: ${fetchErr?.message || fetchErr}. Local cache fallback is strictly prohibited in production.`
+        );
+      }
+      unpaidRes = { data: null, error: fetchErr };
+      paidRes = { data: null, error: fetchErr };
+      testScoreRes = { data: null, error: fetchErr };
+    }
+
+    const queryError = unpaidRes.error || paidRes.error || testScoreRes.error;
+    const hasNullData = !unpaidRes.data || !paidRes.data || !testScoreRes.data;
+
+    if (queryError || hasNullData) {
+      if (!isLocalFallbackAllowed(env)) {
+        const errorDetail = queryError ? `[${queryError.code || 'ERROR'}] ${queryError.message}` : 'Supabase returned empty or null data response';
+        console.error(`[Event Lifecycle Maintenance][${correlationId}] Fatal: Failed to fetch events from database in production: ${errorDetail}`);
+        throw new Error(
+          `[Event Lifecycle Maintenance] Fatal: Failed to fetch events from Supabase in production: ${errorDetail}. Local cache fallback is strictly prohibited in production.`
+        );
+      }
+      allEvents = Array.from(localEventsCache.values());
+    } else {
+      // Deduplicate across the 3 actionable queries using a Map
+      const actionableMap = new Map<string, EventRecord>();
+      for (const ev of unpaidRes.data as EventRecord[]) {
+        actionableMap.set(ev.id, ev);
+      }
+      for (const ev of paidRes.data as EventRecord[]) {
+        actionableMap.set(ev.id, ev);
+      }
+      for (const ev of testScoreRes.data as EventRecord[]) {
+        actionableMap.set(ev.id, ev);
+      }
+      allEvents = Array.from(actionableMap.values());
+
+      if (isLocalFallbackAllowed(env)) {
+        for (const ev of allEvents) {
+          localEventsCache.set(ev.id, ev);
+        }
+        // Include any local non-database events present in local cache
+        const dbIds = new Set(allEvents.map((e) => e.id));
+        for (const [id, cachedEv] of localEventsCache.entries()) {
+          if (!dbIds.has(id)) {
+            allEvents.push(cachedEv);
+          }
         }
       }
     }
-  }
 
   for (const ev of allEvents) {
     const payStatus = (ev.payment_status || '').toUpperCase();
@@ -4395,7 +4582,26 @@ export async function runEventLifecycleMaintenance(
           status: 'expired' as EventStatus,
           updated_at: nowIso,
         };
-        const { error: updateErr } = await supabase.from('events').update(payload).eq('id', ev.id);
+        let updateErr: any = null;
+        try {
+          await executeWithResilience(
+            async () => {
+              const res = await supabase.from('events').update(payload).eq('id', ev.id);
+              if (res.error) throw res.error;
+              return res;
+            },
+            {
+              operation: 'maintenance_update_event_expired',
+              correlationId,
+              maxRetries: 3,
+              initialDelayMs: 200,
+              env,
+            }
+          );
+        } catch (err: any) {
+          updateErr = err;
+        }
+
         if (updateErr) {
           if (!isLocalFallbackAllowed(env) || (!updateErr.message?.includes('Placeholder') && updateErr.code !== 'PGRST000')) {
             console.error(`[Event Lifecycle Maintenance] Fatal: Failed to update event ${ev.id} to EXPIRED in database:`, updateErr);
@@ -4442,7 +4648,26 @@ export async function runEventLifecycleMaintenance(
             status: 'completed' as EventStatus,
             updated_at: nowIso,
           };
-          const { error: updateErr } = await supabase.from('events').update(payload).eq('id', ev.id);
+          let updateErr: any = null;
+          try {
+            await executeWithResilience(
+              async () => {
+                const res = await supabase.from('events').update(payload).eq('id', ev.id);
+                if (res.error) throw res.error;
+                return res;
+              },
+              {
+                operation: 'maintenance_update_event_completed',
+                correlationId,
+                maxRetries: 3,
+                initialDelayMs: 200,
+                env,
+              }
+            );
+          } catch (err: any) {
+            updateErr = err;
+          }
+
           if (updateErr) {
             if (!isLocalFallbackAllowed(env) || (!updateErr.message?.includes('Placeholder') && updateErr.code !== 'PGRST000')) {
               console.error(`[Event Lifecycle Maintenance] Fatal: Failed to update event ${ev.id} to COMPLETED in database:`, updateErr);
@@ -4467,6 +4692,17 @@ export async function runEventLifecycleMaintenance(
             }
           }
         }
+
+        // Automatic invoice generation for ended paid event (idempotent, discovers any un-invoiced completed events)
+        try {
+          const { getInvoiceByEventId, generateEventInvoice } = await import('./invoices.js');
+          const existingInv = await getInvoiceByEventId(ev.id, env);
+          if (!existingInv) {
+            await generateEventInvoice(ev.id, env, { now });
+          }
+        } catch (invErr: any) {
+          console.warn(`[Event Lifecycle Maintenance] Warning: Automatic invoice generation for event ${ev.id} failed:`, invErr?.message || invErr);
+        }
       }
       // On event date -> LIVE
       else if (isLiveNow) {
@@ -4476,7 +4712,26 @@ export async function runEventLifecycleMaintenance(
             status: 'live' as EventStatus,
             updated_at: nowIso,
           };
-          const { error: updateErr } = await supabase.from('events').update(livePayload).eq('id', ev.id);
+          let updateErr: any = null;
+          try {
+            await executeWithResilience(
+              async () => {
+                const res = await supabase.from('events').update(livePayload).eq('id', ev.id);
+                if (res.error) throw res.error;
+                return res;
+              },
+              {
+                operation: 'maintenance_update_event_live',
+                correlationId,
+                maxRetries: 3,
+                initialDelayMs: 200,
+                env,
+              }
+            );
+          } catch (err: any) {
+            updateErr = err;
+          }
+
           if (updateErr) {
             if (!isLocalFallbackAllowed(env) || (!updateErr.message?.includes('Placeholder') && updateErr.code !== 'PGRST000')) {
               console.error(`[Event Lifecycle Maintenance] Fatal: Failed to update event ${ev.id} to LIVE in database:`, updateErr);
@@ -4560,20 +4815,25 @@ export async function runEventLifecycleMaintenance(
     console.warn('[Event Lifecycle Maintenance] Notification cleanup warning:', cleanErr);
   }
 
-  return {
-    paidCount: paidEvents.length,
-    paymentFailedCount: paymentFailedEvents.length,
-    cancelledCount: cancelledEvents.length,
-    completedCount: completedEvents.length,
-    expiredCount: expiredEvents.length,
-    testScoresClearedCount: testScoresClearedEvents.length,
-    paidEvents,
-    paymentFailedEvents,
-    cancelledEvents,
-    completedEvents,
-    expiredEvents,
-    testScoresClearedEvents,
-  };
+    return {
+      paidCount: paidEvents.length,
+      paymentFailedCount: paymentFailedEvents.length,
+      cancelledCount: cancelledEvents.length,
+      completedCount: completedEvents.length,
+      expiredCount: expiredEvents.length,
+      testScoresClearedCount: testScoresClearedEvents.length,
+      paidEvents,
+      paymentFailedEvents,
+      cancelledEvents,
+      completedEvents,
+      expiredEvents,
+      testScoresClearedEvents,
+    };
+  } finally {
+    if (leaseHolder) {
+      await releaseMaintenanceLease(leaseHolder, env, correlationId);
+    }
+  }
 }
 
 /**
@@ -4736,34 +4996,38 @@ export async function updateEventPrice(
   adminUserIdOrEnv?: string | Record<string, any>,
   envParam?: Record<string, any>
 ): Promise<EventWithDetails> {
-  let price: number;
-  let cur: string = 'MYR';
-  let adminUserId: string | undefined = undefined;
   let env: Record<string, any> | undefined = undefined;
-
-  if (typeof priceOrObj === 'object' && priceOrObj !== null) {
-    price = Number(priceOrObj.event_price);
-    cur = (priceOrObj.event_currency || 'MYR').trim().toUpperCase();
-    if (typeof currencyOrAdmin === 'string') {
-      adminUserId = currencyOrAdmin;
-    }
-    if (typeof adminUserIdOrEnv === 'object' && adminUserIdOrEnv !== null) {
-      env = adminUserIdOrEnv;
-    }
+  if (typeof priceOrObj === 'object' && priceOrObj !== null && typeof adminUserIdOrEnv === 'object' && adminUserIdOrEnv !== null) {
+    env = adminUserIdOrEnv;
   } else {
-    price = Number(priceOrObj);
-    if (typeof currencyOrAdmin === 'string') {
-      cur = currencyOrAdmin.trim().toUpperCase();
-    }
-    if (typeof adminUserIdOrEnv === 'string') {
-      adminUserId = adminUserIdOrEnv;
-    }
     env = envParam;
   }
 
   const existing = await getEventById(eventId, env);
   if (!existing) {
     throw new Error('Event not found');
+  }
+
+  let price: number;
+  let cur: string = existing.event_currency || 'USD';
+  let adminUserId: string | undefined = undefined;
+
+  if (typeof priceOrObj === 'object' && priceOrObj !== null) {
+    price = Number(priceOrObj.event_price);
+    if (priceOrObj.event_currency && priceOrObj.event_currency.trim()) {
+      cur = priceOrObj.event_currency.trim().toUpperCase();
+    }
+    if (typeof currencyOrAdmin === 'string') {
+      adminUserId = currencyOrAdmin;
+    }
+  } else {
+    price = Number(priceOrObj);
+    if (typeof currencyOrAdmin === 'string' && currencyOrAdmin.trim()) {
+      cur = currencyOrAdmin.trim().toUpperCase();
+    }
+    if (typeof adminUserIdOrEnv === 'string') {
+      adminUserId = adminUserIdOrEnv;
+    }
   }
 
   if (isNaN(price) || price <= 0) {
@@ -4775,7 +5039,7 @@ export async function updateEventPrice(
   }
 
   const oldPrice = existing.event_price ?? 0;
-  const oldCurrency = existing.event_currency || 'MYR';
+  const oldCurrency = existing.event_currency || cur;
   const now = new Date().toISOString();
 
   const supabase = getSupabaseServerClient(env);

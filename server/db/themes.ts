@@ -656,8 +656,95 @@ export const DEFAULT_REACTION_THEME: Omit<GameThemeRecord, 'id' | 'organization_
   },
 };
 
+export const DEFAULT_MATCH3_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Classic',
+  slug: 'match-3',
+  description: 'Swap matching tiles to create combinations, trigger special tiles, build combos, and achieve the highest score before time runs out.',
+  status: 'active',
+  is_default: true,
+  branding: {
+    gameTitle: 'MATCH-3 CASCADE',
+    subtitle: 'Swap tiles, trigger special combos, and build massive streaks!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/default/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: {
+    gameDurationSeconds: 60,
+    baseFallSpeed: 0,
+    fallSpeedMultiplier: 1.0,
+    spawnIntervalMin: 0,
+    spawnIntervalMax: 0,
+    difficultyStages: [],
+  },
+  visuals_config: {
+    primaryColor: '#f59e0b',
+    secondaryColor: '#ec4899',
+    accentColor: '#38bdf8',
+    textColor: '#ffffff',
+    bgGradientFrom: '#0f172a',
+    bgGradientVia: '#1e1b4b',
+    bgGradientTo: '#020617',
+  },
+  game_config: {
+    gameDurationSeconds: 60,
+    rows: 8,
+    cols: 8,
+    tileTypesCount: 6,
+    minimumMatch: 3,
+    comboEnabled: true,
+    specialTilesEnabled: true,
+    cascadeEnabled: true,
+    shuffleWhenNoMoves: true,
+    objective: {
+      type: 'score',
+      targetScore: 10000,
+      collectedCount: 0,
+    },
+    scoring: {
+      match3Points: 100,
+      match4Points: 180,
+      match5Points: 300,
+      rocketPoints: 250,
+      bombPoints: 250,
+      colorBombPoints: 500,
+      comboMultipliers: { 1: 1.0, 2: 1.5, 3: 2.0, 4: 2.5, 5: 3.0 },
+    },
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  sounds_config: {
+    catchGoodUrl: null,
+    catchBadUrl: null,
+    catchBonusUrl: null,
+    gameStartUrl: null,
+    gameOverUrl: null,
+    bgmUrl: null,
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  layout: {
+    clientLogo: { visible: true, x: 4, y: 4, width: 14 },
+    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
+    timer: { visible: true, x: 78, y: 15, width: 18 },
+    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
+    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
+  },
+};
+
 export function getDefaultThemeForGameType(gameType?: string | null): Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> {
   const clean = (gameType || '').toLowerCase().trim();
+  if (
+    clean === 'match-3' ||
+    clean === 'match3' ||
+    clean.includes('match-3')
+  ) {
+    return DEFAULT_MATCH3_THEME;
+  }
   if (
     clean === 'reaction-tap' ||
     clean === 'reaction-time' ||
@@ -679,6 +766,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
   DEFAULT_CARNIVAL_THEME,
   DEFAULT_MEMORY_CARNIVAL_THEME,
   DEFAULT_REACTION_THEME,
+  DEFAULT_MATCH3_THEME,
   {
     name: 'Christmas Gift Rush',
     slug: 'christmas-rush',
@@ -1027,6 +1115,142 @@ export function isUUID(str: string | null | undefined): boolean {
 }
 
 /**
+ * Authoritatively resolves the server game type ('match-3' | 'memory-match' | 'reaction-tap' | 'speed-quiz' | 'catch-brand')
+ * from raw game_type, slug, or name metadata.
+ */
+export function resolveServerGameType(
+  rawGameType?: string | null | any,
+  rawSlug?: string | null,
+  rawName?: string | null,
+  themeOrConfig?: any
+): string {
+  // If first parameter is an object (e.g. resolveServerGameType(theme)):
+  if (rawGameType && typeof rawGameType === 'object') {
+    themeOrConfig = rawGameType;
+    rawGameType = (themeOrConfig as any).game_type;
+    rawSlug = (themeOrConfig as any).game_slug || (themeOrConfig as any).slug || (themeOrConfig as any).base_theme_id;
+    rawName = (themeOrConfig as any).name;
+  }
+
+  // 1. Check themeOrConfig / game_config properties FIRST
+  const tc = themeOrConfig || (typeof rawGameType === 'object' ? rawGameType : null);
+  const gc = tc?.game_config || tc;
+  if (gc && typeof gc === 'object') {
+    if (
+      Array.isArray(gc.tileDefinitions) ||
+      gc.match3Config !== undefined ||
+      gc.minimumMatch !== undefined ||
+      gc.cascadeEnabled !== undefined ||
+      gc.specialTilesEnabled !== undefined ||
+      gc.tileTypesCount !== undefined ||
+      gc.scoring?.match3Points !== undefined ||
+      gc.scoring?.rocketPoints !== undefined ||
+      gc.screens?.start?.gameType === 'match-3' ||
+      gc.screens?.result?.gameType === 'match-3'
+    ) {
+      return 'match-3';
+    }
+    if (
+      gc.cardPairs ||
+      gc.memoryConfig ||
+      gc.screens?.start?.gameType === 'memory-match' ||
+      gc.screens?.result?.gameType === 'memory-match'
+    ) {
+      return 'memory-match';
+    }
+    if (
+      gc.reactionConfig ||
+      gc.lightsCount !== undefined ||
+      gc.screens?.start?.gameType === 'reaction-tap' ||
+      gc.screens?.start?.gameType === 'reaction-time' ||
+      gc.screens?.result?.gameType === 'reaction-tap' ||
+      gc.screens?.result?.gameType === 'reaction-time'
+    ) {
+      return 'reaction-tap';
+    }
+  }
+
+  // 2. Check base_theme_id, id, game_id on theme object if available
+  if (tc && typeof tc === 'object') {
+    const baseId = String(tc.base_theme_id || '').toLowerCase().trim();
+    if (baseId === 'match-3' || baseId === 'match3' || baseId.includes('match-3')) return 'match-3';
+    if (baseId === 'memory-match' || baseId === 'memory-carnival') return 'memory-match';
+    if (baseId === 'reaction-tap' || baseId === 'reaction-time') return 'reaction-tap';
+
+    const tId = String(tc.id || '').toLowerCase().trim();
+    if (tId === 'match-3' || tId === 'match3' || tId.includes('match-3')) return 'match-3';
+    if (tId === 'memory-match' || tId === 'memory-carnival') return 'memory-match';
+    if (tId === 'reaction-tap' || tId === 'reaction-time') return 'reaction-tap';
+
+    const gId = String(tc.game_id || '').toLowerCase().trim();
+    if (gId === 'match-3' || gId === 'match3' || gId.includes('match-3')) return 'match-3';
+    if (gId === 'memory-match' || gId === 'memory-carnival') return 'memory-match';
+    if (gId === 'reaction-tap' || gId === 'reaction-time') return 'reaction-tap';
+  }
+
+  const cleanType = String(rawGameType || '').trim().toLowerCase();
+  const cleanSlug = String(rawSlug || '').trim().toLowerCase();
+  const cleanName = String(rawName || '').trim().toLowerCase();
+
+  if (
+    cleanType === 'match-3' ||
+    cleanType === 'match3' ||
+    cleanType.includes('match-3') ||
+    cleanType.includes('match3') ||
+    cleanSlug === 'match-3' ||
+    cleanSlug === 'match3' ||
+    cleanSlug.includes('match-3') ||
+    cleanSlug.includes('match3') ||
+    cleanSlug.includes('cascade') ||
+    cleanName.includes('match-3') ||
+    cleanName.includes('match 3') ||
+    cleanName.includes('match3') ||
+    cleanName.includes('cascade')
+  ) {
+    return 'match-3';
+  }
+
+  if (
+    cleanType === 'reaction-tap' ||
+    cleanType === 'reaction-time' ||
+    cleanType.includes('reaction') ||
+    cleanType.includes('reflex') ||
+    cleanSlug === 'reaction-tap' ||
+    cleanSlug === 'reaction-time' ||
+    cleanSlug.includes('reaction') ||
+    cleanSlug.includes('reflex') ||
+    cleanName.includes('reaction') ||
+    cleanName.includes('reflex') ||
+    cleanName.includes('formula')
+  ) {
+    return 'reaction-tap';
+  }
+
+  if (
+    cleanType === 'memory-match' ||
+    cleanType === 'memory-carnival' ||
+    cleanType.includes('memory') ||
+    cleanSlug === 'memory-match' ||
+    cleanSlug === 'memory-carnival' ||
+    cleanSlug.includes('memory') ||
+    cleanName.includes('memory')
+  ) {
+    return 'memory-match';
+  }
+
+  if (
+    cleanType === 'speed-quiz' ||
+    cleanSlug === 'speed-quiz' ||
+    cleanName.includes('quiz') ||
+    cleanName.includes('trivia')
+  ) {
+    return 'speed-quiz';
+  }
+
+  return 'catch-brand';
+}
+
+/**
  * Resolves and enriches theme records with accurate game metadata (game_id, game_name, game_slug).
  *
  * Enrichment resolution order:
@@ -1176,29 +1400,39 @@ export async function enrichThemesWithGameData(
       const g = gameMap.get(resolvedGameId)!;
       resolvedGameName = g.name;
       resolvedGameSlug = g.slug;
-      resolvedGameType = g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      resolvedGameType = resolveServerGameType(g.game_type, g.slug, g.name);
     } else if (embeddedGame && (embeddedGame.name || embeddedGame.slug)) {
       resolvedGameName = embeddedGame.name;
       resolvedGameSlug = embeddedGame.slug;
-      resolvedGameType = embeddedGame.game_type || (embeddedGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      resolvedGameType = resolveServerGameType(embeddedGame.game_type, embeddedGame.slug, embeddedGame.name);
     } else if (fallbackDefaults?.fallbackGameName || fallbackDefaults?.fallbackGameSlug || fallbackDefaults?.fallbackGameType) {
       resolvedGameName = fallbackDefaults.fallbackGameName;
       resolvedGameSlug = fallbackDefaults.fallbackGameSlug;
-      resolvedGameType = fallbackDefaults.fallbackGameType;
+      resolvedGameType = resolveServerGameType(fallbackDefaults.fallbackGameType, fallbackDefaults.fallbackGameSlug, fallbackDefaults.fallbackGameName);
     } else if (item.game_name && item.game_name !== 'Catch The Brand' && item.game_name !== 'Unknown Game') {
       resolvedGameName = item.game_name;
       resolvedGameSlug = item.game_slug;
-      resolvedGameType = item.game_type || (item.game_slug === 'memory-match' ? 'memory-match' : 'catch-brand');
-    } else if (!resolvedGameId) {
-      // Genuinely has NO game_id - legacy fallback only
-      resolvedGameName = 'Catch The Brand';
-      resolvedGameSlug = 'catch-brand';
-      resolvedGameType = 'catch-brand';
+      resolvedGameType = resolveServerGameType(item.game_type, item.game_slug, item.game_name);
     } else {
-      // Has a game_id, but name wasn't found in DB/catalog - retain existing or generic name rather than misleading Catch The Brand
-      resolvedGameName = item.game_name || 'Game Theme';
-      resolvedGameSlug = item.game_slug || (item.game_id ? `game-${item.game_id.slice(0, 8)}` : 'game');
-      resolvedGameType = item.game_type || (resolvedGameSlug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      // Resolve game info authoritatively from theme metadata rather than hardcoding Catch The Brand
+      const serverType = resolveServerGameType(item.game_type, item.slug, item.name, item);
+      resolvedGameType = serverType;
+      if (serverType === 'match-3') {
+        resolvedGameName = 'Match-3';
+        resolvedGameSlug = 'match-3';
+      } else if (serverType === 'memory-match') {
+        resolvedGameName = 'Brand Memory Match';
+        resolvedGameSlug = 'memory-match';
+      } else if (serverType === 'reaction-tap') {
+        resolvedGameName = 'Formula Reaction Lights';
+        resolvedGameSlug = 'reaction-tap';
+      } else if (serverType === 'speed-quiz') {
+        resolvedGameName = 'Event Trivia Speed Quiz';
+        resolvedGameSlug = 'speed-quiz';
+      } else {
+        resolvedGameName = item.game_name || 'Catch The Brand';
+        resolvedGameSlug = item.game_slug || (item.game_id ? `game-${item.game_id.slice(0, 8)}` : 'catch-brand');
+      }
     }
 
     const { games: _omittedGames, ...rest } = item;
@@ -1387,6 +1621,20 @@ export function normalizeServerThemeAssets(theme: any): any {
     return updated;
   }
 
+  // Match-3 system theme
+  if (slug === 'match-3' || (isSys && (name.includes('match-3') || name.includes('match 3')))) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/match-3/themes/default/background.png';
+    updated.basket_config = null;
+    updated.items_config = [];
+    if (!updated.game_config || Object.keys(updated.game_config).length === 0) {
+      updated.game_config = { ...DEFAULT_MATCH3_THEME.game_config };
+    }
+    updated.game_type = 'match-3';
+    updated.game_slug = 'match-3';
+    return updated;
+  }
+
   return theme;
 }
 
@@ -1427,11 +1675,23 @@ export async function getThemesByOrgId(
   const { data, error } = await query;
 
   if (error) {
+    if (isLocalFallbackAllowed(env)) {
+      const local = Array.from(localThemesCache.values()).filter(
+        (t) => t.organization_id === organizationId && (!gameId || t.game_id === gameId)
+      );
+      if (local.length > 0) return local;
+    }
     console.error('Error in getThemesByOrgId:', error);
     throw new Error(`Failed to list themes: ${error.message}`);
   }
 
   const list = (data || []) as any[];
+  if (list.length === 0 && isLocalFallbackAllowed(env)) {
+    const local = Array.from(localThemesCache.values()).filter(
+      (t) => t.organization_id === organizationId && (!gameId || t.game_id === gameId)
+    );
+    if (local.length > 0) return local;
+  }
   return await enrichThemesWithGameData(list, env);
 }
 
@@ -1475,6 +1735,87 @@ export async function getThemeById(
 
   // Validate that themeId is a valid UUID before querying PostgreSQL
   if (!isUUID(themeId)) {
+    // Check preset / system themes by id or slug
+    const cleanId = themeId.trim().toLowerCase();
+    const gameTypeKey = cleanId.replace(/^system-theme-/, '');
+
+    const preset = PRESET_THEMES.find(
+      (p) =>
+        p.slug === cleanId ||
+        p.slug === gameTypeKey ||
+        p.game_type === cleanId ||
+        p.game_type === gameTypeKey ||
+        p.game_slug === cleanId ||
+        p.game_slug === gameTypeKey ||
+        (p as any).id === cleanId ||
+        (p as any).id === gameTypeKey
+    );
+    if (preset) {
+      const now = new Date().toISOString();
+      const resolvedGameId =
+        (options?.gameId && isUUID(options.gameId) ? options.gameId : null) ||
+        preset.game_id ||
+        (gameTypeKey === 'match-3' ? 'game-match-3' : null);
+      const normType =
+        (gameTypeKey.includes('match') ? 'match-3' : null) ||
+        (gameTypeKey.includes('memory') ? 'memory-match' : null) ||
+        (gameTypeKey.includes('reaction') ? 'reaction-tap' : null) ||
+        (preset.game_type as string) ||
+        'catch-brand';
+      return {
+        ...preset,
+        id: (preset as any).id || cleanId,
+        organization_id: null as any,
+        game_id: resolvedGameId,
+        created_at: now,
+        updated_at: now,
+        is_system: true,
+        ownership_type: 'system',
+        game_type: normType,
+        game_slug: normType,
+        game_name:
+          normType === 'match-3'
+            ? 'Match-3'
+            : normType === 'memory-match'
+            ? 'Brand Memory Match'
+            : normType === 'reaction-tap'
+            ? 'Formula Reaction Lights'
+            : (preset as any).game_name || preset.name,
+      } as GameThemeRecord;
+    }
+    const defaultTemplate = getDefaultThemeForGameType(gameTypeKey);
+    if (defaultTemplate) {
+      const now = new Date().toISOString();
+      const normType =
+        (gameTypeKey.includes('match') ? 'match-3' : null) ||
+        (gameTypeKey.includes('memory') ? 'memory-match' : null) ||
+        (gameTypeKey.includes('reaction') ? 'reaction-tap' : null) ||
+        'catch-brand';
+      const resolvedGameId =
+        (options?.gameId && isUUID(options.gameId) ? options.gameId : null) ||
+        defaultTemplate.game_id ||
+        `game-${normType}`;
+      return {
+        ...defaultTemplate,
+        id: cleanId,
+        organization_id: null as any,
+        game_id: resolvedGameId,
+        created_at: now,
+        updated_at: now,
+        is_system: true,
+        ownership_type: 'system',
+        game_type: normType,
+        game_slug: normType,
+        game_name:
+          normType === 'match-3'
+            ? 'Match-3'
+            : normType === 'memory-match'
+            ? 'Brand Memory Match'
+            : normType === 'reaction-tap'
+            ? 'Formula Reaction Lights'
+            : 'Catch the Brand',
+      } as unknown as GameThemeRecord;
+    }
     console.warn(`[Theme Lookup] getThemeById received non-UUID string: "${themeId}". Skipping UUID query to prevent PostgreSQL syntax error.`);
     return null;
   }
@@ -1488,7 +1829,8 @@ export async function getThemeById(
     .maybeSingle();
 
   if (error) {
-    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+    if (isLocalFallbackAllowed(env)) {
+      if (localThemesCache.has(themeId)) return localThemesCache.get(themeId)!;
       const allSystemThemes = await getAllSystemThemes(env);
       const matchedSystem = allSystemThemes.find((t) => t.id === themeId);
       if (matchedSystem) return matchedSystem;
@@ -1499,6 +1841,9 @@ export async function getThemeById(
   }
 
   if (!data) {
+    if (isLocalFallbackAllowed(env) && localThemesCache.has(themeId)) {
+      return localThemesCache.get(themeId)!;
+    }
     console.log(`[Theme Lookup] No theme found with UUID: ${themeId}`);
     return null;
   }
@@ -1750,7 +2095,7 @@ export async function createTheme(
       if (isUUID(resolvedGameId)) {
         const localGame = await getGameById(resolvedGameId, env);
         if (localGame) {
-          resolvedGameType = params.game_type || localGame.game_type || (localGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+          resolvedGameType = resolveServerGameType(params.game_type || localGame.game_type, params.game_slug || localGame.slug, localGame.name);
           resolvedGameName = localGame.name;
           resolvedGameSlug = params.game_slug || localGame.slug;
         } else {
@@ -1760,7 +2105,7 @@ export async function createTheme(
             .eq('id', resolvedGameId)
             .maybeSingle();
           if (g) {
-            resolvedGameType = params.game_type || g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+            resolvedGameType = resolveServerGameType(params.game_type || g.game_type, params.game_slug || g.slug, g.name);
             resolvedGameName = g.name;
             resolvedGameSlug = params.game_slug || g.slug;
           } else if (resolvedGameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9') {
@@ -1777,7 +2122,7 @@ export async function createTheme(
                 .maybeSingle();
               if (gBySlug) {
                 resolvedGameId = gBySlug.id;
-                resolvedGameType = params.game_type || gBySlug.game_type || (gBySlug.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+                resolvedGameType = resolveServerGameType(params.game_type || gBySlug.game_type, params.game_slug || gBySlug.slug, gBySlug.name);
                 resolvedGameName = gBySlug.name;
                 resolvedGameSlug = params.game_slug || gBySlug.slug;
               }
@@ -1792,7 +2137,7 @@ export async function createTheme(
           .maybeSingle();
         if (gBySlug) {
           resolvedGameId = gBySlug.id;
-          resolvedGameType = params.game_type || gBySlug.game_type || (gBySlug.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+          resolvedGameType = resolveServerGameType(params.game_type || gBySlug.game_type, params.game_slug || gBySlug.slug, gBySlug.name);
           resolvedGameName = gBySlug.name;
           resolvedGameSlug = params.game_slug || gBySlug.slug;
         }
@@ -1809,7 +2154,7 @@ export async function createTheme(
         .limit(1);
       if (games && games.length > 0) {
         resolvedGameId = games[0].id;
-        resolvedGameType = games[0].game_type || (games[0].slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+        resolvedGameType = resolveServerGameType(games[0].game_type, games[0].slug, games[0].name);
         resolvedGameName = games[0].name;
         resolvedGameSlug = games[0].slug;
       }
@@ -1819,6 +2164,18 @@ export async function createTheme(
   }
 
   if (
+    !params.game_type &&
+    resolvedGameType !== 'match-3' &&
+    ((params.name && (params.name.toLowerCase().includes('match-3') || params.name.toLowerCase().includes('match 3') || params.name.toLowerCase().includes('match3') || params.name.toLowerCase().includes('cascade'))) ||
+      params.game_slug?.includes('match-3') ||
+      params.game_slug?.includes('match3') ||
+      params.game_config?.tileDefinitions ||
+      params.game_config?.match3Config)
+  ) {
+    resolvedGameType = 'match-3';
+    resolvedGameName = 'Match-3';
+    resolvedGameSlug = 'match-3';
+  } else if (
     !params.game_type &&
     resolvedGameType !== 'reaction-tap' &&
     ((params.name && (params.name.toLowerCase().includes('reaction') || params.name.toLowerCase().includes('reflex') || params.name.toLowerCase().includes('formula'))) ||
@@ -1840,8 +2197,9 @@ export async function createTheme(
     resolvedGameSlug = 'memory-match';
   }
 
-  const isReaction = resolvedGameType === 'reaction-tap' || params.game_type === 'reaction-tap' || params.game_slug === 'reaction-tap' || resolvedGameSlug === 'reaction-tap';
-  const isMemory = !isReaction && (resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match');
+  const isMatch3 = resolvedGameType === 'match-3' || params.game_type === 'match-3' || params.game_slug === 'match-3' || resolvedGameSlug === 'match-3';
+  const isReaction = !isMatch3 && (resolvedGameType === 'reaction-tap' || params.game_type === 'reaction-tap' || params.game_slug === 'reaction-tap' || resolvedGameSlug === 'reaction-tap');
+  const isMemory = !isMatch3 && !isReaction && (resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match');
   const defaultTemplate = getDefaultThemeForGameType(resolvedGameType);
 
   const defaultBranding: ThemeBrandingConfig = {
@@ -1864,7 +2222,7 @@ export async function createTheme(
     status: params.status || 'active',
     branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: (isMemory || isReaction) ? (params.basket_config ?? {}) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: (isMemory || isReaction || isMatch3) ? (params.basket_config ?? {}) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
@@ -2192,6 +2550,7 @@ export async function getSystemThemesByGameId(
       resolvedSystemGameName = game.name;
       resolvedSystemGameSlug = game.slug;
       resolvedSystemGameType = game.game_type || 'catch-brand';
+      candidateGames = [game];
     } else {
       // Supplied game is an organization game: find canonical system game by game_type
       const gameType = game.game_type || 'catch-brand';
@@ -2288,8 +2647,13 @@ export async function getSystemThemesByGameId(
   let query = supabase
     .from('game_themes')
     .select('*, games(id, name, slug, game_type)')
-    .eq('game_id', targetSystemGameId)
     .or('is_system.eq.true,organization_id.is.null');
+
+  if (isUUID(targetSystemGameId)) {
+    query = query.or(`game_id.eq.${targetSystemGameId},and(game_id.is.null,slug.eq.${resolvedSystemGameSlug})`);
+  } else {
+    query = query.or(`slug.eq.${resolvedSystemGameSlug},slug.eq.${targetSystemGameId}`);
+  }
 
   if (options.status !== 'all') {
     query = query.eq('status', 'active');
@@ -2300,6 +2664,38 @@ export async function getSystemThemesByGameId(
   const { data, error } = await query;
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const targetGame = candidateGames.find((c) => c.id === targetSystemGameId) || candidateGames[0] || game;
+      const gameType = targetGame?.game_type || resolvedSystemGameType || 'catch-brand';
+      const defaultTheme = getDefaultThemeForGameType(gameType);
+      return [
+        {
+          id: `system-theme-${gameType}`,
+          organization_id: null as any,
+          game_id: isUUID(targetSystemGameId) ? targetSystemGameId : null,
+          name: defaultTheme.name,
+          slug: defaultTheme.slug,
+          description: defaultTheme.description,
+          status: 'active',
+          is_system: true,
+          is_default: true,
+          branding: defaultTheme.branding,
+          background_url: defaultTheme.background_url,
+          basket_config: defaultTheme.basket_config,
+          items_config: defaultTheme.items_config,
+          physics_config: defaultTheme.physics_config,
+          visuals_config: defaultTheme.visuals_config,
+          sounds_config: defaultTheme.sounds_config,
+          game_config: (defaultTheme as any).game_config,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          game: targetGame as any,
+          game_type: gameType,
+          game_slug: targetGame?.slug || gameType,
+          game_name: targetGame?.name || defaultTheme.name,
+        } as unknown as GameThemeRecord,
+      ];
+    }
     console.error('Error in getSystemThemesByGameId:', error);
     throw new Error(`Failed to list system themes: ${error.message}`);
   }
@@ -2346,17 +2742,44 @@ export async function getSystemThemesByGameId(
   console.log(`  system theme count = ${list.length}`);
 
   if (list.length === 0) {
-    console.log('[System Themes] No system themes found');
-    console.log(
-      `  available system games for game_type = ${resolvedSystemGameType}:`,
-      candidateGames.map((g) => ({ id: g.id, name: g.name, slug: g.slug, is_system: g.is_system }))
-    );
+    console.log('[System Themes] No system themes found in DB, using canonical default theme');
+    const targetGame = candidateGames.find((c) => c.id === targetSystemGameId) || candidateGames[0] || game;
+    const gameType = targetGame?.game_type || resolvedSystemGameType || 'catch-brand';
+    const defaultTheme = getDefaultThemeForGameType(gameType);
+    list = [
+      {
+        id: `system-theme-${gameType}`,
+        organization_id: null as any,
+        game_id: isUUID(targetSystemGameId) ? targetSystemGameId : null,
+        name: defaultTheme.name,
+        slug: defaultTheme.slug,
+        description: defaultTheme.description,
+        status: 'active',
+        is_system: true,
+        is_default: true,
+        branding: defaultTheme.branding,
+        background_url: defaultTheme.background_url,
+        basket_config: defaultTheme.basket_config,
+        items_config: defaultTheme.items_config,
+        physics_config: defaultTheme.physics_config,
+        visuals_config: defaultTheme.visuals_config,
+        sounds_config: defaultTheme.sounds_config,
+        game_config: (defaultTheme as any).game_config,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        game: targetGame as any,
+        game_type: gameType,
+        game_slug: targetGame?.slug || gameType,
+        game_name: targetGame?.name || defaultTheme.name,
+      },
+    ];
   }
 
   const enriched = await enrichThemesWithGameData(list, env, {
     fallbackGameId: targetSystemGameId,
     fallbackGameName: resolvedSystemGameName,
     fallbackGameSlug: resolvedSystemGameSlug,
+    fallbackGameType: resolvedSystemGameType,
   });
 
   return enriched.map((item) => ({
@@ -2500,14 +2923,16 @@ export async function createSystemTheme(
       );
     }
     if (targetGame) {
-      resolvedGameType = targetGame.game_type || (targetGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      resolvedGameType = resolveServerGameType(targetGame.game_type, targetGame.slug, targetGame.name);
       targetGameName = targetGame.name;
       targetGameSlug = targetGame.slug;
     }
   }
 
+  const defaultTemplate = getDefaultThemeForGameType(resolvedGameType);
   const isMemory = resolvedGameType === 'memory-match';
-  const defaultTemplate = isMemory ? DEFAULT_MEMORY_THEME : NEUTRAL_GAME_THEME_DEFAULTS;
+  const isMatch3 = resolvedGameType === 'match-3';
+  const isReaction = resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time';
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -2515,7 +2940,7 @@ export async function createSystemTheme(
 
   const defaultBranding: ThemeBrandingConfig = {
     gameTitle: params.name.toUpperCase(),
-    subtitle: params.description || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch the falling items, avoid the hazards!'),
+    subtitle: params.description || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : isMatch3 ? 'Swap tiles, create combos, and clear the board!' : isReaction ? 'React when the lights go out!' : 'Catch the falling items, avoid the hazards!'),
     logoUrl: null,
     clientLogoUrl: null,
   };
@@ -2534,7 +2959,7 @@ export async function createSystemTheme(
     status: params.status || 'active',
     branding: params.branding ?? defaultBranding,
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: (isMemory || isReaction || isMatch3) ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
@@ -2567,7 +2992,7 @@ export async function createSystemTheme(
     status: params.status || 'active',
     branding: params.branding ?? defaultBranding,
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: (isMemory || isReaction || isMatch3) ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
@@ -2815,11 +3240,7 @@ export async function cloneSystemThemeToOrg(
   }
 
   const supabase = getSupabaseServerClient(env);
-  const isMemory =
-    systemTheme.game_type === 'memory-match' ||
-    systemTheme.game_slug === 'memory-match' ||
-    (systemTheme.slug || '').includes('memory') ||
-    (systemTheme.name || '').toLowerCase().includes('memory');
+  const resolvedSystemGameType = resolveServerGameType(systemTheme.game_type, systemTheme.game_slug || systemTheme.slug, systemTheme.name);
 
   let resolvedGameId = targetGameId;
   if (!resolvedGameId) {
@@ -2830,7 +3251,7 @@ export async function cloneSystemThemeToOrg(
       .eq('organization_id', targetOrgId);
     if (orgGames && orgGames.length > 0) {
       const match = orgGames.find((g: any) =>
-        (g.game_type || g.slug) === (systemTheme.game_type || (isMemory ? 'memory-match' : 'catch-brand'))
+        resolveServerGameType(g.game_type, g.slug) === resolvedSystemGameType
       );
       resolvedGameId = match ? match.id : orgGames[0].id;
     }
@@ -2851,7 +3272,7 @@ export async function cloneSystemThemeToOrg(
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  const resolvedThemeGameType = isMemory ? 'memory-match' : (systemTheme.game_type || systemTheme.game_slug || 'catch-brand');
+  const resolvedThemeGameType = resolvedSystemGameType;
   const fallbackDefaultTheme = getDefaultThemeForGameType(resolvedThemeGameType);
 
   const { data, error } = await safeInsertTheme(supabase, {
@@ -2866,14 +3287,14 @@ export async function cloneSystemThemeToOrg(
     description: systemTheme.description,
     status: 'active',
     branding: systemTheme.branding,
-    background_url: isMemory ? (systemTheme.background_url || null) : systemTheme.background_url,
-    basket_config: isMemory ? null : systemTheme.basket_config,
+    background_url: (resolvedThemeGameType === 'memory-match') ? (systemTheme.background_url || null) : systemTheme.background_url,
+    basket_config: (resolvedThemeGameType === 'memory-match' || resolvedThemeGameType === 'match-3' || resolvedThemeGameType === 'reaction-tap') ? null : systemTheme.basket_config,
     items_config: systemTheme.items_config?.length ? systemTheme.items_config : fallbackDefaultTheme.items_config,
-    physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : (systemTheme.physics_config || fallbackDefaultTheme.physics_config),
+    physics_config: (resolvedThemeGameType === 'memory-match') ? DEFAULT_MEMORY_THEME.physics_config : (systemTheme.physics_config || fallbackDefaultTheme.physics_config),
     visuals_config: systemTheme.visuals_config || fallbackDefaultTheme.visuals_config,
     sounds_config: systemTheme.sounds_config,
     layout: systemTheme.layout,
-    game_config: systemTheme.game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
+    game_config: systemTheme.game_config ?? (resolvedThemeGameType === 'memory-match' ? DEFAULT_MEMORY_THEME.game_config : {}),
     created_at: now,
     updated_at: now,
   });
@@ -2921,14 +3342,9 @@ export async function cloneAllSystemThemesToOrg(
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    const isMemory =
-      sysTheme.game_type === 'memory-match' ||
-      sysTheme.game_slug === 'memory-match' ||
-      (sysTheme.slug || '').includes('memory') ||
-      (sysTheme.name || '').toLowerCase().includes('memory');
-
-    const resolvedThemeGameType = isMemory ? 'memory-match' : (sysTheme.game_type || sysTheme.game_slug || 'catch-brand');
+    const resolvedThemeGameType = resolveServerGameType(sysTheme.game_type, sysTheme.game_slug || sysTheme.slug, sysTheme.name);
     const fallbackDefaultTheme = getDefaultThemeForGameType(resolvedThemeGameType);
+    const isNonBasket = resolvedThemeGameType === 'memory-match' || resolvedThemeGameType === 'match-3' || resolvedThemeGameType === 'reaction-tap';
 
     const { data, error } = await safeInsertTheme(supabase, {
       id,
@@ -2942,14 +3358,14 @@ export async function cloneAllSystemThemesToOrg(
       description: sysTheme.description,
       status: 'active',
       branding: sysTheme.branding,
-      background_url: isMemory ? (sysTheme.background_url || null) : sysTheme.background_url,
-      basket_config: isMemory ? null : sysTheme.basket_config,
+      background_url: (resolvedThemeGameType === 'memory-match') ? (sysTheme.background_url || null) : sysTheme.background_url,
+      basket_config: isNonBasket ? null : sysTheme.basket_config,
       items_config: sysTheme.items_config?.length ? sysTheme.items_config : fallbackDefaultTheme.items_config,
-      physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : (sysTheme.physics_config || fallbackDefaultTheme.physics_config),
+      physics_config: (resolvedThemeGameType === 'memory-match') ? DEFAULT_MEMORY_THEME.physics_config : (sysTheme.physics_config || fallbackDefaultTheme.physics_config),
       visuals_config: sysTheme.visuals_config || fallbackDefaultTheme.visuals_config,
       sounds_config: sysTheme.sounds_config,
       layout: sysTheme.layout,
-      game_config: sysTheme.game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
+      game_config: sysTheme.game_config ?? (resolvedThemeGameType === 'memory-match' ? DEFAULT_MEMORY_THEME.game_config : {}),
       created_at: now,
       updated_at: now,
     });
@@ -2983,10 +3399,16 @@ export async function ensureSystemDefaultThemesForGame(
 
   // Filter presets based on gameType
   const relevantPresets = PRESET_THEMES.filter((p) => {
+    if (gameType === 'match-3') {
+      return p.slug === 'match-3' || p.slug.includes('match-3') || p.slug.includes('match3');
+    }
+    if (gameType === 'reaction-tap' || gameType === 'reaction-time') {
+      return p.slug.includes('reaction');
+    }
     if (gameType === 'memory-match') {
       return p.slug.includes('memory');
     }
-    return !p.slug.includes('memory');
+    return !p.slug.includes('memory') && !p.slug.includes('reaction') && !p.slug.includes('match-3');
   });
 
   const presetsToSeed = relevantPresets.length > 0
@@ -3010,6 +3432,7 @@ export async function ensureSystemDefaultThemesForGame(
       if (existingThemes && existingThemes.length > 0) {
         const existing = existingThemes[0];
         const needsRepair =
+          existing.game_id !== gameId ||
           existing.background_url !== preset.background_url ||
           existing.basket_config?.imageUrl !== preset.basket_config?.imageUrl;
 
@@ -3017,6 +3440,7 @@ export async function ensureSystemDefaultThemesForGame(
           const { data: updatedTheme } = await supabase
             .from('game_themes')
             .update({
+              game_id: gameId,
               background_url: preset.background_url,
               basket_config: preset.basket_config,
               items_config: preset.items_config,
@@ -3049,6 +3473,8 @@ export async function ensureSystemDefaultThemesForGame(
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       const isMemory = gameType === 'memory-match';
+      const isMatch3 = gameType === 'match-3';
+      const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
       const { data } = await safeInsertTheme(supabase, {
         id,
         organization_id: null,
@@ -3062,13 +3488,13 @@ export async function ensureSystemDefaultThemesForGame(
         status: 'active',
         branding: preset.branding,
         background_url: preset.background_url,
-        basket_config: isMemory ? (preset.basket_config ?? null) : (preset.basket_config ?? defaultThemeForGame.basket_config),
-        items_config: preset.items_config ?? defaultThemeForGame.items_config,
+        basket_config: (isMemory || isMatch3 || isReaction) ? null : (preset.basket_config ?? defaultThemeForGame.basket_config),
+        items_config: (isMatch3 || isReaction) ? [] : (preset.items_config ?? defaultThemeForGame.items_config),
         physics_config: preset.physics_config ?? defaultThemeForGame.physics_config,
         visuals_config: preset.visuals_config ?? defaultThemeForGame.visuals_config,
         sounds_config: preset.sounds_config ?? defaultThemeForGame.sounds_config,
         layout: (preset as any).layout ?? defaultThemeForGame.layout,
-        game_config: (preset as any).game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
+        game_config: (preset as any).game_config ?? (isMatch3 ? DEFAULT_MATCH3_THEME.game_config : isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
         created_at: now,
         updated_at: now,
       });

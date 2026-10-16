@@ -1,63 +1,114 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import {
   SupportedLanguage,
-  SUPPORTED_LANGUAGES,
   LanguageConfig,
+  SUPPORTED_LANGUAGES,
   DEFAULT_LANGUAGE,
+  LANGUAGE_STORAGE_KEY,
+  isSupportedLanguage,
+  normalizeLanguageCode,
 } from '../lib/i18n/languages';
-import {
-  detectInitialLanguage,
-  persistLanguage,
-  translate,
-  InterpolationParams,
-} from '../lib/i18n/i18n';
+import { resolveTranslatedContent } from '../lib/i18n/i18n';
+import { en } from '../locales/en';
+import { msMY } from '../locales/ms-MY';
+import { zhCN } from '../locales/zh-CN';
 
-export interface LocalizationContextValue {
+const TRANSLATIONS: Record<SupportedLanguage, any> = {
+  en,
+  'ms-MY': msMY,
+  'zh-CN': zhCN,
+};
+
+export interface LocalizationContextType {
   language: SupportedLanguage;
+  locale: SupportedLanguage;
   setLanguage: (lang: SupportedLanguage) => void;
-  t: (key: string, params?: InterpolationParams, defaultValue?: string) => string;
+  setLocale: (lang: SupportedLanguage) => void;
   supportedLanguages: LanguageConfig[];
   currentLanguageConfig: LanguageConfig;
-  isRtl: boolean;
-  /**
-   * Helper to resolve user-generated multilingual content objects or arrays:
-   * e.g., { 'en': 'Corporate Fiesta', 'zh-CN': '企业嘉年华' }
-   * or [{ language_code: 'zh-CN', title: '企业嘉年华' }]
-   */
-  resolveContent: (
-    translations?: Record<string, any> | Array<Record<string, any>> | null,
-    sourceFallback?: string | null,
-    field?: string
-  ) => string;
+  t: (key: string, params?: Record<string, any>, fallback?: string) => string;
+  resolveContent: (translations: any, original: string, field: string, sourceLang?: SupportedLanguage) => string;
 }
 
-const LocalizationContext = createContext<LocalizationContextValue | null>(null);
+const LocalizationContext = createContext<LocalizationContextType | undefined>(undefined);
 
-export interface LocalizationProviderProps {
-  children: React.ReactNode;
-  initialLanguage?: SupportedLanguage;
+function getNestedValue(obj: any, path: string): any {
+  if (!obj || !path) return undefined;
+  const parts = path.split('.');
+  let curr = obj;
+  for (const part of parts) {
+    if (curr === undefined || curr === null) return undefined;
+    curr = curr[part];
+  }
+  return curr;
 }
 
-export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
-  children,
-  initialLanguage,
-}) => {
+function interpolate(text: string, params?: Record<string, any>): string {
+  if (!params || typeof text !== 'string') return text;
+  return text
+    .replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
+      return params[key] !== undefined ? String(params[key]) : `{{${key}}}`;
+    })
+    .replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => {
+      return params[key] !== undefined ? String(params[key]) : `{${key}}`;
+    });
+}
+
+export const LocalizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<SupportedLanguage>(() => {
-    if (initialLanguage) return initialLanguage;
-    return detectInitialLanguage();
+    if (typeof window !== 'undefined') {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+          if (isSupportedLanguage(stored)) return stored;
+        }
+      } catch {
+        // Ignore storage access errors
+      }
+
+      // Check navigator.language
+      try {
+        const navLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
+        if (navLang) {
+          if (navLang.startsWith('zh')) return 'zh-CN';
+          if (navLang.startsWith('ms')) return 'ms-MY';
+        }
+      } catch {
+        // Ignore navigator errors
+      }
+    }
+    return DEFAULT_LANGUAGE;
   });
 
-  const setLanguage = useCallback((newLang: SupportedLanguage) => {
-    setLanguageState(newLang);
-    persistLanguage(newLang);
+  const setLanguage = useCallback((lang: SupportedLanguage) => {
+    const normalized = normalizeLanguageCode(lang);
+    setLanguageState(normalized);
+    if (typeof window !== 'undefined') {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+        }
+      } catch {
+        // Ignore storage write errors
+      }
+      try {
+        if (typeof document !== 'undefined' && document.documentElement) {
+          document.documentElement.lang = normalized;
+        }
+      } catch {
+        // Ignore DOM write errors
+      }
+    }
   }, []);
 
-  const t = useCallback(
-    (key: string, params?: InterpolationParams, defaultValue?: string): string => {
-      return translate(language, key, params, defaultValue);
-    },
-    [language]
-  );
+  const setLocale = setLanguage;
+  const locale = language;
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.lang = language;
+    }
+  }, [language]);
 
   const currentLanguageConfig = useMemo(() => {
     return (
@@ -66,89 +117,52 @@ export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
     );
   }, [language]);
 
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.lang = language;
-      document.documentElement.dir = currentLanguageConfig.direction;
-
-      // Sync locale class on documentElement and body for locale-specific CSS rules
-      const root = document.documentElement;
-      const targetClass = `app-locale-${language}`;
-      
-      const updateClassList = (el: HTMLElement) => {
-        const classesToRemove: string[] = [];
-        el.classList.forEach((cls) => {
-          if (cls.startsWith('app-locale-')) {
-            classesToRemove.push(cls);
-          }
-        });
-        classesToRemove.forEach((cls) => el.classList.remove(cls));
-        el.classList.add(targetClass);
-      };
-
-      updateClassList(root);
-      if (document.body) {
-        updateClassList(document.body);
+  const t = useCallback(
+    (key: string, params?: Record<string, any>, fallback?: string): string => {
+      // 1. Try current language
+      const val = getNestedValue(TRANSLATIONS[language], key);
+      if (typeof val === 'string') {
+        return interpolate(val, params);
       }
-    }
-  }, [language, currentLanguageConfig.direction]);
 
-  const resolveContent = useCallback(
-    (
-      translations?: Record<string, any> | Array<Record<string, any>> | null,
-      sourceFallback?: string | null,
-      field: string = 'title'
-    ): string => {
-      if (!translations && !sourceFallback) return '';
-      if (!translations) return sourceFallback || '';
-
-      // Array format: [{ language_code: 'zh-CN', title: '...', description: '...' }]
-      if (Array.isArray(translations)) {
-        if (translations.length === 0) return sourceFallback || '';
-        // 1. Exact match in active language
-        const match = translations.find((item) => item.language_code === language);
-        if (match && match[field] !== undefined && match[field] !== null && String(match[field]).trim().length > 0) {
-          return String(match[field]);
+      // 2. Fall back to English
+      if (language !== 'en') {
+        const enVal = getNestedValue(TRANSLATIONS.en, key);
+        if (typeof enVal === 'string') {
+          return interpolate(enVal, params);
         }
-        // 2. English translation fallback
-        const enMatch = translations.find((item) => item.language_code === DEFAULT_LANGUAGE || item.language_code === 'en');
-        if (enMatch && enMatch[field] !== undefined && enMatch[field] !== null && String(enMatch[field]).trim().length > 0) {
-          return String(enMatch[field]);
-        }
-        // 3. Source fallback
-        return sourceFallback || '';
       }
 
-      // Map format: { 'zh-CN': '...', 'en': '...' }
-      // 1. Exact match in current language
-      const targetVal = translations[language];
-      if (targetVal && typeof targetVal === 'string' && targetVal.trim().length > 0) {
-        return targetVal;
+      // 3. Fall back to provided fallback or key
+      if (fallback !== undefined) {
+        return interpolate(fallback, params);
       }
 
-      // 2. English translation fallback
-      const enVal = translations[DEFAULT_LANGUAGE] || translations['en'];
-      if (enVal && typeof enVal === 'string' && enVal.trim().length > 0) {
-        return enVal;
-      }
-
-      // 3. Original source fallback
-      return sourceFallback || '';
+      return key;
     },
     [language]
   );
 
-  const value = useMemo<LocalizationContextValue>(() => {
-    return {
+  const resolveContent = useCallback(
+    (translations: any, original: string, field: string, sourceLang?: SupportedLanguage): string => {
+      return resolveTranslatedContent(original, field, translations, language, sourceLang);
+    },
+    [language]
+  );
+
+  const value: LocalizationContextType = useMemo(
+    () => ({
       language,
+      locale,
       setLanguage,
-      t,
+      setLocale,
       supportedLanguages: SUPPORTED_LANGUAGES,
       currentLanguageConfig,
-      isRtl: currentLanguageConfig.direction === 'rtl',
+      t,
       resolveContent,
-    };
-  }, [language, setLanguage, t, currentLanguageConfig, resolveContent]);
+    }),
+    [language, locale, setLanguage, currentLanguageConfig, t, resolveContent]
+  );
 
   return (
     <LocalizationContext.Provider value={value}>
@@ -157,23 +171,20 @@ export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
   );
 };
 
-/**
- * Hook to access the centralized localization system.
- */
-export function useLocalization(): LocalizationContextValue {
+export const useLocalization = (): LocalizationContextType => {
   const context = useContext(LocalizationContext);
   if (!context) {
-    // Graceful fallback for non-wrapped components or tests
+    // Graceful fallback if rendered outside provider
     return {
       language: DEFAULT_LANGUAGE,
+      locale: DEFAULT_LANGUAGE,
       setLanguage: () => {},
-      t: (key: string, params?: InterpolationParams, defaultValue?: string) =>
-        translate(DEFAULT_LANGUAGE, key, params, defaultValue),
+      setLocale: () => {},
       supportedLanguages: SUPPORTED_LANGUAGES,
       currentLanguageConfig: SUPPORTED_LANGUAGES[0],
-      isRtl: false,
-      resolveContent: (_translations, sourceFallback) => sourceFallback || '',
+      t: (key: string, _params?: any, fallback?: string) => fallback || key,
+      resolveContent: (_translations: any, original: string) => original,
     };
   }
   return context;
-}
+};

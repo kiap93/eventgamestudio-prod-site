@@ -40,25 +40,19 @@ import {
   getWalletTransactions,
 } from './wallet.js';
 
+import { createUser } from './users.js';
+
 let passed = 0;
 let failed = 0;
 
 async function ensureTestUser(): Promise<string> {
-  const supabase = getSupabaseServerClient();
   try {
-    const { data: users } = await supabase.from('users').select('id').limit(1);
-    if (users && users.length > 0 && users[0].id) {
-      return users[0].id;
-    }
-    const fallbackId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
-    await supabase.from('users').upsert({
-      id: fallbackId,
-      email: 'test-wallet-topup@example.com',
+    const user = await createUser({
+      email: `test-wallet-user-${crypto.randomUUID().slice(0, 8)}@example.com`,
       name: 'Test Wallet User',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      email_verified: true,
     });
-    return fallbackId;
+    return user.id;
   } catch {
     return '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
   }
@@ -73,6 +67,7 @@ async function ensureTestOrg(orgId: string) {
       name: `Test Org ${orgId.slice(0, 8)}`,
       slug: `test-org-${orgId.slice(0, 8)}`,
       owner_id: validOwnerId,
+      country_code: 'MY',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });

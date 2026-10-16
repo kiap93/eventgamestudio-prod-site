@@ -438,7 +438,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
               <div className="text-lg font-bold text-cyan-400 font-mono">
                 {formatCurrency(wallet.welcome_credit, wallet.currency)}
               </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">Promotional manual grant</span>
+              <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.promotionalManualGrant', undefined, 'Promotional manual grant')}</span>
             </div>
             {!wallet.welcome_credit_granted && (
               <div className="mt-2.5 pt-2 border-t border-slate-800/80">
@@ -473,7 +473,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
             <div className="text-lg font-bold text-amber-400 font-mono">
               {formatCurrency(wallet.showcase_credit, wallet.currency)}
             </div>
-            <span className="text-[10px] text-slate-500 mt-1 block">RM300 review reward</span>
+            <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.showcaseReviewRewardDesc', undefined, 'RM300 review reward')}</span>
           </div>
 
           {/* Top-up Credit */}
@@ -484,7 +484,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
             <div className="text-lg font-bold text-purple-400 font-mono">
               {formatCurrency(wallet.topup_credit, wallet.currency)}
             </div>
-            <span className="text-[10px] text-slate-500 mt-1 block">Deposit bonus credits</span>
+            <span className="text-[10px] text-slate-500 mt-1 block">{t('developer.depositBonusCredits', undefined, 'Deposit bonus credits')}</span>
           </div>
         </div>
       </div>
@@ -658,10 +658,10 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Member</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Joined Date</th>
+                  <th className="py-3 px-4">{t('developer.colMember', undefined, 'Member')}</th>
+                  <th className="py-3 px-4">{t('developer.colEmail', undefined, 'Email')}</th>
+                  <th className="py-3 px-4">{t('developer.colRole', undefined, 'Role')}</th>
+                  <th className="py-3 px-4">{t('developer.colJoinedDate', undefined, 'Joined Date')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -733,12 +733,12 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Event Title</th>
-                    <th className="py-3 px-4">Game</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Event Price</th>
-                    <th className="py-3 px-4">Created</th>
-                    <th className="py-3 px-4 text-center">Public Link</th>
+                    <th className="py-3 px-4">{t('developer.colEventTitle', undefined, 'Event Title')}</th>
+                    <th className="py-3 px-4">{t('developer.colGame', undefined, 'Game')}</th>
+                    <th className="py-3 px-4">{t('developer.colStatus', undefined, 'Status')}</th>
+                    <th className="py-3 px-4 text-right">{t('developer.colEventPrice', undefined, 'Event Price')}</th>
+                    <th className="py-3 px-4">{t('developer.colCreated', undefined, 'Created')}</th>
+                    <th className="py-3 px-4 text-center">{t('developer.colPublicLink', undefined, 'Public Link')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -796,7 +796,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">
               Immutable Wallet Ledger Entries ({recent_transactions.length})
             </h3>
-            <span className="text-[11px] text-slate-400 font-mono">Source of Truth</span>
+            <span className="text-[11px] text-slate-400 font-mono">{t('developer.sourceOfTruth', undefined, 'Source of Truth')}</span>
           </div>
 
           {recent_transactions.length === 0 ? (
@@ -808,11 +808,11 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Type / Description</th>
-                    <th className="py-3 px-4 text-right">Amount</th>
-                    <th className="py-3 px-4 text-right">Balance After</th>
-                    <th className="py-3 px-4">Reference</th>
-                    <th className="py-3 px-4">Timestamp</th>
+                    <th className="py-3 px-4">{t('developer.colTypeDesc', undefined, 'Type / Description')}</th>
+                    <th className="py-3 px-4 text-right">{t('developer.colAmount', undefined, 'Amount')}</th>
+                    <th className="py-3 px-4 text-right">{t('developer.colBalanceAfter', undefined, 'Balance After')}</th>
+                    <th className="py-3 px-4">{t('developer.colReference', undefined, 'Reference')}</th>
+                    <th className="py-3 px-4">{t('developer.colTimestamp', undefined, 'Timestamp')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">

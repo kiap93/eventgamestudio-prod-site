@@ -16,7 +16,8 @@ import { getUserById, localUsersCache } from './users.js';
 import { getOrgMembers, addMember, OrgMemberWithUserDetails, localMembersCache } from './members.js';
 import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
-export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry } from '../../src/lib/countryUtils.js';
+import { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry, getCurrencyForCountry } from '../../src/lib/countryUtils.js';
+export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry, getCurrencyForCountry };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUUID(val: string): boolean {
@@ -325,7 +326,9 @@ export async function createOrganization(
     .join('');
   const slug = `${baseSlug || 'org'}-${randomSuffix}`;
 
-  const countryCode = params.country_code && params.country_code.trim() ? params.country_code.trim().toUpperCase() : 'MY';
+  const countryCode = params.country_code && params.country_code.trim()
+    ? params.country_code.trim().toUpperCase()
+    : 'MY';
 
   const orgRecord: OrganizationRecord = {
     id,
@@ -865,7 +868,7 @@ export async function getAllOrganizationsForDeveloper(
       const totalBalance = paidBalance + totalCredit;
       wallet = {
         organization_id: org.id,
-        currency: cachedWallet.currency || 'MYR',
+        currency: cachedWallet.currency || getCurrencyForCountry(org.country_code) || 'USD',
         paid_balance: paidBalance,
         welcome_credit: welcomeCredit,
         showcase_credit: showcaseCredit,

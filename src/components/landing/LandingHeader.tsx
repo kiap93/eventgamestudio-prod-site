@@ -126,7 +126,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
           <InternalLink
             to="/"
             className="flex items-center gap-3 group focus:outline-hidden"
-            aria-label="EventGameStudio Home"
+            aria-label={t('landing.homeAria', undefined, 'EventGameStudio Home')}
           >
             <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 shadow-xs group-hover:scale-105 transition-transform duration-200">
               <Gamepad2 className="w-5 h-5" />
@@ -220,6 +220,14 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
             }`}
           >
             <span>{t('landing.navContact')}</span>
+          </InternalLink>
+
+          {/* Sales Partner Program */}
+          <InternalLink
+            to="/sales/apply"
+            className="px-3 py-2 text-sm font-semibold rounded-lg transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 cursor-pointer"
+          >
+            <span>Partner Program</span>
           </InternalLink>
         </nav>
 
@@ -330,6 +338,13 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               className="block px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl cursor-pointer"
             >
               {t('landing.navContact')}
+            </InternalLink>
+            <InternalLink
+              to="/sales/apply"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-3 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50 rounded-xl cursor-pointer font-semibold"
+            >
+              Partner Program
             </InternalLink>
           </div>
 

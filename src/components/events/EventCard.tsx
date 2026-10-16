@@ -19,6 +19,7 @@ import {
   Eye,
   Share2,
   Globe,
+  FileText,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -35,6 +36,7 @@ import {
 } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
+import { EventInvoiceModal } from './EventInvoiceModal';
 import { useLocalization } from '../../context/LocalizationContext';
 
 interface EventCardProps {
@@ -60,6 +62,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   const [copiedShowcase, setCopiedShowcase] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   const publicUrl = `${window.location.origin}/play/${event.public_token}`;
   const targetShowcaseId = event.showcase?.id || event.id;
@@ -191,6 +194,8 @@ export const EventCard: React.FC<EventCardProps> = ({
 
   const gameName = event.game?.name || 'Catch The Brand';
   const themeName = event.game_theme?.name || 'Theme';
+  const eventCurr = (event.event_currency || 'USD').toUpperCase();
+  const currencyPrefix = eventCurr === 'MYR' ? 'RM ' : eventCurr === 'USD' ? '$' : eventCurr === 'SGD' ? 'S$' : `${eventCurr} `;
 
   const dateRangeFormatted = formatEventDateRange(
     availability.startDate,
@@ -264,15 +269,15 @@ export const EventCard: React.FC<EventCardProps> = ({
           }`}>
             {isPaid
               ? event.payment_mode === 'WELCOME_CREDIT'
-                ? `Welcome Credit (${event.paid_amount ? `RM ${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
+                ? `Welcome Credit (${event.paid_amount ? `${currencyPrefix}${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
                 : event.payment_mode === 'SHOWCASE_CREDIT'
-                ? `Showcase Credit (${event.paid_amount ? `RM ${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
+                ? `Showcase Credit (${event.paid_amount ? `${currencyPrefix}${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
                 : event.payment_mode === 'TOPUP_CREDIT'
-                ? `Top-up Promo (${event.paid_amount ? `RM ${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
+                ? `Top-up Promo (${event.paid_amount ? `${currencyPrefix}${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
                 : event.paid_amount !== undefined && event.paid_amount !== null && Number(event.paid_amount) > 0
-                ? `RM ${Number(event.paid_amount).toFixed(2)} Paid`
+                ? `${currencyPrefix}${Number(event.paid_amount).toFixed(2)} Paid`
                 : event.event_price !== undefined && event.event_price !== null && Number(event.event_price) > 0
-                ? `RM ${Number(event.event_price).toFixed(2)} Paid`
+                ? `${currencyPrefix}${Number(event.event_price).toFixed(2)} Paid`
                 : 'PAID'
               : isRefunded
               ? 'REFUNDED'
@@ -514,6 +519,21 @@ export const EventCard: React.FC<EventCardProps> = ({
             <Trophy className="w-3.5 h-3.5" />
             <span>{t('game.scores', undefined, 'Scores')}</span>
           </button>
+
+          {/* Action 4: Invoice button for paid / completed events */}
+          {isPaid && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowInvoiceModal(true);
+              }}
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              title={t('event.viewInvoice', undefined, 'View Official Tax Invoice')}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{t('event.invoice', undefined, 'Invoice')}</span>
+            </button>
+          )}
         </div>
 
         {!isViewer && (
@@ -578,6 +598,15 @@ export const EventCard: React.FC<EventCardProps> = ({
             setShowPaymentModal(false);
             if (onRefresh) onRefresh();
           }}
+        />
+      )}
+
+      {/* Official Tax Invoice Modal */}
+      {showInvoiceModal && (
+        <EventInvoiceModal
+          isOpen={showInvoiceModal}
+          onClose={() => setShowInvoiceModal(false)}
+          event={event}
         />
       )}
     </div>

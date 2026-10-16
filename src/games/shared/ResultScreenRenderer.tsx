@@ -7,6 +7,7 @@ import {
   generateDefaultResultScreenElements,
   generateDefaultCatchBrandResultScreenElements,
   generateDefaultReactionResultScreenElements,
+  generateDefaultMatch3ResultScreenElements,
 } from './resultScreenTypes';
 import { resolveScreenBackground } from '../../themes/screenBackground';
 import { GameTheme, GameLayoutConfig, getThemeGameType } from '../../themes/types';
@@ -126,6 +127,9 @@ export interface ResultScreenStats {
   rounds?: Array<{ round: number; reactionTimeMs: number; falseStart?: boolean }>;
   rating?: string;
   gameType?: string;
+  matches?: number;
+  bestCombo?: number;
+  specialTilesCreated?: number;
 }
 
 export interface ResultScreenRendererProps {
@@ -133,6 +137,7 @@ export interface ResultScreenRendererProps {
   stats: ResultScreenStats;
   theme?: Partial<GameTheme> | null;
   layout?: Partial<GameLayoutConfig> | null;
+  gameType?: string;
   onAction?: (action: 'playAgain' | 'exit' | string) => void;
   leaderboardSlot?: React.ReactNode;
   leaderboardData?: EventLeaderboardEntry[];
@@ -159,6 +164,7 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   stats,
   theme,
   layout,
+  gameType,
   onAction,
   leaderboardSlot,
   leaderboardData,
@@ -302,17 +308,27 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   const isReactionGame =
     stats.gameType === 'reaction-time' ||
     stats.gameType === 'reaction-tap' ||
+    gameType === 'reaction-time' ||
+    gameType === 'reaction-tap' ||
     (theme && (getThemeGameType(theme) === 'reaction-time' || getThemeGameType(theme) === 'reaction-tap'));
+
+  const isMatch3Game =
+    stats.gameType === 'match-3' ||
+    gameType === 'match-3' ||
+    (!isReactionGame && theme && getThemeGameType(theme) === 'match-3');
 
   const isCatchBrandGame =
     stats.gameType === 'catch-brand' ||
-    (!isReactionGame && theme && getThemeGameType(theme) === 'catch-brand');
+    gameType === 'catch-brand' ||
+    (!isReactionGame && !isMatch3Game && theme && getThemeGameType(theme) === 'catch-brand');
 
   const elements: ResultScreenElement[] =
     Array.isArray(resultConfig?.elements) && resultConfig.elements.length > 0
       ? resultConfig.elements
       : isReactionGame
       ? generateDefaultReactionResultScreenElements()
+      : isMatch3Game
+      ? generateDefaultMatch3ResultScreenElements(resultConfig || undefined)
       : isCatchBrandGame
       ? generateDefaultCatchBrandResultScreenElements(resultConfig || undefined)
       : generateDefaultResultScreenElements(resultConfig || undefined);

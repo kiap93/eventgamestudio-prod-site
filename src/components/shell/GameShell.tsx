@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { GameTheme, initActiveTheme, getThemeById, getThemeGameType } from '../../themes';
+import { GameTheme, initActiveTheme, getThemeById, getThemeGameType, resolveAuthoritativeGameType, normalizeGameType } from '../../themes';
 import { useResponsiveLayout } from '../../themes/responsive';
 import { GameSettings, GameState, GameStats } from '../../types';
 import { getGameSettings, mapServerSettingsToGameSettings, setActiveGameSettings } from '../../game/settings';
@@ -27,7 +27,7 @@ export interface GameShellProps {
 }
 
 export const GameShell: React.FC<GameShellProps> = ({
-  gameType = DEFAULT_GAME_TYPE,
+  gameType: gameTypeProp,
   theme,
   customTheme,
   customSettings,
@@ -48,21 +48,40 @@ export const GameShell: React.FC<GameShellProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const isFullscreen = controlledFullscreen !== undefined ? controlledFullscreen : internalFullscreen;
+  const isControlled = controlledFullscreen !== undefined;
+  const isFullscreen = isControlled ? controlledFullscreen : internalFullscreen;
 
-  // Current game definition lookup
-  const resolvedGameType = effectiveThemeProp
-    ? getThemeGameType(effectiveThemeProp, gameType || DEFAULT_GAME_TYPE)
-    : (gameType || (contextActiveTheme ? getThemeGameType(contextActiveTheme, DEFAULT_GAME_TYPE) : DEFAULT_GAME_TYPE));
+  // Authoritatively resolve canonical active game type
+  // Explicit gameTypeProp passed to GameShell is authoritative and must not be overridden
+  // by ambient organization activeGame from auth context.
+  const resolvedGameType = resolveAuthoritativeGameType({
+    shellGameType: gameTypeProp,
+    game: (!gameTypeProp || (activeGame && normalizeGameType(activeGame.game_type) === normalizeGameType(gameTypeProp))) ? activeGame : undefined,
+    theme: effectiveThemeProp || contextActiveTheme,
+  });
+
+  const resolveActiveTheme = (themeProp?: GameTheme | null, targetGameType: string = resolvedGameType): GameTheme => {
+    // Preserve caller's custom theme directly to protect visual assets, branding, and backgrounds
+    if (themeProp) {
+      const themeGt = getThemeGameType(themeProp, targetGameType);
+      if (normalizeGameType(themeGt) === targetGameType) {
+        return themeProp;
+      }
+      if (targetGameType === 'match-3' && (themeProp.id === 'match-3' || themeProp.slug === 'match-3' || (themeProp.name || '').toLowerCase().includes('match'))) {
+        return themeProp;
+      }
+    }
+    if (targetGameType === 'match-3') return getThemeById('match-3');
+    if (targetGameType === 'memory-match') return getThemeById('memory-match');
+    if (targetGameType === 'reaction-tap' || targetGameType === 'reaction-time') return getThemeById('reaction-time');
+    if (contextActiveTheme && getThemeGameType(contextActiveTheme, targetGameType) === targetGameType) return contextActiveTheme;
+    return initActiveTheme();
+  };
 
   // Active theme resolution
-  const [activeTheme, setActiveThemeState] = useState<GameTheme>(() => {
-    if (effectiveThemeProp) return effectiveThemeProp;
-    if (contextActiveTheme) return contextActiveTheme;
-    if (resolvedGameType === 'memory-match') return getThemeById('memory-match');
-    if (resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time') return getThemeById('reaction-time');
-    return initActiveTheme();
-  });
+  const [activeTheme, setActiveThemeState] = useState<GameTheme>(() =>
+    resolveActiveTheme(effectiveThemeProp, resolvedGameType)
+  );
 
   // Active settings resolution
   const [settings, setSettings] = useState<GameSettings>(
@@ -74,34 +93,43 @@ export const GameShell: React.FC<GameShellProps> = ({
 
   // Sync theme changes
   useEffect(() => {
-    if (effectiveThemeProp) {
-      setActiveThemeState(effectiveThemeProp);
-    } else if (contextActiveTheme) {
-      setActiveThemeState(contextActiveTheme);
-    } else if (resolvedGameType === 'memory-match') {
-      setActiveThemeState(getThemeById('memory-match'));
-    } else if (resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time') {
-      setActiveThemeState(getThemeById('reaction-time'));
-    }
+    setActiveThemeState(resolveActiveTheme(effectiveThemeProp, resolvedGameType));
   }, [effectiveThemeProp, contextActiveTheme, resolvedGameType]);
 
-  // Sync Supabase backend activeGame configuration to settings
+  // Sync Supabase backend activeGame configuration to settings only for matching game
   useEffect(() => {
     if (customSettings) {
       setSettings(customSettings);
-    } else if (activeGame && activeGame.settings_config) {
+    } else if (
+      activeGame &&
+      activeGame.settings_config &&
+      (resolvedGameType === 'catch-brand' || normalizeGameType(activeGame.game_type) === resolvedGameType)
+    ) {
       const serverSettings = mapServerSettingsToGameSettings(activeGame.settings_config);
       setSettings(serverSettings);
       setActiveGameSettings(serverSettings);
     }
-  }, [customSettings, activeGame]);
+  }, [customSettings, activeGame, resolvedGameType]);
 
-  // Fullscreen change listener
+  // Fullscreen change listener (strictly active only when GameShell is running in uncontrolled mode)
   useEffect(() => {
+    if (isControlled) return;
+
     const handleFullscreenChange = () => {
-      setInternalFullscreen(
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      const fsEl =
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement;
+
+      const isSelfFs = Boolean(
+        fsEl &&
+        (fsEl === containerRef.current ||
+         (containerRef.current?.contains(fsEl) ?? false) ||
+         fsEl === document.documentElement)
       );
+
+      setInternalFullscreen(isSelfFs);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -111,7 +139,7 @@ export const GameShell: React.FC<GameShellProps> = ({
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
-  }, []);
+  }, [isControlled]);
 
   const handleToggleFullscreen = async () => {
     if (controlledToggleFullscreen) {

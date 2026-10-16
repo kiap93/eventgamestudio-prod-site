@@ -292,7 +292,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               <div className="relative bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-center h-20 group">
                 <img
                   src={branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || ''}
-                  alt="Client Logo Preview"
+                  alt={t('studio.clientLogoPreviewAlt', undefined, 'Client Logo Preview')}
                   className="max-h-14 max-w-full object-contain"
                 />
                 <button

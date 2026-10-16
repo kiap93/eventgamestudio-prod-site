@@ -7,6 +7,7 @@ import { CustomDatePicker } from '../common/CustomDatePicker';
 import { DeveloperGamePricingManager } from './DeveloperGamePricingManager';
 import { getGameTypeIcon } from '../../games';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { COUNTRIES, getCountryByCode, getCountryDisplayName } from '../../lib/countryUtils';
 import {
   Coins,
   DollarSign,
@@ -68,6 +69,7 @@ export const DeveloperPricingManager: React.FC = () => {
   const [isEditingDefault, setIsEditingDefault] = useState<boolean>(false);
   const [tempDefaultPrice, setTempDefaultPrice] = useState<string>('');
   const [tempDefaultCurrency, setTempDefaultCurrency] = useState<string>('MYR');
+  const [tempDefaultCountry, setTempDefaultCountry] = useState<string>('US');
 
   // Pricing Rules Edit / Modal State
   const [pricingRules, setPricingRules] = useState<EventPricingRule[]>(DEFAULT_RULE_TEMPLATES);
@@ -141,6 +143,7 @@ export const DeveloperPricingManager: React.FC = () => {
           setPricingSettings(data.settings);
           setTempDefaultPrice(String(data.settings.default_price));
           setTempDefaultCurrency(data.settings.default_currency || 'MYR');
+          setTempDefaultCountry(data.settings.default_pricing_country || 'US');
           if (data.settings.pricing_rules && Array.isArray(data.settings.pricing_rules) && data.settings.pricing_rules.length > 0) {
             setPricingRules(data.settings.pricing_rules);
           } else {
@@ -188,6 +191,7 @@ export const DeveloperPricingManager: React.FC = () => {
         body: JSON.stringify({
           default_price: priceNum,
           default_currency: tempDefaultCurrency.trim().toUpperCase() || 'MYR',
+          default_pricing_country: tempDefaultCountry.trim().toUpperCase() || 'US',
           pricing_rules: pricingRules,
         }),
       });
@@ -232,6 +236,7 @@ export const DeveloperPricingManager: React.FC = () => {
         body: JSON.stringify({
           default_price: pricingSettings.default_price,
           default_currency: pricingSettings.default_currency,
+          default_pricing_country: pricingSettings.default_pricing_country || 'US',
           pricing_rules: rulesToSave,
         }),
       });
@@ -283,7 +288,7 @@ export const DeveloperPricingManager: React.FC = () => {
     setRuleFormMaxDays('1');
     setRuleFormIsUnlimited(false);
     setRuleFormPrice(pricingSettings?.default_price ? String(pricingSettings.default_price) : '');
-    setRuleFormCurrency(pricingSettings.default_currency || 'MYR');
+    setRuleFormCurrency(pricingSettings.default_currency || 'USD');
     setRuleFormActive(true);
   };
 
@@ -294,7 +299,7 @@ export const DeveloperPricingManager: React.FC = () => {
     setRuleFormMaxDays(rule.max_days !== null ? String(rule.max_days) : '');
     setRuleFormIsUnlimited(rule.max_days === null);
     setRuleFormPrice(String(rule.price));
-    setRuleFormCurrency(rule.currency || 'MYR');
+    setRuleFormCurrency(rule.currency || pricingSettings.default_currency || 'USD');
     setRuleFormActive(rule.active);
   };
 
@@ -322,7 +327,7 @@ export const DeveloperPricingManager: React.FC = () => {
       min_days: min,
       max_days: max,
       price: price,
-      currency: ruleFormCurrency.trim().toUpperCase() || 'MYR',
+      currency: ruleFormCurrency.trim().toUpperCase() || pricingSettings.default_currency || 'USD',
       active: ruleFormActive,
       updated_at: new Date().toISOString(),
     };
@@ -373,7 +378,7 @@ export const DeveloperPricingManager: React.FC = () => {
     );
     const resolvedPrice = event.effective_price ?? event.event_price ?? (matchedRule ? matchedRule.price : (pricingSettings?.default_price ?? ''));
     setTempEventPrice(String(resolvedPrice || ''));
-    setTempEventCurrency(event.event_currency || pricingSettings?.default_currency || 'MYR');
+    setTempEventCurrency(event.event_currency || pricingSettings?.default_currency || 'USD');
   };
 
   // Handle saving individual event custom price
@@ -396,7 +401,7 @@ export const DeveloperPricingManager: React.FC = () => {
         headers: getHeaders(),
         body: JSON.stringify({
           event_price: priceNum,
-          event_currency: tempEventCurrency.trim().toUpperCase() || 'MYR',
+          event_currency: tempEventCurrency.trim().toUpperCase() || pricingSettings?.default_currency || 'USD',
         }),
       });
 
@@ -405,7 +410,7 @@ export const DeveloperPricingManager: React.FC = () => {
         throw new Error(data.error || data.message || 'Failed to update event price');
       }
 
-      setSuccessMsg(data.message || `Event price updated to ${data.event.event_currency || 'MYR'} ${(data.event.event_price || priceNum).toFixed(2)}`);
+      setSuccessMsg(data.message || `Event price updated to ${data.event?.event_currency || tempEventCurrency || 'USD'} ${(data.event?.event_price || priceNum).toFixed(2)}`);
       setTimeout(() => setSuccessMsg(null), 5000);
       setSelectedEvent(null);
       fetchData();
@@ -528,7 +533,7 @@ export const DeveloperPricingManager: React.FC = () => {
             onClick={handleRunMaintenance}
             disabled={runningMaintenance || loading}
             className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer disabled:opacity-50"
-            title="Execute background maintenance job to cancel expired unpaid events and complete expired live events"
+            title={t('developer.executeMaintenanceTooltip', undefined, 'Execute background maintenance job to cancel expired unpaid events and complete expired live events')}
           >
             <ShieldCheck className={`w-3.5 h-3.5 ${runningMaintenance ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
             <span>{runningMaintenance ? t('developer.runningMaintenance') : t('developer.runLifecycleMaintenance')}</span>
@@ -716,9 +721,16 @@ export const DeveloperPricingManager: React.FC = () => {
                   </span>
                   <span className="text-xs text-slate-400 font-medium">{t('developer.calendarDay', undefined, '/ 1 calendar day')}</span>
                 </div>
-                <div className="flex items-center space-x-2 mt-2 text-[11px] text-slate-400">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{t('developer.serverAuthSetting', undefined, 'Server-authoritative database setting')}</span>
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-slate-400">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold">
+                    <span>{t('developer.defaultFallback', undefined, 'Default Fallback:')}</span>
+                    <span>{getCountryByCode(pricingSettings.default_pricing_country || 'US')?.flag} {getCountryDisplayName(pricingSettings.default_pricing_country || 'US')} ({pricingSettings.default_pricing_country || 'US'})</span>
+                  </span>
+                  <span>•</span>
+                  <div className="flex items-center space-x-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{t('developer.serverAuthSetting', undefined, 'Server-authoritative database setting')}</span>
+                  </div>
                   {pricingSettings.updated_at && (
                     <>
                       <span>•</span>
@@ -734,13 +746,13 @@ export const DeveloperPricingManager: React.FC = () => {
                   <span>{t('developer.authoritativePrice', undefined, 'Authoritative Price')} Rule:</span>
                 </div>
                 <p>
-                  Prices are locked into event records at creation time. Historical events preserve their original locked price.
+                  Prices are locked into event records at creation time. Historical events preserve their original locked price. Events in unconfigured countries fall back to the Default Fallback Country.
                 </p>
               </div>
             </div>
           ) : (
             <form onSubmit={handleSaveDefaultPricing} className="mt-6 pt-4 border-t border-slate-800 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     Default Base Price Amount
@@ -771,9 +783,26 @@ export const DeveloperPricingManager: React.FC = () => {
                     onChange={(e) => setTempDefaultCurrency(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
                   >
-                    <option value="MYR">MYR (Malaysian Ringgit)</option>
-                    <option value="USD">USD (US Dollar)</option>
-                    <option value="SGD">SGD (Singapore Dollar)</option>
+                    <option value="MYR">{t('developer.currencyMYR', undefined, 'MYR (Malaysian Ringgit)')}</option>
+                    <option value="USD">{t('developer.currencyUSD', undefined, 'USD (US Dollar)')}</option>
+                    <option value="SGD">{t('developer.currencySGD', undefined, 'SGD (Singapore Dollar)')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Default Fallback Country
+                  </label>
+                  <select
+                    value={tempDefaultCountry}
+                    onChange={(e) => setTempDefaultCountry(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.name} ({c.code})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -812,7 +841,7 @@ export const DeveloperPricingManager: React.FC = () => {
         {/* Quick Stat Summary Cards */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Duration Tiers</span>
+            <span className="text-slate-400 text-xs font-medium">{t('developer.durationBasedPricingTiers', undefined, 'Duration Tiers')}</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-amber-400 font-mono">{pricingRules.length}</span>
               <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.activeTierRules', undefined, 'Active tier rules')}</span>
@@ -820,7 +849,7 @@ export const DeveloperPricingManager: React.FC = () => {
           </div>
 
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Platform Events</span>
+            <span className="text-slate-400 text-xs font-medium">{t('developer.platformEvents', undefined, 'Platform Events')}</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-white font-mono">{events.length}</span>
               <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.acrossAllOrgs', undefined, 'Across all orgs')}</span>
@@ -828,7 +857,7 @@ export const DeveloperPricingManager: React.FC = () => {
           </div>
 
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Custom Overrides</span>
+            <span className="text-slate-400 text-xs font-medium">{t('developer.customOverrides', undefined, 'Custom Overrides')}</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-cyan-400 font-mono">{customPriceCount}</span>
               <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.adminCustomRates', undefined, 'Admin custom rates')}</span>
@@ -836,7 +865,7 @@ export const DeveloperPricingManager: React.FC = () => {
           </div>
 
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Credit Coverage</span>
+            <span className="text-slate-400 text-xs font-medium">{t('developer.creditCoverage', undefined, 'Credit Coverage')}</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-emerald-400 font-mono">20% Cap</span>
               <span className="block text-[10px] text-slate-500 mt-0.5">{t('developer.topUpBonusMax', undefined, 'Top-up bonus max')}</span>
@@ -887,10 +916,10 @@ export const DeveloperPricingManager: React.FC = () => {
                 <th className="px-5 py-3.5">{t('developer.durationRange', undefined, 'Duration Range')}</th>
                 <th className="px-5 py-3.5">{t('developer.minDaysHeader', undefined, 'Min Days')}</th>
                 <th className="px-5 py-3.5">{t('developer.maxDaysHeader', undefined, 'Max Days')}</th>
-                <th className="px-5 py-3.5">Authoritative Price</th>
+                <th className="px-5 py-3.5">{t('developer.authoritativePrice', undefined, 'Authoritative Price')}</th>
                 <th className="px-5 py-3.5">{t('developer.dailyEquivalent', undefined, 'Daily Equivalent')}</th>
-                <th className="px-5 py-3.5">Status</th>
-                <th className="px-5 py-3.5 text-right">Actions</th>
+                <th className="px-5 py-3.5">{t('common.status', undefined, 'Status')}</th>
+                <th className="px-5 py-3.5 text-right">{t('common.actions', undefined, 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -1090,13 +1119,13 @@ export const DeveloperPricingManager: React.FC = () => {
               <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">{t('developer.eventName', undefined, 'Event Name')}</th>
-                  <th className="px-5 py-3.5">Organization</th>
+                  <th className="px-5 py-3.5">{t('nav.organizations', undefined, 'Organization')}</th>
                   <th className="px-5 py-3.5">{t('developer.durationAndDates', undefined, 'Duration & Dates')}</th>
                   <th className="px-5 py-3.5">{t('developer.effectivePrice', undefined, 'Effective Price')}</th>
                   <th className="px-5 py-3.5">{t('developer.pricingStatus', undefined, 'Pricing Status')}</th>
                   <th className="px-5 py-3.5">{t('developer.eventStatus', undefined, 'Event Status')}</th>
-                  <th className="px-5 py-3.5">Payment Status</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
+                  <th className="px-5 py-3.5">{t('developer.paymentStatus', undefined, 'Payment Status')}</th>
+                  <th className="px-5 py-3.5 text-right">{t('common.actions', undefined, 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -1107,7 +1136,7 @@ export const DeveloperPricingManager: React.FC = () => {
                     (r) => r.active && duration >= r.min_days && (r.max_days === null || duration <= r.max_days)
                   );
                   const effectivePrice = ev.effective_price ?? ev.event_price ?? (matchedRule ? matchedRule.price : pricingSettings?.default_price ?? null);
-                  const currency = ev.event_currency || pricingSettings.default_currency || 'MYR';
+                  const currency = ev.event_currency || pricingSettings.default_currency || 'USD';
                   const eventStatus = (ev.event_status || ev.status || 'DRAFT').toUpperCase();
                   const paymentStatus = (ev.payment_status || (isPaid ? 'PAID' : 'UNPAID')).toUpperCase();
                   const isCancelled = eventStatus === 'CANCELLED';
@@ -1429,7 +1458,7 @@ export const DeveloperPricingManager: React.FC = () => {
                     );
                     const curPrice = selectedEvent.effective_price ?? selectedEvent.event_price ?? (matchedRule ? matchedRule.price : pricingSettings?.default_price ?? null);
                     return curPrice !== null
-                      ? `${selectedEvent.event_currency || pricingSettings?.default_currency || 'MYR'} ${curPrice.toFixed(2)}`
+                      ? `${selectedEvent.event_currency || pricingSettings?.default_currency || 'USD'} ${curPrice.toFixed(2)}`
                       : 'Pending Quote';
                   })()}
                 </span>
@@ -1467,9 +1496,9 @@ export const DeveloperPricingManager: React.FC = () => {
                   onChange={(e) => setTempEventCurrency(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
                 >
-                  <option value="MYR">MYR (Malaysian Ringgit)</option>
-                  <option value="USD">USD (US Dollar)</option>
-                  <option value="SGD">SGD (Singapore Dollar)</option>
+                  <option value="MYR">{t('developer.currencyMYR', undefined, 'MYR (Malaysian Ringgit)')}</option>
+                  <option value="USD">{t('developer.currencyUSD', undefined, 'USD (US Dollar)')}</option>
+                  <option value="SGD">{t('developer.currencySGD', undefined, 'SGD (Singapore Dollar)')}</option>
                 </select>
               </div>
 

@@ -262,35 +262,438 @@ export interface GameTheme {
   };
 }
 
+import { isUUID } from './gameAssetResolver';
+export { isUUID };
+
+/**
+ * Attempts to normalize a candidate game type or alias to a canonical GameTypeId.
+ * Returns null if the candidate is empty, a UUID, or unrecognized.
+ */
+export function tryNormalizeGameType(gameType?: string | null): string | null {
+  if (!gameType || typeof gameType !== 'string') return null;
+  const clean = gameType.trim().toLowerCase();
+  if (!clean || isUUID(clean)) return null;
+
+  if (
+    clean === 'match-3' ||
+    clean === 'match3' ||
+    clean === 'match_3' ||
+    clean === 'match 3' ||
+    clean === 'cascade' ||
+    clean.startsWith('match-3') ||
+    clean.startsWith('match3') ||
+    clean.includes('match-3') ||
+    clean.includes('match3') ||
+    clean.includes('match 3') ||
+    clean.includes('cascade')
+  ) {
+    return 'match-3';
+  }
+  if (
+    clean === 'reaction-tap' ||
+    clean === 'reaction-time' ||
+    clean === 'reaction_tap' ||
+    clean === 'reaction' ||
+    clean === 'reflex' ||
+    clean.includes('reaction') ||
+    clean.includes('reflex')
+  ) {
+    return 'reaction-tap';
+  }
+  if (
+    clean === 'memory-match' ||
+    clean === 'memory_match' ||
+    clean === 'memory-carnival' ||
+    clean === 'memory' ||
+    (clean.includes('memory') && !clean.includes('3'))
+  ) {
+    return 'memory-match';
+  }
+  if (
+    clean === 'speed-quiz' ||
+    clean === 'speed_quiz' ||
+    clean.includes('quiz') ||
+    clean.includes('trivia')
+  ) {
+    return 'speed-quiz';
+  }
+  if (
+    clean === 'catch-brand' ||
+    clean === 'catch_brand' ||
+    clean === 'catch-the-brand' ||
+    clean === 'catch' ||
+    clean === 'catcher' ||
+    clean === 'durian' ||
+    clean.includes('catch-brand') ||
+    clean.includes('catch_brand') ||
+    clean.includes('catch-the-brand')
+  ) {
+    return 'catch-brand';
+  }
+  return null;
+}
+
+/**
+ * Maps game type aliases (e.g. 'match3' -> 'match-3', 'reaction-time' -> 'reaction-tap')
+ */
+export function normalizeGameType(gameType?: string | null, fallback: string = 'catch-brand'): string {
+  const norm = tryNormalizeGameType(gameType);
+  if (norm) return norm;
+  return fallback;
+}
+
+export interface AuthoritativeGameTypeContext {
+  /** Active game record or nested game object */
+  game?: {
+    id?: string | null;
+    game_type?: string | null;
+    slug?: string | null;
+    name?: string | null;
+    game_type_id?: string | null;
+    [key: string]: any;
+  } | null;
+  /** Active event record or event preview/public DTO */
+  event?: {
+    id?: string | null;
+    game_type?: string | null;
+    slug?: string | null;
+    name?: string | null;
+    game?: any;
+    game_theme?: any;
+    theme?: any;
+    [key: string]: any;
+  } | null;
+  /** Explicit game type supplied to the game shell or caller */
+  shellGameType?: string | null;
+  /** Explicit game type parameter */
+  gameType?: string | null;
+  /** Explicit slug */
+  slug?: string | null;
+  /** Explicit game type ID */
+  gameTypeId?: string | null;
+  /** Theme object */
+  theme?: Partial<GameTheme> | null;
+  /** Game name, event name, or title */
+  name?: string | null;
+  /** Fallback */
+  fallback?: string;
+}
+
+/**
+ * Strictly checks if a theme genuinely declares or possesses identifiable Catch The Brand properties.
+ * Prevents generic custom themes with no distinctive assets from prematurely claiming catch-brand.
+ */
+export function isIdentifiableCatcherTheme(theme?: Partial<GameTheme> | null): boolean {
+  if (!theme) return false;
+  const baseThemeId = String(theme.base_theme_id || '').toLowerCase();
+  const themeId = String(theme.id || '').toLowerCase();
+  const themeSlug = String(theme.slug || '').toLowerCase();
+  const themeName = String(theme.name || '').toLowerCase();
+
+  if (
+    theme.game_type === 'catch-brand' ||
+    theme.game_slug === 'catch-brand' ||
+    baseThemeId === 'catch-brand' ||
+    baseThemeId === 'durian' ||
+    baseThemeId === 'carnival' ||
+    baseThemeId === 'christmas' ||
+    baseThemeId === 'cny' ||
+    baseThemeId === 'halloween' ||
+    baseThemeId === 'mango' ||
+    themeId === 'catch-brand' ||
+    themeId === 'durian' ||
+    themeId === 'carnival' ||
+    themeId === 'christmas' ||
+    themeId === 'cny' ||
+    themeId === 'halloween' ||
+    themeId === 'mango' ||
+    themeSlug.includes('catch') ||
+    themeSlug.includes('basket') ||
+    themeSlug.includes('durian') ||
+    themeName.includes('catch the brand') ||
+    themeName.includes('durian')
+  ) {
+    return true;
+  }
+
+  // Structural Catch-The-Brand properties
+  if (
+    theme.basket_config !== undefined &&
+    theme.basket_config !== null &&
+    (theme.basket_config.width > 0 || Boolean(theme.basket_config.name))
+  ) {
+    return true;
+  }
+  if (Array.isArray(theme.items_config) && theme.items_config.length > 0) {
+    return true;
+  }
+  if (Array.isArray((theme as any).drop_items) && (theme as any).drop_items.length > 0) {
+    return true;
+  }
+  if ((theme as any).theme_assets?.basket || (theme as any).theme_assets?.good_item) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Authoritative Canonical Game Type Resolver.
+ * Follows strict precedence:
+ * 1. Explicit, valid game type from the active game/event record.
+ * 2. Explicit game type supplied to the game shell.
+ * 3. Other reliable game identifiers, including game type ID and slug.
+ * 4. Theme game type when the active game type is genuinely unavailable.
+ * 5. Existing name/ID heuristics where appropriate.
+ * 6. 'catch-brand' only as the final fallback for genuinely unknown games.
+ */
+export function resolveAuthoritativeGameType(
+  contextOrGameType?: string | AuthoritativeGameTypeContext | null,
+  fallback: string = 'catch-brand'
+): string {
+  if (!contextOrGameType) {
+    return fallback;
+  }
+
+  if (typeof contextOrGameType === 'string') {
+    return normalizeGameType(contextOrGameType, fallback);
+  }
+
+  const ctx = contextOrGameType;
+  const defaultFallback = ctx.fallback || fallback || 'catch-brand';
+
+  // 1. Explicit shellGameType or explicit gameType specified directly by caller
+  const explicitCandidates = [
+    ctx.shellGameType,
+    ctx.gameType,
+  ];
+  for (const candidate of explicitCandidates) {
+    const norm = tryNormalizeGameType(candidate);
+    if (norm) {
+      return norm;
+    }
+  }
+
+  // 2. Event-bound game type (authoritative for live / preview events)
+  const eventCandidates = [
+    ctx.event?.game?.game_type,
+    ctx.event?.game_type,
+    ctx.event?.game?.slug,
+    ctx.event?.slug,
+  ];
+  for (const candidate of eventCandidates) {
+    const norm = tryNormalizeGameType(candidate);
+    if (norm) {
+      return norm;
+    }
+  }
+
+  // 3. Authoritative game record
+  const gameCandidates = [
+    ctx.game?.game_type,
+    ctx.game?.game_type_id,
+    ctx.game?.slug,
+    ctx.game?.id,
+    ctx.gameTypeId,
+    ctx.slug,
+  ];
+  for (const candidate of gameCandidates) {
+    const norm = tryNormalizeGameType(candidate);
+    if (norm) {
+      return norm;
+    }
+  }
+
+  // 4. Theme game type when the active game type is genuinely unavailable
+  const themeCandidate = ctx.theme || ctx.event?.game_theme || ctx.event?.theme;
+  if (themeCandidate) {
+    const themeGameType = getThemeGameType(themeCandidate);
+    if (themeGameType && themeGameType !== 'catch-brand') {
+      return themeGameType;
+    }
+    // Only claim catch-brand if the theme genuinely has Catch-The-Brand identifiers
+    if (themeGameType === 'catch-brand' && isIdentifiableCatcherTheme(themeCandidate)) {
+      return 'catch-brand';
+    }
+  }
+
+  // 5. Existing name/ID heuristics where appropriate
+  const nameCandidates = [
+    ctx.game?.name,
+    ctx.event?.name,
+    ctx.name,
+    themeCandidate?.name,
+    themeCandidate?.branding?.gameTitle,
+  ];
+  for (const name of nameCandidates) {
+    if (name && typeof name === 'string') {
+      const lower = name.toLowerCase();
+      if (
+        lower.includes('match-3') ||
+        lower.includes('match 3') ||
+        lower.includes('match3') ||
+        lower.includes('cascade')
+      ) {
+        return 'match-3';
+      }
+      if (lower.includes('reaction') || lower.includes('reflex')) {
+        return 'reaction-tap';
+      }
+      if (lower.includes('memory')) {
+        return 'memory-match';
+      }
+      if (lower.includes('quiz') || lower.includes('trivia')) {
+        return 'speed-quiz';
+      }
+      if (lower.includes('catch') || lower.includes('catcher') || lower.includes('durian') || lower.includes('basket')) {
+        return 'catch-brand';
+      }
+    }
+  }
+
+  // 6. catch-brand only as the final fallback for genuinely unknown games
+  return defaultFallback;
+}
+
 /**
  * Resolves the true game_type of a theme.
  * The theme itself is the primary source of truth for its game type.
  */
 export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGameType?: string): string {
-  if (!theme) return fallbackGameType || 'catch-brand';
-  if (theme.game_type) return theme.game_type;
-  if (theme.game_slug) return theme.game_slug;
+  if (!theme) return normalizeGameType(fallbackGameType || 'catch-brand');
+
+  // Check tileDefinitions or Match-3 distinctive properties in game_config FIRST (strictly unique to Match-3)
+  const gc = theme.game_config as any;
   if (
-    theme.base_theme_id === 'reaction-time' ||
-    theme.base_theme_id === 'reaction-tap' ||
-    theme.id === 'reaction-time' ||
-    theme.id === 'reaction-tap' ||
-    theme.slug?.includes('reaction') ||
-    (theme.name && theme.name.toLowerCase().includes('reaction'))
+    gc &&
+    (Array.isArray(gc.tileDefinitions) ||
+      gc.match3Config ||
+      gc.minimumMatch !== undefined ||
+      gc.cascadeEnabled !== undefined ||
+      gc.specialTilesEnabled !== undefined ||
+      gc.tileTypesCount !== undefined ||
+      (gc.rows !== undefined && gc.cols !== undefined && (gc.rows >= 3 || gc.cols >= 3)) ||
+      gc.scoring?.match3Points !== undefined ||
+      gc.scoring?.rocketPoints !== undefined ||
+      gc.screens?.start?.gameType === 'match-3' ||
+      gc.screens?.result?.gameType === 'match-3')
+  ) {
+    return 'match-3';
+  }
+  if (gc && (gc.cardPairs || gc.memoryConfig || gc.screens?.start?.gameType === 'memory-match' || gc.screens?.result?.gameType === 'memory-match')) {
+    return 'memory-match';
+  }
+  if (gc && (gc.reactionConfig || gc.lightsCount !== undefined || gc.screens?.start?.gameType === 'reaction-tap' || gc.screens?.start?.gameType === 'reaction-time')) {
+    return 'reaction-tap';
+  }
+
+  // Check game_id only if not a UUID
+  const rawGameId = String(theme.game_id || '').toLowerCase().trim();
+  if (rawGameId && !isUUID(rawGameId)) {
+    const normGameId = tryNormalizeGameType(rawGameId);
+    if (normGameId) {
+      return normGameId;
+    }
+  }
+
+  const baseThemeId = String(theme.base_theme_id || '').toLowerCase();
+  const themeId = String(theme.id || '').toLowerCase();
+  const themeSlug = String(theme.slug || '').toLowerCase();
+  const themeName = String(theme.name || '').toLowerCase();
+  const brandingTitle = String(theme.branding?.gameTitle || '').toLowerCase();
+
+  if (
+    baseThemeId === 'match-3' ||
+    baseThemeId === 'match3' ||
+    themeId === 'match-3' ||
+    themeId === 'match3' ||
+    themeSlug === 'match-3' ||
+    themeSlug.includes('match-3') ||
+    themeSlug.includes('match3') ||
+    themeName.includes('match-3') ||
+    themeName.includes('match 3') ||
+    themeName.includes('match3') ||
+    themeName.includes('cascade') ||
+    brandingTitle.includes('match-3') ||
+    brandingTitle.includes('match 3') ||
+    brandingTitle.includes('match3') ||
+    brandingTitle.includes('cascade')
+  ) {
+    return 'match-3';
+  }
+
+  if (
+    baseThemeId === 'reaction-time' ||
+    baseThemeId === 'reaction-tap' ||
+    themeId === 'reaction-time' ||
+    themeId === 'reaction-tap' ||
+    themeSlug.includes('reaction') ||
+    themeSlug.includes('reflex') ||
+    themeName.includes('reaction') ||
+    themeName.includes('reflex')
   ) {
     return 'reaction-tap';
   }
   if (
-    theme.base_theme_id === 'memory-carnival' ||
-    theme.base_theme_id === 'memory-match' ||
-    theme.id === 'memory-carnival' ||
-    theme.id === 'memory-match' ||
-    theme.slug?.includes('memory') ||
-    (theme.name && theme.name.toLowerCase().includes('memory'))
+    baseThemeId === 'memory-carnival' ||
+    baseThemeId === 'memory-match' ||
+    themeId === 'memory-carnival' ||
+    themeId === 'memory-match' ||
+    themeSlug.includes('memory') ||
+    themeName.includes('memory')
   ) {
     return 'memory-match';
   }
-  return fallbackGameType || 'catch-brand';
+
+  // Check explicit properties on theme object next, prioritizing non-catch-brand candidates
+  const explicitCandidates = [
+    theme.game_type,
+    theme.game_slug,
+    (theme as any).game_type_id,
+    (theme as any).game?.game_type,
+    (theme as any).game?.slug,
+    (theme as any).games?.game_type,
+    (theme as any).games?.slug,
+  ];
+
+  for (const c of explicitCandidates) {
+    const norm = tryNormalizeGameType(c);
+    if (norm && norm !== 'catch-brand') {
+      return norm;
+    }
+  }
+  for (const c of explicitCandidates) {
+    const norm = tryNormalizeGameType(c);
+    if (norm) {
+      return norm;
+    }
+  }
+
+  // If a non-catch-brand fallback was explicitly provided (e.g. from container or event context), respect it
+  if (fallbackGameType) {
+    const normFallback = tryNormalizeGameType(fallbackGameType);
+    if (normFallback && normFallback !== 'catch-brand') {
+      return normFallback;
+    }
+  }
+
+  if (
+    themeSlug.includes('catch') ||
+    themeSlug.includes('basket') ||
+    themeSlug.includes('durian') ||
+    themeName.includes('catch') ||
+    themeName.includes('catcher')
+  ) {
+    return 'catch-brand';
+  }
+  return normalizeGameType(fallbackGameType || 'catch-brand');
+}
+
+/**
+ * Checks if a theme belongs to Match-3.
+ */
+export function isMatch3Theme(theme?: Partial<GameTheme> | null, fallbackGameType?: string): boolean {
+  return getThemeGameType(theme, fallbackGameType) === 'match-3';
 }
 
 /**

@@ -49,8 +49,11 @@ assert(
 
 // 7. Relative-path fallback when no valid API base URL is configured
 delete (globalThis as any).window;
+const savedBuildEnv = (import.meta.env as any)?.VITE_API_BASE_URL;
+delete (import.meta.env as any)?.VITE_API_BASE_URL;
 assert(getApiBaseUrl() === '', 'Relative-path fallback returns empty string when no base URL is configured');
 assert(buildApiUrl('/api/auth/me') === '/api/auth/me', 'Resolves to relative path /api/auth/me when no base URL is configured');
+if (savedBuildEnv) (import.meta.env as any).VITE_API_BASE_URL = savedBuildEnv;
 
 // 8. Runtime configuration with intended API URL
 (globalThis as any).window = {

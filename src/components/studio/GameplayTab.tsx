@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme, isReactionTheme } from '../../themes';
+import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme, isReactionTheme, isMatch3Theme } from '../../themes';
 import { useLocalization } from '../../context/LocalizationContext';
 import { MemoryMatchGameplayCustomizer } from './games/MemoryMatchCustomizer';
 import { ReactionGameGameplayCustomizer } from './games/ReactionGameCustomizer';
+import { Match3GameplayCustomizer, Match3HazardsCustomizer } from './games/Match3Customizer';
 import {
   Zap,
   Clock,
@@ -26,6 +27,16 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
   const isReaction = isReactionTheme(theme);
   if (isReaction) {
     return <ReactionGameGameplayCustomizer theme={theme} onChange={onChange} />;
+  }
+
+  const isMatch3 = isMatch3Theme(theme);
+  if (isMatch3) {
+    return (
+      <div className="space-y-6">
+        <Match3GameplayCustomizer theme={theme} onChange={onChange} />
+        <Match3HazardsCustomizer theme={theme} onChange={onChange} />
+      </div>
+    );
   }
 
   const isMemoryMatch = isMemoryMatchTheme(theme);

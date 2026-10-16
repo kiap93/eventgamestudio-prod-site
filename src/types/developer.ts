@@ -1,4 +1,9 @@
 import { GameTheme } from '../themes/types';
+export type {
+  EventPricingRule,
+  PlatformPricingSettings,
+  PlatformContactSettings,
+} from '../../server/db/types';
 
 export interface PlatformGame {
   id: string;
@@ -29,35 +34,6 @@ export interface PlatformStats {
   activeThemes: number;
 }
 
-export interface EventPricingRule {
-  id: string;
-  min_days: number;
-  max_days: number | null; // null = unlimited (e.g., 91+ days)
-  price: number;
-  currency: string;
-  active: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface PlatformPricingSettings {
-  default_price: number;
-  default_currency: string;
-  pricing_rules?: EventPricingRule[];
-  updated_at?: string;
-  updated_by?: string | null;
-}
-
-export interface PlatformContactSettings {
-  whatsapp_number: string;
-  whatsapp_display: string;
-  whatsapp_prefill_message: string;
-  enquiry_email: string;
-  support_hours: string;
-  office_location: string;
-  updated_at?: string;
-  updated_by?: string | null;
-}
 
 export interface ContactEnquiry {
   id: string;

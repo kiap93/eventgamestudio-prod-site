@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { GameTheme, getThemeGameType, isMemoryMatchTheme, isReactionTheme } from '../../themes';
+import { GameTheme, getThemeGameType, isMemoryMatchTheme, isReactionTheme, isMatch3Theme } from '../../themes';
 import { deepEqual } from '../../lib/deepEqual';
 import { LiveThemePreview } from './LiveThemePreview';
 import { VisualsTab } from './VisualsTab';
@@ -411,7 +411,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
           <GameShell
             key={`live-game-${draftTheme.id}-${restartKey}`}
             customTheme={draftTheme}
-            gameType={getThemeGameType(draftTheme, activeGame?.game_type_id || activeGame?.slug || 'catch-brand')}
+            gameType={getThemeGameType(draftTheme, activeGame?.game_type || activeGame?.game_type_id || activeGame?.slug || 'catch-brand')}
             showCabinetFooter={false}
             className="w-full h-full"
             isFullscreen={isFullscreen}
@@ -686,6 +686,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                   ? `2. ${t('studio.gantryAndLights', undefined, 'Gantry & Lights')}`
                   : isMemoryMatchTheme(draftTheme)
                   ? `2. ${t('studio.cardPairs', undefined, 'Card Pairs')}`
+                  : isMatch3Theme(draftTheme)
+                  ? `2. ${t('studio.match3Tiles', undefined, 'Tiles & Specials')}`
                   : `2. ${t('studio.tabs.items', undefined, 'Items')}`}
               </span>
             </button>
@@ -787,6 +789,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               <AudioTab
                 theme={draftTheme}
                 onChange={handleThemeChange}
+                onUploadAsset={handleUploadAssetFile}
+                uploadingAsset={uploadingAsset}
               />
             )}
 

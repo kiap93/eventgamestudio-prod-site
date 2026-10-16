@@ -5,9 +5,11 @@ import crypto from 'node:crypto';
 
 export const ASSET_BUCKET = 'game-assets';
 export const SHOWCASE_BUCKET = 'showcase-media';
+export const INVOICE_BUCKET = 'invoices';
 
 export const ASSET_BUCKET_FILE_SIZE_LIMIT = 25 * 1024 * 1024; // 25MB
 export const SHOWCASE_BUCKET_FILE_SIZE_LIMIT = 200 * 1024 * 1024; // 200MB
+export const INVOICE_BUCKET_FILE_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
 
 let bucketCheckPromise: Promise<void> | null = null;
 
@@ -20,6 +22,7 @@ export interface StorageBucketConfig {
   name: string;
   fileSizeLimit: number;
   allowedMimeTypes?: string[];
+  public?: boolean;
 }
 
 export const STORAGE_BUCKET_DEFINITIONS: StorageBucketConfig[] = [
@@ -27,6 +30,7 @@ export const STORAGE_BUCKET_DEFINITIONS: StorageBucketConfig[] = [
     id: ASSET_BUCKET,
     name: ASSET_BUCKET,
     fileSizeLimit: ASSET_BUCKET_FILE_SIZE_LIMIT, // 25MB
+    public: true,
     allowedMimeTypes: [
       'image/png',
       'image/jpeg',
@@ -42,6 +46,7 @@ export const STORAGE_BUCKET_DEFINITIONS: StorageBucketConfig[] = [
     id: SHOWCASE_BUCKET,
     name: SHOWCASE_BUCKET,
     fileSizeLimit: SHOWCASE_BUCKET_FILE_SIZE_LIMIT, // 200MB
+    public: true,
     allowedMimeTypes: [
       'image/png',
       'image/jpeg',
@@ -51,7 +56,17 @@ export const STORAGE_BUCKET_DEFINITIONS: StorageBucketConfig[] = [
       'video/quicktime',
     ],
   },
+  {
+    id: INVOICE_BUCKET,
+    name: INVOICE_BUCKET,
+    fileSizeLimit: INVOICE_BUCKET_FILE_SIZE_LIMIT, // 10MB
+    public: false, // Private: invoices require authorized downloads
+    allowedMimeTypes: [
+      'application/pdf',
+    ],
+  },
 ];
+
 
 /**
  * Ensure that both storage buckets exist in Supabase Storage with correct file size limits:
@@ -75,7 +90,7 @@ export async function ensureStorageBuckets(env?: Record<string, any>): Promise<v
         const existing = buckets?.find((b) => b.name === config.id || b.id === config.id);
         if (!existing) {
           const { error: createError } = await supabase.storage.createBucket(config.id, {
-            public: true,
+            public: config.public ?? true,
             fileSizeLimit: config.fileSizeLimit,
             allowedMimeTypes: config.allowedMimeTypes,
           });
@@ -89,10 +104,11 @@ export async function ensureStorageBuckets(env?: Record<string, any>): Promise<v
           // (upgrading from the previous 10MB default conflict to 25MB for game-assets and 200MB for showcase-media).
           try {
             const { error: updateError } = await supabase.storage.updateBucket(config.id, {
-              public: true,
+              public: config.public ?? true,
               fileSizeLimit: config.fileSizeLimit,
               allowedMimeTypes: config.allowedMimeTypes,
             });
+
             if (updateError) {
               console.warn(`Notice: Could not update bucket ${config.id} settings:`, updateError.message);
             }

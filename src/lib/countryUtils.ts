@@ -108,6 +108,16 @@ export function getCountryDisplayName(code: string | null | undefined): string {
 }
 
 /**
+ * Lookup authoritative default currency code for an ISO 3166-1 alpha-2 country.
+ * Returns undefined if country is unknown/unsupported (never silently defaults to MYR).
+ */
+export function getCurrencyForCountry(code: string | null | undefined): string | undefined {
+  if (!code || typeof code !== 'string') return undefined;
+  const country = getCountryByCode(code);
+  return country?.currencyCode;
+}
+
+/**
  * Get the default reference timezone for an organization's country.
  *
  * IMPORTANT:
@@ -240,5 +250,38 @@ export function resolveEventTimezone(
 
   // 4. Default business timezone fallback
   return 'Asia/Singapore';
+}
+
+/**
+ * Detect client country from browser timezone settings.
+ * Returns undefined if detection fails or is unavailable.
+ */
+export function getCountryFromBrowserTimezone(): string | undefined {
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) {
+        // Direct match in SUPPORTED_TIMEZONES
+        const direct = SUPPORTED_TIMEZONES.find((st) => st.timezone === tz);
+        if (direct && direct.countryCode) return direct.countryCode;
+
+        // Prefix match by regional territory
+        if (tz.startsWith('America/')) return 'US';
+        if (tz.startsWith('Europe/London')) return 'GB';
+        if (tz.startsWith('Europe/Berlin')) return 'DE';
+        if (tz.startsWith('Europe/Paris')) return 'FR';
+        if (tz.startsWith('Asia/Kuala_Lumpur')) return 'MY';
+        if (tz.startsWith('Asia/Singapore')) return 'SG';
+        if (tz.startsWith('Asia/Bangkok')) return 'TH';
+        if (tz.startsWith('Asia/Ho_Chi_Minh')) return 'VN';
+        if (tz.startsWith('Asia/Jakarta')) return 'ID';
+        if (tz.startsWith('Asia/Manila')) return 'PH';
+        if (tz.startsWith('Asia/Tokyo')) return 'JP';
+        if (tz.startsWith('Asia/Seoul')) return 'KR';
+        if (tz.startsWith('Australia/')) return 'AU';
+      }
+    }
+  } catch (_) {}
+  return undefined;
 }
 

@@ -1,8 +1,26 @@
-export type ShowcaseStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED' | 'BLOCKED' | 'DELETED';
-export type ReviewStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
-export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
-export type RewardStatus = 'PENDING' | 'REWARDED' | 'NOT_ELIGIBLE';
-export type RewardReviewStatus = 'NOT_ELIGIBLE' | 'AWAITING_APPROVAL' | 'REWARDED' | 'REJECTED';
+import type {
+  ShowcaseStatus,
+  ReviewStatus,
+  PublicationStatus,
+  RewardStatus,
+  RewardReviewStatus,
+  ShowcaseModerationLog,
+  ShowcaseMediaType,
+  ShowcaseRewardSubmissionStatus,
+  ShowcaseRewardSubmissionRecord,
+} from '../../server/db/types';
+
+export type {
+  ShowcaseStatus,
+  ReviewStatus,
+  PublicationStatus,
+  RewardStatus,
+  RewardReviewStatus,
+  ShowcaseModerationLog,
+  ShowcaseMediaType,
+  ShowcaseRewardSubmissionStatus,
+  ShowcaseRewardSubmissionRecord,
+};
 
 export interface EventShowcase {
   id: string;
@@ -37,16 +55,6 @@ export interface EventShowcase {
   updated_at: string;
 }
 
-export interface ShowcaseModerationLog {
-  id: string;
-  showcase_id: string;
-  moderator_id: string;
-  action: 'BLOCK' | 'UNBLOCK' | 'DELETE' | 'RESTORE';
-  reason: string;
-  metadata?: Record<string, any>;
-  created_at: string;
-}
-
 export interface AdminShowcaseListItem extends EventShowcase {
   event_name?: string;
   organization_name?: string;
@@ -71,8 +79,6 @@ export interface ShowcaseFormData {
   cover_image_url?: string;
   status?: ShowcaseStatus;
 }
-
-export type ShowcaseMediaType = 'IMAGE' | 'VIDEO';
 
 export interface EventShowcaseMedia {
   id: string;
@@ -101,8 +107,6 @@ export interface UploadQueueItem {
   resultMedia?: EventShowcaseMedia;
 }
 
-export type ShowcaseRewardSubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-
 export interface ShowcaseRewardSubmission {
   id: string;
   showcase_id: string;
@@ -118,8 +122,6 @@ export interface ShowcaseRewardSubmission {
   created_at: string;
   updated_at: string;
 }
-
-export type ShowcaseRewardSubmissionRecord = ShowcaseRewardSubmission;
 
 export interface ShowcaseRewardSubmissionAdminItem extends ShowcaseRewardSubmission {
   showcase_title?: string;

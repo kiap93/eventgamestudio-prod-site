@@ -229,23 +229,23 @@ async function runPublicGamePricingTestSuite() {
 
   // Admin explicitly configures Catch the Brand: 1 day = RM1,400, 2 days = RM1,900, 3 days = RM2,200, 4–7 days = RM2,800
   localGamePricingCache.set(catchGame.id, [
-    { id: 'c1', game_id: catchGame.id, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', is_active: true, is_base: true, created_at: '', updated_at: '' },
-    { id: 'c2', game_id: catchGame.id, min_days: 2, max_days: 2, price: 1900, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
-    { id: 'c3', game_id: catchGame.id, min_days: 3, max_days: 3, price: 2200, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
-    { id: 'c4', game_id: catchGame.id, min_days: 4, max_days: 7, price: 2800, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
+    { id: 'c1', game_id: catchGame.id, country_code: 'MY', min_days: 1, max_days: 1, price: 1400, currency: 'MYR', is_active: true, is_base: true, created_at: '', updated_at: '' },
+    { id: 'c2', game_id: catchGame.id, country_code: 'MY', min_days: 2, max_days: 2, price: 1900, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
+    { id: 'c3', game_id: catchGame.id, country_code: 'MY', min_days: 3, max_days: 3, price: 2200, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
+    { id: 'c4', game_id: catchGame.id, country_code: 'MY', min_days: 4, max_days: 7, price: 2800, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
   ]);
 
   // Admin explicitly configures Memory Match: only 1–3 days = RM2,000 and 5–7 days = RM3,000 (gap at day 4!)
   localGamePricingCache.set(memoryGame.id, [
-    { id: 'm1', game_id: memoryGame.id, min_days: 1, max_days: 3, price: 2000, currency: 'MYR', is_active: true, is_base: true, created_at: '', updated_at: '' },
-    { id: 'm2', game_id: memoryGame.id, min_days: 5, max_days: 7, price: 3000, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
+    { id: 'm1', game_id: memoryGame.id, country_code: 'MY', min_days: 1, max_days: 3, price: 2000, currency: 'MYR', is_active: true, is_base: true, created_at: '', updated_at: '' },
+    { id: 'm2', game_id: memoryGame.id, country_code: 'MY', min_days: 5, max_days: 7, price: 3000, currency: 'MYR', is_active: true, is_base: false, created_at: '', updated_at: '' },
   ]);
 
   // Reaction Tap remains unconfigured (tiers: [])
   localGamePricingCache.set(reactionGame.id, []);
 
-  // Fetch updated public games pricing
-  const updatedRes = await getPublicGamesPricing(workerEnv);
+  // Fetch updated public games pricing for MY
+  const updatedRes = await getPublicGamesPricing('MY', workerEnv);
   const updatedCatch = updatedRes.games.find((g) => g.id === catchGame.id)!;
   const updatedMemory = updatedRes.games.find((g) => g.id === memoryGame.id)!;
   const updatedReaction = updatedRes.games.find((g) => g.id === reactionGame.id)!;
@@ -270,7 +270,7 @@ async function runPublicGamePricingTestSuite() {
   console.log('✓ Public pricing endpoint returns configured tiers accurately; unconfigured returns empty tiers');
 
   // Verify Cloudflare Worker endpoint
-  const workerReq = new Request('https://api.eventgamestudio.local/api/public/games/pricing', {
+  const workerReq = new Request('https://api.eventgamestudio.local/api/public/games/pricing?country=MY', {
     method: 'GET',
   });
   const workerRes = await worker.fetch(workerReq, workerEnv, {} as any);

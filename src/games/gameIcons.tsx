@@ -6,12 +6,13 @@ import {
   Grid3X3,
   Gamepad2,
   HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 
 /**
  * Canonical game engine types supported across Event Game Studio.
  */
-export type CanonicalGameType = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz';
+export type CanonicalGameType = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz' | 'match-3';
 
 /**
  * Normalizes a game type, slug, or name to its canonical identifier.
@@ -20,6 +21,18 @@ export type CanonicalGameType = 'catch-brand' | 'reaction-tap' | 'memory-match' 
 export function normalizeGameType(gameType?: string | null): string {
   if (!gameType) return '';
   const normalized = gameType.trim().toLowerCase().replace(/_/g, '-');
+
+  if (
+    normalized === 'match-3' ||
+    normalized.startsWith('match-3') ||
+    normalized === 'match3' ||
+    normalized.includes('match-3') ||
+    normalized.includes('match3') ||
+    normalized.includes('match 3') ||
+    normalized.includes('cascade')
+  ) {
+    return 'match-3';
+  }
 
   if (
     normalized === 'reaction-tap' ||
@@ -33,7 +46,7 @@ export function normalizeGameType(gameType?: string | null): string {
   if (
     normalized === 'memory-match' ||
     normalized.includes('memory') ||
-    normalized.includes('match')
+    (normalized.includes('match') && !normalized.includes('3'))
   ) {
     return 'memory-match';
   }
@@ -79,6 +92,9 @@ export function getGameTypeIconComponent(gameTypeOrIconName?: string | null): Lu
   const canonical = normalizeGameType(raw);
 
   // 1. Check canonical game types
+  if (canonical === 'match-3') {
+    return Sparkles;
+  }
   if (canonical === 'reaction-tap') {
     return Zap;
   }
@@ -94,6 +110,9 @@ export function getGameTypeIconComponent(gameTypeOrIconName?: string | null): Lu
 
   // 2. Check direct Lucide icon names if passed (e.g. from database icon_name field)
   const lower = raw.toLowerCase();
+  if (lower === 'sparkles' || lower === 'gem' || lower === 'match3' || lower === 'match-3') {
+    return Sparkles;
+  }
   if (lower === 'zap' || lower === 'timer' || lower === 'gauge') {
     return Zap;
   }
@@ -117,6 +136,8 @@ export function getGameTypeIconComponent(gameTypeOrIconName?: string | null): Lu
 export function getDefaultGameTypeIconName(gameType?: string | null): string {
   const canonical = normalizeGameType(gameType);
   switch (canonical) {
+    case 'match-3':
+      return 'Sparkles';
     case 'reaction-tap':
       return 'Zap';
     case 'memory-match':
@@ -132,6 +153,12 @@ export function getDefaultGameTypeIconName(gameType?: string | null): string {
 
 /**
  * Convenience helper rendering a sized React JSX icon element for a game type or icon name.
+ * 
+ * Usage:
+ * - Render directly as JSX expression: `{getGameTypeIcon(gameType, 'w-6 h-6')}`
+ * - For a component tag `<Icon className="..." />`, use `getGameTypeIconComponent(gameType)`.
+ *   Never pass the result of `getGameTypeIcon` to `<IconComp />` because it returns a ReactElement object,
+ *   which causes React Error #130 ("Element type is invalid: expected string/composite but got object").
  */
 export function getGameTypeIcon(
   gameTypeOrIconName?: string | null,
@@ -147,6 +174,8 @@ export function getGameTypeIcon(
 export function formatGameTypeName(gameType?: string | null): string {
   const canonical = normalizeGameType(gameType);
   switch (canonical) {
+    case 'match-3':
+      return 'Match-3';
     case 'reaction-tap':
       return 'Reaction Tap';
     case 'memory-match':

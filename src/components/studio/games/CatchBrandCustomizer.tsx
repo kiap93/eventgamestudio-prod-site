@@ -148,7 +148,7 @@ export const CatchBrandVisualsCustomizer: React.FC<CatchBrandVisualsCustomizerPr
             <div className="w-28 h-20 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center p-2 shrink-0">
               <img
                 src={currentCatcherUrl}
-                alt="Current Catcher"
+                alt={t('customizers.currentCatcher', undefined, 'Current Catcher')}
                 className="max-h-full max-w-full object-contain filter drop-shadow-md"
                 referrerPolicy="no-referrer"
               />
@@ -994,7 +994,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-500 font-mono">
-                <span>Interactive Scaled Canvas Preview (1024 × 576)</span>
+                <span>{t('customizers.interactiveScaledCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}</span>
                 <span className="text-slate-600">•</span>
                 <span className="text-amber-400 font-semibold">
                   Scale: {resultScaleInfo.scale.toFixed(3)}

@@ -5,7 +5,7 @@ import { CreateThemeDialog } from './CreateThemeDialog';
 import { RenameThemeDialog } from './RenameThemeDialog';
 import { GameCatalogModal } from './GameCatalogModal';
 import { GameShell } from '../shell/GameShell';
-import { GameTheme } from '../../themes';
+import { GameTheme, getThemeGameType } from '../../themes';
 import { useLocalization } from '../../context/LocalizationContext';
 import {
   Palette,
@@ -382,7 +382,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           <GameShell
             key={`live-game-${playingTheme.id}-${restartKey}`}
             customTheme={playingTheme}
-            gameType={activeGame?.game_type_id || activeGame?.slug || 'catch-brand'}
+            gameType={getThemeGameType(playingTheme, activeGame?.game_type || activeGame?.game_type_id || activeGame?.slug || 'catch-brand')}
             showCabinetFooter={false}
             className="w-full h-full"
             isFullscreen={isFullscreen}

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { GameTheme, isMemoryMatchTheme } from '../../themes';
+import { GameTheme, isMemoryMatchTheme, isMatch3Theme } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchAudioTester } from './games/MemoryMatchCustomizer';
+import { Match3AudioEditor, Match3AudioTester } from './games/Match3Customizer';
+import { match3Sounds } from '../../games/match-3/match3Sounds';
 import { useLocalization } from '../../context/LocalizationContext';
 import {
   Volume2,
@@ -20,11 +22,30 @@ import {
 interface AudioTabProps {
   theme: GameTheme;
   onChange: (updated: GameTheme) => void;
+  onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
+  uploadingAsset?: string | null;
 }
 
-export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
+export const AudioTab: React.FC<AudioTabProps> = ({
+  theme,
+  onChange,
+  onUploadAsset,
+  uploadingAsset,
+}) => {
   const { t } = useLocalization();
   const isMemoryMatch = isMemoryMatchTheme(theme);
+  const isMatch3 = isMatch3Theme(theme);
+
+  if (isMatch3) {
+    return (
+      <Match3AudioEditor
+        theme={theme}
+        onChange={onChange}
+        onUploadAsset={onUploadAsset}
+        uploadingAsset={uploadingAsset}
+      />
+    );
+  }
 
   const [isPlayingBgmSample, setIsPlayingBgmSample] = useState(false);
   const [showCustomAudioUrls, setShowCustomAudioUrls] = useState(false);
@@ -42,21 +63,42 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
   };
 
   const handleUpdateSounds = (updates: Partial<typeof sounds>) => {
+    const nextSounds = {
+      ...sounds,
+      ...updates,
+    };
     onChange({
       ...theme,
-      sounds_config: {
-        ...sounds,
-        ...updates,
-      },
+      sounds_config: nextSounds,
+      // If Match-3, sync top-level sound attributes into game_config
+      ...(isMatch3 && theme.game_config
+        ? {
+            game_config: {
+              ...(theme.game_config as any),
+              soundEnabled: nextSounds.soundEnabled,
+              soundVolume: nextSounds.soundVolume,
+              bgmEnabled: nextSounds.bgmEnabled,
+            },
+          }
+        : {}),
     });
   };
 
   const handleToggleBgmSample = () => {
     if (isPlayingBgmSample) {
-      soundManager.stopBgm();
+      if (isMatch3) {
+        match3Sounds.stopBgm();
+      } else {
+        soundManager.stopBgm();
+      }
       setIsPlayingBgmSample(false);
     } else {
-      soundManager.startBgm();
+      if (isMatch3) {
+        match3Sounds.setVolume(sounds.soundVolume ?? 0.8);
+        match3Sounds.startBgm();
+      } else {
+        soundManager.startBgm();
+      }
       setIsPlayingBgmSample(true);
     }
   };
@@ -122,20 +164,34 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
             <div className="flex justify-between items-center text-xs">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                 <Music className="w-3.5 h-3.5 text-amber-400" />
-                {t('studio.bgmArpeggiator', undefined, 'BGM Background Arpeggiator')}
+                {t('studio.bgmArpeggiator', undefined, 'Background Music (BGM)')}
               </span>
-              <button
-                type="button"
-                onClick={handleToggleBgmSample}
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
-                  isPlayingBgmSample
-                    ? 'bg-rose-500 text-slate-100 animate-pulse'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {isPlayingBgmSample ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                <span>{isPlayingBgmSample ? t('studio.stopMusic', undefined, 'Stop Music') : t('studio.testMusic', undefined, 'Test Music')}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateSounds({ bgmEnabled: !sounds.bgmEnabled })}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    sounds.bgmEnabled
+                      ? 'bg-emerald-600 text-slate-950 shadow-md'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                  title="Toggle background music on or off"
+                >
+                  {sounds.bgmEnabled ? 'BGM ON' : 'BGM OFF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleBgmSample}
+                  className={`px-2 py-0.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                    isPlayingBgmSample
+                      ? 'bg-rose-500 text-slate-100 animate-pulse'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {isPlayingBgmSample ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  <span>{isPlayingBgmSample ? t('studio.stopMusic', undefined, 'Stop') : t('studio.testMusic', undefined, 'Preview')}</span>
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-slate-500">
               {t('studio.proceduralChiptunesDesc', undefined, 'Procedural chip tunes synthesize dynamic chord arpeggios live in browser memory')}
@@ -145,7 +201,9 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
       </div>
 
       {/* 2. INTERACTIVE SOUND EFFECTS TESTER PALETTE */}
-      {isMemoryMatch ? (
+      {isMatch3 ? (
+        <Match3AudioTester />
+      ) : isMemoryMatch ? (
         <MemoryMatchAudioTester />
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">

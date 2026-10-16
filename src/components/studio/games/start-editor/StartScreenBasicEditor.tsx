@@ -347,7 +347,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 <div className="relative w-full sm:w-48 aspect-video rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
                   <img
                     src={currentBgImageUrl}
-                    alt="Start Screen Background"
+                    alt={t('editor.startScreenBg', undefined, 'Start Screen Background')}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />

@@ -576,7 +576,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={currentBgImageUrl}
-                      alt="Result Screen Background"
+                      alt={t('editor.resultScreenBg', undefined, 'Result Screen Background')}
                       referrerPolicy="no-referrer"
                       className="w-16 h-12 rounded-xl object-cover border border-slate-700 shrink-0"
                     />

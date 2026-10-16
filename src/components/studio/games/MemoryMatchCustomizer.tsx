@@ -243,7 +243,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
               <div className="w-14 h-14 bg-slate-950/80 rounded-xl border border-amber-500/30 flex items-center justify-center p-1.5 shadow-inner">
                 <img
                   src={currentCardBackUrl}
-                  alt="Card Back"
+                  alt={t('game.cardBackAlt', undefined, 'Card Back')}
                   className="max-h-full max-w-full object-contain filter drop-shadow group-hover:scale-105 transition-transform"
                   referrerPolicy="no-referrer"
                 />
@@ -496,7 +496,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 {/* Preset Color Swatches */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Quick Color Presets
+                    {t('customizers.quickColorPresets', undefined, 'Quick Color Presets')}
                   </label>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {CARD_FRONT_BG_PRESETS.map((preset) => {
@@ -560,7 +560,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                     className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                   />
                   <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>{t('customizers.transparent', undefined, '0% (Transparent)')}</span>
+                    <span>{t('customizers.transparentPct', undefined, '0% (Transparent)')}</span>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -611,7 +611,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                         100%
                       </button>
                     </div>
-                    <span>{t('customizers.solid', undefined, '100% (Solid)')}</span>
+                    <span>{t('customizers.solidPct', undefined, '100% (Solid)')}</span>
                   </div>
                 </div>
               </div>
@@ -685,7 +685,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
               <div className="flex-1 w-full space-y-3">
                 {/* Color Input & Hex Code */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-slate-300">Background Color</label>
+                  <label className="text-[11px] font-semibold text-slate-300">{t('editor.backgroundColor', undefined, 'Background Color')}</label>
                   <div className="flex items-center gap-2">
                     <div className="relative w-9 h-9 rounded-xl border border-slate-700 overflow-hidden shrink-0 shadow-inner bg-slate-900">
                       <input
@@ -731,7 +731,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 {/* Preset Color Swatches */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Quick Color Presets
+                    {t('customizers.quickColorPresets', undefined, 'Quick Color Presets')}
                   </label>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {CARD_GOOD_BG_PRESETS.map((preset) => {
@@ -771,7 +771,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 {/* Opacity Slider */}
                 <div className="space-y-1.5 pt-1">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-slate-300">Background Opacity</span>
+                    <span className="font-semibold text-slate-300">{t('customizers.backgroundOpacity', undefined, 'Background Opacity')}</span>
                     <span className="font-mono text-emerald-400 font-bold">
                       {Math.round((theme.visuals_config?.cardGoodBgOpacity ?? 0.85) * 100)}%
                     </span>
@@ -795,7 +795,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                     className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                   />
                   <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>0% (Transparent)</span>
+                    <span>{t('customizers.transparentPct', undefined, '0% (Transparent)')}</span>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -846,7 +846,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                         100%
                       </button>
                     </div>
-                    <span>100% (Solid)</span>
+                    <span>{t('customizers.solidPct', undefined, '100% (Solid)')}</span>
                   </div>
                 </div>
               </div>
@@ -1612,7 +1612,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
         </div>
       </div>
 
-      {/* 2. {t('customizers.cardDimensionsShape', undefined, 'Card Dimensions, Shape & Rotation')} Section */}
+      {/* 2. {t('customizers.cardDimensionsShapeRotation', undefined, 'Card Dimensions, Shape & Rotation')} Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1620,7 +1620,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               <Layers className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Card Dimensions, Shape & Rotation</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.cardDimensionsShapeRotation', undefined, 'Card Dimensions, Shape & Rotation')}</h3>
               <p className="text-xs text-slate-400">
                 Configure card width, height, corner roundness, and individual card rotation
               </p>
@@ -2130,7 +2130,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
           {/* {t('customizers.comboStreakBonus', undefined, 'Combo Streak Bonus')} */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-300">Combo Streak Bonus</span>
+              <span className="text-xs font-semibold text-slate-300">{t('customizers.comboStreakBonus', undefined, 'Combo Streak Bonus')}</span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 +{gameplay.comboPoints || 30} pts/streak
               </span>
@@ -2156,7 +2156,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               <Award className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Leaderboard & Social Display</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.leaderboardSocialDisplay', undefined, 'Leaderboard & Social Display')}</h3>
               <p className="text-xs text-slate-400">
                 Control whether the arcade high-score board and player submission prompt appear
               </p>
@@ -2576,7 +2576,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-500 font-mono">
-                <span>Interactive Scaled Canvas Preview (1024 × 576)</span>
+                <span>{t('customizers.interactiveScaledCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}</span>
                 <span className="text-slate-600">•</span>
                 <span className="text-amber-400 font-semibold">
                   Scale: {resultScaleInfo.scale.toFixed(3)}
@@ -2616,7 +2616,7 @@ export const MemoryMatchAudioTester: React.FC = () => {
           <Volume2 className="w-4 h-4" />
         </span>
         <div>
-          <h3 className="text-sm font-bold text-slate-100">Memory Sound FX Previews</h3>
+          <h3 className="text-sm font-bold text-slate-100">{t('customizers.memorySoundFxPreviews', undefined, 'Memory Sound FX Previews')}</h3>
           <p className="text-xs text-slate-400">
             Synthesized zero-latency Web Audio sound effects crafted for card matching
           </p>

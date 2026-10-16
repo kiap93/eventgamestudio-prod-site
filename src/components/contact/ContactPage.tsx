@@ -1,876 +1,439 @@
-import React, { useState, useRef } from 'react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { LandingHeader } from '../landing/LandingHeader';
+import { LandingFooter } from '../landing/LandingFooter';
+import { SEO } from '../common/SEO';
+import { getPageSeo } from '../../lib/seo';
+import { useLocalization } from '../../context/LocalizationContext';
+import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
+import { apiFetch } from '../../lib/api';
+import { InternalLink } from '../common/InternalLink';
 import {
-  MessageCircle,
+  MessageSquare,
   Mail,
   Clock,
   MapPin,
   Send,
   CheckCircle2,
   AlertCircle,
+  ExternalLink,
   Sparkles,
-  ArrowLeft,
-  Calendar,
-  Users,
-  Building2,
-  Phone,
-  HelpCircle,
-  ShieldCheck,
-  ChevronDown,
   ArrowRight,
-  Layers,
-  Gamepad2,
-  Tag,
-  Wrench,
-  Sliders,
-  Radio,
-  FileQuestion,
+  ShieldCheck,
+  Calendar,
+  Building2,
+  Users,
 } from 'lucide-react';
-import { LandingHeader } from '../landing/LandingHeader';
-import { LandingFooter } from '../landing/LandingFooter';
-import { CustomDatePicker } from '../common/CustomDatePicker';
-import { SEO } from '../common/SEO';
-import { getPageSeo } from '../../lib/seo';
-import { navigateTo } from '../../hooks/useRouteContext';
-import { useLocalization } from '../../context/LocalizationContext';
-import { useAuth } from '../../context/AuthContext';
-import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
-import { apiFetch } from '../../lib/api';
-import { InternalLink } from '../common/InternalLink';
-
-interface FormState {
-  fullName: string;
-  email: string;
-  phone: string;
-  company: string;
-  category: string;
-  eventDate: string;
-  expectedAttendees: string;
-  message: string;
-  website: string;
-}
-
-const INITIAL_FORM: FormState = {
-  fullName: '',
-  email: '',
-  phone: '',
-  company: '',
-  category: 'Event booking / activation',
-  eventDate: '',
-  expectedAttendees: '',
-  message: '',
-  website: '',
-};
-
-interface FormErrors {
-  fullName?: string;
-  email?: string;
-  message?: string;
-}
 
 export const ContactPage: React.FC = () => {
   const { t } = useLocalization();
-  const { isAuthenticated } = useAuth();
-  const {
-    whatsappDisplay,
-    whatsappUrl,
-    enquiryEmail,
-    mailtoUrl,
-    supportHours,
-    officeLocation,
-  } = usePlatformContactSettings();
-
   const pageSeo = getPageSeo('/contact');
+  const { settings } = usePlatformContactSettings();
 
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [ticketId, setTicketId] = useState<string>('');
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // FAQ accordion state
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const idempotencyKeyRef = useRef<string>(
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `egs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  );
-
-  const categories = [
-    { id: 'Event booking / activation', label: t('contact.typeSales') },
-    { id: 'Custom branding & game design', label: t('contact.typeCustomGame') },
-    { id: 'Agency partnership', label: t('contact.typePartnership') },
-    { id: 'Technical support & kiosk setup', label: t('contact.typeSupport') },
-    { id: 'General enquiry', label: t('contact.typeGeneral') },
-  ];
-
-  const validate = (): boolean => {
-    const errs: FormErrors = {};
-
-    if (!form.fullName.trim()) {
-      errs.fullName = t('contact.errNameRequired');
-    } else if (form.fullName.trim().length < 2) {
-      errs.fullName = t('contact.errNameMin');
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!form.email.trim()) {
-      errs.email = t('contact.errEmailRequired');
-    } else if (!emailRegex.test(form.email.trim())) {
-      errs.email = t('contact.errEmailInvalid');
-    }
-
-    if (!form.message.trim()) {
-      errs.message = t('contact.errMessageRequired');
-    } else if (form.message.trim().length < 10) {
-      errs.message = t('contact.errMessageMin');
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [company, setCompany] = useState('');
+  const [category, setCategory] = useState('Event booking / activation');
+  const [message, setMessage] = useState('');
+  const [website, setWebsite] = useState(''); // Anti-bot honeypot
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [ticketId, setTicketId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [idempotencyKey] = useState(() => `contact_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitError(null);
+    setErrorMessage(null);
 
-    if (!validate()) return;
+    if (!fullName.trim() || fullName.trim().length < 2) {
+      setErrorMessage(t('contact.errNameMin', undefined, 'Full name must be at least 2 characters.'));
+      return;
+    }
 
-    setIsSubmitting(true);
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMessage(t('contact.errEmailInvalid', undefined, 'Please enter a valid email address.'));
+      return;
+    }
 
+    if (!message.trim() || message.trim().length < 10) {
+      setErrorMessage(t('contact.errMessageMin', undefined, 'Message must be at least 10 characters.'));
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const res = await apiFetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
-          idempotencyKey: idempotencyKeyRef.current,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          company: company.trim(),
+          category,
+          message: message.trim(),
+          website: website.trim(), // honeypot
+          idempotencyKey,
         }),
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (res.ok && data?.success && data?.ticketId) {
-        setTicketId(data.ticketId);
-        setIsSuccess(true);
-        setSubmitError(null);
-      } else {
-        const errorMessage =
-          data?.error ||
-          data?.message ||
-          (res.status === 429
-            ? t('contact.errRateLimit')
-            : t('contact.errSubmitFailed'));
-        setSubmitError(errorMessage);
-        setIsSuccess(false);
-        setTicketId('');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t('contact.errSubmitFailed', undefined, 'Unable to submit enquiry.'));
       }
-    } catch (networkErr: any) {
-      setSubmitError(t('contact.errNetwork'));
-      setIsSuccess(false);
-      setTicketId('');
+
+      setSubmitSuccess(true);
+      setTicketId(data.ticketId || null);
+    } catch (err: any) {
+      setErrorMessage(err.message || t('contact.errSubmitFailed', undefined, 'Unable to submit enquiry.'));
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const handleReset = () => {
-    setForm(INITIAL_FORM);
-    setErrors({});
-    setIsSuccess(false);
-    setTicketId('');
-    setSubmitError(null);
-    idempotencyKeyRef.current =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `egs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  };
-
-  const handleCreateEvent = () => {
-    if (isAuthenticated) {
-      navigateTo('/events');
-    } else {
-      navigateTo('/login?redirect=/events');
-    }
-  };
-
-  const faqItems = [
-    { q: t('contact.faq1Q'), a: t('contact.faq1A') },
-    { q: t('contact.faq2Q'), a: t('contact.faq2A') },
-    { q: t('contact.faq3Q'), a: t('contact.faq3A') },
-  ];
+  const whatsappClean = (settings.whatsapp_number || '601136783717').replace(/[^0-9]/g, '');
+  const whatsappUrl = `https://wa.me/${whatsappClean}?text=${encodeURIComponent(
+    settings.whatsapp_prefill_message || "Hello Event Game Studio! I'm interested in interactive game activations for an upcoming event."
+  )}`;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-amber-100 selection:text-amber-900 flex flex-col justify-between">
-      {/* Central SEO Head Configuration */}
-      <SEO config={pageSeo} />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+      <SEO
+        title={pageSeo.title}
+        description={pageSeo.description}
+        canonical={pageSeo.canonical}
+        h1={pageSeo.h1}
+        breadcrumbs={pageSeo.breadcrumbs}
+      />
 
-      {/* Universal White Navigation Header */}
-      <LandingHeader />
+      <LandingHeader onOpenCatalog={() => {}} />
 
-      <main className="flex-1 pt-12 pb-20 md:pt-16 md:pb-28">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 md:space-y-16">
-          {/* Breadcrumb Navigation */}
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-            <button
-              onClick={() => navigateTo('/')}
-              className="inline-flex items-center gap-1 hover:text-amber-600 transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>{t('common.backToHome')}</span>
-            </button>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">{t('nav.contact')}</span>
-          </div>
-
+      <main className="flex-1 pt-24 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Hero Section */}
-          <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 uppercase tracking-widest">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>{t('contact.badge')}</span>
+          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{t('contact.badge', undefined, 'Event Producer & Agency Support')}</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-              {t('contact.heroTitle')}
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-100 tracking-tight">
+              {t('contact.heroTitle', undefined, "Let's Make Your Event Playable.")}
             </h1>
 
-            <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-              {t('contact.heroSubtitle')}
+            <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-2xl mx-auto">
+              {t('contact.heroSubtitle', undefined, 'Connect with our event specialists about event setup, game customization, transparent pricing, large-scale deployments, or custom requirements.')}
             </p>
-
-            {/* Topic Pills */}
-            <div className="flex flex-wrap items-center gap-2 pt-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-                <Wrench className="w-3.5 h-3.5 text-amber-600" />
-                <span>{t('contact.topicSetup')}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-                <Sliders className="w-3.5 h-3.5 text-amber-600" />
-                <span>{t('contact.topicCustomization')}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-                <Tag className="w-3.5 h-3.5 text-amber-600" />
-                <span>{t('contact.topicPricing')}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-                <Radio className="w-3.5 h-3.5 text-amber-600" />
-                <span>{t('contact.topicDeployments')}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>{t('contact.topicCustomRequirements')}</span>
-              </span>
-            </div>
           </div>
 
-          {/* Main 2-Column Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-            {/* Left Column: Direct WhatsApp + Contact Info + Live Event CTA */}
+            {/* Left Column: Direct WhatsApp & Info */}
             <div className="lg:col-span-5 space-y-6">
-              {/* Option A: WhatsApp VIP Card */}
-              {whatsappUrl && (
-                <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-emerald-500/10 via-emerald-50 to-white border border-emerald-200 shadow-md shadow-emerald-500/5 relative overflow-hidden">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-[#25D366] text-white flex items-center justify-center shadow-md shadow-emerald-600/20">
-                        <MessageCircle className="w-6 h-6 fill-white" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                          {t('contact.whatsappFastest')}
-                        </div>
-                        <h2 className="text-xl font-black text-slate-900">
-                          {t('contact.whatsappCardTitle')}
-                        </h2>
-                      </div>
-                    </div>
-
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      {t('contact.whatsappLiveSupport')}
-                    </span>
+              {/* WhatsApp Card */}
+              <div className="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl flex items-center justify-center text-emerald-400">
+                    <MessageSquare className="w-6 h-6" />
                   </div>
-
-                  <p className="text-sm text-slate-600 leading-relaxed mb-6">
-                    {t('contact.whatsappCardDesc')}
-                  </p>
-
-                  <div className="space-y-2.5 mb-6 bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-emerald-100 text-xs text-slate-600">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">{t('contact.businessWhatsapp')}</span>
-                      <span className="font-bold text-slate-900 font-mono">{whatsappDisplay}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">{t('contact.averageReplyTime')}</span>
-                      <span className="font-semibold text-emerald-700">{t('contact.fifteenMinutes')}</span>
-                    </div>
-                  </div>
-
-                  <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3.5 px-6 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-sm shadow-md shadow-emerald-600/25 hover:shadow-emerald-600/40 transition-all flex items-center justify-center gap-2.5 group cursor-pointer"
-                  >
-                    <MessageCircle className="w-4 h-4 fill-white" />
-                    <span>{t('contact.startWhatsapp')}</span>
-                  </a>
-                </div>
-              )}
-
-              {/* Option B: Direct Email & Support Hours */}
-              <div className="rounded-3xl p-6 sm:p-8 bg-slate-50 border border-slate-200/80 space-y-6">
-                <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                  {t('contact.infoTitle')}
-                </h2>
-
-                <div className="space-y-4 text-sm">
-                  {/* Email */}
-                  {enquiryEmail && (
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center shrink-0">
-                        <Mail className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-slate-500">{t('contact.emailEnquiries')}</div>
-                        <a
-                          href={mailtoUrl}
-                          className="text-sm font-bold text-slate-900 hover:text-amber-600 transition-colors"
-                        >
-                          {enquiryEmail}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Hours */}
-                  {supportHours && (
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-slate-500">{t('contact.supportHours')}</div>
-                        <div className="text-sm font-bold text-slate-900">
-                          {supportHours}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Location */}
-                  {officeLocation && (
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 flex items-center justify-center shrink-0">
-                        <MapPin className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-slate-500">{t('contact.coverageRegion')}</div>
-                        <div className="text-sm font-bold text-slate-900">
-                          {officeLocation}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {t('contact.whatsappFastest', undefined, 'Fastest Response')}
+                  </span>
                 </div>
 
-                {/* Priority Note */}
-                <div className="pt-4 border-t border-slate-200">
-                  <div className="flex items-start gap-2.5 text-xs text-slate-600 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200/70">
-                    <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <span>
-                      <strong>{t('contact.weekendLiveEventTitle')}</strong> {t('contact.weekendLiveEventDesc')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Option C: Instant Event / Sales Action Card */}
-              <div className="rounded-3xl p-6 sm:p-8 bg-slate-900 text-white space-y-4">
-                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
-                  <Gamepad2 className="w-4 h-4" />
-                  <span>{t('contact.selfServeBadge')}</span>
-                </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">
-                  {t('contact.createEventCtaTitle')}
+                <h3 className="text-lg font-bold text-slate-100 mb-2">
+                  {t('contact.whatsappCardTitle', undefined, 'Chat on WhatsApp')}
                 </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  {t('contact.createEventCtaDesc')}
+                <p className="text-xs text-slate-300 leading-relaxed mb-6">
+                  {t('contact.whatsappCardDesc', undefined, 'Need a rapid quote, game recommendation, or emergency on-site kiosk assistance? Message our operations desk directly on WhatsApp.')}
                 </p>
-                <button
-                  onClick={handleCreateEvent}
-                  className="w-full py-3 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
-                >
-                  <span>{t('contact.createEventBtn')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
 
-              {/* FAQ Accordion in Sidebar */}
-              <div className="rounded-3xl p-6 bg-white border border-slate-200/80 space-y-4">
-                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                  <HelpCircle className="w-4 h-4 text-amber-500" />
-                  <span>{t('contact.linkFaq')}</span>
+                <div className="space-y-3 mb-6 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-xs">
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span>{t('contact.businessWhatsapp', undefined, 'Business WhatsApp:')}</span>
+                    <span className="font-mono font-bold text-emerald-400">{settings.whatsapp_display}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span>{t('contact.averageReplyTime', undefined, 'Average Reply Time:')}</span>
+                    <span className="font-bold text-slate-200">{t('contact.fifteenMinutes', undefined, '~15 Minutes')}</span>
+                  </div>
                 </div>
 
-                <div className="space-y-2 text-xs">
-                  {faqItems.map((faq, index) => (
-                    <div
-                      key={index}
-                      className="border border-slate-200 rounded-xl overflow-hidden transition-colors"
-                    >
-                      <button
-                        type="button"
-                        id={`faq-header-${index}`}
-                        aria-expanded={openFaq === index}
-                        aria-controls={`faq-body-${index}`}
-                        onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                        className="w-full text-left p-3 font-semibold text-slate-800 flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <span>{faq.q}</span>
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                            openFaq === index ? 'rotate-180 text-amber-600' : ''
-                          }`}
-                        />
-                      </button>
-                      {openFaq === index && (
-                        <div
-                          id={`faq-body-${index}`}
-                          role="region"
-                          aria-labelledby={`faq-header-${index}`}
-                          className="px-3 pb-3 text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/50"
-                        >
-                          {faq.a}
-                        </div>
-                      )}
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>{t('contact.startWhatsapp', undefined, 'Start WhatsApp Conversation')}</span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+
+              {/* Operations Information */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5">
+                <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
+                  {t('contact.infoTitle', undefined, 'Contact Information')}
+                </h3>
+
+                <div className="space-y-4 text-xs">
+                  <div className="flex items-start gap-3 text-slate-300">
+                    <Mail className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-slate-200">{t('contact.emailEnquiries', undefined, 'Email Enquiries')}</p>
+                      <a href={`mailto:${settings.enquiry_email}`} className="text-slate-400 hover:text-amber-400 transition-colors">
+                        {settings.enquiry_email}
+                      </a>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="flex items-start gap-3 text-slate-300">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-slate-200">{t('contact.supportHours', undefined, 'Support Hours')}</p>
+                      <p className="text-slate-400 leading-relaxed">{settings.support_hours}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 text-slate-300">
+                    <MapPin className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-slate-200">{t('contact.coverageRegion', undefined, 'Coverage Region')}</p>
+                      <p className="text-slate-400 leading-relaxed">{settings.office_location}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Priority dispatch banner */}
+                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 text-xs text-amber-300/90 leading-relaxed">
+                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-amber-400">{t('contact.weekendLiveEventTitle', undefined, 'Running a live event?')} </span>
+                    {t('contact.weekendLiveEventDesc', undefined, 'Active paid event organizers receive priority emergency WhatsApp dispatch coverage on setup and event days.')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick links card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3 text-xs">
+                <h4 className="font-bold text-slate-200">{t('contact.quickHelpTitle', undefined, 'Looking for something else?')}</h4>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <InternalLink to="/#pricing" className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-400 transition-all block">
+                    <p className="font-bold">{t('contact.linkPricing', undefined, 'Pricing & Calculator')}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{t('contact.linkPricingDesc', undefined, 'Duration tiers')}</p>
+                  </InternalLink>
+                  <InternalLink to="/games" className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-400 transition-all block">
+                    <p className="font-bold">{t('contact.linkGames', undefined, 'Game Catalog')}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{t('contact.linkGamesDesc', undefined, 'Explore mini-games')}</p>
+                  </InternalLink>
+                  <InternalLink to="/#solutions" className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-400 transition-all block">
+                    <p className="font-bold">{t('contact.linkSolutions', undefined, 'Event Solutions')}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{t('contact.linkSolutionsDesc', undefined, 'Corporate & roadshows')}</p>
+                  </InternalLink>
+                  <InternalLink to="/events" className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-400 transition-all block">
+                    <p className="font-bold">{t('contact.linkCreateEvent', undefined, 'Create an Event')}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{t('contact.linkCreateEventDesc', undefined, 'Instant activation')}</p>
+                  </InternalLink>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Interactive Enquiry Form */}
-            <div className="lg:col-span-7">
-              <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-10 shadow-sm relative">
-                {isSuccess ? (
-                  <div className="text-center py-10 sm:py-14 space-y-6">
-                    <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border-2 border-emerald-300">
-                      <CheckCircle2 className="w-8 h-8" />
-                    </div>
+            {/* Right Column: Contact Form */}
+            <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative">
+              <div className="mb-6 space-y-1">
+                <h2 className="text-xl font-bold text-slate-100">
+                  {t('contact.formTitle', undefined, 'Send an Enquiry')}
+                </h2>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {t('contact.formSubtitle', undefined, "Fill in the details below and we'll prepare custom recommendations tailored to your event format and audience size.")}
+                </p>
+              </div>
 
-                    <div className="space-y-2 max-w-md mx-auto">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-mono font-bold">
-                        {t('contact.reference')} {ticketId}
-                      </div>
-                      <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                        {t('contact.successTitle')}
+              {submitSuccess ? (
+                <div className="space-y-6 py-6">
+                  <div className="p-6 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-3 text-emerald-400">
+                      <CheckCircle2 className="w-6 h-6" />
+                      <h3 className="text-base font-bold text-emerald-300">
+                        {t('contact.successTitle', undefined, 'Enquiry Received!')}
                       </h3>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        {t('contact.successDesc', { name: form.fullName })}
-                      </p>
                     </div>
-
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 max-w-md mx-auto text-left text-xs space-y-2">
-                      <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
-                        {t('contact.submissionSummary')}
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">{t('contact.contactEmailLabel')}</span>
-                        <span className="font-semibold text-slate-800">{form.email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">{t('contact.topicLabel')}</span>
-                        <span className="font-semibold text-slate-800">{form.category}</span>
-                      </div>
-                      {form.eventDate && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">{t('contact.targetDateLabel')}</span>
-                          <span className="font-semibold text-slate-800">{form.eventDate}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-                      <button
-                        onClick={handleReset}
-                        className="px-6 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        {t('contact.submitAnother')}
-                      </button>
-                      <button
-                        onClick={() => navigateTo('/')}
-                        className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                      >
-                        {t('contact.exploreGames')}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
-                        {t('contact.formTitle')}
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-600">
-                        {t('contact.formSubtitle')}
-                      </p>
-                    </div>
-
-                    {/* Anti-bot Honeypot field - hidden from humans */}
-                    <div className="hidden" aria-hidden="true">
-                      <label htmlFor="contact-website">Website</label>
-                      <input
-                        type="text"
-                        id="contact-website"
-                        name="website"
-                        value={form.website}
-                        tabIndex={-1}
-                        autoComplete="off"
-                        onChange={(e) => setForm({ ...form, website: e.target.value })}
-                      />
-                    </div>
-
-                    {submitError && (
-                      <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>{submitError}</span>
-                      </div>
-                    )}
-
-                    {/* Category Selection Chips */}
-                    <div className="space-y-2">
-                      <label id="category-group-label" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        {t('contact.categoryLabel')} <span className="text-amber-500">*</span>
-                      </label>
-                      <div
-                        role="radiogroup"
-                        aria-labelledby="category-group-label"
-                        className="grid grid-cols-1 sm:grid-cols-2 gap-2"
-                      >
-                        {categories.map((cat) => (
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={form.category === cat.id}
-                            key={cat.id}
-                            onClick={() => setForm({ ...form, category: cat.id })}
-                            className={`p-2.5 rounded-xl text-xs font-medium text-left border transition-all cursor-pointer ${
-                              form.category === cat.id
-                                ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold shadow-xs'
-                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            {cat.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Full Name & Work Email */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label htmlFor="contact-fullName" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.fullName')} <span className="text-amber-500">*</span>
-                        </label>
-                        <input
-                          id="contact-fullName"
-                          name="fullName"
-                          type="text"
-                          required
-                          aria-required="true"
-                          aria-invalid={!!errors.fullName}
-                          aria-describedby={errors.fullName ? 'contact-fullName-error' : undefined}
-                          value={form.fullName}
-                          onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                          placeholder={t('contact.namePlaceholder')}
-                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 ${
-                            errors.fullName ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300 focus:border-amber-500'
-                          }`}
-                        />
-                        {errors.fullName && (
-                          <p id="contact-fullName-error" role="alert" className="text-[11px] text-rose-600 font-medium">
-                            {errors.fullName}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label htmlFor="contact-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.workEmail')} <span className="text-amber-500">*</span>
-                        </label>
-                        <input
-                          id="contact-email"
-                          name="email"
-                          type="email"
-                          required
-                          aria-required="true"
-                          aria-invalid={!!errors.email}
-                          aria-describedby={errors.email ? 'contact-email-error' : undefined}
-                          value={form.email}
-                          onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          placeholder={t('contact.emailPlaceholder')}
-                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 ${
-                            errors.email ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300 focus:border-amber-500'
-                          }`}
-                        />
-                        {errors.email && (
-                          <p id="contact-email-error" role="alert" className="text-[11px] text-rose-600 font-medium">
-                            {errors.email}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Phone & Company Name */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label htmlFor="contact-phone" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.phone')}
-                        </label>
-                        <div className="relative">
-                          <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                          <input
-                            id="contact-phone"
-                            name="phone"
-                            type="tel"
-                            value={form.phone}
-                            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                            placeholder={t('contact.phonePlaceholder')}
-                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label htmlFor="contact-company" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.company')}
-                        </label>
-                        <div className="relative">
-                          <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                          <input
-                            id="contact-company"
-                            name="company"
-                            type="text"
-                            value={form.company}
-                            onChange={(e) => setForm({ ...form, company: e.target.value })}
-                            placeholder={t('contact.companyPlaceholder')}
-                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Optional Event Details (Date & Attendees) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label htmlFor="contact-eventDate" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.eventDate')}
-                        </label>
-                        <div>
-                          <CustomDatePicker
-                            id="contact-eventDate"
-                            name="eventDate"
-                            value={form.eventDate}
-                            onChange={(dateStr) => setForm({ ...form, eventDate: dateStr })}
-                            className="bg-white border-slate-300 text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label htmlFor="contact-expectedAttendees" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.audienceSize')}
-                        </label>
-                        <div className="relative">
-                          <Users className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                          <select
-                            id="contact-expectedAttendees"
-                            name="expectedAttendees"
-                            value={form.expectedAttendees}
-                            onChange={(e) => setForm({ ...form, expectedAttendees: e.target.value })}
-                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
-                          >
-                            <option value="">{t('contact.selectAudienceTier')}</option>
-                            <option value="Under 100 guests">{t('contact.tierUnder100')}</option>
-                            <option value="100 - 500 guests">{t('contact.tier100to500')}</option>
-                            <option value="500 - 2,000 guests">{t('contact.tier500to2000')}</option>
-                            <option value="2,000+ guests">{t('contact.tier2000Plus')}</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Message Box */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label htmlFor="contact-message" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {t('contact.message')} <span className="text-amber-500">*</span>
-                        </label>
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          {form.message.length}/500
+                    <p className="text-xs text-emerald-300/90 leading-relaxed">
+                      {t('contact.successDesc', { name: fullName }, `Thank you, ${fullName}. Our event specialists have received your message and will reply within 24 hours.`)}
+                    </p>
+                    {ticketId && (
+                      <div className="pt-2 text-xs text-slate-400 flex items-center gap-2">
+                        <span>{t('contact.reference', undefined, 'Reference:')}</span>
+                        <span className="font-mono font-bold text-amber-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                          {ticketId}
                         </span>
                       </div>
-                      <textarea
-                        id="contact-message"
-                        name="message"
-                        rows={4}
-                        maxLength={500}
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubmitSuccess(false);
+                        setMessage('');
+                        setTicketId(null);
+                      }}
+                      className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                    >
+                      {t('contact.submitAnother', undefined, 'Submit Another Message')}
+                    </button>
+                    <InternalLink
+                      to="/games"
+                      className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-all text-center"
+                    >
+                      {t('contact.exploreGames', undefined, 'Explore Event Games')}
+                    </InternalLink>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {errorMessage && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                      <span className="leading-relaxed">{errorMessage}</span>
+                    </div>
+                  )}
+
+                  {/* Honeypot field for anti-spam bots */}
+                  <div className="hidden" aria-hidden="true" style={{ display: 'none' }}>
+                    <label htmlFor="contact_website">
+                      <span>{t('contact.website', undefined, 'Website')}</span>
+                    </label>
+                    <input
+                      id="contact_website"
+                      type="text"
+                      name="website"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      tabIndex={-1}
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  {/* Category Selection */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      {t('contact.categoryLabel', undefined, 'Enquiry Category')}
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 outline-none transition-all cursor-pointer"
+                    >
+                      <option value="Event booking / activation">{t('contact.typeSales', undefined, 'Event Game Licensing & Sales')}</option>
+                      <option value="Custom Mini-Game Development">{t('contact.typeCustomGame', undefined, 'Custom Mini-Game Development')}</option>
+                      <option value="Agency & Reseller Partnership">{t('contact.typePartnership', undefined, 'Agency & Reseller Partnership')}</option>
+                      <option value="Technical Support">{t('contact.typeSupport', undefined, 'Technical Support')}</option>
+                      <option value="General Inquiry">{t('contact.typeGeneral', undefined, 'General Inquiry')}</option>
+                    </select>
+                  </div>
+
+                  {/* Two columns: Name and Email */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        {t('contact.fullName', undefined, 'Full Name')} <span className="text-amber-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder={t('contact.namePlaceholder', undefined, 'e.g. Alex Tan')}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600"
                         required
-                        aria-required="true"
-                        aria-invalid={!!errors.message}
-                        aria-describedby={errors.message ? 'contact-message-error' : undefined}
-                        value={form.message}
-                        onChange={(e) => setForm({ ...form, message: e.target.value })}
-                        placeholder={t('contact.messagePlaceholder')}
-                        className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 ${
-                          errors.message ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300 focus:border-amber-500'
-                        }`}
                       />
-                      {errors.message && (
-                        <p id="contact-message-error" role="alert" className="text-[11px] text-rose-600 font-medium">
-                          {errors.message}
-                        </p>
-                      )}
                     </div>
 
-                    {/* Submit Button */}
-                    <div className="pt-2">
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                            <span>{t('contact.sendingEnquiry')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4" />
-                            <span>{t('contact.submitEnquiry')}</span>
-                          </>
-                        )}
-                      </button>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        {t('contact.workEmail', undefined, 'Work Email')} <span className="text-amber-400">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={t('contact.emailPlaceholder', undefined, 'you@company.com')}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Two columns: Phone and Company */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        {t('contact.phone', undefined, 'Phone / WhatsApp Number')}
+                      </label>
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder={t('contact.phonePlaceholder', undefined, '+60 12-345 6789')}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600"
+                      />
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500 text-center">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>{t('contact.privacyGuarantee')}</span>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        {t('contact.company', undefined, 'Company / Event Agency')}
+                      </label>
+                      <input
+                        type="text"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        placeholder={t('contact.companyPlaceholder', undefined, 'e.g. Apex Events / Nexus Brand')}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600"
+                      />
                     </div>
-                  </form>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 5: "Looking for something else?" Quick Help Cards */}
-          <div className="pt-10 border-t border-slate-200/80 space-y-6">
-            <div className="text-center max-w-2xl mx-auto space-y-2">
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                {t('contact.quickHelpTitle')}
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600">
-                {t('contact.quickHelpSubtitle')}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Pricing */}
-              <InternalLink
-                to="/#pricing"
-                className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-amber-50/40 transition-all flex flex-col justify-between group"
-              >
-                <div className="space-y-2">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Tag className="w-4 h-4" />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                    {t('contact.linkPricing')}
-                  </h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    {t('contact.linkPricingDesc')}
-                  </p>
-                </div>
-                <div className="pt-4 flex items-center gap-1 text-xs font-bold text-slate-700 group-hover:text-amber-700">
-                  <span>{t('nav.pricing')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
-              </InternalLink>
 
-              {/* Games */}
-              <InternalLink
-                to="/game-showcase"
-                className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-amber-50/40 transition-all flex flex-col justify-between group"
-              >
-                <div className="space-y-2">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Gamepad2 className="w-4 h-4" />
+                  {/* Message */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      {t('contact.message', undefined, 'Message & Requirements')} <span className="text-amber-400">*</span>
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder={t('contact.messagePlaceholder', undefined, 'Tell us about your event format, dates, target audience size, or required game customization...')}
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl p-3.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600 resize-y"
+                      required
+                    />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                    {t('contact.linkGames')}
-                  </h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    {t('contact.linkGamesDesc')}
-                  </p>
-                </div>
-                <div className="pt-4 flex items-center gap-1 text-xs font-bold text-slate-700 group-hover:text-amber-700">
-                  <span>{t('landing.viewFullCatalog')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
-              </InternalLink>
 
-              {/* Solutions */}
-              <InternalLink
-                to="/interactive-event-games"
-                className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-amber-50/40 transition-all flex flex-col justify-between group"
-              >
-                <div className="space-y-2">
-                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                    {t('contact.linkSolutions')}
-                  </h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    {t('contact.linkSolutionsDesc')}
+                  <p className="text-[11px] text-slate-500">
+                    {t('contact.privacyGuarantee', undefined, 'We respect your privacy. No spam. Fast 24-hour response guarantee.')}
                   </p>
-                </div>
-                <div className="pt-4 flex items-center gap-1 text-xs font-bold text-slate-700 group-hover:text-amber-700">
-                  <span>{t('landing.navSolutions')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
-              </InternalLink>
 
-              {/* Create Event */}
-              <button
-                onClick={handleCreateEvent}
-                className="p-5 rounded-2xl bg-slate-900 text-white hover:bg-slate-800 transition-all flex flex-col justify-between text-left group cursor-pointer"
-              >
-                <div className="space-y-2">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">
-                    {t('contact.linkCreateEvent')}
-                  </h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    {t('contact.linkCreateEventDesc')}
-                  </p>
-                </div>
-                <div className="pt-4 flex items-center gap-1 text-xs font-bold text-amber-400">
-                  <span>{t('landing.createYourEvent')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
-              </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submitting ? (
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>{t('contact.submitEnquiry', undefined, 'Submit Event Enquiry')}</span>
+                        <Send className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>
       </main>
 
-      {/* Universal Footer */}
       <LandingFooter />
     </div>
   );

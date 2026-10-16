@@ -4118,6 +4118,14 @@ DECLARE
 BEGIN
   -- Only validate if the row being inserted or updated is active
   IF NEW.is_active = true THEN
+    -- Validate country_code is present
+    IF NEW.country_code IS NULL OR TRIM(NEW.country_code) = '' THEN
+      RAISE EXCEPTION 'Country code is required for pricing tiers'
+        USING ERRCODE = 'check_violation';
+    END IF;
+
+    NEW.country_code := UPPER(TRIM(NEW.country_code));
+
     IF NEW.min_days < 1 THEN
       RAISE EXCEPTION 'Minimum days must be an integer >= 1'
         USING ERRCODE = 'check_violation';
@@ -4128,11 +4136,12 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
 
-    -- Look for any other active pricing tier for the same game that overlaps
-    SELECT id, min_days, max_days, price, currency
+    -- Look for any other active pricing tier for the same game and same country that overlaps
+    SELECT id, min_days, max_days, price, currency, country_code
     INTO v_conflicting
     FROM public.game_pricing
     WHERE game_id = NEW.game_id
+      AND country_code = NEW.country_code
       AND is_active = true
       AND (NEW.id IS NULL OR id != NEW.id)
       AND (
@@ -4142,9 +4151,10 @@ BEGIN
     LIMIT 1;
 
     IF v_conflicting.id IS NOT NULL THEN
-      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) overlaps with existing active tier (%–% days) for this game.',
+      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) for country % overlaps with existing active tier (%–% days) for this game.',
         NEW.min_days,
         COALESCE(NEW.max_days::text, '+'),
+        NEW.country_code,
         v_conflicting.min_days,
         COALESCE(v_conflicting.max_days::text, '+')
         USING ERRCODE = 'check_violation';
@@ -4167,7 +4177,8 @@ CREATE OR REPLACE FUNCTION public.calculate_event_authoritative_price(
   p_game_id UUID DEFAULT NULL,
   p_start_date DATE DEFAULT NULL,
   p_end_date DATE DEFAULT NULL,
-  p_pricing_id UUID DEFAULT NULL
+  p_pricing_id UUID DEFAULT NULL,
+  p_country_code VARCHAR DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -4184,16 +4195,41 @@ DECLARE
   v_pricing_record RECORD;
   v_matching_count INT;
   v_resolved_price NUMERIC(10, 2);
-  v_resolved_currency TEXT := 'MYR';
+  v_resolved_currency TEXT;
   v_is_custom_price BOOLEAN := false;
+  v_requested_country TEXT;
+  v_default_country TEXT := 'US';
+  v_pricing_country TEXT;
+  v_is_fallback BOOLEAN := false;
+  v_settings_val JSONB;
 BEGIN
+  -- Retrieve default pricing country from platform_settings
+  SELECT value INTO v_settings_val
+  FROM public.platform_settings
+  WHERE key = 'default_pricing_country';
+
+  IF v_settings_val IS NOT NULL THEN
+    v_default_country := TRIM(BOTH '"' FROM v_settings_val::text);
+  ELSE
+    SELECT value->>'default_country' INTO v_default_country
+    FROM public.platform_settings
+    WHERE key = 'event_pricing';
+    IF v_default_country IS NULL OR v_default_country = '' THEN
+      v_default_country := 'US';
+    END IF;
+  END IF;
+
+  v_default_country := UPPER(TRIM(v_default_country));
+
   -- Load event if p_event_id provided
   IF p_event_id IS NOT NULL THEN
-    SELECT id, game_id, start_date, end_date, starts_at, expires_at,
-           pricing_id, is_custom_price, event_price, event_currency, duration_days
+    SELECT e.id, e.game_id, e.start_date, e.end_date, e.starts_at, e.expires_at,
+           e.pricing_id, e.is_custom_price, e.event_price, e.event_currency, e.duration_days,
+           o.country_code AS org_country_code
     INTO v_event
-    FROM public.events
-    WHERE id = p_event_id;
+    FROM public.events e
+    LEFT JOIN public.organizations o ON o.id = e.organization_id
+    WHERE e.id = p_event_id;
 
     IF v_event.id IS NULL THEN
       RETURN jsonb_build_object(
@@ -4218,15 +4254,44 @@ BEGIN
     );
     v_pricing_id := COALESCE(p_pricing_id, v_event.pricing_id);
     v_is_custom_price := COALESCE(v_event.is_custom_price, false);
+    v_requested_country := UPPER(COALESCE(p_country_code, v_event.org_country_code, v_default_country));
 
     IF v_is_custom_price = true AND v_event.event_price IS NOT NULL AND v_event.event_price > 0 THEN
+      v_resolved_currency := v_event.event_currency;
+      IF v_resolved_currency IS NULL OR v_resolved_currency = '' THEN
+        v_resolved_currency := CASE v_requested_country
+          WHEN 'MY' THEN 'MYR'
+          WHEN 'SG' THEN 'SGD'
+          WHEN 'TH' THEN 'THB'
+          WHEN 'ID' THEN 'IDR'
+          WHEN 'PH' THEN 'PHP'
+          WHEN 'VN' THEN 'VND'
+          WHEN 'JP' THEN 'JPY'
+          WHEN 'KR' THEN 'KRW'
+          WHEN 'TW' THEN 'TWD'
+          WHEN 'HK' THEN 'HKD'
+          WHEN 'AU' THEN 'AUD'
+          WHEN 'NZ' THEN 'NZD'
+          WHEN 'IN' THEN 'INR'
+          WHEN 'US' THEN 'USD'
+          WHEN 'GB' THEN 'GBP'
+          WHEN 'CA' THEN 'CAD'
+          WHEN 'DE' THEN 'EUR'
+          WHEN 'FR' THEN 'EUR'
+          ELSE 'USD'
+        END;
+      END IF;
+
       RETURN jsonb_build_object(
         'success', true,
         'price', v_event.event_price,
-        'currency', COALESCE(v_event.event_currency, 'MYR'),
+        'currency', v_resolved_currency,
         'duration_days', COALESCE(v_event.duration_days, 1),
         'is_custom_price', true,
-        'pricing_id', v_event.pricing_id
+        'pricing_id', v_event.pricing_id,
+        'requested_country', v_requested_country,
+        'pricing_country', v_requested_country,
+        'is_fallback', false
       );
     END IF;
   ELSE
@@ -4234,6 +4299,7 @@ BEGIN
     v_start_date := p_start_date;
     v_end_date := p_end_date;
     v_pricing_id := p_pricing_id;
+    v_requested_country := UPPER(COALESCE(p_country_code, v_default_country));
   END IF;
 
   IF v_start_date IS NULL OR v_end_date IS NULL THEN
@@ -4250,8 +4316,9 @@ BEGIN
     );
   END IF;
 
+  -- If an explicit pricing tier was provided, validate it
   IF v_pricing_id IS NOT NULL THEN
-    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
     INTO v_pricing_record
     FROM public.game_pricing
     WHERE id = v_pricing_id;
@@ -4290,12 +4357,16 @@ BEGIN
 
     v_resolved_price := v_pricing_record.price;
     v_resolved_currency := v_pricing_record.currency;
+    v_pricing_country := v_pricing_record.country_code;
+    v_is_fallback := (v_pricing_country != v_requested_country);
   ELSE
-    -- Check for ambiguous / multiple matching tiers (fails closed)
+    -- Automatic Resolution with Fallback:
+    -- Step 1: Look for active tier in requested country
     SELECT count(*)
     INTO v_matching_count
     FROM public.game_pricing
     WHERE game_id = v_target_game_id
+      AND country_code = v_requested_country
       AND is_active = true
       AND min_days <= v_duration_days
       AND (max_days IS NULL OR max_days >= v_duration_days);
@@ -4304,30 +4375,76 @@ BEGIN
       RETURN jsonb_build_object(
         'success', false,
         'code', 'AMBIGUOUS_PRICING_TIER',
-        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.',
-        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.'
+        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game in country ' || v_requested_country || '. Overlapping active tiers must be resolved in Developer Settings.',
+        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game in country ' || v_requested_country || '. Overlapping active tiers must be resolved in Developer Settings.'
       );
     END IF;
 
-    SELECT id, game_id, price, currency, is_active, min_days, max_days
-    INTO v_pricing_record
-    FROM public.game_pricing
-    WHERE game_id = v_target_game_id
-      AND is_active = true
-      AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days);
+    IF v_matching_count = 1 THEN
+      SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
+      INTO v_pricing_record
+      FROM public.game_pricing
+      WHERE game_id = v_target_game_id
+        AND country_code = v_requested_country
+        AND is_active = true
+        AND min_days <= v_duration_days
+        AND (max_days IS NULL OR max_days >= v_duration_days);
 
-    IF v_pricing_record.id IS NOT NULL THEN
       v_pricing_id := v_pricing_record.id;
       v_resolved_price := v_pricing_record.price;
       v_resolved_currency := v_pricing_record.currency;
-    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'NO_PRICING_TIER',
-        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
-        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
-      );
+      v_pricing_country := v_requested_country;
+      v_is_fallback := false;
+    ELSE
+      -- Step 2: Fall back to default pricing country (if different)
+      IF v_requested_country != v_default_country THEN
+        SELECT count(*)
+        INTO v_matching_count
+        FROM public.game_pricing
+        WHERE game_id = v_target_game_id
+          AND country_code = v_default_country
+          AND is_active = true
+          AND min_days <= v_duration_days
+          AND (max_days IS NULL OR max_days >= v_duration_days);
+
+        IF v_matching_count > 1 THEN
+          RETURN jsonb_build_object(
+            'success', false,
+            'code', 'AMBIGUOUS_PRICING_TIER',
+            'error', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in default country ' || v_default_country || '.',
+            'message', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in default country ' || v_default_country || '.'
+          );
+        END IF;
+
+        IF v_matching_count = 1 THEN
+          SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
+          INTO v_pricing_record
+          FROM public.game_pricing
+          WHERE game_id = v_target_game_id
+            AND country_code = v_default_country
+            AND is_active = true
+            AND min_days <= v_duration_days
+            AND (max_days IS NULL OR max_days >= v_duration_days);
+
+          v_pricing_id := v_pricing_record.id;
+          v_resolved_price := v_pricing_record.price;
+          v_resolved_currency := v_pricing_record.currency;
+          v_pricing_country := v_default_country;
+          v_is_fallback := true;
+        END IF;
+      END IF;
+
+      -- If neither has a matching tier -> Fail closed with NO_PRICING_TIER
+      IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+        RETURN jsonb_build_object(
+          'success', false,
+          'code', 'NO_PRICING_TIER',
+          'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
+          'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
+          'requested_country', v_requested_country,
+          'default_country', v_default_country
+        );
+      END IF;
     END IF;
   END IF;
 
@@ -4340,18 +4457,46 @@ BEGIN
     );
   END IF;
 
+  -- Ensure currency is set
+  IF v_resolved_currency IS NULL OR v_resolved_currency = '' THEN
+    v_resolved_currency := CASE COALESCE(v_pricing_country, v_requested_country)
+      WHEN 'MY' THEN 'MYR'
+      WHEN 'SG' THEN 'SGD'
+      WHEN 'TH' THEN 'THB'
+      WHEN 'ID' THEN 'IDR'
+      WHEN 'PH' THEN 'PHP'
+      WHEN 'VN' THEN 'VND'
+      WHEN 'JP' THEN 'JPY'
+      WHEN 'KR' THEN 'KRW'
+      WHEN 'TW' THEN 'TWD'
+      WHEN 'HK' THEN 'HKD'
+      WHEN 'AU' THEN 'AUD'
+      WHEN 'NZ' THEN 'NZD'
+      WHEN 'IN' THEN 'INR'
+      WHEN 'US' THEN 'USD'
+      WHEN 'GB' THEN 'GBP'
+      WHEN 'CA' THEN 'CAD'
+      WHEN 'DE' THEN 'EUR'
+      WHEN 'FR' THEN 'EUR'
+      ELSE 'USD'
+    END;
+  END IF;
+
   RETURN jsonb_build_object(
     'success', true,
     'price', v_resolved_price,
     'currency', v_resolved_currency,
     'duration_days', v_duration_days,
     'pricing_id', v_pricing_id,
-    'is_custom_price', false
+    'is_custom_price', false,
+    'requested_country', v_requested_country,
+    'pricing_country', v_pricing_country,
+    'is_fallback', v_is_fallback
   );
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.calculate_event_authoritative_price(UUID, UUID, DATE, DATE, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.calculate_event_authoritative_price(UUID, UUID, DATE, DATE, UUID, VARCHAR) TO authenticated, service_role;
 
 -- ------------------------------------------------------------------------------
 -- 20. FINANCIAL RPC SECURITY & EXECUTE PRIVILEGES
@@ -5417,24 +5562,35 @@ REVOKE EXECUTE ON FUNCTION public.approve_first_event_showcase_reward_atomic(UUI
 -- ------------------------------------------------------------------------------
 -- ATOMIC DISTRIBUTED EVENT CREATION RPC WITH EXCLUSIVE ORGANIZATION LOCK
 -- ------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.create_event_atomic(
+  UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT
+);
+
+DROP FUNCTION IF EXISTS public.create_event_atomic(
+  UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT
+);
+
+DROP FUNCTION IF EXISTS public.create_event_atomic(
+  UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT, TEXT
+);
+
 CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_organization_id UUID,
+  p_game_id UUID,
   p_game_theme_id UUID,
   p_name TEXT,
   p_start_date TEXT,
   p_end_date TEXT,
-  p_starts_at TIMESTAMPTZ,
-  p_expires_at TIMESTAMPTZ,
-  p_game_id UUID DEFAULT NULL,
   p_event_date TEXT DEFAULT NULL,
+  p_starts_at TIMESTAMPTZ DEFAULT NULL,
+  p_expires_at TIMESTAMPTZ DEFAULT NULL,
   p_status TEXT DEFAULT 'draft',
   p_event_status TEXT DEFAULT 'DRAFT',
   p_payment_status TEXT DEFAULT 'UNPAID',
-  p_cancel_reason TEXT DEFAULT NULL,
   p_event_price NUMERIC DEFAULT NULL,
   p_event_currency TEXT DEFAULT NULL,
-  p_paid_amount NUMERIC DEFAULT 0.00,
-  p_discount_amount NUMERIC DEFAULT 0.00,
+  p_paid_amount NUMERIC DEFAULT 0,
+  p_discount_amount NUMERIC DEFAULT 0,
   p_payment_mode TEXT DEFAULT NULL,
   p_public_token TEXT DEFAULT NULL,
   p_created_by UUID DEFAULT NULL,
@@ -5443,7 +5599,8 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_skip_pending_limit_check BOOLEAN DEFAULT FALSE,
   p_event_timezone TEXT DEFAULT NULL,
   p_pricing_id UUID DEFAULT NULL,
-  p_duration_days INT DEFAULT NULL
+  p_duration_days INT DEFAULT NULL,
+  p_cancel_reason TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -5451,65 +5608,32 @@ SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
 DECLARE
-  v_org public.organizations%ROWTYPE;
-  v_theme public.game_themes%ROWTYPE;
-  v_game public.games%ROWTYPE;
-  v_event public.events%ROWTYPE;
-  v_pending_count INT := 0;
-  v_is_pending BOOLEAN := false;
+  v_org RECORD;
+  v_theme RECORD;
+  v_game RECORD;
   v_target_game_id UUID;
-  v_token TEXT;
-  v_event_id UUID;
-  v_now TIMESTAMPTZ := timezone('utc'::text, now());
-  v_token_attempts INT := 0;
+  v_pending_count INT;
   v_max_limit INT := COALESCE(p_max_pending_events, 5);
-  v_event_timezone TEXT := p_event_timezone;
+  v_is_pending BOOLEAN;
+  v_event_id UUID;
+  v_token TEXT;
+  v_token_attempts INT := 0;
+  v_event RECORD;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_event_timezone TEXT;
   v_pricing_id UUID := p_pricing_id;
   v_duration_days INT := p_duration_days;
-  v_matching_count INT := 0;
-  v_resolved_price NUMERIC(10,2) := p_event_price;
-  v_resolved_currency TEXT := NULLIF(TRIM(p_event_currency), '');
+  v_pricing_country TEXT := NULL;
+  v_start_date DATE;
+  v_end_date DATE;
+  v_calculated_days INT;
   v_pricing_record RECORD;
+  v_resolved_price NUMERIC;
+  v_resolved_currency TEXT;
+  v_org_country TEXT;
+  v_price_quote JSONB;
 BEGIN
-  -- 1. Input validations
-  IF p_organization_id IS NULL THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'VALIDATION_ERROR',
-      'error', 'Organization ID is required',
-      'message', 'Organization ID is required'
-    );
-  END IF;
-
-  IF p_game_theme_id IS NULL THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'VALIDATION_ERROR',
-      'error', 'Game Theme selection is required',
-      'message', 'Game Theme selection is required'
-    );
-  END IF;
-
-  IF p_name IS NULL OR TRIM(p_name) = '' THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'VALIDATION_ERROR',
-      'error', 'Event name is required',
-      'message', 'Event name is required'
-    );
-  END IF;
-
-  IF p_starts_at IS NULL OR p_expires_at IS NULL THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'VALIDATION_ERROR',
-      'error', 'Event starts_at and expires_at timestamps are required',
-      'message', 'Event starts_at and expires_at timestamps are required'
-    );
-  END IF;
-
-  -- 2. Concurrency Control: Exclusive row-level lock on the target organization.
-  -- This serializes all event creations for this tenant across distributed Cloudflare Worker instances.
+  -- 1. Validate and Lock Organization
   SELECT * INTO v_org
   FROM public.organizations
   WHERE id = p_organization_id
@@ -5519,49 +5643,59 @@ BEGIN
     RETURN jsonb_build_object(
       'success', false,
       'code', 'ORGANIZATION_NOT_FOUND',
-      'error', 'Organization not found',
-      'message', 'Organization not found'
+      'error', 'Organization not found'
     );
   END IF;
 
-  -- Resolve event timezone:
-  -- explicit parameter -> organization country default -> 'Asia/Singapore' fallback
-  IF v_event_timezone IS NULL OR TRIM(v_event_timezone) = '' THEN
-    v_event_timezone := CASE UPPER(COALESCE(v_org.country_code, 'SG'))
-      WHEN 'MY' THEN 'Asia/Kuala_Lumpur'
-      WHEN 'TH' THEN 'Asia/Bangkok'
-      WHEN 'ID' THEN 'Asia/Jakarta'
-      WHEN 'PH' THEN 'Asia/Manila'
-      WHEN 'VN' THEN 'Asia/Ho_Chi_Minh'
-      WHEN 'JP' THEN 'Asia/Tokyo'
-      WHEN 'KR' THEN 'Asia/Seoul'
-      WHEN 'TW' THEN 'Asia/Taipei'
-      WHEN 'HK' THEN 'Asia/Hong_Kong'
-      WHEN 'AU' THEN 'Australia/Sydney'
-      WHEN 'NZ' THEN 'Pacific/Auckland'
-      WHEN 'IN' THEN 'Asia/Kolkata'
-      WHEN 'US' THEN 'America/New_York'
-      WHEN 'GB' THEN 'Europe/London'
-      WHEN 'CA' THEN 'America/Toronto'
-      WHEN 'DE' THEN 'Europe/Berlin'
-      WHEN 'FR' THEN 'Europe/Paris'
-      WHEN 'NL' THEN 'Europe/Amsterdam'
-      WHEN 'CH' THEN 'Europe/Zurich'
-      WHEN 'AE' THEN 'Asia/Dubai'
-      WHEN 'SA' THEN 'Asia/Riyadh'
-      WHEN 'BR' THEN 'America/Sao_Paulo'
-      WHEN 'MX' THEN 'America/Mexico_City'
-      WHEN 'ZA' THEN 'Africa/Johannesburg'
-      WHEN 'ES' THEN 'Europe/Madrid'
-      WHEN 'IT' THEN 'Europe/Rome'
-      WHEN 'SE' THEN 'Europe/Stockholm'
-      WHEN 'NO' THEN 'Europe/Oslo'
-      WHEN 'IE' THEN 'Europe/Dublin'
-      ELSE 'Asia/Singapore'
-    END;
+  v_org_country := UPPER(COALESCE(v_org.country_code, 'US'));
+
+  -- Resolve authoritative event timezone
+  v_event_timezone := COALESCE(NULLIF(TRIM(p_event_timezone), ''), 'Asia/Singapore');
+
+  -- Parse and validate start and end dates
+  BEGIN
+    IF p_start_date ~ '^\d{4}-\d{2}-\d{2}' THEN
+      v_start_date := (SUBSTRING(p_start_date FROM 1 FOR 10))::date;
+    ELSE
+      v_start_date := (p_starts_at AT TIME ZONE v_event_timezone)::date;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    v_start_date := NULL;
+  END;
+
+  BEGIN
+    IF p_end_date ~ '^\d{4}-\d{2}-\d{2}' THEN
+      v_end_date := (SUBSTRING(p_end_date FROM 1 FOR 10))::date;
+    ELSE
+      v_end_date := (p_expires_at AT TIME ZONE v_event_timezone)::date;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    v_end_date := NULL;
+  END;
+
+  IF v_start_date IS NULL OR v_end_date IS NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'INVALID_EVENT_DATES',
+      'error', 'Valid start_date and end_date are required'
+    );
   END IF;
 
-  -- 3. Theme & Game Isolation & Permissions Validation
+  IF v_end_date < v_start_date THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'INVALID_EVENT_DATES',
+      'error', 'Event end_date must be on or after start_date'
+    );
+  END IF;
+
+  -- Inclusive calendar duration calculation
+  v_calculated_days := (v_end_date - v_start_date) + 1;
+  IF v_duration_days IS NULL OR v_duration_days <= 0 THEN
+    v_duration_days := v_calculated_days;
+  END IF;
+
+  -- 2. Validate Game Theme Existence and Ownership
   SELECT * INTO v_theme
   FROM public.game_themes
   WHERE id = p_game_theme_id;
@@ -5570,194 +5704,106 @@ BEGIN
     RETURN jsonb_build_object(
       'success', false,
       'code', 'THEME_NOT_FOUND',
-      'error', 'Selected Game Theme not found',
-      'message', 'Selected Game Theme not found'
+      'error', 'Selected game theme not found'
     );
   END IF;
 
-  IF v_theme.is_system = true OR v_theme.ownership_type = 'system' THEN
+  IF v_theme.is_system IS NOT TRUE AND v_theme.organization_id <> p_organization_id THEN
     RETURN jsonb_build_object(
       'success', false,
-      'code', 'SYSTEM_THEME_NOT_ALLOWED',
-      'error', 'Only organization themes can be used for events.',
-      'message', 'Only organization themes can be used for events.'
+      'code', 'THEME_NOT_OWNED',
+      'error', 'Theme does not belong to this organization'
     );
   END IF;
 
-  IF v_theme.organization_id <> p_organization_id THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'THEME_FORBIDDEN',
-      'error', 'Only organization themes can be used for events.',
-      'message', 'Only organization themes can be used for events.'
-    );
-  END IF;
-
-  IF v_theme.status IS NOT NULL AND v_theme.status <> 'active' THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'THEME_INACTIVE',
-      'error', 'The selected theme is not active.',
-      'message', 'The selected theme is not active.'
-    );
-  END IF;
-
+  -- 3. Resolve Target Game ID
   v_target_game_id := COALESCE(p_game_id, v_theme.game_id);
-  IF v_target_game_id IS NOT NULL THEN
-    SELECT * INTO v_game
-    FROM public.games
-    WHERE id = v_target_game_id;
 
-    IF NOT FOUND THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'GAME_NOT_FOUND',
-        'error', 'The selected game was not found.',
-        'message', 'The selected game was not found.'
-      );
-    END IF;
-
-    IF v_game.status = 'inactive' THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'GAME_INACTIVE',
-        'error', 'This game is currently inactive and cannot be selected for new events.',
-        'message', 'This game is currently inactive and cannot be selected for new events.'
-      );
-    END IF;
+  IF v_target_game_id IS NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'GAME_NOT_FOUND',
+      'error', 'A valid game must be specified'
+    );
   END IF;
 
-  -- 4. Calculate duration_days if not provided
-  IF v_duration_days IS NULL OR v_duration_days <= 0 THEN
-    BEGIN
-      v_duration_days := GREATEST(1, (p_end_date::date - p_start_date::date) + 1);
-    EXCEPTION WHEN OTHERS THEN
-      v_duration_days := 1;
-    END;
+  IF v_theme.game_id IS NOT NULL AND v_theme.game_id <> v_target_game_id THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'THEME_GAME_MISMATCH',
+      'error', 'Theme does not belong to the selected game'
+    );
   END IF;
 
-  -- Authoritative Pricing Tier Validation & Resolution
-  IF v_pricing_id IS NOT NULL THEN
-    -- Look up the specified pricing tier directly
-    SELECT id, game_id, price, currency, is_active, min_days, max_days
-    INTO v_pricing_record
-    FROM public.game_pricing
-    WHERE id = v_pricing_id;
+  -- 4. Validate Game Existence and Availability (status must be 'active')
+  SELECT * INTO v_game
+  FROM public.games
+  WHERE id = v_target_game_id;
 
-    IF v_pricing_record.id IS NULL THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_TIER_NOT_FOUND',
-        'error', 'The specified pricing tier does not exist.',
-        'message', 'The specified pricing tier does not exist.'
-      );
-    END IF;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'GAME_NOT_FOUND',
+      'error', 'Specified game was not found'
+    );
+  END IF;
 
-    -- Integrity Check 1: pricing.game_id = target_game_id (Reject cross-game pricing leakage)
-    IF v_pricing_record.game_id <> v_target_game_id THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_GAME_MISMATCH',
-        'error', 'The specified pricing tier does not belong to the selected game.',
-        'message', 'The specified pricing tier does not belong to the selected game.'
-      );
-    END IF;
+  IF v_game.status IS NULL OR v_game.status <> 'active' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'GAME_INACTIVE',
+      'error', 'Specified game is currently inactive'
+    );
+  END IF;
 
-    -- Integrity Check 2: pricing is active
-    IF NOT COALESCE(v_pricing_record.is_active, false) THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_TIER_INACTIVE',
-        'error', 'The specified pricing tier is inactive and cannot be used.',
-        'message', 'The specified pricing tier is inactive and cannot be used.'
-      );
-    END IF;
-
-    -- Integrity Check 3: pricing covers duration_days
-    IF v_duration_days < v_pricing_record.min_days OR (v_pricing_record.max_days IS NOT NULL AND v_duration_days > v_pricing_record.max_days) THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_DURATION_MISMATCH',
-        'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).',
-        'message', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
-      );
-    END IF;
-
-    -- Authoritative price and currency strictly derived from the verified tier
-    v_resolved_price := v_pricing_record.price;
-    v_resolved_currency := v_pricing_record.currency;
+  -- 5. Authoritative Fail-Closed Server Pricing Verification with Country Resolution
+  IF p_event_price IS NOT NULL AND p_event_price > 0 AND p_event_currency IS NOT NULL THEN
+    -- Explicit authoritative price passed from verified server-side caller
+    v_resolved_price := p_event_price;
+    v_resolved_currency := UPPER(TRIM(p_event_currency));
   ELSE
-    -- Check for ambiguous / multiple matching tiers (fails closed)
-    SELECT count(*)
-    INTO v_matching_count
-    FROM public.game_pricing
-    WHERE game_id = v_target_game_id
-      AND is_active = true
-      AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days);
+    -- Resolve through authoritative calculate_event_authoritative_price RPC (enforces country fallback and checks v_pricing_id)
+    v_price_quote := public.calculate_event_authoritative_price(
+      NULL,
+      v_target_game_id,
+      v_start_date,
+      v_end_date,
+      v_pricing_id,
+      v_org_country
+    );
 
-    IF v_matching_count > 1 THEN
+    IF v_price_quote->>'success' IS NOT TRUE OR (v_price_quote->>'price')::numeric <= 0 THEN
       RETURN jsonb_build_object(
         'success', false,
-        'code', 'AMBIGUOUS_PRICING_TIER',
-        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.',
-        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.'
+        'code', COALESCE(v_price_quote->>'code', 'NO_PRICING_TIER'),
+        'error', COALESCE(v_price_quote->>'error', 'Pricing cannot be resolved for this game and duration.'),
+        'message', COALESCE(v_price_quote->>'message', v_price_quote->>'error', 'Pricing cannot be resolved for this game and duration.'),
+        'requested_country', v_org_country
       );
     END IF;
 
-    -- Auto-resolve matching active pricing tier for the target game and duration
-    SELECT id, game_id, price, currency, is_active, min_days, max_days
-    INTO v_pricing_record
-    FROM public.game_pricing
-    WHERE game_id = v_target_game_id
-      AND is_active = true
-      AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days);
-
-    IF v_pricing_record.id IS NOT NULL THEN
-      v_pricing_id := v_pricing_record.id;
-      v_resolved_price := v_pricing_record.price;
-      v_resolved_currency := v_pricing_record.currency;
-    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'NO_PRICING_TIER',
-        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
-        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
-      );
+    v_resolved_price := (v_price_quote->>'price')::numeric;
+    v_resolved_currency := v_price_quote->>'currency';
+    IF v_price_quote->>'pricing_id' IS NOT NULL THEN
+      v_pricing_id := (v_price_quote->>'pricing_id')::uuid;
     END IF;
+    v_pricing_country := COALESCE(v_pricing_country, v_price_quote->>'pricing_country');
   END IF;
 
-  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+  IF v_resolved_price IS NULL OR v_resolved_price <= 0 OR v_resolved_currency IS NULL OR v_resolved_currency = '' THEN
     RETURN jsonb_build_object(
       'success', false,
-      'code', 'PRICING_CONFIGURATION_ERROR',
-      'error', 'Event price must be positive and valid. Could not resolve pricing.',
-      'message', 'Event price must be positive and valid. Could not resolve pricing.'
+      'code', 'NO_PRICING_TIER',
+      'error', 'Pricing cannot be resolved for this game and duration.'
     );
   END IF;
 
-  IF v_resolved_currency IS NULL OR TRIM(v_resolved_currency) = '' THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'PRICING_CONFIGURATION_ERROR',
-      'error', 'Event currency must be valid. Could not resolve pricing currency.',
-      'message', 'Event currency must be valid. Could not resolve pricing currency.'
-    );
-  END IF;
-
-  -- 5. Evaluate whether the new event being created counts as a pending-payment event
+  -- 6. Evaluate Active Pending-Payment Status & Authoritative End Date
   v_is_pending := (
     UPPER(COALESCE(p_payment_status, 'UNPAID')) IN ('PENDING_PAYMENT', 'UNPAID')
     OR LOWER(COALESCE(p_status, 'draft')) = 'pending_payment'
   );
 
-  -- 6. Atomic check of pending event limit under the organization lock
-  -- A pending event slot is consumed ONLY when the event is:
-  -- - belonging to the same organization
-  -- - unpaid / pending payment
-  -- - not explicitly cancelled, expired, or completed
-  -- - event end date has NOT already passed (inclusive of end date) in its authoritative timezone
   IF v_is_pending AND NOT COALESCE(p_skip_pending_limit_check, false) THEN
     SELECT COUNT(*) INTO v_pending_count
     FROM public.events
@@ -5786,36 +5832,40 @@ BEGIN
         'success', false,
         'code', 'PENDING_EVENT_LIMIT_REACHED',
         'error', 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.',
-        'message', 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.',
         'pending_count', v_pending_count,
         'max_limit', v_max_limit
       );
     END IF;
   END IF;
 
-  -- 7. Generate collision-resistant unique public token
-  v_token := p_public_token;
-  IF v_token IS NULL OR TRIM(v_token) = '' THEN
-    v_token := lower(encode(gen_random_bytes(6), 'hex'));
+  -- 7. Generate Collision-Resistant Public Token
+  IF p_public_token IS NOT NULL AND TRIM(p_public_token) <> '' THEN
+    v_token := TRIM(p_public_token);
+  ELSE
+    LOOP
+      v_token := encode(gen_random_bytes(16), 'hex');
+      EXIT WHEN NOT EXISTS (SELECT 1 FROM public.events WHERE public_token = v_token);
+      v_token_attempts := v_token_attempts + 1;
+      IF v_token_attempts > 10 THEN
+        v_token := encode(gen_random_bytes(24), 'hex');
+        EXIT;
+      END IF;
+    END LOOP;
   END IF;
 
-  WHILE EXISTS (SELECT 1 FROM public.events WHERE public_token = v_token) AND v_token_attempts < 10 LOOP
-    v_token := lower(encode(gen_random_bytes(6), 'hex'));
-    v_token_attempts := v_token_attempts + 1;
-  END LOOP;
-
+  -- 8. Assign Event ID
   v_event_id := COALESCE(p_event_id, gen_random_uuid());
 
-  -- 8. Insert the event record atomically within the serialized transaction
+  -- 9. Insert Event Record with Authoritative Price & Currency
   INSERT INTO public.events (
     id,
     organization_id,
     game_id,
     game_theme_id,
     name,
-    event_date,
     start_date,
     end_date,
+    event_date,
     starts_at,
     expires_at,
     status,
@@ -5832,6 +5882,7 @@ BEGIN
     event_timezone,
     pricing_id,
     duration_days,
+    pricing_country,
     created_at,
     updated_at
   ) VALUES (
@@ -5840,9 +5891,9 @@ BEGIN
     v_target_game_id,
     p_game_theme_id,
     TRIM(p_name),
-    COALESCE(p_event_date, p_start_date),
     p_start_date,
     p_end_date,
+    COALESCE(p_event_date, p_start_date),
     p_starts_at,
     p_expires_at,
     COALESCE(p_status, 'draft'),
@@ -5851,30 +5902,35 @@ BEGIN
     p_cancel_reason,
     v_resolved_price,
     v_resolved_currency,
-    COALESCE(p_paid_amount, 0.00),
-    COALESCE(p_discount_amount, 0.00),
+    COALESCE(p_paid_amount, 0),
+    COALESCE(p_discount_amount, 0),
     p_payment_mode,
     v_token,
     p_created_by,
     v_event_timezone,
     v_pricing_id,
     v_duration_days,
+    v_pricing_country,
     v_now,
     v_now
   )
   RETURNING * INTO v_event;
 
-  -- 9. Return successfully created event record
   RETURN jsonb_build_object(
     'success', true,
-    'event', to_jsonb(v_event),
-    'pending_count', v_pending_count + (CASE WHEN v_is_pending THEN 1 ELSE 0 END)
+    'event_id', v_event.id,
+    'event', to_jsonb(v_event)
   );
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT) TO service_role;
-REVOKE EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT) FROM authenticated, anon, public;
+GRANT EXECUTE ON FUNCTION public.create_event_atomic(
+  UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT, TEXT
+) TO service_role;
+
+REVOKE EXECUTE ON FUNCTION public.create_event_atomic(
+  UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT, TEXT
+) FROM authenticated, anon, public;
 
 -- ------------------------------------------------------------------------------
 -- DATABASE-LEVEL TRIGGER FOR DISTRIBUTED PENDING LIMIT ENFORCEMENT

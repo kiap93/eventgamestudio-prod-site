@@ -264,19 +264,11 @@ BEGIN
     );
   END IF;
 
-  IF v_game.is_active IS NOT TRUE THEN
+  IF v_game.status IS NULL OR v_game.status <> 'active' THEN
     RETURN jsonb_build_object(
       'success', false,
       'code', 'GAME_INACTIVE',
       'error', 'Specified game is currently inactive'
-    );
-  END IF;
-
-  IF LOWER(COALESCE(v_game.engine_status, 'ready')) <> 'ready' THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'GAME_ENGINE_NOT_READY',
-      'error', 'Game engine is not ready for live event deployment'
     );
   END IF;
 

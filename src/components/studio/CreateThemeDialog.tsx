@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, memoryMatchTheme, reactionTheme, defaultCatchBrandTheme, getDefaultThemeForGameType } from '../../themes';
+import { GameTheme, memoryMatchTheme, reactionTheme, defaultCatchBrandTheme, match3Theme, getDefaultThemeForGameType } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
 import { useLocalization } from '../../context/LocalizationContext';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
@@ -84,7 +84,16 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             gameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' ||
             false
           );
-        const resolvedGameSlug = isReactionGame ? 'reaction-tap' : isMemoryGame ? 'memory-match' : 'catch-brand';
+        const isMatch3Game =
+          !isReactionGame && !isMemoryGame && (
+            gameType === 'match-3' ||
+            gameSlug === 'match-3' ||
+            gameName?.toLowerCase().includes('match-3') ||
+            gameName?.toLowerCase().includes('match 3') ||
+            gameId === 'match-3' ||
+            false
+          );
+        const resolvedGameSlug = isReactionGame ? 'reaction-tap' : isMemoryGame ? 'memory-match' : isMatch3Game ? 'match-3' : 'catch-brand';
         
         // Authoritative game default baseline.
         // ARCHITECTURE INVARIANT: "Start from scratch" MUST use the game's authoritative default theme.
@@ -103,6 +112,8 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             ? `Custom Formula Reaction Lights theme: ${cleanName}`
             : isMemoryGame
             ? `Custom Memory Match theme: ${cleanName}`
+            : isMatch3Game
+            ? `Custom Match-3 theme: ${cleanName}`
             : `Custom game theme: ${cleanName}`,
           branding: {
             gameTitle: themeName.trim().toUpperCase(),
@@ -110,33 +121,46 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
               ? `React fast when lights go out in ${themeName.trim()}!`
               : isMemoryGame
               ? `Flip and match pairs in ${themeName.trim()}!`
+              : isMatch3Game
+              ? `Swap tiles and trigger combos in ${themeName.trim()}!`
               : `Catch custom items in ${themeName.trim()}!`,
             logoUrl: null,
             clientLogoUrl: null,
           },
           background_url: base.background_url || null,
-          basket_config: (isReactionGame || isMemoryGame)
+          basket_config: (isReactionGame || isMemoryGame || isMatch3Game)
             ? null
             : JSON.parse(JSON.stringify(base.basket_config)),
+          game_config: isMatch3Game
+            ? JSON.parse(JSON.stringify(match3Theme.game_config || {}))
+            : undefined,
           items_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.items_config || []))
             : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.items_config || []))
+            : isMatch3Game
+            ? []
             : JSON.parse(JSON.stringify(base.items_config || [])),
           physics_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.physics_config || {}))
             : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.physics_config || {}))
+            : isMatch3Game
+            ? JSON.parse(JSON.stringify(match3Theme.physics_config || {}))
             : JSON.parse(JSON.stringify(base.physics_config || {})),
           visuals_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.visuals_config || {}))
             : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.visuals_config || {}))
+            : isMatch3Game
+            ? JSON.parse(JSON.stringify(match3Theme.visuals_config || {}))
             : JSON.parse(JSON.stringify(base.visuals_config || {})),
           sounds_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.sounds_config || {}))
             : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.sounds_config || {}))
+            : isMatch3Game
+            ? JSON.parse(JSON.stringify(match3Theme.sounds_config || {}))
             : JSON.parse(JSON.stringify(base.sounds_config || {})),
           layout: getDefaultUILayout(),
         });

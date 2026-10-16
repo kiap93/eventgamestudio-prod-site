@@ -29,6 +29,8 @@ import {
   getTopupOrderById,
   getWalletBalance,
 } from './wallet.js';
+import { createUser } from './users.js';
+import { createOrganization } from './organizations.js';
 import {
   verifyAndProcessPaymentWebhook,
   generateWebhookSignature,
@@ -197,8 +199,18 @@ async function runTestSuite() {
   // --------------------------------------------------------------------------
   console.log('\n--- Test Group 4: Functional Ledger Integrity & Production Defense ---');
 
-  const testOrgId = crypto.randomUUID();
-  const testUserId = crypto.randomUUID();
+  const testUser = await createUser({
+    email: `test-sandbox-${crypto.randomUUID().slice(0, 8)}@example.com`,
+    name: 'Sandbox Tester',
+    email_verified: true,
+  });
+  const org = await createOrganization({
+    name: `Sandbox Org ${testUser.id.slice(0, 8)}`,
+    owner_id: testUser.id,
+    country_code: 'MY',
+  });
+  const testOrgId = org.id;
+  const testUserId = testUser.id;
 
   // Create real test top-up order
   const order = await createTopupOrder({

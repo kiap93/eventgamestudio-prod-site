@@ -373,7 +373,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
               disabled={!canGroup}
               onClick={onGroup}
               className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-400 disabled:opacity-30 disabled:pointer-events-none"
-              title="Group Selection (Cmd G)"
+              title={t('editor.groupTooltip', undefined, 'Group Selection (Cmd G)')}
             >
               <FolderTree className="w-3.5 h-3.5" />
             </button>
@@ -384,7 +384,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
               disabled={!canUngroup}
               onClick={() => onUngroup()}
               className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-400 disabled:opacity-30 disabled:pointer-events-none"
-              title="Ungroup (Cmd Shift G)"
+              title={t('editor.ungroupTooltip', undefined, 'Ungroup (Cmd Shift G)')}
             >
               <Layers className="w-3.5 h-3.5" />
             </button>
@@ -394,7 +394,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             disabled={!hasSelection}
             onClick={() => primarySelectedId && onDuplicateElement(primarySelectedId)}
             className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
-            title="Duplicate (Cmd D)"
+            title={t('editor.duplicateSelection', undefined, 'Duplicate (Cmd D)')}
           >
             <Copy className="w-3.5 h-3.5" />
           </button>
@@ -403,7 +403,7 @@ export const LayerTreePanel = <T extends BaseVisualElement = BaseVisualElement>(
             disabled={!hasSelection}
             onClick={() => primarySelectedId && onDeleteElement(primarySelectedId)}
             className="p-1 rounded hover:bg-slate-800 text-rose-400 hover:text-rose-300 disabled:opacity-30 disabled:pointer-events-none"
-            title="Delete Layer"
+            title={t('editor.deleteLayer', undefined, 'Delete Layer')}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>

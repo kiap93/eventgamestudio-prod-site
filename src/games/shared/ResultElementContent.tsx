@@ -901,15 +901,26 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           valueDisplay = stats?.score !== undefined ? stats.score.toLocaleString() : '1,250';
         }
       } else if (el.type === 'moves') {
-        defaultLabel = 'MOVES';
+        const isMatch3Matches = el.id === 'stat-matches' || statEl.label?.toUpperCase() === 'MATCHES';
+        defaultLabel = isMatch3Matches ? 'MATCHES' : 'MOVES';
         defaultValueColor = '#67e8f9';
-        valueDisplay = stats?.moves !== undefined ? String(stats.moves) : '14';
+        valueDisplay =
+          stats?.matches !== undefined
+            ? String(stats.matches)
+            : stats?.moves !== undefined
+            ? String(stats.moves)
+            : '14';
       } else if (el.type === 'pairs') {
-        defaultLabel = 'PAIRS';
+        const isMatch3Specials = el.id === 'stat-specials' || statEl.label?.toUpperCase() === 'SPECIALS';
+        defaultLabel = isMatch3Specials ? 'SPECIALS' : 'PAIRS';
         defaultValueColor = '#34d399';
         valueDisplay =
-          stats?.matchedPairsCount !== undefined
+          isMatch3Specials && stats?.specialTilesCreated !== undefined
+            ? String(stats.specialTilesCreated)
+            : stats?.matchedPairsCount !== undefined
             ? `${stats.matchedPairsCount}/${stats.totalPairs}`
+            : isMatch3Specials
+            ? '6'
             : '8/8';
       } else if (el.type === 'time') {
         defaultLabel = 'TIME';
@@ -919,11 +930,16 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
             ? `${stats.timeElapsedSeconds}s`
             : '24s';
       } else if (el.type === 'accuracy') {
-        defaultLabel = 'ACCURACY';
+        const isMatch3Combo = el.id === 'stat-combo' || statEl.label?.toUpperCase().includes('COMBO');
+        defaultLabel = isMatch3Combo ? 'BEST COMBO' : 'ACCURACY';
         defaultValueColor = '#c084fc';
         valueDisplay =
-          stats?.accuracyPercent !== undefined
+          isMatch3Combo && stats?.bestCombo !== undefined
+            ? `x${stats.bestCombo}`
+            : stats?.accuracyPercent !== undefined
             ? `${stats.accuracyPercent}%`
+            : isMatch3Combo
+            ? 'x4'
             : '88%';
       } else if (el.type === 'average-reaction') {
         defaultLabel = 'AVERAGE REACTION';

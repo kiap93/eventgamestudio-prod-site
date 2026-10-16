@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlatformGame } from '../../types/developer';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, normalizeGameType } from '../../themes/types';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { CreateDefaultThemeModal } from './CreateDefaultThemeModal';
 import { CreateGameModal } from './CreateGameModal';
@@ -40,6 +40,63 @@ interface DeveloperGameDetailProps {
   onDeleteSystemTheme: (themeId: string) => Promise<void>;
   onSetPrimaryDefaultTheme: (themeId: string) => Promise<void>;
   onUnsetPrimaryDefaultTheme: (themeId: string) => Promise<void>;
+}
+
+export function resolveDeveloperThemeBackground(theme: GameTheme, game: PlatformGame): string {
+  const authoritativeGameType = normalizeGameType(game.game_type || game.slug, 'catch-brand');
+  const isMatch3 = authoritativeGameType === 'match-3';
+  const isMemoryMatch = authoritativeGameType === 'memory-match';
+  const isReactionTap = authoritativeGameType === 'reaction-tap';
+
+  const rawBg = (theme.background_url || (theme as any).background || '').trim();
+
+  // If theme has a custom user upload (data URI, blob URI, /uploads/, or storage bucket upload)
+  const isCustomUpload =
+    rawBg.startsWith('data:') ||
+    rawBg.startsWith('blob:') ||
+    rawBg.includes('/uploads/') ||
+    rawBg.includes('/storage/v1/object/public/');
+
+  if (isCustomUpload) {
+    return rawBg;
+  }
+
+  // Cross-game contamination check:
+  // Catch The Brand built-in backgrounds (default durian forest, carnival, christmas, cny, halloween, mango)
+  const isCatcherAsset =
+    rawBg === '/assets/background.png' ||
+    rawBg === '/public/assets/background.png' ||
+    rawBg.includes('/catch-brand/') ||
+    rawBg.includes('/themes/carnival/') ||
+    rawBg.includes('/themes/christmas/') ||
+    rawBg.includes('/themes/cny/') ||
+    rawBg.includes('/themes/halloween/') ||
+    rawBg.includes('/themes/mango/') ||
+    rawBg.includes('durian');
+
+  if (isMatch3) {
+    if (!rawBg || isCatcherAsset || rawBg.includes('/memory-match/') || rawBg.includes('/reaction-tap/')) {
+      return '/assets/games/match-3/themes/default/background.png';
+    }
+    return rawBg;
+  }
+
+  if (isMemoryMatch) {
+    if (!rawBg || isCatcherAsset || rawBg.includes('/match-3/') || rawBg.includes('/reaction-tap/')) {
+      return '/assets/games/memory-match/themes/default/background.png';
+    }
+    return rawBg;
+  }
+
+  if (isReactionTap) {
+    if (!rawBg || isCatcherAsset || rawBg.includes('/match-3/') || rawBg.includes('/memory-match/')) {
+      return '/assets/games/reaction-tap/themes/default/background.png';
+    }
+    return rawBg;
+  }
+
+  // For catch-brand, if empty, default to catch-brand background
+  return rawBg || '/assets/games/catch-brand/themes/default/background.png';
 }
 
 export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
@@ -228,7 +285,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
           {themes.length === 0 ? (
             <div className="text-center py-16 bg-slate-900/40 border border-slate-800 rounded-2xl p-8">
               <Sparkles className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-white mb-1">No System Themes Configured</h3>
+              <h3 className="text-base font-bold text-white mb-1">{t('developer.noSystemThemesConfigured', undefined, 'No System Themes Configured')}</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
                 Create default themes so organizations have ready-to-use branded templates when launching events.
               </p>
@@ -258,25 +315,32 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                     <div>
                       {/* Visual Header / Background Preview */}
                       <div className="relative h-40 w-full bg-slate-950 overflow-hidden flex items-center justify-center border-b border-slate-800">
-                        {theme.background_url ? (
-                          <img
-                            src={theme.background_url}
-                            alt={theme.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center text-slate-600">
-                            <ImageIcon className="w-8 h-8 mb-1" />
-                            <span className="text-[10px]">No Custom Background</span>
+                        {(() => {
+                          const resolvedBg = resolveDeveloperThemeBackground(theme, game);
+                          return (
+                            <img
+                              src={resolvedBg}
+                              alt={theme.name}
+                              data-testid={`theme-thumbnail-${theme.id}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          );
+                        })()}
+
+                        {/* Match-3 Overlay Badge */}
+                        {(game.game_type === 'match-3' || game.slug === 'match-3') && (
+                          <div className="absolute bottom-2 left-3 px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-700/80 backdrop-blur-sm flex items-center space-x-1.5 shadow-lg pointer-events-none">
+                            <Sparkles className="w-3 h-3 text-amber-400" />
+                            <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Match-3 Cascade</span>
                           </div>
                         )}
 
                         {/* Basket Thumbnail Overlay - STRICTLY catch-brand ONLY */}
-                        {(game.game_type === 'catch-brand' || game.slug === 'catch-brand') && theme.basket_config?.image_url && (
+                        {(game.game_type === 'catch-brand' || game.slug === 'catch-brand') && (theme.basket_config?.imageUrl || theme.basket_config?.image_url) && (
                           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-12 h-12 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 p-1 flex items-center justify-center shadow-lg">
                             <img
-                              src={theme.basket_config.image_url}
-                              alt="Catcher Basket"
+                              src={theme.basket_config.imageUrl || theme.basket_config.image_url}
+                              alt={t('developer.catcherBasketAlt', undefined, 'Catcher Basket')}
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
@@ -304,6 +368,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                         {/* Quick Test Play Floating Button */}
                         <button
                           onClick={() => setPlaytestingTheme(theme)}
+                          data-testid={`quick-play-${theme.id}`}
                           className="absolute top-3 right-3 p-2 bg-slate-900/80 hover:bg-emerald-600 text-slate-200 hover:text-white rounded-xl backdrop-blur-sm border border-slate-700 hover:border-emerald-500 transition-all shadow-lg group-hover:scale-110"
                           title={t('developer.testPlayTheme', undefined, 'Test Play Theme')}
                         >
@@ -322,21 +387,82 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                           </p>
                         </div>
 
-                        {/* Droppable Items Stats */}
-                        <div className="grid grid-cols-3 gap-2 py-2 px-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center text-xs">
-                          <div>
-                            <span className="text-[10px] text-slate-500 uppercase block">Items</span>
-                            <span className="font-bold text-slate-200 font-mono">{itemsCount}</span>
+                        {/* Engine Stats */}
+                        {game.game_type === 'match-3' ? (
+                          <div className="grid grid-cols-3 gap-2 py-2 px-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center text-xs">
+                            <div>
+                              <span className="text-[10px] text-amber-400 uppercase block font-semibold">Grid</span>
+                              <span className="font-bold text-slate-200 font-mono">
+                                {(theme.game_config as any)?.rows || 8}×{(theme.game_config as any)?.cols || 8}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-emerald-400 uppercase block font-semibold">Tiles</span>
+                              <span className="font-bold text-emerald-400 font-mono">
+                                {(theme.game_config as any)?.tileTypesCount || 6} Colors
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-sky-400 uppercase block font-semibold">Duration</span>
+                              <span className="font-bold text-sky-400 font-mono">
+                                {theme.physics_config?.gameDurationSeconds || (theme.game_config as any)?.gameDurationSeconds || 60}s
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-[10px] text-emerald-400 uppercase block">Rewards</span>
-                            <span className="font-bold text-emerald-400 font-mono">{positiveItems}</span>
+                        ) : game.game_type === 'memory-match' ? (
+                          <div className="grid grid-cols-3 gap-2 py-2 px-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center text-xs">
+                            <div>
+                              <span className="text-[10px] text-indigo-400 uppercase block font-semibold">Pairs</span>
+                              <span className="font-bold text-indigo-400 font-mono">
+                                {(theme.game_config as any)?.pairs?.length || 8} Pairs
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-emerald-400 uppercase block font-semibold">Board</span>
+                              <span className="font-bold text-slate-200 font-mono">
+                                {(theme.game_config as any)?.grid?.rows || 4}×{(theme.game_config as any)?.grid?.cols || 4}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-sky-400 uppercase block font-semibold">Duration</span>
+                              <span className="font-bold text-sky-400 font-mono">
+                                {theme.physics_config?.gameDurationSeconds || 45}s
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-[10px] text-rose-400 uppercase block">Hazards</span>
-                            <span className="font-bold text-rose-400 font-mono">{hazardsCount}</span>
+                        ) : game.game_type === 'reaction-tap' ? (
+                          <div className="grid grid-cols-3 gap-2 py-2 px-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center text-xs">
+                            <div>
+                              <span className="text-[10px] text-rose-400 uppercase block font-semibold">Lights</span>
+                              <span className="font-bold text-rose-400 font-mono">5 Lights</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-amber-400 uppercase block font-semibold">Mode</span>
+                              <span className="font-bold text-slate-200 font-mono">F1 Reflex</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-sky-400 uppercase block font-semibold">Duration</span>
+                              <span className="font-bold text-sky-400 font-mono">
+                                {theme.physics_config?.gameDurationSeconds || 45}s
+                              </span>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-2 py-2 px-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center text-xs">
+                            <div>
+                              <span className="text-[10px] text-slate-500 uppercase block">{t('developer.itemsLabel', undefined, 'Items')}</span>
+                              <span className="font-bold text-slate-200 font-mono">{itemsCount}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-emerald-400 uppercase block">{t('developer.rewardsLabel', undefined, 'Rewards')}</span>
+                              <span className="font-bold text-emerald-400 font-mono">{positiveItems}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-rose-400 uppercase block">{t('developer.hazardsLabel', undefined, 'Hazards')}</span>
+                              <span className="font-bold text-rose-400 font-mono">{hazardsCount}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -399,6 +525,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => setPlaytestingTheme(theme)}
+                          data-testid={`test-theme-${theme.id}`}
                           className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors"
                         >
                           <Play className="w-3 h-3 fill-current" />
@@ -582,6 +709,8 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
         <DeveloperPlayTestModal
           theme={playtestingTheme}
           gameName={game.name}
+          gameType={game.game_type || game.slug}
+          game={game}
           onClose={() => setPlaytestingTheme(null)}
         />
       )}

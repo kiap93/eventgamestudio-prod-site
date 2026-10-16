@@ -259,6 +259,26 @@ export function assertProductionCustomerInvitationsSafe(operationName: string, e
   }
 }
 
+/**
+ * Guard assertion for Sales Partner operations (applications, status updates, commissions, payouts).
+ * Throws a fatal 503 error if execution is in production mode or Cloudflare Workers without a configured Supabase database.
+ * Ensures local database/fallback cache is strictly prohibited in production.
+ */
+export function assertProductionSalesSafe(operationName: string, env?: Record<string, any>): void {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    if (!isSupabaseConfigured(env)) {
+      const err: any = new Error(
+        `Fatal: Sales Partner operation "${operationName}" requires a valid Supabase database connection in production/Worker environment. Local database fallback is strictly prohibited.`
+      );
+      err.code = 'SUPABASE_NOT_CONFIGURED';
+      err.statusCode = 503;
+      err.status = 503;
+      err.isOperational = true;
+      throw err;
+    }
+  }
+}
+
 export const supabase = {
   get client(): SupabaseClient {
     return getSupabaseServerClient();

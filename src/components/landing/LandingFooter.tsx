@@ -196,6 +196,14 @@ export const LandingFooter: React.FC = () => {
                   {t('nav.wallet')}
                 </InternalLink>
               </li>
+              <li>
+                <InternalLink
+                  to="/sales/apply"
+                  className="hover:text-amber-400 text-amber-400/90 font-medium transition-colors block"
+                >
+                  Sales Partner Program
+                </InternalLink>
+              </li>
               {currentUser?.is_developer && (
                 <li>
                   <InternalLink

@@ -295,7 +295,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
             <div className="w-full h-full flex items-center justify-center p-0.5 pointer-events-none select-none">
               <img
                 src={clientLogoUrl!}
-                alt="Client Logo"
+                alt={t('studio.clientLogoAlt', undefined, 'Client Logo')}
                 draggable={false}
                 style={
                   isCatch

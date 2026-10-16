@@ -61,6 +61,7 @@ async function createTestUser(): Promise<string> {
     id,
     email: `test-${id.slice(0, 8)}@example.com`,
     name: `Test User ${id.slice(0, 6)}`,
+    email_verified: true,
   });
   return id;
 }
@@ -75,6 +76,7 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
     name: `Test Org ${orgId.slice(0, 8)}`,
     slug: `test-org-${orgId.slice(0, 8)}`,
     owner_id: validOwnerId,
+    country_code: 'MY',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   } as any);
@@ -85,6 +87,7 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
       name: `Test Org ${orgId.slice(0, 8)}`,
       slug: `test-org-${orgId.slice(0, 8)}`,
       owner_id: validOwnerId,
+      country_code: 'MY',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });

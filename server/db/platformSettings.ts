@@ -1,12 +1,15 @@
 import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, assertProductionPricingSafe } from '../supabase.js';
-import { PlatformPricingSettings, EventPricingRule, PlatformContactSettings } from './types.js';
+import { PlatformPricingSettings, EventPricingRule, PlatformContactSettings, PlatformInvoiceSettings } from './types.js';
+export type { PlatformInvoiceSettings };
 import { normalizeEventDateBoundaries } from './events.js';
 import { resolveGamePrice } from './gamePricing.js';
+import { getCurrencyForCountry } from '../../src/lib/countryUtils.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
 export const DEFAULT_EVENT_PRICE = 1400.00;
 export const DEFAULT_EVENT_CURRENCY = 'MYR';
+export const DEFAULT_PRICING_COUNTRY = 'US';
 
 export const DEFAULT_CONTACT_SETTINGS: PlatformContactSettings = {
   whatsapp_number: '601136783717',
@@ -16,6 +19,20 @@ export const DEFAULT_CONTACT_SETTINGS: PlatformContactSettings = {
   support_hours: 'Mon – Sat, 9:00 AM – 7:00 PM (UTC+8) | <15 min reply during live events',
   office_location: 'Kuala Lumpur, Malaysia (UTC+8)',
 };
+
+export const DEFAULT_SELLER_INVOICE_SETTINGS: PlatformInvoiceSettings = {
+  company_name: 'Event Game Studio Sdn. Bhd.',
+  registration_number: '202601009876 (1509876-V)',
+  tax_number: 'W10-2601-98765432',
+  email: 'eventgamestudio@gmail.com',
+  phone: '+60 11-3678 3717',
+  address: 'Level 28, The Exchange 106, Lingkaran TRX, 55188 Kuala Lumpur, Malaysia',
+  website: 'https://eventgamestudio.com',
+  default_tax_rate: 0.00,
+  payment_terms_days: 14,
+  notes_template: 'Official tax invoice issued for interactive event mini-game activation.',
+};
+
 
 export const DEFAULT_PRICING_RULES: EventPricingRule[] = [
   { id: 'rule_1d', min_days: 1, max_days: 1, price: 1400.00, currency: 'MYR', active: true },
@@ -29,9 +46,11 @@ export const DEFAULT_PRICING_RULES: EventPricingRule[] = [
 const LOCAL_PLATFORM_SETTINGS_FILE = path.join(process.cwd(), 'uploads', 'platform_settings.json');
 
 let localSettingsCache: Record<string, any> = {
+  default_pricing_country: DEFAULT_PRICING_COUNTRY,
   event_pricing: {
     default_price: DEFAULT_EVENT_PRICE,
     default_currency: DEFAULT_EVENT_CURRENCY,
+    default_pricing_country: DEFAULT_PRICING_COUNTRY,
     pricing_rules: DEFAULT_PRICING_RULES,
     updated_at: new Date().toISOString(),
   },
@@ -39,7 +58,12 @@ let localSettingsCache: Record<string, any> = {
     ...DEFAULT_CONTACT_SETTINGS,
     updated_at: new Date().toISOString(),
   },
+  seller_invoice_settings: {
+    ...DEFAULT_SELLER_INVOICE_SETTINGS,
+    updated_at: new Date().toISOString(),
+  },
 };
+
 
 function loadLocalSettings(): void {
   try {
@@ -348,6 +372,8 @@ export async function calculateEventAuthoritativePrice(
     event_date?: string | null;
     starts_at?: string | null;
     expires_at?: string | null;
+    country_code?: string | null;
+    countryCode?: string | null;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -357,14 +383,34 @@ export async function calculateEventAuthoritativePrice(
   ruleLabel: string;
   tierId?: string | null;
   matchedRule: EventPricingRule | any | null;
+  requestedCountry?: string;
+  pricingCountry?: string;
+  isFallback?: boolean;
+  fallbackLevel?: 0 | 1 | 2;
 }> {
   const norm = normalizeEventDateBoundaries(params);
   const durationDays = calculateEventCalendarDays(norm.startDate, norm.endDate);
   const targetGameId = params.game_id || params.gameId;
+  const defaultCountry = await getDefaultPricingCountry(env);
+  const targetCountry = (params.country_code || params.countryCode)
+    ? (params.country_code || params.countryCode)!.trim().toUpperCase()
+    : defaultCountry;
 
-  // If a specific game is specified, resolve through the game-level pricing architecture
+  // If a specific game is specified, resolve through the game-level pricing architecture with country fallback
   if (targetGameId) {
-    const gameQuote = await resolveGamePrice(targetGameId, durationDays, env);
+    const gameQuote = await resolveGamePrice(targetGameId, durationDays, targetCountry, env);
+    if (!gameQuote.success) {
+      const failQuote = gameQuote as any;
+      const err: any = new Error(
+        failQuote.message || `No pricing tier is configured for a ${durationDays}-day event for this game.`
+      );
+      err.status = 422;
+      err.code = failQuote.error || 'NO_PRICING_TIER';
+      err.requestedCountry = failQuote.requestedCountry;
+      err.defaultCountry = defaultCountry;
+      throw err;
+    }
+
     return {
       durationDays,
       price: gameQuote.price,
@@ -372,6 +418,10 @@ export async function calculateEventAuthoritativePrice(
       ruleLabel: gameQuote.ruleLabel,
       tierId: gameQuote.tierId,
       matchedRule: gameQuote.tier,
+      requestedCountry: gameQuote.requestedCountry,
+      pricingCountry: gameQuote.pricingCountry,
+      isFallback: gameQuote.isFallback,
+      fallbackLevel: gameQuote.fallbackLevel,
     };
   }
 
@@ -381,11 +431,45 @@ export async function calculateEventAuthoritativePrice(
   return {
     durationDays,
     price: calc.price,
-    currency: calc.currency,
+    currency: calc.currency || getCurrencyForCountry(targetCountry) || settings.default_currency || 'USD',
     ruleLabel: calc.ruleLabel,
     tierId: calc.matchedRule?.id || null,
     matchedRule: calc.matchedRule,
+    requestedCountry: targetCountry,
+    pricingCountry: targetCountry,
+    isFallback: false,
   };
+}
+
+export async function getDefaultPricingCountry(env?: Record<string, any>): Promise<string> {
+  const isProd = !isLocalFallbackAllowed(env);
+  const hasSupabase = isSupabaseConfigured(env);
+
+  if (hasSupabase || isProd) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      if (supabase) {
+        const { data } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', 'default_pricing_country')
+          .maybeSingle();
+
+        if (data?.value) {
+          const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          if (typeof val === 'string' && val.trim()) {
+            return val.trim().toUpperCase();
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (localSettingsCache.default_pricing_country) {
+    return String(localSettingsCache.default_pricing_country).trim().toUpperCase();
+  }
+
+  return DEFAULT_PRICING_COUNTRY;
 }
 
 /**
@@ -401,6 +485,8 @@ export async function calculateEventAuthoritativePrice(
  * and NEVER invents a default production price (e.g. RM1,400).
  */
 export async function getPlatformPricingSettings(env?: Record<string, any>): Promise<PlatformPricingSettings> {
+  const defaultPricingCountry = await getDefaultPricingCountry(env);
+
   const buildSettingsFromData = (val: any, updatedAt?: string, updatedBy?: string | null): PlatformPricingSettings => {
     if (!val || typeof val !== 'object') {
       const err: any = new Error('Pricing service temporarily unavailable: Invalid platform pricing configuration');
@@ -438,6 +524,7 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
     return {
       default_price: defaultPrice,
       default_currency: defaultCurrency,
+      default_pricing_country: defaultPricingCountry,
       pricing_rules: rules,
       updated_at: updatedAt || val.updated_at || new Date().toISOString(),
       updated_by: updatedBy || val.updated_by || null,
@@ -478,6 +565,7 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
         const defaultValuePayload = {
           default_price: DEFAULT_EVENT_PRICE,
           default_currency: DEFAULT_EVENT_CURRENCY,
+          default_country: defaultPricingCountry,
           pricing_rules: DEFAULT_PRICING_RULES,
           updated_at: new Date().toISOString(),
           updated_by: null,
@@ -534,6 +622,7 @@ export async function updatePlatformPricingSettings(
   updates: {
     default_price?: number;
     default_currency?: string;
+    default_pricing_country?: string;
     pricing_rules?: EventPricingRule[];
   },
   updatedBy?: string,
@@ -544,6 +633,13 @@ export async function updatePlatformPricingSettings(
   let newCurrency = (updates.default_currency || currentSettings.default_currency || DEFAULT_EVENT_CURRENCY).trim().toUpperCase();
   if (!newCurrency || newCurrency.length > 5) {
     throw new Error('Invalid currency code');
+  }
+
+  let newDefaultPricingCountry = updates.default_pricing_country
+    ? updates.default_pricing_country.trim().toUpperCase()
+    : (currentSettings.default_pricing_country || DEFAULT_PRICING_COUNTRY);
+  if (!newDefaultPricingCountry || newDefaultPricingCountry.length !== 2) {
+    newDefaultPricingCountry = DEFAULT_PRICING_COUNTRY;
   }
 
   let newRules: EventPricingRule[] = updates.pricing_rules || currentSettings.pricing_rules || DEFAULT_PRICING_RULES;
@@ -578,6 +674,7 @@ export async function updatePlatformPricingSettings(
   const valuePayload = {
     default_price: newDefaultPrice,
     default_currency: newCurrency,
+    default_country: newDefaultPricingCountry,
     pricing_rules: newRules,
     updated_at: now,
     updated_by: updatedBy || null,
@@ -606,9 +703,22 @@ export async function updatePlatformPricingSettings(
       throw err;
     }
 
+    if (updates.default_pricing_country) {
+      await supabase
+        .from('platform_settings')
+        .upsert({
+          key: 'default_pricing_country',
+          value: JSON.stringify(newDefaultPricingCountry),
+          description: 'Default fallback ISO 3166-1 alpha-2 country code for game pricing when country-specific pricing does not exist',
+          updated_by: updatedBy || null,
+          updated_at: now,
+        });
+    }
+
     return {
       default_price: newDefaultPrice,
       default_currency: newCurrency,
+      default_pricing_country: newDefaultPricingCountry,
       pricing_rules: newRules,
       updated_at: now,
       updated_by: updatedBy || null,
@@ -617,7 +727,10 @@ export async function updatePlatformPricingSettings(
 
   // Development / test fallback flow:
   localSettingsCache.event_pricing = valuePayload;
+  localSettingsCache.default_pricing_country = newDefaultPricingCountry;
   saveLocalSettings(env);
+
+  const validUpdatedBy = (updatedBy && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(updatedBy)) ? updatedBy : null;
 
   if (isSupabaseConfigured(env)) {
     try {
@@ -628,13 +741,24 @@ export async function updatePlatformPricingSettings(
           key: 'event_pricing',
           value: valuePayload,
           description: 'Platform default event pricing and duration rules for new events',
-          updated_by: updatedBy || null,
+          updated_by: validUpdatedBy,
           updated_at: now,
         });
       if (error) {
         const err: any = new Error(`Pricing service temporarily unavailable: ${error.message}`);
         err.status = 503;
         throw err;
+      }
+      if (updates.default_pricing_country) {
+        await supabase
+          .from('platform_settings')
+          .upsert({
+            key: 'default_pricing_country',
+            value: JSON.stringify(newDefaultPricingCountry),
+            description: 'Default fallback ISO 3166-1 alpha-2 country code for game pricing when country-specific pricing does not exist',
+            updated_by: updatedBy || null,
+            updated_at: now,
+          });
       }
     } catch (err: any) {
       if (err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable')) {
@@ -650,6 +774,7 @@ export async function updatePlatformPricingSettings(
   return {
     default_price: newDefaultPrice,
     default_currency: newCurrency,
+    default_pricing_country: newDefaultPricingCountry,
     pricing_rules: newRules,
     updated_at: now,
     updated_by: updatedBy || null,
@@ -825,5 +950,152 @@ export async function updatePlatformContactSettings(
 
   return valuePayload;
 }
+
+/**
+ * Retrieves platform seller invoice settings (official legal details, registration, tax number, etc.).
+ * Backed by 'platform_settings' key 'seller_invoice_settings' with safe fallback to DEFAULT_SELLER_INVOICE_SETTINGS.
+ */
+export async function getPlatformInvoiceSettings(env?: Record<string, any>): Promise<PlatformInvoiceSettings> {
+  const buildInvoiceFromData = (val: any, updatedAt?: string, updatedBy?: string | null): PlatformInvoiceSettings => {
+    return {
+      company_name: val.company_name || DEFAULT_SELLER_INVOICE_SETTINGS.company_name,
+      registration_number: val.registration_number || DEFAULT_SELLER_INVOICE_SETTINGS.registration_number,
+      tax_number: val.tax_number || val.tax_id || DEFAULT_SELLER_INVOICE_SETTINGS.tax_number,
+      tax_id: val.tax_id || val.tax_number || DEFAULT_SELLER_INVOICE_SETTINGS.tax_number,
+      email: val.email || DEFAULT_SELLER_INVOICE_SETTINGS.email,
+      phone: val.phone || DEFAULT_SELLER_INVOICE_SETTINGS.phone,
+      address: val.address || DEFAULT_SELLER_INVOICE_SETTINGS.address,
+      website: val.website || DEFAULT_SELLER_INVOICE_SETTINGS.website,
+      default_tax_rate: typeof val.default_tax_rate === 'number' ? val.default_tax_rate : DEFAULT_SELLER_INVOICE_SETTINGS.default_tax_rate,
+      payment_terms_days: typeof val.payment_terms_days === 'number' ? val.payment_terms_days : DEFAULT_SELLER_INVOICE_SETTINGS.payment_terms_days,
+      notes_template: val.notes_template || DEFAULT_SELLER_INVOICE_SETTINGS.notes_template,
+      updated_at: updatedAt || val.updated_at || new Date().toISOString(),
+      updated_by: updatedBy || val.updated_by || null,
+    };
+  };
+
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('*')
+        .eq('key', 'seller_invoice_settings')
+        .maybeSingle();
+
+      if (!error && data && data.value) {
+        const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        return buildInvoiceFromData(val, data.updated_at, data.updated_by);
+      }
+    } catch (err) {
+      console.warn('Notice: Error fetching seller_invoice_settings from database, using cached/default:', err);
+    }
+  }
+
+  const cached = localSettingsCache.seller_invoice_settings || {};
+  return buildInvoiceFromData(cached, cached.updated_at, cached.updated_by);
+}
+
+/**
+ * Updates platform seller invoice settings.
+ * Requires Developer Admin authorization.
+ */
+export async function updatePlatformInvoiceSettings(
+  updates: Partial<PlatformInvoiceSettings>,
+  updatedBy?: string,
+  env?: Record<string, any>
+): Promise<PlatformInvoiceSettings> {
+  const current = await getPlatformInvoiceSettings(env);
+
+  const cleanedCompanyName = updates.company_name !== undefined ? String(updates.company_name).trim() : current.company_name;
+  if (!cleanedCompanyName) {
+    throw new Error('Company name is required for official invoices');
+  }
+
+  const cleanedRegNumber = updates.registration_number !== undefined ? String(updates.registration_number).trim() : current.registration_number;
+  const rawTaxNumber = updates.tax_number !== undefined ? updates.tax_number : (updates as any).tax_id;
+  const cleanedTaxNumber = rawTaxNumber !== undefined ? String(rawTaxNumber).trim() : current.tax_number;
+
+  let cleanedEmail = current.email;
+  if (updates.email !== undefined) {
+    const emailStr = String(updates.email).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailStr)) {
+      throw new Error('Please enter a valid billing email address');
+    }
+    cleanedEmail = emailStr;
+  }
+
+  const cleanedPhone = updates.phone !== undefined ? String(updates.phone).trim() : current.phone;
+  const cleanedAddress = updates.address !== undefined ? String(updates.address).trim() : current.address;
+  const cleanedWebsite = updates.website !== undefined ? String(updates.website).trim() : current.website;
+  
+  let cleanedTaxRate = current.default_tax_rate;
+  if (updates.default_tax_rate !== undefined) {
+    const rate = Number(updates.default_tax_rate);
+    if (isNaN(rate) || rate < 0 || rate > 1) {
+      throw new Error('Default tax rate must be a decimal number between 0.00 and 1.00 (e.g. 0.08 for 8%)');
+    }
+    cleanedTaxRate = rate;
+  }
+
+  let cleanedPaymentTermsDays = current.payment_terms_days;
+  if (updates.payment_terms_days !== undefined) {
+    const days = Number(updates.payment_terms_days);
+    if (isNaN(days) || !Number.isInteger(days) || days < 0) {
+      throw new Error('Payment terms must be a positive integer representing number of days');
+    }
+    cleanedPaymentTermsDays = days;
+  }
+
+  const cleanedNotesTemplate = updates.notes_template !== undefined ? String(updates.notes_template).trim() : current.notes_template;
+
+  const now = new Date().toISOString();
+  const valuePayload: PlatformInvoiceSettings = {
+    company_name: cleanedCompanyName,
+    registration_number: cleanedRegNumber,
+    tax_number: cleanedTaxNumber,
+    email: cleanedEmail,
+    phone: cleanedPhone,
+    address: cleanedAddress,
+    website: cleanedWebsite,
+    default_tax_rate: cleanedTaxRate,
+    payment_terms_days: cleanedPaymentTermsDays,
+    notes_template: cleanedNotesTemplate,
+    updated_at: now,
+    updated_by: updatedBy || null,
+  };
+
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { error } = await supabase
+        .from('platform_settings')
+        .upsert({
+          key: 'seller_invoice_settings',
+          value: valuePayload,
+          description: 'Platform seller business registration, address, and invoice settings',
+          updated_by: updatedBy || null,
+          updated_at: now,
+        });
+
+      if (error) {
+        console.error('Error saving seller_invoice_settings to database:', error);
+        throw new Error(`Database error updating invoice settings: ${error.message}`);
+      }
+    } catch (err: any) {
+      console.error('Exception updating seller_invoice_settings in database:', err);
+      if (!isLocalFallbackAllowed(env)) {
+        throw err;
+      }
+    }
+  }
+
+  localSettingsCache.seller_invoice_settings = valuePayload;
+  saveLocalSettings(env);
+
+  return valuePayload;
+}
+
 
 

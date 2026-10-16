@@ -315,7 +315,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
             <div className="relative rounded-2xl overflow-hidden aspect-video border-2 border-slate-700 bg-slate-950 group shadow-md">
               <img
                 src={currentBgUrl}
-                alt="Game Background Preview"
+                alt={t('studio.gameBgPreviewAlt', undefined, 'Game Background Preview')}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 opacity-80 group-hover:opacity-90 transition-opacity" />
@@ -343,7 +343,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
             {/* Actions Toolbar */}
             <div className="flex items-center justify-between gap-3 pt-1">
               <div className="text-xs text-slate-400">
-                Format: <span className="text-slate-200 font-medium">PNG / JPG / WebP</span>
+                Format: <span className="text-slate-200 font-medium">{t('editor.supportsPngJpgWebp', undefined, 'PNG / JPG / WebP')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -466,7 +466,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                   <div className="w-24 h-32 rounded-xl bg-slate-900 border-2 border-amber-500/60 p-2 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-105 transition-transform">
                     <img
                       src={currentCardBackUrl}
-                      alt="Card Back Preview"
+                      alt={t('studio.cardBackPreviewAlt', undefined, 'Card Back Preview')}
                       className="max-h-full max-w-full object-contain filter drop-shadow-md"
                       referrerPolicy="no-referrer"
                     />

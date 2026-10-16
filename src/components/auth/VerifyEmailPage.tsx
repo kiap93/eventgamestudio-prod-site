@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { getSafeRedirectUrl } from '../../lib/navigation';
 import { useLocalization } from '../../context/LocalizationContext';
 import { maskEmail } from '../../lib/maskEmail';
 import {
@@ -97,11 +98,30 @@ export const VerifyEmailPage: React.FC = () => {
   }, [token, verifyEmail]);
 
   const handleContinue = () => {
+    const rawRedirect =
+      searchParams.get('redirect') ||
+      (typeof window !== 'undefined' ? sessionStorage.getItem('pending_auth_redirect') : null);
+    const safeRedirect = getSafeRedirectUrl(rawRedirect, '');
+    if (safeRedirect && safeRedirect !== '/') {
+      try {
+        sessionStorage.removeItem('pending_auth_redirect');
+      } catch {}
+      navigateTo(safeRedirect);
+      return;
+    }
     if (currentOrganization) {
       navigateTo('/events');
     } else {
       navigateTo('/create-organization');
     }
+  };
+
+  const goToLogin = () => {
+    const rawRedirect =
+      searchParams.get('redirect') ||
+      (typeof window !== 'undefined' ? sessionStorage.getItem('pending_auth_redirect') : null);
+    const safeRedirect = getSafeRedirectUrl(rawRedirect, '');
+    navigateTo(safeRedirect ? `/login?redirect=${encodeURIComponent(safeRedirect)}` : '/login');
   };
 
   const handleResend = async (e?: React.FormEvent) => {
@@ -145,7 +165,7 @@ export const VerifyEmailPage: React.FC = () => {
       {/* Top back navigation link */}
       <div className="w-full max-w-md mb-4 flex items-center justify-start z-10">
         <button
-          onClick={() => navigateTo('/login')}
+          onClick={goToLogin}
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors py-2 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/30 group cursor-pointer shadow-md"
         >
           <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform text-amber-400" />
@@ -248,7 +268,7 @@ export const VerifyEmailPage: React.FC = () => {
                     type="email"
                     value={resendEmail}
                     onChange={(e) => setResendEmail(e.target.value)}
-                    placeholder="you@company.com"
+                    placeholder={t('auth.emailPlaceholder', undefined, 'you@company.com')}
                     className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none transition-colors"
                     required
                   />

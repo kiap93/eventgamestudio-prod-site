@@ -5,9 +5,9 @@ import { ThemeCard } from '../studio/ThemeCard';
 import { CreateThemeDialog } from '../studio/CreateThemeDialog';
 import { RenameThemeDialog } from '../studio/RenameThemeDialog';
 import { GameShell } from '../shell/GameShell';
-import { GameTheme } from '../../themes';
+import { GameTheme, getThemeGameType, resolveAuthoritativeGameType } from '../../themes';
 import { GameRecord } from '../../types';
-import { getGameTypeIcon, formatGameTypeName } from '../../games';
+import { getGameTypeIcon, formatGameTypeName, normalizeGameType } from '../../games';
 import {
   Gamepad2,
   ArrowLeft,
@@ -82,6 +82,14 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
   const [restartKey, setRestartKey] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
+  // Authoritatively resolve canonical game type for the active game and theme
+  const resolvedGameType = useMemo(() => {
+    return resolveAuthoritativeGameType({
+      game,
+      theme: playingTheme,
+    });
+  }, [playingTheme, game]);
+
   // Load system themes for this specific game
   const loadSystemThemes = useCallback(async () => {
     if (!game?.id) return;
@@ -103,12 +111,23 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
     loadSystemThemes();
   }, [loadSystemThemes]);
 
+  const playModalRef = useRef<HTMLDivElement | null>(null);
+
   // Sync fullscreen state
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      const fsEl =
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement;
+
+      const isTargetFs = Boolean(
+        fsEl &&
+        (fsEl === playModalRef.current ||
+         (playModalRef.current?.contains(fsEl) ?? false) ||
+         fsEl === document.documentElement)
       );
+
+      setIsFullscreen(isTargetFs);
     };
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
@@ -118,25 +137,38 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
     };
   }, []);
 
-  const handleToggleFullscreen = () => {
+  const handleToggleFullscreen = async () => {
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
-    if (!isCurrentlyFs && !isFullscreen) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
+    if (!isCurrentlyFs) {
+      const el = playModalRef.current || document.documentElement;
+      const reqFs =
+        el.requestFullscreen ||
+        (el as any).webkitRequestFullscreen ||
+        (el as any).mozRequestFullScreen ||
+        (el as any).msRequestFullscreen;
+      if (reqFs) {
+        try {
+          await reqFs.call(el);
+        } catch (err) {
+          console.warn('Fullscreen request failed:', err);
         }
       }
-      setIsFullscreen(false);
+    } else {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        const exitFs =
+          document.exitFullscreen ||
+          (document as any).webkitExitFullscreen ||
+          (document as any).mozCancelFullScreen ||
+          (document as any).msExitFullscreen;
+        if (exitFs) {
+          try {
+            await exitFs.call(document);
+          } catch (err) {
+            console.warn('Exit fullscreen failed:', err);
+          }
+        }
+      }
     }
   };
 
@@ -542,6 +574,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
       {/* Live Play Game Testing Modal */}
       {playingTheme && (
         <div
+          ref={playModalRef}
           className={`fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 ${
             isFullscreen ? 'p-0' : ''
           }`}
@@ -608,7 +641,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
               <GameShell
                 key={`${playingTheme.id}-${restartKey}`}
                 theme={playingTheme}
-                gameType={game.game_type || game.slug || (game.name?.toLowerCase().includes('reaction') ? 'reaction-tap' : game.name?.toLowerCase().includes('memory') ? 'memory-match' : 'catch-brand')}
+                gameType={resolvedGameType}
                 organizationSlug={currentOrganization?.slug || 'preview'}
                 isStudioPreview={true}
                 isFullscreen={isFullscreen}

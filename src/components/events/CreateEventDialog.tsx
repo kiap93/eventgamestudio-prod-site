@@ -21,13 +21,13 @@ import {
   isDateBefore,
   fetchServerDate,
 } from '../../lib/dateUtils';
-import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone } from '../../lib/countryUtils';
+import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone, getCurrencyForCountry } from '../../lib/countryUtils';
 import { CustomDatePicker } from '../common/CustomDatePicker';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
 import { normalizeGameType } from '../../games/gameIcons';
 import { navigateTo } from '../../hooks/useRouteContext';
-import { formatEventErrorMessage } from './eventErrorUtils';
+import { formatEventErrorMessage, isNoPricingTierError } from './eventErrorUtils';
 import {
   X,
   Calendar,
@@ -122,6 +122,19 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     : 0;
   const isDateRangeInvalid = !hasSelectedBothDates || isEndDateBeforeStartDate;
 
+  // Step 1 Dynamic Pricing State (Authoritative Backend-Driven)
+  type ConfigPricingStatus = 'idle' | 'loading' | 'available' | 'unavailable' | 'error';
+  const [configPricingStatus, setConfigPricingStatus] = useState<ConfigPricingStatus>('idle');
+  const [configPricingError, setConfigPricingError] = useState<string | null>(null);
+  const [configPrice, setConfigPrice] = useState<number | null>(null);
+  const [configCurrency, setConfigCurrency] = useState<string>('USD');
+  const [configRuleLabel, setConfigRuleLabel] = useState<string>('');
+  const [pricingRetryCounter, setPricingRetryCounter] = useState(0);
+  const pricingCacheRef = useRef<Map<string, { status: 'available' | 'unavailable'; price?: number; currency?: string; ruleLabel?: string }>>(new Map());
+
+  // Step 3 (Payment) Pricing Unavailable Flag
+  const [isPaymentPricingUnavailable, setIsPaymentPricingUnavailable] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setStep('configure');
@@ -172,6 +185,126 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     }
   }, [currentOrganization?.country_code]);
 
+  // Dynamic Pricing Check for Step 1 Configuration (Zero hardcoded pricing, backend-driven)
+  useEffect(() => {
+    if (!isOpen || step !== 'configure') return;
+
+    if (!selectedGameId || !startDate || !endDate || isEndDateBeforeStartDate || currentDurationDays <= 0) {
+      setConfigPricingStatus('idle');
+      setConfigPrice(null);
+      setConfigPricingError(null);
+      return;
+    }
+
+    const country = (currentOrganization as any)?.country_code || 'DEFAULT';
+    const cleanStart = formatDateApi(startDate);
+    const cleanEnd = formatDateApi(endDate);
+    const cacheKey = `${selectedGameId}:${cleanStart}:${cleanEnd}:${country}`;
+
+    // Use memory cache for instant switching between already checked dates/games
+    if (pricingRetryCounter === 0 && pricingCacheRef.current.has(cacheKey)) {
+      const cached = pricingCacheRef.current.get(cacheKey)!;
+      if (cached.status === 'available') {
+        setConfigPricingStatus('available');
+        setConfigPrice(cached.price ?? null);
+        setConfigCurrency(cached.currency ?? 'USD');
+        setConfigRuleLabel(cached.ruleLabel ?? '');
+        setConfigPricingError(null);
+        return;
+      } else if (cached.status === 'unavailable') {
+        setConfigPricingStatus('unavailable');
+        setConfigPrice(null);
+        setConfigPricingError(null);
+        return;
+      }
+    }
+
+    setConfigPricingStatus('loading');
+    setConfigPricingError(null);
+
+    const abortController = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const quoteRes = await apiFetch('/api/events/quote', {
+          method: 'POST',
+          signal: abortController.signal,
+          body: JSON.stringify({
+            game_id: selectedGameId,
+            game_theme_id: selectedThemeId || undefined,
+            start_date: cleanStart,
+            end_date: cleanEnd,
+            country_code: (currentOrganization as any)?.country_code || undefined,
+          }),
+        });
+
+        if (abortController.signal.aborted) return;
+
+        if (quoteRes.ok) {
+          const quoteData = await quoteRes.json();
+          const calc = quoteData.calculation;
+          const p = Number(calc?.eventPrice);
+          if (calc && !isNaN(p) && p > 0) {
+            const curr = calc.currency || getCurrencyForCountry((currentOrganization as any)?.country_code) || 'USD';
+            pricingCacheRef.current.set(cacheKey, {
+              status: 'available',
+              price: p,
+              currency: curr,
+              ruleLabel: calc.ruleLabel || '',
+            });
+            setConfigPricingStatus('available');
+            setConfigPrice(p);
+            setConfigCurrency(curr);
+            setConfigRuleLabel(calc.ruleLabel || '');
+            setConfigPricingError(null);
+          } else {
+            pricingCacheRef.current.set(cacheKey, { status: 'unavailable' });
+            setConfigPricingStatus('unavailable');
+            setConfigPrice(null);
+            setConfigPricingError(null);
+          }
+        } else {
+          const errData = await quoteRes.json().catch(() => ({}));
+          if (abortController.signal.aborted) return;
+
+          if (quoteRes.status === 422 && isNoPricingTierError(errData)) {
+            pricingCacheRef.current.set(cacheKey, { status: 'unavailable' });
+            setConfigPricingStatus('unavailable');
+            setConfigPrice(null);
+            setConfigPricingError(null);
+          } else {
+            // Distinguish API / server / network error from pricing unavailable
+            setConfigPricingStatus('error');
+            setConfigPrice(null);
+            setConfigPricingError(
+              errData.error || errData.message || 'Unable to check pricing. Please retry.'
+            );
+          }
+        }
+      } catch (err: any) {
+        if (abortController.signal.aborted) return;
+        setConfigPricingStatus('error');
+        setConfigPrice(null);
+        setConfigPricingError(err.message || 'Network error while checking pricing. Please retry.');
+      }
+    }, 150);
+
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+  }, [
+    isOpen,
+    step,
+    selectedGameId,
+    selectedThemeId,
+    startDate,
+    endDate,
+    isEndDateBeforeStartDate,
+    currentDurationDays,
+    currentOrganization?.country_code,
+    pricingRetryCounter,
+  ]);
+
   // Creation State
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const isCreatingEventRef = useRef(false);
@@ -202,14 +335,22 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const isSubmittingTopUpRef = useRef(false);
   const [topUpSuccessNotice, setTopUpSuccessNotice] = useState<string | null>(null);
 
+  const activeCurrency =
+    createdEvent?.event_currency ||
+    (activeCalculation as any)?.currency ||
+    (wallet as any)?.currency ||
+    getCurrencyForCountry((currentOrganization as any)?.country_code) ||
+    'USD';
+
   // Format currency
-  const formatCurrency = (amount?: number | null, currency: string = 'MYR') => {
+  const formatCurrency = (amount?: number | null, currency?: string) => {
     const num = Number(amount) || 0;
     const formatted =
       num % 1 === 0
         ? num.toLocaleString('en-US')
         : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const prefix = currency === 'MYR' ? 'RM' : currency === 'USD' ? '$' : currency === 'SGD' ? 'S$' : currency;
+    const c = (currency || activeCurrency || 'USD').toUpperCase();
+    const prefix = c === 'MYR' ? 'RM' : c === 'USD' ? '$' : c === 'SGD' ? 'S$' : `${c} `;
     return `${prefix}${formatted}`;
   };
 
@@ -357,7 +498,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         method: 'POST',
         body: JSON.stringify({
           event_id: createdEvent?.id || undefined,
+          game_id: selectedGameId || createdEvent?.game_id || undefined,
           game_theme_id: themeId || undefined,
+          country_code: (currentOrganization as any)?.country_code || undefined,
           payment_mode: mode,
           use_welcome_credit: useWelcome,
           use_event_credit: useEvent,
@@ -373,6 +516,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       if (!quoteRes.ok) {
         const errData = await quoteRes.json().catch(() => ({}));
+        if (quoteRes.status === 422 && isNoPricingTierError(errData)) {
+          setIsPaymentPricingUnavailable(true);
+          setQuoteError(null);
+          return;
+        }
         throw new Error(formatEventErrorMessage(errData, quoteRes.status));
       }
 
@@ -407,6 +555,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setUseWelcomeCredit(true);
     setUseEventCredit(true);
     setDurationPreset('1day');
+    setConfigPricingStatus('idle');
+    setConfigPricingError(null);
+    setConfigPrice(null);
+    setConfigRuleLabel('');
+    setIsPaymentPricingUnavailable(false);
     const tz = resolveEventTimezone(undefined, currentOrganization);
     const today = getTodayDateString(tz);
     setStartDate(today);
@@ -455,6 +608,16 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       return;
     }
 
+    // Strict validation: Prevent event creation when pricing is unavailable or unresolved
+    if (configPricingStatus === 'unavailable' || !configPrice || configPrice <= 0) {
+      setConfigPricingStatus('unavailable');
+      return;
+    }
+
+    if (configPricingStatus === 'loading' || configPricingStatus === 'error') {
+      return;
+    }
+
     isCreatingEventRef.current = true;
 
     try {
@@ -473,11 +636,17 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           event_date: formatDateApi(startDate),
           status: 'pending_payment',
           event_timezone: eventTimezone,
+          country_code: (currentOrganization as any)?.country_code || undefined,
         }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        if (res.status === 422 && isNoPricingTierError(errData)) {
+          setConfigPricingStatus('unavailable');
+          setCreationError(null);
+          return;
+        }
         const userFriendlyMessage = formatEventErrorMessage(errData, res.status);
         throw new Error(userFriendlyMessage);
       }
@@ -581,7 +750,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: amountToTopUp,
-          currency: 'MYR',
+          currency: activeCurrency,
           notes: `Top up for event activation: ${createdEvent?.name || name}`,
         }),
       });
@@ -1012,6 +1181,99 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 </div>
               </div>
 
+              {/* 3B. Dynamic Pricing Status Section */}
+              {startDate && endDate && !isEndDateBeforeStartDate && selectedGameId && (
+                <div className="space-y-2">
+                  {/* Loading State */}
+                  {configPricingStatus === 'loading' && (
+                    <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 flex items-center gap-2.5 text-xs text-slate-400 animate-in fade-in">
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+                      <span>
+                        {t(
+                          'event.checkingPricing',
+                          { days: currentDurationDays },
+                          `Checking pricing for ${currentDurationDays}-day event...`
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Available / Normal Pricing State */}
+                  {configPricingStatus === 'available' && configPrice !== null && (
+                    <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90 flex items-center justify-between gap-4 animate-in fade-in">
+                      <div className="space-y-0.5">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{t('event.priceQuote', undefined, 'Event License Price')}</span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          {currentDurationDays} {currentDurationDays === 1 ? t('common.days', undefined, 'day') : t('common.days', undefined, 'days')}
+                          {configRuleLabel ? ` (${configRuleLabel})` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-black font-mono text-amber-400">
+                          {formatCurrency(configPrice, configCurrency)}
+                        </span>
+                        <span className="block text-[10px] text-slate-500 uppercase font-semibold">
+                          {configCurrency}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pricing Unavailable State (Friendly notice, NO red error) */}
+                  {configPricingStatus === 'unavailable' && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                          <span>
+                            {t('event.pricingUnavailableTitle', undefined, 'Pricing unavailable for this event duration')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed max-w-md">
+                          {t(
+                            'event.pricingUnavailableDesc',
+                            { days: currentDurationDays },
+                            `We don't currently have online pricing configured for a ${currentDurationDays}-day event. Please contact us for a custom quotation.`
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleClose();
+                          navigateTo('/contact');
+                        }}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shrink-0 transition-colors cursor-pointer shadow-sm flex items-center gap-1.5"
+                      >
+                        <span>{t('landing.pricingContactUs', undefined, 'Contact Us')}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Error State (Network / Server failure) */}
+                  {configPricingStatus === 'error' && (
+                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-400 animate-in fade-in">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>{configPricingError || 'Unable to check pricing'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPricingRetryCounter((c) => c + 1)}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>{t('common.retry', undefined, 'Retry')}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Informative Note */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-1.5 text-xs text-slate-400">
                 <div className="flex items-center gap-2 text-slate-200 font-semibold">
@@ -1035,7 +1297,16 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || isCreatingEvent || !selectedThemeId || themes.length === 0 || isDateRangeInvalid}
+                disabled={
+                  !name.trim() ||
+                  isCreatingEvent ||
+                  !selectedThemeId ||
+                  themes.length === 0 ||
+                  isDateRangeInvalid ||
+                  configPricingStatus !== 'available' ||
+                  !configPrice ||
+                  configPrice <= 0
+                }
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
                 {isCreatingEvent ? (
@@ -1261,6 +1532,33 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 flex items-center justify-center gap-2 text-xs text-slate-400">
                   <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
                   <span>{t('common.loading', undefined, 'Calculating payment quote...')}</span>
+                </div>
+              ) : isPaymentPricingUnavailable ? (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>{t('event.pricingUnavailableTitle', undefined, 'Pricing unavailable for this event duration')}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed max-w-md">
+                      {t(
+                        'event.pricingUnavailableDesc',
+                        { days: currentDurationDays || calculateEventCalendarDays(createdEvent?.start_date, createdEvent?.end_date) },
+                        `We don't currently have online pricing configured for a ${currentDurationDays || calculateEventCalendarDays(createdEvent?.start_date, createdEvent?.end_date)}-day event. Please contact us for a custom quotation.`
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleClose();
+                      navigateTo('/contact');
+                    }}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shrink-0 transition-colors cursor-pointer shadow-sm flex items-center gap-1.5"
+                  >
+                    <span>{t('landing.pricingContactUs', undefined, 'Contact Us')}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ) : quoteError ? (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-xs text-rose-400 flex items-center justify-between">
@@ -1513,7 +1811,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
               <button
                 type="button"
-                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError || eventPrice <= 0}
+                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError || isPaymentPricingUnavailable || eventPrice <= 0}
                 onClick={handleConfirmPaymentAndActivate}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
@@ -1525,7 +1823,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 ) : (
                   <>
                     <span>
-                      {amountRequired === 0 ? t('event.activateNow', undefined, 'Activate Event (RM0.00)') : `${t('event.payToActivate', undefined, 'Pay')} ${formatCurrency(amountRequired)} & ${t('event.activateNow', undefined, 'Activate')}`}
+                      {amountRequired === 0 ? t('event.activateNow', undefined, 'Activate Event (Free)') : `${t('event.payToActivate', undefined, 'Pay')} ${formatCurrency(amountRequired)} & ${t('event.activateNow', undefined, 'Activate')}`}
                     </span>
                     <ArrowRight className="w-4 h-4" />
                   </>

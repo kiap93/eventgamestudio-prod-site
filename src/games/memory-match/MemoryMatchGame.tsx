@@ -1723,7 +1723,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                       {cardBackUrl ? (
                         <img
                           src={cardBackUrl}
-                          alt="Card Back"
+                          alt={t('game.cardBackAlt', undefined, 'Card Back')}
                           className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
                           referrerPolicy="no-referrer"
                         />
@@ -1916,7 +1916,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                       {cardBackUrl ? (
                         <img
                           src={cardBackUrl}
-                          alt="Card Back"
+                          alt={t('game.cardBackAlt', undefined, 'Card Back')}
                           className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
                           referrerPolicy="no-referrer"
                         />

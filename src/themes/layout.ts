@@ -184,6 +184,39 @@ export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
   },
 };
 
+export const DEFAULT_MATCH3_LAYOUT: GameLayoutConfig = {
+  clientLogo: {
+    visible: true,
+    x: 2.5,
+    y: 8.5,
+    width: 16,
+  },
+  scoreHud: {
+    visible: true,
+    x: 2.5,
+    y: 2.5,
+    width: 18,
+  },
+  timer: {
+    visible: true,
+    x: 79.5,
+    y: 2.5,
+    width: 18,
+  },
+  gameTitle: {
+    visible: true,
+    x: 35,
+    y: 2.5,
+    width: 30,
+  },
+  footerSponsor: {
+    visible: true,
+    x: 24,
+    y: 94,
+    width: 52,
+  },
+};
+
 export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = DEFAULT_CATCH_BRAND_LAYOUT;
 
 /**
@@ -193,6 +226,9 @@ export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = DEFAULT_CATCH_BRAND_LAYOUT;
 export function getDefaultUILayout(gameType?: string): GameLayoutConfig {
   if (gameType === 'memory-match') {
     return JSON.parse(JSON.stringify(DEFAULT_MEMORY_MATCH_LAYOUT));
+  }
+  if (gameType === 'match-3') {
+    return JSON.parse(JSON.stringify(DEFAULT_MATCH3_LAYOUT));
   }
   return JSON.parse(JSON.stringify(DEFAULT_CATCH_BRAND_LAYOUT));
 }
@@ -333,16 +369,28 @@ export const MEMORY_MATCH_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
   'memoryCardBoard',
 ];
 
+export const MATCH3_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
+  'clientLogo',
+  'scoreHud',
+  'timer',
+  'gameTitle',
+  'footerSponsor',
+];
+
 export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = CATCH_BRAND_LAYOUT_ELEMENT_KEYS;
 
 /**
  * Returns the exact list of configurable HUD element keys for a given game type.
  * Catch The Brand -> 5 elements (no Moves, no Pairs)
+ * Match-3 -> 5 elements (clientLogo, scoreHud, timer, gameTitle, footerSponsor)
  * Memory Match -> 8 elements (including Moves, Pairs, Memory Card Board)
  */
 export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
   if (gameType === 'memory-match') {
     return MEMORY_MATCH_LAYOUT_ELEMENT_KEYS;
+  }
+  if (gameType === 'match-3') {
+    return MATCH3_LAYOUT_ELEMENT_KEYS;
   }
   return CATCH_BRAND_LAYOUT_ELEMENT_KEYS;
 }
@@ -354,7 +402,12 @@ export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
  */
 export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConfig {
   const isMemory = gameType === 'memory-match';
-  const defaults = isMemory ? DEFAULT_MEMORY_MATCH_LAYOUT : DEFAULT_CATCH_BRAND_LAYOUT;
+  const isMatch3 = gameType === 'match-3';
+  const defaults = isMemory
+    ? DEFAULT_MEMORY_MATCH_LAYOUT
+    : isMatch3
+    ? DEFAULT_MATCH3_LAYOUT
+    : DEFAULT_CATCH_BRAND_LAYOUT;
 
   if (!raw || typeof raw !== 'object') {
     return JSON.parse(JSON.stringify(defaults));
@@ -375,8 +428,8 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
         ? Math.max(4, Math.min(100, el.width))
         : fallback.width;
 
-    // Migrate legacy Catch the Brand coordinates to new stable layout
-    if (!isMemory) {
+    // Migrate legacy Catch the Brand coordinates to new stable layout (skip for Memory Match and Match-3)
+    if (!isMemory && !isMatch3) {
       // 1. Migrate legacy Catch the Brand top-left (3.5, 3.5), (4, 4), or centered (41, 9.5) logo coordinates to clean left-side second row
       if (
         key === 'clientLogo' &&

@@ -26,6 +26,7 @@ import {
   updateOrganization,
   getOrganizationById,
   isValidCountryCode,
+  getCurrencyForCountry,
   getOrgMembers,
   getActiveOrgInvitations,
   createInvitation,
@@ -237,6 +238,62 @@ import {
   getCustomerInvitationStats,
   handleCustomerInvitationWebhook,
   findCrossCompanyDuplicates,
+  getSalesPartnerProfileByUserId,
+  listSalesPartnerProfiles,
+  createSalesPartnerApplication,
+  updateSalesPartnerStatus,
+  updateSalesPartnerRate,
+  getSalesPartnerAuditLogs,
+  getApprovedSalesGames,
+  getApprovedSalesGameById,
+  getOrCreateSalesReferralCode,
+  getReferralCodeByCode,
+  validateReferralCode,
+  recordCustomerReferral,
+  linkOrganizationToPendingAttribution,
+  getAttributionById,
+  listCustomerAttributions,
+  getAttributionAuditLogs,
+  approveCustomerAttribution,
+  rejectCustomerAttribution,
+  reassignCustomerAttribution,
+  revokeSalesReferralCode,
+  getSalesCommissionSettings,
+  updateSalesCommissionSettings,
+  listAdminCommissions,
+  getCommissionById,
+  approveCommission,
+  voidCommission,
+  adjustCommission,
+  getPartnerCommissions,
+  getPartnerCommissionSummary,
+  getPartnerCustomerAttributionSummary,
+  createSalesOpportunityRequest,
+  listSalesOpportunities,
+  approveSalesOpportunity,
+  rejectSalesOpportunity,
+  getCommissionsReadyForPayout,
+  createPayoutBatch,
+  listPayoutBatches,
+  getPayoutBatchById,
+  markPayoutBatchPaid,
+  getCommissionAuditLogs,
+  listSalesPartnerCustomers,
+  getSalesPartnerCustomerDetail,
+  getSalesDashboardSummary,
+  listInvoicesByOrganization,
+  getInvoiceById,
+  getInvoiceByEventId,
+  getInvoicePdfBytes,
+  listAllInvoicesForDeveloper,
+  createCreditNote,
+  listCreditNotesByInvoice,
+  listInvoiceAuditLogs,
+  getPlatformInvoiceSettings,
+  updatePlatformInvoiceSettings,
+  retryInvoicePdf,
+  retryInvoiceEmail,
+  generateEventInvoice,
 } from './server/db/index.js';
 import { translationService } from './server/translation/service.js';
 import { isValidTimezone } from './src/lib/countryUtils.js';
@@ -252,6 +309,7 @@ import {
 import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from './src/lib/i18n/languages.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
+import { handleResendInboundWebhookRequest } from './server/email/inbound.js';
 import {
   handleApiError,
   AppError,
@@ -264,6 +322,8 @@ import {
   authenticateJWT,
   authenticateOptionalJWT,
   authenticateDeveloperAdmin,
+  authenticateSalesPartner,
+  isUserActiveSalesPartner,
   isUserDeveloperAdmin,
   hasRolePermission,
   signAppToken,
@@ -281,9 +341,11 @@ import {
   MAX_IMAGE_SIZE,
   MAX_VIDEO_SIZE,
   MAX_DIRECT_UPLOAD_SIZE,
+  SalesPartnerProfileRecord,
 } from './server/db/types.js';
 
 import { validateUploadedFile, isSvgContent } from './server/fileValidation.js';
+import { validateAndProcessImageUpload } from './server/imageProcessing.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
 
@@ -558,8 +620,14 @@ app.get('/api/time', (req, res) => {
 /**
  * GET /api/debug/time
  * Diagnostic endpoint for authoritative server time (strictly uncached)
+ * Development: enabled; Production: 404
  */
 app.get('/api/debug/time', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
   const reqTz = (req.query.timezone as string) || PLATFORM_BUSINESS_TIMEZONE;
   const targetTz = isValidTimezone(reqTz) ? reqTz : PLATFORM_BUSINESS_TIMEZONE;
   const now = getAuthoritativeNow();
@@ -612,6 +680,21 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       console.error(`[Google Auth Error][${correlationId}] GOOGLE_USER_NOT_FOUND: Failed to create or load user record`);
       res.status(401).json({ error: 'Google authentication failed' });
       return;
+    }
+
+    // Capture referral context if present
+    const referralCode = typeof req.body?.referral_code === 'string' ? req.body.referral_code.trim() : undefined;
+    if (referralCode && user) {
+      try {
+        await recordCustomerReferral({
+          referralCode,
+          referredUserId: user.id,
+          prospectEmail: user.email,
+          referralMethod: 'link',
+        });
+      } catch (refErr: any) {
+        console.warn(`[Google Auth][${correlationId}] Non-blocking warning recording referral for user ${user.id}:`, refErr?.message);
+      }
     }
 
     stage = 'GOOGLE_LOAD_MEMBERSHIPS';
@@ -760,6 +843,21 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
         error: "We couldn't send the verification email right now. Please try again later.",
       });
       return;
+    }
+
+    // Capture referral context if present
+    const referralCode = typeof req.body?.referral_code === 'string' ? req.body.referral_code.trim() : undefined;
+    if (referralCode) {
+      try {
+        await recordCustomerReferral({
+          referralCode,
+          referredUserId: user.id,
+          prospectEmail: normalizedEmail,
+          referralMethod: 'code',
+        });
+      } catch (refErr: any) {
+        console.warn(`[AUTH][${correlationId}] Non-blocking warning recording referral for user ${user.id}:`, refErr?.message);
+      }
     }
 
     res.status(201).json({
@@ -1135,7 +1233,19 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
     const user = req.user!;
     const payload = req.jwtPayload!;
 
-    const memberships = await getUserOrganizations(user.id);
+    const [memberships] = await Promise.all([
+      getUserOrganizations(user.id),
+    ]);
+
+    let salesPartner: SalesPartnerProfileRecord | null = null;
+    let salesPartnerUnavailable = false;
+
+    try {
+      salesPartner = await getSalesPartnerProfileByUserId(user.id);
+    } catch (err: any) {
+      console.error('[AUTH /me] Database lookup failure fetching sales partner profile:', err);
+      salesPartnerUnavailable = true;
+    }
 
     let activeOrgId = payload.organizationId;
     let activeMember = memberships.find((m) => m.id === activeOrgId);
@@ -1164,6 +1274,20 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
             country_code: activeMember.country_code || null,
           }
         : null,
+      salesPartner: salesPartnerUnavailable
+        ? undefined
+        : salesPartner
+        ? {
+            id: salesPartner.id,
+            status: salesPartner.status,
+            applied_at: salesPartner.applied_at,
+            activated_at: salesPartner.activated_at,
+            suspended_at: salesPartner.suspended_at,
+            agency_name: salesPartner.agency_name || null,
+            application_notes: salesPartner.application_notes || null,
+          }
+        : null,
+      salesPartnerUnavailable: salesPartnerUnavailable ? true : undefined,
     });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -1328,6 +1452,13 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       logo_url: logo_url || null,
       country_code: country_code ? country_code.trim().toUpperCase() : null,
     });
+
+    // 1b. Associate newly established organization to pending referral attribution if exists
+    try {
+      await linkOrganizationToPendingAttribution(user.id, organization.id);
+    } catch (attrErr: any) {
+      console.warn('[POST /api/organizations] Non-blocking warning linking pending attribution:', attrErr?.message);
+    }
 
     // 2. Safely resolve or create default game (non-blocking)
     let gameId = 'catch-brand';
@@ -2166,7 +2297,7 @@ app.post('/api/invitations/verify-code', invitationVerificationRateLimiter, asyn
  * 7. Generate safe storage path
  * 8. Upload to Supabase Storage
  */
-app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file') as any, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const isDev = isUserDeveloperAdmin(user);
@@ -2261,11 +2392,13 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
       allowedMediaTypes = ['image'];
     }
 
-    const validation = validateUploadedFile(req.file.buffer, {
+    const allowSvg = category !== 'showcases'; // Game asset categories (items, themes, backgrounds, logos, general) allow safe SVG conversion to PNG
+    const validation = await validateAndProcessImageUpload(req.file.buffer, {
       originalName: req.file.originalname,
       declaredMime: req.file.mimetype,
       maxSizeBytes: MAX_ASSET_SIZE,
       allowedMediaTypes,
+      allowSvg,
     });
 
     if (!validation.valid) {
@@ -2280,14 +2413,19 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
     const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
     const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
     const safeExt = validation.extension || '.png';
+    const bufferToSave = validation.processedBuffer || req.file.buffer;
+    const finalOriginalName =
+      validation.originalFormat === 'SVG'
+        ? req.file.originalname.replace(/\.svg$/i, '.png')
+        : req.file.originalname;
 
     try {
       // Attempt Supabase Storage upload
       const result = await uploadGameAsset({
         organizationId: safeOrgId,
         category: safeCategory as any,
-        fileBuffer: req.file.buffer,
-        originalName: req.file.originalname,
+        fileBuffer: bufferToSave,
+        originalName: finalOriginalName,
         mimeType: validation.mimeType,
       });
 
@@ -2298,7 +2436,7 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
       // Fallback to local disk storage if Supabase credentials are not yet configured in dev
       const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${safeExt}`;
       const localFilePath = path.join(uploadDir, filename);
-      fs.writeFileSync(localFilePath, req.file.buffer);
+      fs.writeFileSync(localFilePath, bufferToSave);
 
       const fileUrl = `/uploads/${filename}`;
       res.json({ url: fileUrl, path: `organizations/${safeOrgId}/${safeCategory}/${filename}` });
@@ -3060,7 +3198,8 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
 app.get('/api/games/:gameId/pricing', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { gameId } = req.params;
-    const tiers = await getActiveGamePricing(gameId);
+    const country = (req.query.country || req.query.country_code) as string | undefined;
+    const tiers = await getActiveGamePricing(gameId, country);
     res.json({ success: true, tiers, game_id: gameId });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -3074,7 +3213,8 @@ app.get('/api/games/:gameId/pricing', authenticateJWT, async (req: Authenticated
  */
 app.get('/api/public/games/pricing', async (req, res) => {
   try {
-    const data = await getPublicGamesPricing();
+    const country = (req.query.country || req.query.country_code) as string | undefined;
+    const data = await getPublicGamesPricing(country, process.env);
     res.json(data);
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -3505,10 +3645,13 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
     } = req.body;
 
     let price: number | undefined = undefined;
-    let currency = 'MYR';
+    let currency = '';
     let durationDays = 1;
     let ruleLabel = '1 day';
     let targetGameId = req.body.game_id || req.body.gameId;
+    let pricingCountry: string | undefined = undefined;
+    let requestedCountry: string | undefined = undefined;
+    let isFallbackPricing: boolean = false;
 
     if (event_id) {
       // Existing event: event.event_price and event.event_currency MUST be authoritative
@@ -3548,6 +3691,14 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       }
 
       try {
+        let quoteCountry = req.body.country_code || req.body.countryCode;
+        if (!quoteCountry && organizationId) {
+          try {
+            const org = await getOrganizationById(organizationId);
+            if (org?.country_code) quoteCountry = org.country_code;
+          } catch (_) {}
+        }
+
         const pricing = await calculateEventAuthoritativePrice({
           game_id: targetGameId,
           start_date: start_date || startDate,
@@ -3555,11 +3706,15 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
           event_date,
           starts_at,
           expires_at,
+          country_code: quoteCountry,
         });
         price = pricing.price;
         currency = pricing.currency;
         durationDays = pricing.durationDays;
         ruleLabel = pricing.ruleLabel;
+        requestedCountry = pricing.requestedCountry;
+        pricingCountry = pricing.pricingCountry;
+        isFallbackPricing = Boolean(pricing.isFallback);
       } catch (e: any) {
         handleApiError(e, req, res);
         return;
@@ -3658,11 +3813,14 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
     res.json({
       standard_price: price,
       event_price: price,
-      currency: currency || 'MYR',
+      currency: currency || (pricingCountry ? getCurrencyForCountry(pricingCountry) : undefined) || 'USD',
       duration_days: durationDays,
       durationDays,
       pricing_rule_label: ruleLabel,
       pricingRuleLabel: ruleLabel,
+      requested_country: requestedCountry,
+      pricing_country: pricingCountry,
+      is_fallback: isFallbackPricing,
       theme: themeInfo,
       selected_mode: selectedMode,
       calculation: selectedCalculation,
@@ -3801,6 +3959,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       event_price,
       event_timezone: resolvedTz,
       currentDate: serverToday,
+      country_code: orgRecord?.country_code || undefined,
     });
 
     const enriched = await getEventById(created.id);
@@ -5544,7 +5703,7 @@ app.post(
   uploadRateLimiter,
   authenticateJWT,
   (req, res, next) => {
-    mediaUpload.single('file')(req, res, (err: any) => {
+    mediaUpload.single('file')(req as any, res as any, (err: any) => {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           res.status(413).json({
@@ -6156,7 +6315,8 @@ app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, asyn
 app.get('/api/developer/games/:gameId/pricing', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { gameId } = req.params;
-    const tiers = await getGamePricing(gameId);
+    const country = (req.query.country || req.query.country_code) as string | undefined;
+    const tiers = await getGamePricing(gameId, country);
     res.json({ success: true, tiers, game_id: gameId });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -6189,7 +6349,7 @@ app.put('/api/developer/games/:gameId/pricing', authenticateDeveloperAdmin, asyn
 app.post('/api/developer/games/:gameId/pricing/tier', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { gameId } = req.params;
-    const { min_days, max_days, price, currency, is_active, is_base } = req.body;
+    const { min_days, max_days, price, currency, country_code, is_active, is_base } = req.body;
     if (typeof min_days !== 'number' || typeof price !== 'number') {
       res.status(400).json({ error: 'min_days and price are required numbers' });
       return;
@@ -6199,6 +6359,7 @@ app.post('/api/developer/games/:gameId/pricing/tier', authenticateDeveloperAdmin
       max_days: max_days !== undefined ? max_days : null,
       price,
       currency,
+      country_code,
       is_active,
       is_base,
     });
@@ -6215,12 +6376,13 @@ app.post('/api/developer/games/:gameId/pricing/tier', authenticateDeveloperAdmin
 app.put('/api/developer/games/:gameId/pricing/tier/:tierId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { tierId } = req.params;
-    const { min_days, max_days, price, currency, is_active, is_base } = req.body;
+    const { min_days, max_days, price, currency, country_code, is_active, is_base } = req.body;
     const tier = await updateGamePricingTier(tierId, {
       min_days,
       max_days,
       price,
       currency,
+      country_code,
       is_active,
       is_base,
     });
@@ -6251,8 +6413,9 @@ app.delete('/api/developer/games/:gameId/pricing/tier/:tierId', authenticateDeve
 app.post('/api/developer/games/:gameId/pricing/seed-defaults', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { gameId } = req.params;
+    const { country_code, currency } = req.body || {};
     const game = await getGameById(gameId);
-    const tiers = await ensureDefaultGamePricing(gameId, game?.slug || game?.game_type);
+    const tiers = await ensureDefaultGamePricing(gameId, game?.slug || game?.game_type, country_code, currency);
     res.json({ success: true, tiers, message: 'Default pricing tiers seeded successfully' });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -6266,10 +6429,6 @@ app.post('/api/developer/games/:gameId/pricing/seed-defaults', authenticateDevel
 app.get('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { themeId } = req.params;
-    if (!isUUID(themeId)) {
-      res.status(400).json({ error: `Invalid theme ID format: ${themeId}` });
-      return;
-    }
     const theme = await getThemeById(themeId);
     if (!theme) {
       res.status(404).json({ error: 'System theme not found' });
@@ -6835,7 +6994,7 @@ app.get('/api/admin/pricing/settings', authenticateDeveloperAdmin, handleGetAdmi
  */
 const handleUpdateAdminPricingSettings = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const { default_price, default_currency, pricing_rules } = req.body;
+    const { default_price, default_currency, default_pricing_country, pricing_rules } = req.body;
     
     let priceNum: number | undefined;
     if (default_price !== undefined) {
@@ -6850,6 +7009,7 @@ const handleUpdateAdminPricingSettings = async (req: AuthenticatedRequest, res: 
       {
         default_price: priceNum,
         default_currency: default_currency ? String(default_currency).trim().toUpperCase() : undefined,
+        default_pricing_country: default_pricing_country ? String(default_pricing_country).trim().toUpperCase() : undefined,
         pricing_rules: Array.isArray(pricing_rules) ? pricing_rules : undefined,
       },
       req.user?.id
@@ -7320,13 +7480,34 @@ app.get('/api/admin/customer-invitations/preview-email', authenticateDeveloperAd
 /**
  * POST /api/developer/customer-invitations/resend-webhook
  * POST /api/webhooks/resend
- * Process incoming Resend webhook events for delivery tracking and bounce management
+ * Process incoming Resend webhook events:
+ * 1. Svix signature verification (if RESEND_WEBHOOK_SECRET configured)
+ * 2. Inbound customer reply forwarding (`email.received`) to eventgamestudio@gmail.com
+ * 3. Delivery and bounce status tracking (`email.delivered`, `email.bounced`, etc.)
  */
 const handleResendWebhook = async (req: express.Request, res: express.Response) => {
   try {
-    const payload = req.body;
-    const result = await handleCustomerInvitationWebhook(payload);
-    res.json({ success: true, result });
+    const rawBody = (req as any).rawBody || JSON.stringify(req.body || {});
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+
+    // 1. Inbound email processing & signature verification
+    const inboundResult = await handleResendInboundWebhookRequest({
+      rawBody,
+      headers,
+    });
+
+    if (inboundResult.statusCode !== 200) {
+      return res.status(inboundResult.statusCode).json(inboundResult.responseBody);
+    }
+
+    // 2. If it was an email.received event that got handled, return its response
+    if (inboundResult.responseBody?.eventType === 'email.received') {
+      return res.status(200).json(inboundResult.responseBody);
+    }
+
+    // 3. For delivery status events (email.delivered, email.bounced, etc.), update audit logs
+    const result = await handleCustomerInvitationWebhook(req.body);
+    res.json({ success: true, result, webhook: inboundResult.responseBody });
   } catch (err: any) {
     console.error('[Resend Webhook] Processing error:', err);
     res.status(400).json({ success: false, error: err?.message || 'Invalid webhook payload' });
@@ -7540,7 +7721,7 @@ const handleUpdateEventPricing = async (req: AuthenticatedRequest, res: any) => 
       eventId,
       {
         event_price: priceNum,
-        event_currency: event_currency ? String(event_currency).trim().toUpperCase() : 'MYR',
+        event_currency: event_currency ? String(event_currency).trim().toUpperCase() : undefined,
       },
       req.user?.id
     );
@@ -7548,7 +7729,7 @@ const handleUpdateEventPricing = async (req: AuthenticatedRequest, res: any) => 
     res.json({
       success: true,
       event: updatedEvent,
-      message: `Event price updated to ${updatedEvent.event_currency || 'MYR'} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
+      message: `Event price updated to ${updatedEvent.event_currency || 'USD'} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
     });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -7606,6 +7787,1033 @@ const handleRunEventMaintenance = async (req: AuthenticatedRequest, res: any) =>
 
 app.post('/api/developer/events/maintenance', authenticateDeveloperAdmin, handleRunEventMaintenance);
 app.post('/api/admin/events/maintenance', authenticateDeveloperAdmin, handleRunEventMaintenance);
+
+// ----------------------------------------------------
+// SALES PARTNER ENDPOINTS (PHASE 2 FOUNDATIONS)
+// ----------------------------------------------------
+
+/**
+ * GET /api/sales/me
+ * Protected Sales Partner endpoint: retrieves profile for verified active partner.
+ * Rejects non-partners and suspended partners with 403 Forbidden.
+ */
+app.get('/api/sales/me', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const profile = req.salesPartnerProfile!;
+    res.json({
+      success: true,
+      salesPartner: {
+        id: profile.id,
+        user_id: profile.user_id,
+        status: profile.status,
+        applied_at: profile.applied_at,
+        activated_at: profile.activated_at,
+        suspended_at: profile.suspended_at,
+        agency_name: profile.agency_name || null,
+        application_notes: profile.application_notes || null,
+        custom_commission_rate: profile.custom_commission_rate ?? null,
+        first_order_commission_rate: profile.first_order_commission_rate ?? null,
+        repeat_order_commission_rate: profile.repeat_order_commission_rate ?? null,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/sales/apply
+ * Authenticated user endpoint: submit a Sales Partner application.
+ * Creates an initial profile with 'pending' status.
+ */
+app.post('/api/sales/apply', authenticateJWT, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const body = req.body || {};
+
+    const agencyName = typeof body.agencyName === 'string'
+      ? body.agencyName.trim()
+      : typeof body.agency_name === 'string'
+      ? body.agency_name.trim()
+      : undefined;
+
+    const applicationNotes = typeof body.applicationNotes === 'string'
+      ? body.applicationNotes.trim()
+      : typeof body.application_notes === 'string'
+      ? body.application_notes.trim()
+      : typeof body.notes === 'string'
+      ? body.notes.trim()
+      : typeof body.adminNotes === 'string'
+      ? body.adminNotes.trim()
+      : undefined;
+
+    // Strict length limits validation
+    if (agencyName && agencyName.length > 150) {
+      res.status(400).json({ error: 'Agency name cannot exceed 150 characters.' });
+      return;
+    }
+    if (applicationNotes && applicationNotes.length > 1000) {
+      res.status(400).json({ error: 'Application details cannot exceed 1,000 characters.' });
+      return;
+    }
+
+    const profile = await createSalesPartnerApplication(user.id, {
+      agencyName,
+      applicationNotes,
+    });
+
+    if (profile && 'admin_notes' in profile) {
+      delete (profile as any).admin_notes;
+    }
+
+    res.status(201).json({
+      success: true,
+      salesPartner: profile,
+      message: 'Sales Partner application submitted successfully. Your application is now pending review.',
+    });
+  } catch (err: any) {
+    if (err.message?.includes('already exists')) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('cannot exceed')) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/games
+ * Protected Sales Partner endpoint: retrieves approved platform games for sales demonstration.
+ * Rejects non-partners and pending/suspended partners with 403 Forbidden.
+ * Respects customer's country code (?country=SG, ?country=MY, ?country=US).
+ */
+app.get('/api/sales/games', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const country = (req.query.country || req.query.country_code) as string | undefined;
+    const games = await getApprovedSalesGames(country);
+    res.json({
+      success: true,
+      games,
+      count: games.length,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/games/:gameId
+ * Protected Sales Partner endpoint: retrieves a single approved game detail for sales demonstration.
+ * Rejects non-partners and pending/suspended partners with 403 Forbidden.
+ * Fails closed (404) if game is unpublished, internal, or does not exist.
+ */
+app.get('/api/sales/games/:gameId', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { gameId } = req.params;
+    const country = (req.query.country || req.query.country_code) as string | undefined;
+    const game = await getApprovedSalesGameById(gameId, country);
+    if (!game) {
+      res.status(404).json({ error: 'Game not found or not approved for sales demonstration' });
+      return;
+    }
+    res.json({
+      success: true,
+      game,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-partners (and /api/admin/sales-partners)
+ * Developer Admin: list all Sales Partner profiles with user details and optional search filter.
+ */
+const handleListAdminSalesPartners = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const statusQuery = typeof req.query.status === 'string' ? req.query.status.trim() : undefined;
+    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
+    const validStatuses = ['pending', 'active', 'suspended', 'rejected'];
+    const filterStatus = statusQuery && validStatuses.includes(statusQuery) ? (statusQuery as any) : undefined;
+    const partners = await listSalesPartnerProfiles({ status: filterStatus, search: searchQuery });
+    res.json({
+      success: true,
+      salesPartners: partners,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/sales-partners', authenticateDeveloperAdmin, handleListAdminSalesPartners);
+app.get('/api/admin/sales-partners', authenticateDeveloperAdmin, handleListAdminSalesPartners);
+
+/**
+ * POST /api/developer/sales-partners/:userId/status (and /api/admin/sales-partners/:userId/status)
+ * Developer Admin: activate, suspend, reject, or reset a Sales Partner profile.
+ * Consequential changes require a non-empty reason and actor identity is resolved server-side.
+ */
+const handleUpdateAdminSalesPartnerStatus = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { userId } = req.params;
+    const { status, admin_notes, reason } = req.body || {};
+
+    const validStatuses = ['pending', 'active', 'suspended', 'rejected'];
+    if (!status || !validStatuses.includes(status)) {
+      res.status(422).json({
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+      return;
+    }
+
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+    if ((status === 'suspended' || status === 'rejected') && !trimmedReason) {
+      res.status(422).json({
+        error: 'A non-empty reason is required for status changes',
+      });
+      return;
+    }
+
+    const actorUserId = req.user!.id;
+    const updated = await updateSalesPartnerStatus(userId, status, admin_notes, actorUserId, trimmedReason);
+    res.json({
+      success: true,
+      salesPartner: updated,
+      message: `Sales Partner status updated to ${status}.`,
+    });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('reason is required')) {
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/sales-partners/:userId/status', authenticateDeveloperAdmin, handleUpdateAdminSalesPartnerStatus);
+app.post('/api/admin/sales-partners/:userId/status', authenticateDeveloperAdmin, handleUpdateAdminSalesPartnerStatus);
+
+/**
+ * POST /api/developer/sales-partners/:userId/rates (and /api/admin/sales-partners/:userId/rates)
+ * Developer Admin: configure partner-specific exceptional commission rate overrides.
+ */
+const handleUpdateAdminSalesPartnerRates = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { userId } = req.params;
+    const { custom_commission_rate, first_order_commission_rate, repeat_order_commission_rate, reason } = req.body || {};
+
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (!trimmedReason) {
+      res.status(422).json({
+        error: 'A non-empty reason is required to update commission rates',
+      });
+      return;
+    }
+
+    // Validate each rate independently
+    const validateRate = (val: any, fieldName: string) => {
+      if (val === undefined || val === null) return null;
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 0.50) {
+        return `${fieldName} must be null or a finite number between 0.00 and 0.50 (maximum 50%)`;
+      }
+      return null;
+    };
+
+    const customErr = validateRate(custom_commission_rate, 'Custom commission rate');
+    if (customErr) {
+      res.status(422).json({ error: customErr });
+      return;
+    }
+    const firstErr = validateRate(first_order_commission_rate, 'First order commission rate');
+    if (firstErr) {
+      res.status(422).json({ error: firstErr });
+      return;
+    }
+    const repeatErr = validateRate(repeat_order_commission_rate, 'Repeat order commission rate');
+    if (repeatErr) {
+      res.status(422).json({ error: repeatErr });
+      return;
+    }
+
+    if (
+      custom_commission_rate === undefined &&
+      first_order_commission_rate === undefined &&
+      repeat_order_commission_rate === undefined
+    ) {
+      res.status(422).json({
+        error: 'At least one commission rate field must be provided',
+      });
+      return;
+    }
+
+    const actorUserId = req.user!.id;
+    const ratesPayload: {
+      custom_commission_rate?: number | null;
+      first_order_commission_rate?: number | null;
+      repeat_order_commission_rate?: number | null;
+    } = {};
+
+    if (custom_commission_rate !== undefined) {
+      ratesPayload.custom_commission_rate = custom_commission_rate;
+    }
+    if (first_order_commission_rate !== undefined) {
+      ratesPayload.first_order_commission_rate = first_order_commission_rate;
+    }
+    if (repeat_order_commission_rate !== undefined) {
+      ratesPayload.repeat_order_commission_rate = repeat_order_commission_rate;
+    }
+
+    const updated = await updateSalesPartnerRate(
+      userId,
+      ratesPayload,
+      actorUserId,
+      trimmedReason
+    );
+
+    res.json({
+      success: true,
+      salesPartner: updated,
+      message: 'Commission rates updated successfully.',
+    });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('reason is required') || err.message?.includes('must be null or a finite number')) {
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/sales-partners/:userId/rates', authenticateDeveloperAdmin, handleUpdateAdminSalesPartnerRates);
+app.post('/api/admin/sales-partners/:userId/rates', authenticateDeveloperAdmin, handleUpdateAdminSalesPartnerRates);
+
+/**
+ * GET /api/developer/sales-partners/:userId/audit-logs (and /api/admin/sales-partners/:userId/audit-logs)
+ * Developer Admin: retrieve status history and audit logs for a Sales Partner.
+ */
+const handleGetAdminSalesPartnerAuditLogs = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { userId } = req.params;
+    const logs = await getSalesPartnerAuditLogs(userId);
+    res.json({
+      success: true,
+      auditLogs: logs,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/sales-partners/:userId/audit-logs', authenticateDeveloperAdmin, handleGetAdminSalesPartnerAuditLogs);
+app.get('/api/admin/sales-partners/:userId/audit-logs', authenticateDeveloperAdmin, handleGetAdminSalesPartnerAuditLogs);
+
+// ----------------------------------------------------
+// SALES REFERRALS & CUSTOMER ATTRIBUTIONS (PHASE 4)
+// ----------------------------------------------------
+
+/**
+ * GET /api/sales/referral-code
+ * Protected Sales Partner endpoint: retrieves or creates unique referral code and shareable link.
+ */
+app.get('/api/sales/referral-code', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const codeRecord = await getOrCreateSalesReferralCode(user.id);
+    const baseUrl = getFrontendBaseUrl(undefined, req);
+    const referralUrl = `${baseUrl}/?ref=${codeRecord.code}`;
+
+    res.json({
+      success: true,
+      referralCode: codeRecord.code,
+      referralUrl,
+      record: codeRecord,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/attributions
+ * Protected Sales Partner endpoint: lists all customer attributions associated with this partner.
+ */
+app.get('/api/sales/attributions', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const statusQuery = typeof req.query.status === 'string' ? (req.query.status.trim() as any) : undefined;
+    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
+
+    const attributions = await listCustomerAttributions({
+      partnerUserId: user.id,
+      status: statusQuery,
+      search: searchQuery,
+    });
+
+    res.json({
+      success: true,
+      attributions,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/referrals/validate/:code
+ * Public endpoint: validates referral code without exposing private partner or customer data.
+ */
+app.get('/api/referrals/validate/:code', async (req: any, res: any) => {
+  try {
+    const { code } = req.params;
+    const validation = await validateReferralCode(code);
+
+    if (!validation.valid || !validation.codeRecord) {
+      res.json({
+        success: false,
+        valid: false,
+        reason: validation.reason || 'INVALID_REFERRAL_CODE',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      code: validation.codeRecord.code,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/referrals/capture
+ * Public / client capture endpoint for referral code.
+ */
+app.post('/api/referrals/capture', async (req: any, res: any) => {
+  try {
+    const { referralCode, email } = req.body || {};
+    if (!referralCode || typeof referralCode !== 'string') {
+      res.status(422).json({ error: 'Referral code is required' });
+      return;
+    }
+
+    const validation = await validateReferralCode(referralCode);
+    if (!validation.valid) {
+      res.status(400).json({ error: 'Invalid or inactive referral code', reason: validation.reason });
+      return;
+    }
+
+    if (email && typeof email === 'string' && email.trim()) {
+      await recordCustomerReferral({
+        referralCode: referralCode.trim(),
+        prospectEmail: email.trim().toLowerCase(),
+        referralMethod: 'link',
+      });
+    }
+
+    res.json({
+      success: true,
+      code: validation.codeRecord?.code,
+      message: 'Referral captured successfully',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-attributions (and /api/admin/sales-attributions)
+ * Developer Admin: lists all customer attributions with filtering.
+ */
+const handleListAdminAttributions = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const status = typeof req.query.status === 'string' ? (req.query.status.trim() as any) : undefined;
+    const partnerId = typeof req.query.partnerId === 'string' ? req.query.partnerId.trim() : undefined;
+    const organizationId = typeof req.query.organizationId === 'string' ? req.query.organizationId.trim() : undefined;
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
+
+    const attributions = await listCustomerAttributions({
+      status,
+      partnerId,
+      organizationId,
+      search,
+    });
+
+    res.json({
+      success: true,
+      attributions,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+app.get('/api/developer/sales-attributions', authenticateDeveloperAdmin, handleListAdminAttributions);
+app.get('/api/admin/sales-attributions', authenticateDeveloperAdmin, handleListAdminAttributions);
+
+/**
+ * GET /api/developer/sales-attributions/:id (and /api/admin/sales-attributions/:id)
+ * Developer Admin: get detailed attribution record including audit logs.
+ */
+const handleGetAdminAttributionDetail = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const attribution = await getAttributionById(id);
+    if (!attribution) {
+      res.status(404).json({ error: 'Attribution record not found' });
+      return;
+    }
+    const auditLogs = await getAttributionAuditLogs(id);
+    res.json({
+      success: true,
+      attribution,
+      auditLogs,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+app.get('/api/developer/sales-attributions/:id', authenticateDeveloperAdmin, handleGetAdminAttributionDetail);
+app.get('/api/admin/sales-attributions/:id', authenticateDeveloperAdmin, handleGetAdminAttributionDetail);
+
+/**
+ * POST /api/developer/sales-attributions/:id/approve (and /api/admin/sales-attributions/:id/approve)
+ * Developer Admin: approve customer attribution.
+ */
+const handleApproveAdminAttribution = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const adminUser = req.user!;
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;
+
+    const updated = await approveCustomerAttribution(id, adminUser.id, reason);
+    res.json({
+      success: true,
+      attribution: updated,
+      message: 'Attribution approved successfully',
+    });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('Cannot approve: Organization is already attributed')) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+};
+app.post('/api/developer/sales-attributions/:id/approve', authenticateDeveloperAdmin, handleApproveAdminAttribution);
+app.post('/api/admin/sales-attributions/:id/approve', authenticateDeveloperAdmin, handleApproveAdminAttribution);
+
+/**
+ * POST /api/developer/sales-attributions/:id/reject (and /api/admin/sales-attributions/:id/reject)
+ * Developer Admin: reject customer attribution with required justification.
+ */
+const handleRejectAdminAttribution = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const adminUser = req.user!;
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+
+    if (!reason) {
+      res.status(422).json({ error: 'A recorded rejection reason is required' });
+      return;
+    }
+
+    const updated = await rejectCustomerAttribution(id, adminUser.id, reason);
+    res.json({
+      success: true,
+      attribution: updated,
+      message: 'Attribution rejected successfully',
+    });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+};
+app.post('/api/developer/sales-attributions/:id/reject', authenticateDeveloperAdmin, handleRejectAdminAttribution);
+app.post('/api/admin/sales-attributions/:id/reject', authenticateDeveloperAdmin, handleRejectAdminAttribution);
+
+/**
+ * POST /api/developer/sales-attributions/:id/reassign (and /api/admin/sales-attributions/:id/reassign)
+ * Developer Admin: reassign customer attribution to another active Sales Partner.
+ */
+const handleReassignAdminAttribution = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const adminUser = req.user!;
+    const { newPartnerUserId, reason } = req.body || {};
+
+    if (!newPartnerUserId || typeof newPartnerUserId !== 'string' || !newPartnerUserId.trim()) {
+      res.status(422).json({ error: 'Target partner user ID is required' });
+      return;
+    }
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      res.status(422).json({ error: 'A recorded reassignment reason is required' });
+      return;
+    }
+
+    const updated = await reassignCustomerAttribution(id, newPartnerUserId.trim(), adminUser.id, reason.trim());
+    res.json({
+      success: true,
+      attribution: updated,
+      message: 'Attribution reassigned successfully',
+    });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('not an active Sales Partner')) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err.message?.includes('self-referral')) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+};
+app.post('/api/developer/sales-attributions/:id/reassign', authenticateDeveloperAdmin, handleReassignAdminAttribution);
+app.post('/api/admin/sales-attributions/:id/reassign', authenticateDeveloperAdmin, handleReassignAdminAttribution);
+
+// ----------------------------------------------------
+// PHASE 5: SALES PARTNER COMMISSIONS & OPPORTUNITIES ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/sales/commissions
+ * Protected Sales Partner endpoint: retrieves commission ledger & summary for current partner.
+ */
+app.get('/api/sales/commissions', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const [commissions, summary] = await Promise.all([
+      getPartnerCommissions(user.id),
+      getPartnerCommissionSummary(user.id),
+    ]);
+    res.json({ success: true, commissions, summary });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/opportunities
+ * Protected Sales Partner endpoint: retrieves sales opportunity requests submitted by this partner.
+ */
+app.get('/api/sales/opportunities', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const opportunities = await listSalesOpportunities({ partner_user_id: user.id });
+    res.json({ success: true, opportunities });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/sales/opportunities
+ * Protected Sales Partner endpoint: submits a new opportunity request for an attributed organization.
+ */
+app.post('/api/sales/opportunities', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.body.organizationId || req.body.organization_id;
+    const { title, description, expectedEventDate } = req.body;
+    if (!organizationId || !title) {
+      res.status(400).json({ error: 'organizationId and title are required' });
+      return;
+    }
+    const opportunity = await createSalesOpportunityRequest({
+      partnerUserId: user.id,
+      organizationId,
+      title,
+      description,
+      expectedEventDate,
+    });
+    res.json({ success: true, opportunity });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/attribution-summary
+ * Protected Sales Partner endpoint: retrieves 12-month window status for attributed organizations.
+ */
+app.get('/api/sales/attribution-summary', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const summary = await getPartnerCustomerAttributionSummary(user.id);
+    res.json({ success: true, summary });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/dashboard-summary
+ * Protected Sales Partner endpoint: retrieves aggregate dashboard statistics & next actions.
+ */
+app.get('/api/sales/dashboard-summary', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const summary = await getSalesDashboardSummary(user.id);
+    res.json({ success: true, summary });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/customers
+ * Protected Sales Partner endpoint: lists only customers & organizations attributed to this partner.
+ */
+app.get('/api/sales/customers', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const status = statusParam && statusParam !== 'all' ? (statusParam as any) : undefined;
+    const page = typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 20;
+    const sortBy = typeof req.query.sort_by === 'string' ? (req.query.sort_by as any) : undefined;
+    const sortOrder = typeof req.query.sort_order === 'string' && req.query.sort_order.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    const result = await listSalesPartnerCustomers(user.id, {
+      search,
+      status,
+      page,
+      limit,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/sales/customers/:customerId
+ * Protected Sales Partner endpoint: retrieves details for a single attributed customer.
+ * Enforces IDOR authorization - returns 404 if not attributed to the calling partner.
+ */
+app.get('/api/sales/customers/:customerId', authenticateSalesPartner, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const customerId = req.params.customerId;
+    if (!customerId) {
+      res.status(400).json({ error: 'Customer ID is required' });
+      return;
+    }
+
+    const customer = await getSalesPartnerCustomerDetail(user.id, customerId);
+    if (!customer) {
+      res.status(404).json({ error: 'Customer not found or not attributed to your partner account' });
+      return;
+    }
+
+    res.json({ success: true, customer });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+// ----------------------------------------------------
+// DEVELOPER ADMIN SALES COMMISSIONS & PAYOUTS ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/developer/sales-commissions (and /api/admin/sales-commissions)
+ * Developer Admin: list all commissions with search and filters.
+ */
+const handleListAdminCommissions = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const status = typeof req.query.status === 'string' ? (req.query.status as any) : undefined;
+    const orderType = typeof req.query.order_type === 'string' ? (req.query.order_type as any) : undefined;
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const partnerId = typeof req.query.sales_partner_id === 'string' ? req.query.sales_partner_id : undefined;
+    const orgId = typeof req.query.organization_id === 'string' ? req.query.organization_id : undefined;
+    const batchId = typeof req.query.payout_batch_id === 'string' ? req.query.payout_batch_id : undefined;
+    const page = typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 20;
+
+    const result = await listAdminCommissions({
+      status,
+      order_type: orderType,
+      search,
+      sales_partner_id: partnerId,
+      organization_id: orgId,
+      payout_batch_id: batchId,
+      page,
+      limit,
+    });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+app.get('/api/developer/sales-commissions', authenticateDeveloperAdmin, handleListAdminCommissions);
+app.get('/api/admin/sales-commissions', authenticateDeveloperAdmin, handleListAdminCommissions);
+
+/**
+ * GET /api/developer/sales-commissions/:id
+ */
+app.get('/api/developer/sales-commissions/:id', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const commission = await getCommissionById(req.params.id);
+    if (!commission) {
+      res.status(404).json({ error: 'Commission record not found' });
+      return;
+    }
+    res.json({ success: true, commission });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-commissions/:id/audit-logs
+ */
+app.get('/api/developer/sales-commissions/:id/audit-logs', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const logs = await getCommissionAuditLogs(req.params.id);
+    res.json({ success: true, logs });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-commissions/:id/approve
+ */
+app.post('/api/developer/sales-commissions/:id/approve', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { notes } = req.body || {};
+    const updated = await approveCommission(req.params.id, admin.id, notes);
+    res.json({ success: true, commission: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-commissions/:id/void
+ */
+app.post('/api/developer/sales-commissions/:id/void', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { reason } = req.body || {};
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'Reason is required when voiding a commission' });
+      return;
+    }
+    const updated = await voidCommission(req.params.id, admin.id, reason.trim());
+    res.json({ success: true, commission: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-commissions/:id/adjust
+ */
+app.post('/api/developer/sales-commissions/:id/adjust', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { newAmount, reason } = req.body || {};
+    if (typeof newAmount !== 'number' || isNaN(newAmount) || newAmount < 0) {
+      res.status(400).json({ error: 'Valid non-negative newAmount is required' });
+      return;
+    }
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'Reason is required when adjusting commission amount' });
+      return;
+    }
+    const updated = await adjustCommission(req.params.id, newAmount, admin.id, reason.trim());
+    res.json({ success: true, commission: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-opportunities
+ */
+app.get('/api/developer/sales-opportunities', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const status = typeof req.query.status === 'string' ? (req.query.status as any) : undefined;
+    const partnerId = typeof req.query.sales_partner_id === 'string' ? req.query.sales_partner_id : undefined;
+    const opportunities = await listSalesOpportunities({ status, sales_partner_id: partnerId });
+    res.json({ success: true, opportunities });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-opportunities/:id/approve
+ */
+app.post('/api/developer/sales-opportunities/:id/approve', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { validUntil, decisionNotes } = req.body || {};
+    const updated = await approveSalesOpportunity(req.params.id, admin.id, { validUntil, decisionNotes });
+    res.json({ success: true, opportunity: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-opportunities/:id/reject
+ */
+app.post('/api/developer/sales-opportunities/:id/reject', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { reason } = req.body || {};
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'Reason is required when rejecting a sales opportunity' });
+      return;
+    }
+    const updated = await rejectSalesOpportunity(req.params.id, admin.id, reason.trim());
+    res.json({ success: true, opportunity: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-payouts/ready
+ */
+app.get('/api/developer/sales-payouts/ready', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const ready = await getCommissionsReadyForPayout();
+    res.json({ success: true, ...ready });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-payouts/batches
+ */
+app.post('/api/developer/sales-payouts/batches', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { commissionIds, notes } = req.body || {};
+    if (!Array.isArray(commissionIds) || commissionIds.length === 0) {
+      res.status(400).json({ error: 'commissionIds array is required' });
+      return;
+    }
+    const batch = await createPayoutBatch(commissionIds, admin.id, notes);
+    res.json({ success: true, batch });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-payouts/batches
+ */
+app.get('/api/developer/sales-payouts/batches', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const batches = await listPayoutBatches();
+    res.json({ success: true, batches });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-payouts/batches/:id
+ */
+app.get('/api/developer/sales-payouts/batches/:id', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const batch = await getPayoutBatchById(req.params.id);
+    if (!batch) {
+      res.status(404).json({ error: 'Payout batch not found' });
+      return;
+    }
+    const commissionsResult = await listAdminCommissions({ payout_batch_id: batch.id, limit: 100 });
+    res.json({ success: true, batch, commissions: commissionsResult.commissions });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/sales-payouts/batches/:id/pay
+ */
+app.post('/api/developer/sales-payouts/batches/:id/pay', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const { paymentReference, notes } = req.body || {};
+    if (!paymentReference || !paymentReference.trim()) {
+      res.status(400).json({ error: 'paymentReference is required when marking a payout batch as paid' });
+      return;
+    }
+    const updated = await markPayoutBatchPaid(req.params.id, paymentReference.trim(), admin.id, notes);
+    res.json({ success: true, batch: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/sales-commissions/settings
+ */
+app.get('/api/developer/sales-commissions/settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const settings = await getSalesCommissionSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT /api/developer/sales-commissions/settings
+ */
+app.put('/api/developer/sales-commissions/settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const settings = req.body || {};
+    const updated = await updateSalesCommissionSettings(settings, admin.id);
+    res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
 
 // ----------------------------------------------------
 // DEVELOPER ADMIN ORGANIZATIONS ENDPOINTS
@@ -7811,7 +9019,15 @@ app.get('/api/organizations/:orgId/wallet/topup/quote', authenticateJWT, async (
     }
 
     const amount = Number(req.query.amount) || 0;
-    const currency = (req.query.currency as string) || 'MYR';
+    let currency = (req.query.currency as string) || undefined;
+    if (!currency) {
+      try {
+        const org = await getOrganizationById(orgId);
+        currency = getCurrencyForCountry(org?.country_code) || 'USD';
+      } catch (_) {
+        currency = 'USD';
+      }
+    }
 
     const quote = await getTopupQuote({
       organizationId: orgId,
@@ -7867,11 +9083,21 @@ const handleCreateTopupOrder = async (req: AuthenticatedRequest, res: express.Re
       return;
     }
 
+    let topupCurrency = currency ? String(currency).trim().toUpperCase() : undefined;
+    if (!topupCurrency) {
+      try {
+        const org = await getOrganizationById(orgId);
+        topupCurrency = getCurrencyForCountry(org?.country_code) || 'USD';
+      } catch (_) {
+        topupCurrency = 'USD';
+      }
+    }
+
     const order = await createTopupOrder({
       organizationId: orgId,
       userId: req.user!.id,
       amount: numericAmount,
-      currency: currency || 'MYR',
+      currency: topupCurrency,
       paymentReference: payment_reference || paymentReference,
       paymentMethod: payment_method || paymentMethod,
       notes,
@@ -8362,10 +9588,20 @@ app.post('/api/organizations/:orgId/wallet/topup/prepare-order', walletRateLimit
       return;
     }
 
+    let topupCurrency = currency ? String(currency).trim().toUpperCase() : undefined;
+    if (!topupCurrency) {
+      try {
+        const org = await getOrganizationById(orgId);
+        topupCurrency = getCurrencyForCountry(org?.country_code) || 'USD';
+      } catch (_) {
+        topupCurrency = 'USD';
+      }
+    }
+
     const result = await preparePendingTopupOrder({
       organizationId: orgId,
       amount: numericAmount,
-      currency: currency || 'MYR',
+      currency: topupCurrency,
       createdBy: req.user!.id,
       notes,
     });
@@ -9263,6 +10499,300 @@ app.post('/api/developer/notifications/dispatch-test', authenticateDeveloperAdmi
 });
 
 // ----------------------------------------------------
+// INVOICES & BILLING ENDPOINTS (CUSTOMER & DEVELOPER ADMIN)
+// ----------------------------------------------------
+
+/**
+ * GET /api/organizations/:organizationId/invoices
+ * Lists all invoices for an authorized customer organization.
+ */
+app.get('/api/organizations/:organizationId/invoices', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { organizationId } = req.params;
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'organization.view');
+    const isDev = isUserDeveloperAdmin(user);
+
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied: You are not a member of this organization' });
+      return;
+    }
+
+    const invoices = await listInvoicesByOrganization(organizationId);
+    res.json({ invoices });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/invoices/:id
+ * Retrieves full details for an invoice if caller belongs to organization or is developer.
+ */
+app.get('/api/invoices/:id', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    const invoice = await getInvoiceById(id);
+    if (!invoice) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, invoice.organization_id, 'organization.view');
+    const isDev = isUserDeveloperAdmin(user);
+
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied: You do not have permission to view this invoice' });
+      return;
+    }
+
+    res.json({ invoice });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/invoices/:id/pdf
+ * Streams vector PDF document for authorized organization members or developer admins.
+ */
+app.get('/api/invoices/:id/pdf', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    const invoice = await getInvoiceById(id);
+    if (!invoice) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, invoice.organization_id, 'organization.view');
+    const isDev = isUserDeveloperAdmin(user);
+
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied: You do not have permission to view this invoice PDF' });
+      return;
+    }
+
+    const pdfBytes = await getInvoicePdfBytes(id);
+    if (!pdfBytes) {
+      res.status(500).json({ error: 'Failed to generate or retrieve invoice PDF' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.pdf"`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(Buffer.from(pdfBytes));
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/events/:eventId/invoice
+ * Retrieves invoice record for a completed event (or null if not yet generated).
+ */
+app.get('/api/events/:eventId/invoice', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'organization.view');
+    const isDev = isUserDeveloperAdmin(user);
+
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied: You do not have permission to view this event invoice' });
+      return;
+    }
+
+    const invoice = await getInvoiceByEventId(eventId);
+    res.json({ invoice: invoice || null });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/invoices/:id/credit-notes
+ * Retrieves credit notes linked to an invoice for authorized organization members.
+ */
+app.get('/api/invoices/:id/credit-notes', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    const invoice = await getInvoiceById(id);
+    if (!invoice) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, invoice.organization_id, 'organization.view');
+    const isDev = isUserDeveloperAdmin(user);
+
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied: You do not have permission to view credit notes for this invoice' });
+      return;
+    }
+
+    const creditNotes = await listCreditNotesByInvoice(id);
+    res.json({ credit_notes: creditNotes });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/invoices
+ * Lists and searches all platform invoices with pagination and filters.
+ */
+app.get('/api/developer/invoices', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { page, pageSize, search, status, organizationId, startDate, endDate } = req.query as Record<string, string>;
+
+    const result = await listAllInvoicesForDeveloper({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 25,
+      search,
+      status,
+      organizationId,
+      startDate,
+      endDate,
+    });
+
+    res.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/invoices/:id
+ * Retrieves invoice details, credit notes, and audit logs for Developer Admin.
+ */
+app.get('/api/developer/invoices/:id', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const invoice = await getInvoiceById(id);
+    if (!invoice) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const creditNotes = await listCreditNotesByInvoice(id);
+    const auditLogs = await listInvoiceAuditLogs(id);
+
+    res.json({
+      success: true,
+      invoice,
+      credit_notes: creditNotes,
+      audit_logs: auditLogs,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/invoices/:id/retry-pdf
+ * Retries PDF generation and persistent storage for an invoice.
+ */
+app.post('/api/developer/invoices/:id/retry-pdf', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    const invoice = await retryInvoicePdf(id, undefined, user.id, user.email);
+    res.json({ success: true, invoice });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/invoices/:id/retry-email
+ * Retries dispatching customer notification email for an invoice.
+ */
+app.post('/api/developer/invoices/:id/retry-email', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    const result = await retryInvoiceEmail(id, undefined, user.id, user.email);
+    res.json(result);
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/invoices/:id/credit-notes
+ * Issues an audited credit note linked to an invoice.
+ */
+app.post('/api/developer/invoices/:id/credit-notes', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+    const { amount, reason } = req.body || {};
+
+    if (amount === undefined || amount === null || isNaN(Number(amount)) || Number(amount) <= 0) {
+      res.status(400).json({ error: 'A positive credit note amount is required' });
+      return;
+    }
+
+    const creditNote = await createCreditNote(id, Number(amount), String(reason || ''), undefined, user.id);
+    res.json({ success: true, credit_note: creditNote });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/invoice-settings
+ * Retrieves platform seller invoice settings (business name, registration, SST/tax number, address).
+ */
+app.get('/api/developer/invoice-settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const settings = await getPlatformInvoiceSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT / POST /api/developer/invoice-settings
+ * Updates platform seller invoice settings.
+ */
+const handleUpdateInvoiceSettings = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const user = req.user!;
+    const updates = req.body || {};
+    const updated = await updatePlatformInvoiceSettings(updates, user.id);
+    res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+app.put('/api/developer/invoice-settings', authenticateDeveloperAdmin, handleUpdateInvoiceSettings);
+app.post('/api/developer/invoice-settings', authenticateDeveloperAdmin, handleUpdateInvoiceSettings);
+
+// ----------------------------------------------------
 // DEVELOPER & ADMIN ERROR LOGS AUDITING ENDPOINTS
 // ----------------------------------------------------
 
@@ -9383,10 +10913,14 @@ async function startServer() {
 
     // Start background event lifecycle maintenance job (runs every 60 seconds)
     setInterval(async () => {
+      const correlationId = `node_cron_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       try {
-        await runEventLifecycleMaintenance();
+        const result = await runEventLifecycleMaintenance(undefined, new Date(), { correlationId });
+        if (result.skippedDueToLease) {
+          console.log(`[Event Lifecycle Maintenance][${correlationId}] Periodic job skipped: lease active or held elsewhere`);
+        }
       } catch (err) {
-        console.error('[Event Lifecycle Maintenance] Periodic job error:', err);
+        console.error(`[Event Lifecycle Maintenance][${correlationId}] Periodic job error:`, err);
       }
     }, 60 * 1000);
   });

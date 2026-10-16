@@ -23,13 +23,16 @@ import {
   AlertOctagon,
   MessageSquare,
   UserPlus,
+  Share2,
+  Users,
+  FileText,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { LanguageSelector } from '../common/LanguageSelector';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations' | 'sales-partners' | 'sales-attributions' | 'sales-commissions' | 'invoices';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -105,6 +108,38 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
       activeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
       iconColor: 'text-amber-400',
     },
+    {
+      id: 'sales-partners',
+      path: '/developer/sales-partners',
+      icon: Users,
+      label: 'Sales Partners',
+      activeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      iconColor: 'text-emerald-400',
+    },
+    {
+      id: 'sales-attributions',
+      path: '/developer/sales-attributions',
+      icon: Share2,
+      label: 'Sales Attributions',
+      activeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      iconColor: 'text-emerald-400',
+    },
+    {
+      id: 'sales-commissions',
+      path: '/developer/sales-commissions',
+      icon: Coins,
+      label: 'Commissions & Payouts',
+      activeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+      iconColor: 'text-amber-400',
+    },
+    {
+      id: 'invoices',
+      path: '/developer/invoices',
+      icon: FileText,
+      label: 'Invoices & Billing',
+      activeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      iconColor: 'text-emerald-400',
+    },
   ];
 
   return (
@@ -149,7 +184,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             </div>
             <div>
               <span className="text-base font-black text-white tracking-tight flex items-center whitespace-nowrap">
-                DevAdmin <span className="text-emerald-400 ml-1">Platform</span>
+                DevAdmin <span className="text-emerald-400 ml-1">{t('developer.platformTitle', undefined, 'Platform')}</span>
               </span>
               <span className="text-[10px] font-mono text-slate-400 block -mt-0.5 whitespace-nowrap">
                 {t('developer.gamesThemesReviews')}
@@ -162,7 +197,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             {/* Active Org Context Badge */}
             {currentOrganization && (
               <div className="hidden lg:flex items-center space-x-2 px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs whitespace-nowrap">
-                <span className="text-slate-500">Org:</span>
+                <span className="text-slate-500">{t('developer.lblOrg', undefined, 'Org:')}</span>
                 <span className="text-slate-300 font-semibold truncate max-w-[140px]">{currentOrganization.name}</span>
               </div>
             )}
@@ -276,7 +311,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
 
       {/* Footer */}
       <footer className="border-t border-slate-900 py-4 bg-slate-950 text-center text-xs text-slate-600">
-        <p>Brand Engagement Games Platform • Developer Administration Architecture</p>
+        <p>{t('developer.adminFooterNote', undefined, 'Brand Engagement Games Platform • Developer Administration Architecture')}</p>
       </footer>
     </div>
   );

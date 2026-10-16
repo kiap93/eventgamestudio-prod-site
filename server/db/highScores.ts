@@ -28,6 +28,7 @@ import {
   resolveAuthoritativeMemoryMatchConfig,
   resolveAuthoritativeCatchBrandConfig,
 } from './events.js';
+import { executeWithResilience } from './supabaseResilience.js';
 import { isUUID, getThemeById } from './themes.js';
 import {
   calculateMemoryMatchScore,
@@ -302,25 +303,39 @@ export async function clearEventTestScores(
     }
 
     const supabase = getSupabaseServerClient(env);
-    const { error: delErr } = await supabase
-      .from('event_high_scores')
-      .delete()
-      .eq('event_id', eventId)
-      .or('score_environment.in.(test,TEST),score_mode.eq.TEST,metadata->>score_mode.eq.TEST,metadata->>score_environment.eq.test,metadata->>is_test.eq.true');
+    await executeWithResilience(
+      async () => {
+        const { error: delErr } = await supabase
+          .from('event_high_scores')
+          .delete()
+          .eq('event_id', eventId)
+          .or('score_environment.in.(test,TEST),score_mode.eq.TEST,metadata->>score_mode.eq.TEST,metadata->>score_environment.eq.test,metadata->>is_test.eq.true');
 
-    if (delErr) {
-      throw new Error(`Database error clearing test scores in production: ${delErr.message}`);
-    }
+        if (delErr) {
+          throw new Error(`Database error clearing test scores in production: ${delErr.message}`);
+        }
 
-    // Update test_scores_cleared_at on the event record in database
-    const nowIso = new Date().toISOString();
-    await supabase
-      .from('events')
-      .update({
-        test_scores_cleared_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq('id', eventId);
+        // Update test_scores_cleared_at on the event record in database
+        const nowIso = new Date().toISOString();
+        const { error: upErr } = await supabase
+          .from('events')
+          .update({
+            test_scores_cleared_at: nowIso,
+            updated_at: nowIso,
+          })
+          .eq('id', eventId);
+
+        if (upErr) {
+          throw new Error(`Database error updating test_scores_cleared_at in production: ${upErr.message}`);
+        }
+      },
+      {
+        operation: 'clearEventTestScores',
+        maxRetries: 3,
+        initialDelayMs: 200,
+        env,
+      }
+    );
 
     return { clearedCount: 0 };
   }
@@ -1130,6 +1145,18 @@ async function executeSubmitEventScore(
     }
     metadata.gameType = 'reaction-tap';
     metadata.averageReactionTimeMs = scoreNum;
+  } else if (eventGameType === 'match-3') {
+    // Authoritative Match-3 score handling
+    if (isNaN(scoreNum) || scoreNum < 0) {
+      const err: any = new Error('Match-3 score must be a non-negative integer');
+      err.status = 422;
+      err.code = 'INVALID_MATCH3_SCORE';
+      throw err;
+    }
+    metadata.gameType = 'match-3';
+    metadata.matches = metadata.matches !== undefined ? Number(metadata.matches) : undefined;
+    metadata.bestCombo = metadata.bestCombo !== undefined ? Number(metadata.bestCombo) : undefined;
+    metadata.specialTilesCreated = metadata.specialTilesCreated !== undefined ? Number(metadata.specialTilesCreated) : undefined;
   }
 
   // Validate score: must be a non-negative integer

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   formatDateDisplay,
   formatDateApi,
@@ -37,23 +38,6 @@ export interface CustomDatePickerProps {
   ariaLabel?: string;
 }
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-const WEEKDAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-
 /**
  * Custom DatePicker for Event Game Studio.
  *
@@ -79,9 +63,41 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   className = '',
   ariaLabel,
 }) => {
+  const { t } = useLocalization();
   const containerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+
+  const monthNames = useMemo(
+    () => [
+      t('common.january', undefined, 'January'),
+      t('common.february', undefined, 'February'),
+      t('common.march', undefined, 'March'),
+      t('common.april', undefined, 'April'),
+      t('common.may', undefined, 'May'),
+      t('common.june', undefined, 'June'),
+      t('common.july', undefined, 'July'),
+      t('common.august', undefined, 'August'),
+      t('common.september', undefined, 'September'),
+      t('common.october', undefined, 'October'),
+      t('common.november', undefined, 'November'),
+      t('common.december', undefined, 'December'),
+    ],
+    [t]
+  );
+
+  const weekdayNames = useMemo(
+    () => [
+      t('common.weekdayMo', undefined, 'Mo'),
+      t('common.weekdayTu', undefined, 'Tu'),
+      t('common.weekdayWe', undefined, 'We'),
+      t('common.weekdayTh', undefined, 'Th'),
+      t('common.weekdayFr', undefined, 'Fr'),
+      t('common.weekdaySa', undefined, 'Sa'),
+      t('common.weekdaySu', undefined, 'Su'),
+    ],
+    [t]
+  );
 
   // Normalize canonical internal value (YYYY-MM-DD)
   const canonicalYmd = extractDateString(value);
@@ -410,7 +426,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
           readOnly={readOnly}
           value={textInput}
           placeholder={placeholder}
-          aria-label={ariaLabel || 'Select Date (DD/MM/YYYY)'}
+          aria-label={ariaLabel || `${t('common.selectDate', undefined, 'Select Date')} (DD/MM/YYYY)`}
           onChange={handleInputChange}
           onBlur={handleInputBlur}
           onClick={openCalendar}
@@ -462,7 +478,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             <div className="flex items-center justify-between mb-3 px-1">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-100">
-                  {MONTH_NAMES[viewMonth - 1]}
+                  {monthNames[viewMonth - 1]}
                 </span>
                 <span className="text-xs font-bold text-amber-400 font-mono">
                   {viewYear}
@@ -473,7 +489,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                 <button
                   type="button"
                   onClick={handlePrevMonth}
-                  aria-label="Previous Month"
+                  aria-label={t('common.prevMonth', undefined, 'Previous Month')}
                   className="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -481,7 +497,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  aria-label="Next Month"
+                  aria-label={t('common.nextMonth', undefined, 'Next Month')}
                   className="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -492,7 +508,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                     e.stopPropagation();
                     setIsOpen(false);
                   }}
-                  aria-label="Close Calendar"
+                  aria-label={t('common.closeCalendar', undefined, 'Close Calendar')}
                   className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer ml-1"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -502,7 +518,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
             {/* Weekday Labels (Mon - Sun) */}
             <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
-              {WEEKDAY_NAMES.map((wName) => (
+              {weekdayNames.map((wName) => (
                 <div key={wName} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-1">
                   {wName}
                 </div>
@@ -550,13 +566,15 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
             {/* Popover Footer: Today shortcut & DD/MM/YYYY reminder */}
             <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px]">
-              <span className="text-[10px] text-slate-500 font-mono">Format: DD/MM/YYYY</span>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {t('common.dateFormatLabel', undefined, 'Format: DD/MM/YYYY')}
+              </span>
               <button
                 type="button"
                 onClick={handleSelectToday}
                 className="text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer px-2 py-0.5 rounded hover:bg-amber-500/10"
               >
-                Today
+                {t('common.today', undefined, 'Today')}
               </button>
             </div>
           </div>,

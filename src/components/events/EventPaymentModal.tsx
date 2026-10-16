@@ -61,13 +61,16 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [topUpSuccessNotice, setTopUpSuccessNotice] = useState<string | null>(null);
 
-  const formatCurrency = (amount?: number | null, currency: string = 'MYR') => {
+  const eventCurrency = activeCalculation?.currency || event?.event_currency || wallet?.currency || 'USD';
+
+  const formatCurrency = (amount?: number | null, currency: string = eventCurrency) => {
     const num = Number(amount) || 0;
     const formatted =
       num % 1 === 0
         ? num.toLocaleString('en-US')
         : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const prefix = currency === 'MYR' ? 'RM' : currency === 'USD' ? '$' : currency === 'SGD' ? 'S$' : currency;
+    const c = (currency || eventCurrency).toUpperCase();
+    const prefix = c === 'MYR' ? 'RM' : c === 'USD' ? '$' : c === 'SGD' ? 'S$' : `${c} `;
     return `${prefix}${formatted}`;
   };
 
@@ -238,7 +241,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: amountToTopUp,
-          currency: 'MYR',
+          currency: eventCurrency,
           notes: `Top up for event activation: ${event.name}`,
         }),
       });
@@ -475,7 +478,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                             {useWelcomeCredit && welcomeCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
                           </div>
                           <div className={`font-mono font-bold text-xs sm:text-sm ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0.00'}
+                            {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : formatCurrency(0)}
                           </div>
                         </div>
                       </div>
@@ -536,7 +539,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                             {useEventCredit && eventCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
                           </div>
                           <div className={`font-mono font-bold text-xs sm:text-sm ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : 'RM0.00'}
+                            {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : formatCurrency(0)}
                           </div>
                         </div>
                       </div>
@@ -666,7 +669,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 </>
               ) : (
                 <>
-                  <span>{amountRequired === 0 ? t('payment.activateEventFree', undefined, 'Activate Event (RM0.00)') : `${t('payment.pay', undefined, 'Pay')} ${formatCurrency(amountRequired)} & ${t('payment.activate', undefined, 'Activate')}`}</span>
+                  <span>{amountRequired === 0 ? t('payment.activateEventFree', undefined, `Activate Event (${formatCurrency(0)})`) : `${t('payment.pay', undefined, 'Pay')} ${formatCurrency(amountRequired)} & ${t('payment.activate', undefined, 'Activate')}`}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

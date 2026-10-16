@@ -5,6 +5,7 @@ import {
   ThemeDropItem,
   isMemoryMatchTheme,
   isReactionTheme,
+  isMatch3Theme,
   getThemeGameType,
   getMemoryMatchConfig,
   getDropItemDisplaySize,
@@ -15,6 +16,7 @@ import {
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
 import { ReactionGame } from '../../games/reaction-time/ReactionGame';
+import { Match3Game } from '../../games/match-3/Match3Game';
 import { ScaledGameStage } from './ScaledGameStage';
 import {
   REACTION_GAME_DESIGN_WIDTH,
@@ -76,6 +78,7 @@ interface LiveThemePreviewProps {
   onPlayLiveGame?: () => void;
   forcedOrientation?: 'landscape' | 'portrait' | null;
   onOrientationChange?: (orientation: 'landscape' | 'portrait') => void;
+  gameType?: string;
 }
 
 interface SimulatedItem {
@@ -129,6 +132,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   onPlayLiveGame,
   forcedOrientation,
   onOrientationChange,
+  gameType: gameTypeProp,
 }) => {
   const { t } = useLocalization();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -182,8 +186,18 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     };
 
     const handleFullscreenChange = () => {
-      const isFs =
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+      const fsEl =
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement;
+
+      const isFs = Boolean(
+        fsEl &&
+        (fsEl === containerRef.current ||
+         (containerRef.current?.contains(fsEl) ?? false))
+      );
+
       setIsFullscreen(isFs);
       triggerResponsiveResize();
     };
@@ -286,8 +300,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     }
   };
 
-  const isMemoryMatch = isMemoryMatchTheme(theme);
-  const isReaction = isReactionTheme(theme);
+  const gameType = gameTypeProp || getThemeGameType(theme);
+  const isMemoryMatch = gameType === 'memory-match' || isMemoryMatchTheme(theme, gameType);
+  const isReaction = gameType === 'reaction-tap' || isReactionTheme(theme, gameType);
+  const isMatch3 = gameType === 'match-3' || isMatch3Theme(theme, gameType);
+
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
   const resolvedPreviewDuration = isMemoryMatch
     ? (memoryConfig.gameplay.gameDurationSeconds ?? 45)
@@ -383,8 +400,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   // Dragging and resizing state for layout elements
   const [dragState, setDragState] = useState<DragState | null>(null);
 
-  const gameType = getThemeGameType(theme);
   const defaultLayout = getDefaultUILayout(gameType);
+
 
   // Normalized layout
   const layout: GameLayoutConfig = normalizeGameLayout(theme.layout, gameType);
@@ -396,13 +413,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   );
 
   const isCatchBrand = useMemo(() => {
-    if (isMemoryMatch || isReaction) return false;
+    if (isMemoryMatch || isReaction || isMatch3) return false;
     // Exclude Durian Catcher explicitly per prompt rules
     if (theme.id === 'durian' || theme.slug === 'durian' || theme.base_theme_id === 'durian') {
       return false;
     }
     return true;
-  }, [isMemoryMatch, isReaction, theme.id, theme.slug, theme.base_theme_id]);
+  }, [isMemoryMatch, isReaction, isMatch3, theme.id, theme.slug, theme.base_theme_id]);
 
   // Authoritative stage bounding rect for drag and drop coordinate calculations
   const getAuthoritativeStageRect = useCallback((): DOMRect | null => {
@@ -573,7 +590,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
   // Main 60 FPS Canvas Simulation Loop (Catch The Brand)
   useEffect(() => {
-    if (isMemoryMatch || isReaction) return;
+    if (isMemoryMatch || isReaction || isMatch3) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -937,6 +954,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     isMuted,
     isMemoryMatch,
     isReaction,
+    isMatch3,
     theme,
     getOrLoadImage,
     responsive.orientation,
@@ -948,7 +966,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   // Interactive mouse / touch move on canvas (Catch The Brand)
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
-      if (!isInteractive || isMemoryMatch || isReaction) return;
+      if (!isInteractive || isMemoryMatch || isReaction || isMatch3) return;
       const stage = catchBrandStageRef.current || canvasRef.current;
       if (!stage) return;
       const rect = stage.getBoundingClientRect();
@@ -958,7 +976,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       const clientX = e.clientX - rect.left;
       simState.current.basketTargetX = clientX * scaleX;
     },
-    [isInteractive, isMemoryMatch, isReaction, responsive.designWidth]
+    [isInteractive, isMemoryMatch, isReaction, isMatch3, responsive.designWidth]
   );
 
   // Dragging and resizing for Layout tab
@@ -1510,6 +1528,23 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               onToggleFullscreen={handleToggleFullscreen}
             />
           </ScaledGameStage>
+        ) : isMatch3 ? (
+          /* MATCH-3 LIVE GAME SIMULATION - FULL INTERACTIVE ENGINE */
+          <Match3Game
+            key={`sim-m3-${theme.id}-${restartKey}-${responsive.isPortrait ? 'portrait' : 'landscape'}`}
+            className="w-full h-full relative z-10"
+            activeTheme={theme}
+            isMuted={isMuted}
+            isFullscreen={isFullscreen}
+            isEventPreview={true}
+            editableLayout={editableLayout}
+            selectedElementKey={selectedElementKey}
+            onSelectElementKey={onSelectElementKey}
+            onElementPointerDown={handleElementPointerDown}
+            overrideOrientation={responsive.isPortrait ? 'portrait' : 'landscape'}
+            onToggleMute={() => setIsMuted(!isMuted)}
+            onToggleFullscreen={handleToggleFullscreen}
+          />
         ) : isMemoryMatch ? (
           /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */
           <MemoryMatchGame
@@ -1958,6 +1993,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 <span className="font-mono text-[11px] truncate text-slate-400">
                   ⚡ Click, tap, or press SPACE on canvas to react when lights go out!
                 </span>
+              ) : isMatch3 ? (
+                <span className="font-mono text-[11px] truncate text-slate-400">
+                  💎 Swap adjacent tiles to create matches of 3 or more and trigger combos!
+                </span>
               ) : isMemoryMatch ? (
                 <span className="font-mono text-[11px] truncate text-slate-400">
                   🎴 Click cards to flip and match pairs ({memoryConfig.pairs?.length || 8} pairs configured)
@@ -1989,11 +2028,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           <div className="flex items-center justify-between text-[11px] text-slate-400">
             <span className="font-semibold flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-400" />{' '}
-              {isReaction ? 'Reaction Challenge Controls' : isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
+              {isReaction ? 'Reaction Challenge Controls' : isMatch3 ? 'Match-3 Cascade Controls' : isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
             </span>
             <span>
               {isReaction
                 ? 'Interactive F1 Start Gantry'
+                : isMatch3
+                ? 'Swap Adjacent Tiles'
                 : isMemoryMatch
                 ? `${memoryConfig.pairs?.length || 8} configured pairs`
                 : 'Click to spawn item'}
@@ -2005,6 +2046,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               <div className="px-3 py-1.5 rounded-xl text-xs font-mono bg-slate-950/80 border border-slate-800 text-slate-300 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>{t('game.reactionTapInstructions', undefined, 'Click, tap, or press SPACE on canvas to react as soon as lights go out!')}</span>
+              </div>
+            </div>
+          ) : isMatch3 ? (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="px-3 py-1.5 rounded-xl text-xs font-mono bg-slate-950/80 border border-slate-800 text-slate-300 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span>{t('game.match3Instructions', undefined, 'Click or drag adjacent tiles horizontally or vertically to match 3 or more!')}</span>
               </div>
             </div>
           ) : isMemoryMatch ? (

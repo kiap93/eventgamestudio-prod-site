@@ -208,6 +208,9 @@ export interface EventRecord {
   test_scores_cleared_at?: string | null;
   created_by?: string | null;
   event_timezone?: string | null;
+  pricing_id?: string | null;
+  pricing_country?: string | null;
+  duration_days?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -219,7 +222,7 @@ export interface GameRecord {
   game_type: string;
   description?: string | null;
   icon_name?: string | null;
-  status: 'active' | 'draft' | 'archived' | string;
+  status: 'active' | 'inactive' | 'archived' | 'draft';
   theme_count?: number;
   event_count?: number;
   created_at: string;

@@ -69,8 +69,8 @@ async function runTests() {
     organization_id: org.id,
     game_theme_id: theme.id,
     name: 'Tamper Quote Event',
-    start_date: '2026-10-01',
-    end_date: '2026-10-01', // 1 day: RM1,400 authoritative price
+    start_date: '2026-11-01',
+    end_date: '2026-11-01', // 1 day: RM1,400 authoritative price
     event_price: 1400,
     created_by: testUser.id,
   });
@@ -99,8 +99,8 @@ async function runTests() {
     organization_id: org.id,
     game_theme_id: theme.id,
     name: 'Tamper Process Event',
-    start_date: '2026-10-02',
-    end_date: '2026-10-02', // 1 day: RM1,400
+    start_date: '2026-11-02',
+    end_date: '2026-11-02', // 1 day: RM1,400
     event_price: 1400,
     created_by: testUser.id,
   });
@@ -135,8 +135,8 @@ async function runTests() {
     organization_id: org.id,
     game_theme_id: theme.id,
     name: 'Tamper Direct Pay Route Event',
-    start_date: '2026-10-03',
-    end_date: '2026-10-03',
+    start_date: '2026-11-03',
+    end_date: '2026-11-03',
     event_price: 1400,
     created_by: testUser.id,
   });
@@ -182,8 +182,8 @@ async function runTests() {
     organization_id: org.id,
     game_theme_id: theme.id,
     name: 'Tamper Wallet Pay Route Event',
-    start_date: '2026-10-04',
-    end_date: '2026-10-04',
+    start_date: '2026-11-04',
+    end_date: '2026-11-04',
     event_price: 1400,
     created_by: testUser.id,
   });

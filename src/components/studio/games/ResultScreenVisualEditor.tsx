@@ -24,11 +24,12 @@ import {
   generateDefaultResultScreenElements,
   generateDefaultReactionResultScreenElements,
 } from '../../../games/memory-match/types';
+import { generateDefaultMatch3ResultScreenElements } from '../../../games/shared/resultScreenTypes';
 import {
   ResultElementContent,
   FONT_FAMILY_PRESETS,
 } from '../../../games/memory-match/ResultElementContent';
-import { GameTheme, getThemeGameType, isReactionTheme } from '../../../themes/types';
+import { GameTheme, getThemeGameType, isReactionTheme, isMatch3Theme } from '../../../themes/types';
 import {
   resolveGameAsset,
   getCanonicalAssetThemeId,
@@ -197,13 +198,16 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
 
   // Elements array guarantee
   const isReactionGame = isReactionTheme(theme, gameType);
-  const resolvedGameType = gameType || (isReactionGame ? 'reaction-tap' : getThemeGameType(theme));
+  const isMatch3 = isMatch3Theme(theme, gameType);
+  const resolvedGameType = gameType || (isReactionGame ? 'reaction-tap' : isMatch3 ? 'match-3' : getThemeGameType(theme));
 
   const elements: ResultScreenElement[] =
     Array.isArray(resultConfig.elements) && resultConfig.elements.length > 0
       ? resultConfig.elements
       : isReactionGame
       ? generateDefaultReactionResultScreenElements()
+      : isMatch3
+      ? generateDefaultMatch3ResultScreenElements(resultConfig)
       : generateDefaultResultScreenElements(resultConfig);
 
   const elementsRef = useRef<ResultScreenElement[]>(elements);
@@ -2057,7 +2061,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                   <div
                     onMouseDown={(e) => handleRotateMouseDown(e, el, parentWidth, parentHeight)}
                     className="w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-300 border-2 border-slate-950 flex items-center justify-center cursor-grab active:cursor-grabbing shadow-md hover:scale-125 transition-transform"
-                    title="Drag to Rotate (Degrees)"
+                    title={t('editor.dragToRotate', undefined, 'Drag to Rotate (Degrees)')}
                   >
                     <RotateCw className="w-2.5 h-2.5 text-slate-950 stroke-[3]" />
                   </div>
@@ -2069,25 +2073,25 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'tl')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nwse-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Top-Left"
+                  title={t('editor.resizeHandle', undefined, 'Resize Top-Left')}
                 />
                 <div
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'tr')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nesw-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Top-Right"
+                  title={t('editor.resizeHandle', undefined, 'Resize Top-Right')}
                 />
                 <div
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'bl')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nesw-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Bottom-Left"
+                  title={t('editor.resizeHandle', undefined, 'Resize Bottom-Left')}
                 />
                 <div
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'br')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nwse-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Bottom-Right"
+                  title={t('editor.resizeHandle', undefined, 'Resize Bottom-Right')}
                 />
 
                 {/* Edge Resize Handles */}
@@ -2095,25 +2099,25 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 't')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ns-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Top Edge"
+                  title={t('editor.resizeHandle', undefined, 'Resize Top Edge')}
                 />
                 <div
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'b')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ns-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Bottom Edge"
+                  title={t('editor.resizeHandle', undefined, 'Resize Bottom Edge')}
                 />
                 <div
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'l')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ew-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Left Edge"
+                  title={t('editor.resizeHandle', undefined, 'Resize Left Edge')}
                 />
                 <div
                   onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'r')}
                   onClick={(e) => e.stopPropagation()}
                   className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ew-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-                  title="Resize Right Edge"
+                  title={t('editor.resizeHandle', undefined, 'Resize Right Edge')}
                 />
 
                 {/* Live Manipulation HUD Badge */}
@@ -2246,7 +2250,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 handleMoveLayer(el.id, 'front');
               }}
               className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-amber-300"
-              title="Bring To Front"
+              title={t('editor.bringToFront', undefined, 'Bring To Front')}
             >
               <ChevronsUp className="w-3 h-3" />
             </button>
@@ -2259,7 +2263,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 handleMoveLayer(el.id, 'forward');
               }}
               className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-slate-200"
-              title="Bring Forward (1 step)"
+              title={t('editor.bringForward', undefined, 'Bring Forward (1 step)')}
             >
               <ArrowUp className="w-3 h-3" />
             </button>
@@ -2272,7 +2276,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 handleMoveLayer(el.id, 'backward');
               }}
               className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-slate-200"
-              title="Send Backward (1 step)"
+              title={t('editor.sendBackward', undefined, 'Send Backward (1 step)')}
             >
               <ArrowDown className="w-3 h-3" />
             </button>
@@ -2285,7 +2289,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 handleMoveLayer(el.id, 'back');
               }}
               className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-amber-300"
-              title="Send To Back"
+              title={t('editor.sendToBack', undefined, 'Send To Back')}
             >
               <ChevronsDown className="w-3 h-3" />
             </button>
@@ -3073,7 +3077,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 disabled={selectedElements.length === 0}
                 onClick={() => handleMoveLayer(selectedIds, 'front')}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                title="Bring To Front"
+                title={t('editor.bringToFront', undefined, 'Bring To Front')}
               >
                 <ChevronsUp className="w-3.5 h-3.5" />
               </button>
@@ -3082,7 +3086,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 disabled={selectedElements.length === 0}
                 onClick={() => handleMoveLayer(selectedIds, 'forward')}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                title="Bring Forward (1 step)"
+                title={t('editor.bringForward', undefined, 'Bring Forward (1 step)')}
               >
                 <ArrowUp className="w-3.5 h-3.5" />
               </button>
@@ -3091,7 +3095,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 disabled={selectedElements.length === 0}
                 onClick={() => handleMoveLayer(selectedIds, 'backward')}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                title="Send Backward (1 step)"
+                title={t('editor.sendBackward', undefined, 'Send Backward (1 step)')}
               >
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
@@ -3100,7 +3104,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 disabled={selectedElements.length === 0}
                 onClick={() => handleMoveLayer(selectedIds, 'back')}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                title="Send To Back"
+                title={t('editor.sendToBack', undefined, 'Send To Back')}
               >
                 <ChevronsDown className="w-3.5 h-3.5" />
               </button>
@@ -3664,7 +3668,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'front')}
                         className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
-                        title="Bring To Front"
+                        title={t('editor.bringToFront', undefined, 'Bring To Front')}
                       >
                         <ChevronsUp className="w-3 h-3 text-amber-400" />
                         <span className="hidden sm:inline">Front</span>
@@ -3673,7 +3677,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'forward')}
                         className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
-                        title="Bring Forward (1 step)"
+                        title={t('editor.bringForward', undefined, 'Bring Forward (1 step)')}
                       >
                         <ArrowUp className="w-3 h-3 text-amber-400" />
                         <span className="hidden sm:inline">Forward</span>
@@ -3682,7 +3686,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'backward')}
                         className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
-                        title="Send Backward (1 step)"
+                        title={t('editor.sendBackward', undefined, 'Send Backward (1 step)')}
                       >
                         <ArrowDown className="w-3 h-3 text-amber-400" />
                         <span className="hidden sm:inline">Backward</span>
@@ -3691,7 +3695,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'back')}
                         className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
-                        title="Send To Back"
+                        title={t('editor.sendToBack', undefined, 'Send To Back')}
                       >
                         <ChevronsDown className="w-3 h-3 text-amber-400" />
                         <span className="hidden sm:inline">Back</span>
@@ -3775,7 +3779,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                   handleMoveLayer(child.id, 'front');
                                 }}
                                 className="p-0.5 rounded text-slate-500 hover:text-amber-300"
-                                title="Bring To Front"
+                                title={t('editor.bringToFront', undefined, 'Bring To Front')}
                               >
                                 <ChevronsUp className="w-2.5 h-2.5" />
                               </button>
@@ -3808,7 +3812,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                   handleMoveLayer(child.id, 'back');
                                 }}
                                 className="p-0.5 rounded text-slate-500 hover:text-amber-300"
-                                title="Send To Back"
+                                title={t('editor.sendToBack', undefined, 'Send To Back')}
                               >
                                 <ChevronsDown className="w-2.5 h-2.5" />
                               </button>
@@ -4072,7 +4076,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'front')}
                         className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
-                        title="Bring To Front"
+                        title={t('editor.bringToFront', undefined, 'Bring To Front')}
                       >
                         <ChevronsUp className="w-3 h-3" />
                       </button>
@@ -4080,7 +4084,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'forward')}
                         className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
-                        title="Bring Forward (1 step)"
+                        title={t('editor.bringForward', undefined, 'Bring Forward (1 step)')}
                       >
                         <ArrowUp className="w-3 h-3" />
                       </button>
@@ -4088,7 +4092,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'backward')}
                         className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
-                        title="Send Backward (1 step)"
+                        title={t('editor.sendBackward', undefined, 'Send Backward (1 step)')}
                       >
                         <ArrowDown className="w-3 h-3" />
                       </button>
@@ -4096,7 +4100,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         type="button"
                         onClick={() => handleMoveLayer(selectedElement.id, 'back')}
                         className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
-                        title="Send To Back"
+                        title={t('editor.sendToBack', undefined, 'Send To Back')}
                       >
                         <ChevronsDown className="w-3 h-3" />
                       </button>

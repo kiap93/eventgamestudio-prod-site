@@ -97,3 +97,25 @@ export const handleMainTabNavigation = (href: string): void => {
     window.dispatchEvent(new Event('popstate'));
   }
 };
+
+/**
+ * Validates a redirect URL to prevent open redirect vulnerabilities.
+ * Only relative internal application paths starting with a single '/' are permitted.
+ * Disallows protocol-relative URLs ('//'), backslash bypasses ('/\'), and URI schemes ('javascript:', 'data:', etc.).
+ */
+export const getSafeRedirectUrl = (
+  target: string | null | undefined,
+  fallback: string = '/events'
+): string => {
+  if (!target || typeof target !== 'string') return fallback;
+  const trimmed = target.trim();
+  if (
+    !trimmed.startsWith('/') ||
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('/\\') ||
+    /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed;
+};

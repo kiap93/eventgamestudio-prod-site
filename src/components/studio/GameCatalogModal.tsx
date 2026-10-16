@@ -62,6 +62,8 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
 
   const getIcon = (iconName?: string | null) => {
     switch (iconName) {
+      case 'Sparkles':
+        return <Sparkles className="w-5 h-5" />;
       case 'Zap':
         return <Zap className="w-5 h-5" />;
       case 'Grid3X3':
@@ -83,7 +85,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
           slug: pg.slug,
           gameType: pg.game_type,
           description: pg.description || matchingDef?.description || 'Custom interactive brand game.',
-          iconName: pg.icon_name || matchingDef?.iconName || (pg.game_type === 'reaction-tap' ? 'Zap' : pg.game_type === 'memory-match' ? 'Grid3X3' : pg.game_type === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
+          iconName: pg.icon_name || matchingDef?.iconName || (pg.game_type === 'match-3' ? 'Sparkles' : pg.game_type === 'reaction-tap' ? 'Zap' : pg.game_type === 'memory-match' ? 'Grid3X3' : pg.game_type === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
           isAvailable: pg.status === 'active' && (matchingDef ? matchingDef.isAvailable : false),
           themeCount: pg.theme_count ?? 0,
           minPlayers: matchingDef?.minPlayers || 1,

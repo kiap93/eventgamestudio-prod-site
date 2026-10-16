@@ -936,6 +936,185 @@ export function generateDefaultReactionStartScreenElements(
 }
 
 /**
+ * Generate default Start Screen elements for Match-3.
+ */
+export function generateDefaultMatch3StartScreenElements(
+  theme?: Partial<GameTheme> | null,
+  gameMeta?: StartScreenGameMeta
+): StartScreenElement[] {
+  const title = gameMeta?.gameTitle || theme?.branding?.gameTitle || theme?.name || 'MATCH-3 CASCADE';
+  const subtitle = gameMeta?.gameSubtitle || theme?.branding?.subtitle || 'Swap adjacent tiles to create 3+ matches, trigger special combos, and score big!';
+  const logo = gameMeta?.logoUrl || theme?.branding?.clientLogoUrl || (theme as any)?.clientLogo || null;
+  const duration = gameMeta?.duration || 60;
+
+  const cardChildren: StartScreenElement[] = [
+    ...(logo
+      ? ([
+          {
+            id: 'client-logo',
+            type: 'image',
+            x: 280,
+            y: 20,
+            width: 200,
+            height: 40,
+            imageUrl: logo,
+            objectFit: 'contain',
+          },
+        ] as StartScreenElement[])
+      : ([
+          {
+            id: 'eyebrow-text',
+            type: 'text',
+            x: 40,
+            y: 24,
+            width: 640,
+            height: 20,
+            text: 'MATCH-3 PUZZLE ENGINE',
+            style: {
+              fontSize: 12,
+              fontWeight: 'bold',
+              color: '#f59e0b',
+              textAlign: 'center',
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+            },
+          },
+        ] as StartScreenElement[])),
+    {
+      id: 'game-title',
+      type: 'text',
+      x: 40,
+      y: 70,
+      width: 640,
+      height: 55,
+      text: title,
+      style: {
+        fontSize: 34,
+        fontWeight: 900,
+        color: '#ffffff',
+        textAlign: 'center',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+      },
+    },
+    {
+      id: 'game-instructions',
+      type: 'text',
+      x: 50,
+      y: 135,
+      width: 620,
+      height: 45,
+      text: subtitle,
+      style: {
+        fontSize: 16,
+        fontWeight: 400,
+        color: '#94a3b8',
+        textAlign: 'center',
+        lineHeight: 1.4,
+      },
+    },
+    {
+      id: 'badge-grid',
+      type: 'badge',
+      metric: 'grid',
+      label: 'BOARD',
+      value: '8 × 8 Grid',
+      x: 135,
+      y: 200,
+      width: 210,
+      height: 70,
+      style: {
+        backgroundColor: 'rgba(2, 6, 23, 0.8)',
+        borderColor: '#1e293b',
+        borderWidth: 1,
+        borderRadius: 16,
+        labelColor: '#64748b',
+        valueColor: '#f59e0b',
+        fontSize: 16,
+      },
+    },
+    {
+      id: 'badge-timer',
+      type: 'badge',
+      metric: 'timer',
+      label: 'TIMER',
+      value: `${duration}s`,
+      x: 375,
+      y: 200,
+      width: 210,
+      height: 70,
+      style: {
+        backgroundColor: 'rgba(2, 6, 23, 0.8)',
+        borderColor: '#1e293b',
+        borderWidth: 1,
+        borderRadius: 16,
+        labelColor: '#64748b',
+        valueColor: '#06b6d4',
+        fontSize: 16,
+      },
+    },
+    {
+      id: 'start-button',
+      type: 'button',
+      action: 'start',
+      x: 60,
+      y: 295,
+      width: 600,
+      height: 65,
+      text: 'START GAME',
+      icon: 'Play',
+      style: {
+        backgroundColor: '#f59e0b',
+        textColor: '#020617',
+        fontSize: 22,
+        fontWeight: 900,
+        borderRadius: 20,
+        shadow: true,
+        gradient: true,
+        gradientFrom: '#f59e0b',
+        gradientTo: '#d97706',
+      },
+    },
+    {
+      id: 'leaderboard-btn',
+      type: 'button',
+      action: 'leaderboard',
+      x: 285,
+      y: 380,
+      width: 150,
+      height: 35,
+      text: 'Leaderboard',
+      icon: 'Trophy',
+      style: {
+        backgroundColor: 'transparent',
+        textColor: '#f59e0b',
+        fontSize: 14,
+        fontWeight: 700,
+      },
+    },
+  ];
+
+  return [
+    {
+      id: 'main-start-card',
+      type: 'card',
+      x: 152,
+      y: 63,
+      width: 720,
+      height: 450,
+      style: {
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 28,
+        shadow: true,
+      },
+      children: cardChildren,
+    },
+  ];
+}
+
+/**
  * Universal default Start Screen element generator.
  */
 export function generateDefaultStartScreenElements(
@@ -962,6 +1141,9 @@ export function generateDefaultStartScreenElements(
 
   const normType = (gameType || '').trim().toLowerCase().replace(/_/g, '-');
 
+  if (normType === 'match-3' || normType === 'match3') {
+    return generateDefaultMatch3StartScreenElements(theme, gameMeta);
+  }
   if (normType === 'reaction-tap' || normType === 'reaction-time') {
     return generateDefaultReactionStartScreenElements(theme, gameMeta);
   }

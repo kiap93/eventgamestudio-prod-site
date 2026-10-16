@@ -61,6 +61,9 @@ export const GAME_ASSET_MANIFEST: Record<string, Partial<Record<GameAssetType, s
   'reaction-tap': {
     background: 'background.png',
   },
+  'match-3': {
+    background: 'background.png',
+  },
 };
 
 /**
@@ -249,6 +252,7 @@ const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
   ]),
   'memory-match': new Set(['default']),
   'reaction-tap': new Set(['default']),
+  'match-3': new Set(['default']),
 };
 
 /**
@@ -258,6 +262,16 @@ const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
 export function normalizeGameType(gameType?: string | null): string {
   if (!gameType) return 'catch-brand';
   const clean = String(gameType).trim().toLowerCase();
+  if (
+    clean === 'match-3' ||
+    clean === 'match3' ||
+    clean === 'match 3' ||
+    clean.includes('match-3') ||
+    clean.includes('match3') ||
+    clean.includes('cascade')
+  ) {
+    return 'match-3';
+  }
   if (clean === 'reaction-time' || clean === 'reaction' || clean === 'reaction_tap') {
     return 'reaction-tap';
   }
@@ -281,10 +295,31 @@ function getThemeGameType(theme?: Partial<GameTheme> | any, fallback: string = '
   if (theme.games?.game_type) return normalizeGameType(theme.games.game_type);
   if (theme.games?.slug) return normalizeGameType(theme.games.slug);
 
+  // Check game_config markers
+  const gc = theme.game_config as any;
+  if (
+    gc &&
+    (Array.isArray(gc.tileDefinitions) ||
+      gc.match3Config ||
+      gc.minimumMatch !== undefined ||
+      gc.cascadeEnabled !== undefined ||
+      gc.specialTilesEnabled !== undefined ||
+      gc.tileTypesCount !== undefined ||
+      (gc.rows !== undefined && gc.cols !== undefined && (gc.rows >= 3 || gc.cols >= 3)) ||
+      gc.scoring?.match3Points !== undefined ||
+      gc.screens?.start?.gameType === 'match-3')
+  ) {
+    return 'match-3';
+  }
+
   // Check ID / slug heuristics
   const id = String(theme.id || theme.base_theme_id || theme.slug || '').toLowerCase();
-  if (id.includes('memory')) return 'memory-match';
-  if (id.includes('reaction')) return 'reaction-tap';
+  const name = String(theme.name || '').toLowerCase();
+  if (id.includes('match-3') || id.includes('match3') || id.includes('cascade') || name.includes('match-3') || name.includes('match 3') || name.includes('match3')) {
+    return 'match-3';
+  }
+  if (id.includes('memory') || name.includes('memory')) return 'memory-match';
+  if (id.includes('reaction') || id.includes('reflex') || name.includes('reaction')) return 'reaction-tap';
   if (id.includes('catch') || id.includes('durian') || id.includes('carnival') || id.includes('cny') || id.includes('christmas') || id.includes('halloween') || id.includes('mango')) {
     return 'catch-brand';
   }

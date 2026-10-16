@@ -74,8 +74,8 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
       setName(def?.name || '');
       setSlug(firstAvailable);
       setDescription(def?.description || '');
-      setIconName(def?.iconName || (firstAvailable === 'reaction-tap' ? 'Zap' : firstAvailable === 'memory-match' ? 'Grid3X3' : firstAvailable === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'));
-      setStatus('active');
+      setIconName(def?.iconName || (firstAvailable === 'match-3' ? 'Sparkles' : firstAvailable === 'reaction-tap' ? 'Zap' : firstAvailable === 'memory-match' ? 'Grid3X3' : firstAvailable === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'));
+      setStatus(def?.isAvailable === false ? 'draft' : 'active');
     }
     setError(null);
   }, [initialGame, isOpen, allAvailableTypes, registeredTypeKeys]);
@@ -84,6 +84,8 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
     setGameType(selectedType);
     if (GAME_REGISTRY[selectedType]?.isAvailable === false) {
       setStatus('draft');
+    } else {
+      setStatus('active');
     }
     if (!initialGame) {
       const def = GAME_REGISTRY[selectedType];
@@ -91,7 +93,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
         setName(def.name);
         setSlug(selectedType);
         setDescription(def.description || '');
-        setIconName(def.iconName || (selectedType === 'reaction-tap' ? 'Zap' : selectedType === 'memory-match' ? 'Grid3X3' : selectedType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'));
+        setIconName(def.iconName || (selectedType === 'match-3' ? 'Sparkles' : selectedType === 'reaction-tap' ? 'Zap' : selectedType === 'memory-match' ? 'Grid3X3' : selectedType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'));
       }
     }
   };

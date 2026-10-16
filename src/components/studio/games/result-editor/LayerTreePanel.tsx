@@ -496,7 +496,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onDuplicateElement(el.id);
               }}
               className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200"
-              title="Duplicate"
+              title={t('editor.duplicateLayer', undefined, 'Duplicate')}
             >
               <Copy className="w-3 h-3" />
             </button>
@@ -509,7 +509,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 onDeleteElement(el.id);
               }}
               className="p-1 rounded hover:bg-rose-950/60 text-slate-400 hover:text-rose-400"
-              title="Delete"
+              title={t('editor.deleteLayer', undefined, 'Delete')}
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -535,7 +535,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
           type="button"
           onClick={onToggleCollapse}
           className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors"
-          title="Expand Layers Panel"
+          title={t('editor.expandLayersPanel', undefined, 'Expand Layers Panel')}
         >
           <PanelLeft className="w-4 h-4 text-amber-400" />
         </button>
@@ -573,10 +573,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
               type="button"
               onClick={onOpenPresets}
               className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-300 hover:text-amber-200 text-xs flex items-center gap-1 font-semibold transition-colors"
-              title="Browse Result Screen Presets"
+              title={t('editor.browsePresetLayouts', undefined, 'Browse Result Screen Presets')}
             >
               <LayoutTemplate className="w-3.5 h-3.5" />
-              <span className="text-[11px] hidden sm:inline">Presets</span>
+              <span className="text-[11px] hidden sm:inline">{t('editor.presetLibraryBtn', undefined, 'Presets')}</span>
             </button>
           )}
 
@@ -586,10 +586,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
               type="button"
               onClick={() => setRootAddMenuOpen(!rootAddMenuOpen)}
               className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow transition-colors"
-              title="Add New Root Element"
+              title={t('editor.addNewRootElement', undefined, 'Add New Root Element')}
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span className="text-[11px]">Add</span>
+              <span className="text-[11px]">{t('common.add', undefined, 'Add')}</span>
             </button>
 
             {rootAddMenuOpen && (
@@ -713,7 +713,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
               type="button"
               onClick={onToggleCollapse}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-              title="Collapse Layers Panel"
+              title={t('editor.collapsePanel', undefined, 'Collapse Layers Panel')}
             >
               <PanelLeftClose className="w-4 h-4" />
             </button>
@@ -729,7 +729,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search layers..."
+            placeholder={t('editor.filterLayers', undefined, 'Search layers...')}
             className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
           />
           {searchQuery && (
@@ -757,10 +757,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                   disabled={!canGroup}
                   onClick={onGroup}
                   className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-200 transition-colors flex items-center gap-1 font-semibold"
-                  title="Group selected elements (Ctrl+G)"
+                  title={t('editor.groupTooltip', undefined, 'Group selected elements (Ctrl+G)')}
                 >
                   <FolderTree className="w-3 h-3 text-amber-400" />
-                  <span>Group</span>
+                  <span>{t('editor.groupTooltip', undefined, 'Group')}</span>
                 </button>
               )}
 
@@ -770,10 +770,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                   disabled={!canUngroup}
                   onClick={() => onUngroup(selectedIds)}
                   className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-sky-300 disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-200 transition-colors flex items-center gap-1 font-semibold"
-                  title="Ungroup selected (Ctrl+Shift+G)"
+                  title={t('editor.ungroupTooltip', undefined, 'Ungroup selected (Ctrl+Shift+G)')}
                 >
                   <FolderMinus className="w-3 h-3 text-sky-400" />
-                  <span>Ungroup</span>
+                  <span>{t('editor.ungroupTooltip', undefined, 'Ungroup')}</span>
                 </button>
               )}
 
@@ -809,8 +809,8 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
 
       {/* Footer Info */}
       <div className="p-2 border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500 flex items-center justify-between font-mono">
-        <span>Click to select</span>
-        <span>Shift+Click multi-select</span>
+        <span>{t('editor.clickToSelect', undefined, 'Click to select')}</span>
+        <span>{t('editor.shiftClickMultiSelect', undefined, 'Shift+Click multi-select')}</span>
       </div>
     </aside>
   );

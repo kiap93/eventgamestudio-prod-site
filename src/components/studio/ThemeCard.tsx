@@ -110,6 +110,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   const isCatcherTheme = themeGameType === 'catch-brand';
   const isReactionTheme = themeGameType === 'reaction-tap';
   const isMemoryTheme = themeGameType === 'memory-match';
+  const isMatch3Theme = themeGameType === 'match-3';
 
   return (
     <div
@@ -348,12 +349,17 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
             {isReactionTheme ? (
               <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
                 {getGameTypeIcon('reaction-tap', 'w-3 h-3 text-amber-400')}
-                <span>Formula Reflex</span>
+                <span>Formula Reaction Lights</span>
               </span>
             ) : isMemoryTheme ? (
               <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
                 {getGameTypeIcon('memory-match', 'w-3 h-3 text-indigo-400')}
                 <span>{theme.items_config?.length || 0} {t('studio.cardPairs')}</span>
+              </span>
+            ) : isMatch3Theme ? (
+              <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                {getGameTypeIcon('match-3', 'w-3 h-3 text-amber-400')}
+                <span>{(theme.game_config as any)?.rows || 8}×{(theme.game_config as any)?.cols || 8} Grid</span>
               </span>
             ) : (
               <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">

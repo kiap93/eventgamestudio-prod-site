@@ -13,6 +13,7 @@
 import crypto from 'node:crypto';
 import type { Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
 import { logApiError } from './db/errorLogs.js';
+import { isTransientDatabaseError } from './db/supabaseResilience.js';
 
 // Re-export logApiError for callers
 export { logApiError } from './db/errorLogs.js';
@@ -423,6 +424,19 @@ export function isOperationalError(err: any): boolean {
     return true;
   }
 
+  if (err?.isOperational === true) {
+    return true;
+  }
+
+  if (
+    code === 'PRICING_SERVICE_UNAVAILABLE' ||
+    code === 'DATABASE_UNAVAILABLE' ||
+    code === 'SERVICE_UNAVAILABLE' ||
+    code === 'MAINTENANCE_IN_PROGRESS'
+  ) {
+    return true;
+  }
+
   const isAuthMessage =
     msg.includes('bearer token') ||
     msg.includes('missing token') ||
@@ -523,14 +537,18 @@ export function isOperationalError(err: any): boolean {
     return err.isOperational;
   }
 
-  // Certain status codes on custom errors indicate operational business exceptions (400 - 499)
+  // Certain status codes on custom errors indicate operational business exceptions (400 - 499 or 503)
   const status = Number(err?.status || err?.statusCode);
-  if (status >= 400 && status < 500) {
+  if ((status >= 400 && status < 500) || status === 503) {
     return true;
   }
 
   // Known application-level business error codes that are safe to expose
   if (
+    code === 'PRICING_SERVICE_UNAVAILABLE' ||
+    code === 'SERVICE_UNAVAILABLE' ||
+    code === 'DATABASE_UNAVAILABLE' ||
+    code === 'MAINTENANCE_IN_PROGRESS' ||
     code.endsWith('_NOT_FOUND') ||
     code === 'INVALID_STATUS_TRANSITION' ||
     code === 'REJECTION_REASON_REQUIRED' ||
@@ -797,6 +815,9 @@ export function handleApiError(
         code === 'NO_ACTIVE_GAME_PRICING' ||
         code === 'INVALID_GAME_PRICING' ||
         code === 'PRICING_CONFIGURATION_ERROR' ||
+        code === 'PRICING_SERVICE_UNAVAILABLE' ||
+        code === 'DATABASE_UNAVAILABLE' ||
+        code === 'SERVICE_UNAVAILABLE' ||
         code === 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED' ||
         code === 'SUPABASE_NOT_CONFIGURED'
       ) {
@@ -848,18 +869,39 @@ export function handleApiError(
     }
   }
 
+  const statusNum = Number(err?.statusCode || err?.status);
+  const is503Outage =
+    statusNum === 503 ||
+    statusCode === 503 ||
+    String(err?.code) === 'PRICING_SERVICE_UNAVAILABLE' ||
+    String(err?.code) === 'DATABASE_UNAVAILABLE' ||
+    String(err?.code) === 'SERVICE_UNAVAILABLE' ||
+    isTransientDatabaseError(err);
+
+  if (is503Outage) {
+    statusCode = 503;
+  }
+
   const userId = options?.userId || (req as any).user?.id || (req as any).userId || null;
   const endpoint = options?.endpoint || req.originalUrl || req.baseUrl || req.path || '/api';
   const method = options?.method || req.method || 'GET';
+  const isPricing = endpoint.includes('/pricing') || String(err?.code) === 'PRICING_SERVICE_UNAVAILABLE';
+  const default503Msg = isPricing
+    ? 'Pricing service temporarily unavailable. Please try again later.'
+    : 'Service temporarily unavailable. Please try again later.';
 
   // 1. Operational / Safe Business Error
-  if (isOperational && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
-    const errorCode = isPendingLimit
-      ? 'PENDING_EVENT_LIMIT_REACHED'
-      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
+  if ((isOperational || is503Outage) && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
+    const errorCode = is503Outage
+      ? (isPricing ? 'PRICING_SERVICE_UNAVAILABLE' : (err?.code || 'SERVICE_UNAVAILABLE'))
+      : (isPendingLimit
+        ? 'PENDING_EVENT_LIMIT_REACHED'
+        : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST')));
+    const rawMsg = String(err?.message || '');
+    const isLeaking = rawMsg.toLowerCase().includes('schema cache') || rawMsg.toLowerCase().includes('pgrst') || rawMsg.toLowerCase().includes('connection pool');
     const errorMessage = isPendingLimit
       ? 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
-      : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
+      : (is503Outage || isLeaking ? default503Msg : (err.message || (statusCode === 503 ? default503Msg : 'Bad Request')));
     res.status(statusCode).json({
       success: false,
       error: errorMessage,
@@ -886,9 +928,9 @@ export function handleApiError(
     service: detectedService,
     endpoint,
     method,
-    statusCode: 500,
+    statusCode: is503Outage ? 503 : 500,
     errorType: err?.name || 'Error',
-    errorCode: err?.code || 'INTERNAL_ERROR',
+    errorCode: err?.code || (is503Outage ? (isPricing ? 'PRICING_SERVICE_UNAVAILABLE' : 'SERVICE_UNAVAILABLE') : 'INTERNAL_ERROR'),
     message: err?.message || 'Unknown internal error',
     userId,
     stage: meta.stage || err?.stage || 'unknown',
@@ -910,9 +952,9 @@ export function handleApiError(
     user_id: userId,
     method,
     endpoint,
-    status_code: 500,
+    status_code: is503Outage ? 503 : 500,
     error_type: err?.name || 'Error',
-    error_code: err?.code ? String(err.code) : 'INTERNAL_SERVER_ERROR',
+    error_code: err?.code ? String(err.code) : (is503Outage ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR'),
     error_message: err?.message || 'Unknown internal server error',
     stack_trace: err?.stack || null,
     service: detectedService,
@@ -928,11 +970,18 @@ export function handleApiError(
 
   // Client response: generic internal server error by default, or underlying error in debug mode
   const exposeApiErrors = shouldExposeApiErrors(options?.env);
-  const clientErrorMessage = exposeApiErrors
+  const rawMsg = String(err?.message || '');
+  const isLeaking = rawMsg.toLowerCase().includes('schema cache') || rawMsg.toLowerCase().includes('pgrst') || rawMsg.toLowerCase().includes('connection pool');
+
+  let clientErrorMessage = exposeApiErrors
     ? getActualErrorMessage(err)
     : 'Something went wrong. Please try again.';
 
-  const finalStatusCode = (statusCode >= 400 && statusCode <= 599) ? statusCode : 500;
+  if (is503Outage || isLeaking) {
+    clientErrorMessage = default503Msg;
+  }
+
+  const finalStatusCode = is503Outage ? 503 : ((statusCode >= 400 && statusCode <= 599) ? statusCode : 500);
 
   res.status(finalStatusCode).json({
     error: clientErrorMessage,
@@ -1034,6 +1083,9 @@ export async function handleWorkerApiError(
         code === 'NO_ACTIVE_GAME_PRICING' ||
         code === 'INVALID_GAME_PRICING' ||
         code === 'PRICING_CONFIGURATION_ERROR' ||
+        code === 'PRICING_SERVICE_UNAVAILABLE' ||
+        code === 'DATABASE_UNAVAILABLE' ||
+        code === 'SERVICE_UNAVAILABLE' ||
         code === 'CUSTOMER_INVITATIONS_MIGRATION_REQUIRED' ||
         code === 'SUPABASE_NOT_CONFIGURED'
       ) {
@@ -1085,7 +1137,25 @@ export async function handleWorkerApiError(
     }
   }
 
+  const statusNum = Number(err?.statusCode || err?.status);
+  const is503Outage =
+    statusNum === 503 ||
+    statusCode === 503 ||
+    String(err?.code) === 'PRICING_SERVICE_UNAVAILABLE' ||
+    String(err?.code) === 'DATABASE_UNAVAILABLE' ||
+    String(err?.code) === 'SERVICE_UNAVAILABLE' ||
+    isTransientDatabaseError(err);
+
+  if (is503Outage) {
+    statusCode = 503;
+  }
+
   const userId = options?.userId || null;
+  const isPricing = endpoint.includes('/pricing') || String(err?.code) === 'PRICING_SERVICE_UNAVAILABLE';
+  const default503Msg = isPricing
+    ? 'Pricing service temporarily unavailable. Please try again later.'
+    : 'Service temporarily unavailable. Please try again later.';
+
   const responseHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-correlation-id': requestId,
@@ -1093,13 +1163,17 @@ export async function handleWorkerApiError(
   };
 
   // 1. Operational Error
-  if (isOperational && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
-    const errorCode = isPendingLimit
-      ? 'PENDING_EVENT_LIMIT_REACHED'
-      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
+  if ((isOperational || is503Outage) && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
+    const errorCode = is503Outage
+      ? (isPricing ? 'PRICING_SERVICE_UNAVAILABLE' : (err?.code || 'SERVICE_UNAVAILABLE'))
+      : (isPendingLimit
+        ? 'PENDING_EVENT_LIMIT_REACHED'
+        : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST')));
+    const rawMsg = String(err?.message || '');
+    const isLeaking = rawMsg.toLowerCase().includes('schema cache') || rawMsg.toLowerCase().includes('pgrst') || rawMsg.toLowerCase().includes('connection pool');
     const errorMessage = isPendingLimit
       ? 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
-      : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
+      : (is503Outage || isLeaking ? default503Msg : (err.message || (statusCode === 503 ? default503Msg : 'Bad Request')));
     return new globalThis.Response(
       JSON.stringify({
         success: false,
@@ -1130,9 +1204,9 @@ export async function handleWorkerApiError(
     service: detectedService,
     endpoint,
     method,
-    statusCode: 500,
+    statusCode: is503Outage ? 503 : 500,
     errorType: err?.name || 'Error',
-    errorCode: err?.code || 'INTERNAL_ERROR',
+    errorCode: err?.code || (is503Outage ? (isPricing ? 'PRICING_SERVICE_UNAVAILABLE' : 'SERVICE_UNAVAILABLE') : 'INTERNAL_ERROR'),
     message: err?.message || 'Unknown internal error',
     userId,
     stage: workerMeta.stage || err?.stage || 'unknown',
@@ -1161,9 +1235,9 @@ export async function handleWorkerApiError(
         user_id: userId,
         method,
         endpoint,
-        status_code: 500,
+        status_code: is503Outage ? 503 : 500,
         error_type: err?.name || 'Error',
-        error_code: err?.code ? String(err.code) : 'INTERNAL_SERVER_ERROR',
+        error_code: err?.code ? String(err.code) : (is503Outage ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR'),
         error_message: err?.message || 'Unknown internal server error',
         stack_trace: err?.stack || null,
         service: detectedService,
@@ -1181,11 +1255,18 @@ export async function handleWorkerApiError(
   }
 
   const exposeApiErrors = shouldExposeApiErrors(env);
-  const clientErrorMessage = exposeApiErrors
+  const rawMsg = String(err?.message || '');
+  const isLeaking = rawMsg.toLowerCase().includes('schema cache') || rawMsg.toLowerCase().includes('pgrst') || rawMsg.toLowerCase().includes('connection pool');
+
+  let clientErrorMessage = exposeApiErrors
     ? getActualErrorMessage(err)
     : 'Something went wrong. Please try again.';
 
-  const finalStatusCode = (statusCode >= 400 && statusCode <= 599) ? statusCode : 500;
+  if (is503Outage || isLeaking) {
+    clientErrorMessage = default503Msg;
+  }
+
+  const finalStatusCode = is503Outage ? 503 : ((statusCode >= 400 && statusCode <= 599) ? statusCode : 500);
 
   return new globalThis.Response(
     JSON.stringify({

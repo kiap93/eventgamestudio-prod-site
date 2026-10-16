@@ -176,7 +176,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames, onLaun
                 {/* Background Game Scenery */}
                 <img
                   src="/assets/games/catch-brand/themes/carnival/background.png"
-                  alt="Catch the Brand Stage Preview"
+                  alt={t('landing.stagePreviewAlt', undefined, 'Catch the Brand Stage Preview')}
                   className="absolute inset-0 w-full h-full object-cover opacity-85"
                 />
 
@@ -205,14 +205,14 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames, onLaun
                 <div className="absolute top-1/4 left-1/4 w-12 h-12 animate-bounce duration-1000">
                   <img
                     src="/assets/games/catch-brand/themes/carnival/item_normal_01.png"
-                    alt="Collectible Item"
+                    alt={t('landing.collectibleItemAlt', undefined, 'Collectible Item')}
                     className="w-full h-full object-contain drop-shadow-lg"
                   />
                 </div>
                 <div className="absolute top-1/3 right-1/4 w-14 h-14 animate-pulse">
                   <img
                     src="/assets/games/catch-brand/themes/carnival/item_bonus_01.png"
-                    alt="Bonus Item"
+                    alt={t('landing.bonusItemAlt', undefined, 'Bonus Item')}
                     className="w-full h-full object-contain drop-shadow-xl"
                   />
                 </div>
@@ -221,7 +221,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames, onLaun
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-28 sm:w-36 h-14 sm:h-18">
                   <img
                     src="/assets/games/catch-brand/themes/carnival/basket.png"
-                    alt="Player Catcher"
+                    alt={t('landing.playerCatcherAlt', undefined, 'Player Catcher')}
                     className="w-full h-full object-contain drop-shadow-2xl"
                   />
                 </div>

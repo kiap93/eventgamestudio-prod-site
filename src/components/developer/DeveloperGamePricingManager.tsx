@@ -4,6 +4,13 @@ import { apiFetch } from '../../lib/api';
 import { PlatformGame } from '../../types/developer';
 import { CustomDatePicker } from '../common/CustomDatePicker';
 import {
+  COUNTRIES,
+  POPULAR_COUNTRY_CODES,
+  getCountryByCode,
+  getCountryDisplayName,
+  getCurrencyForCountry,
+} from '../../lib/countryUtils';
+import {
   Coins,
   DollarSign,
   Tag,
@@ -26,11 +33,14 @@ import {
   Star,
   ShieldCheck,
   HelpCircle,
+  Globe,
+  Info,
 } from 'lucide-react';
 
 export interface GamePricingTier {
   id: string;
   game_id: string;
+  country_code?: string;
   min_days: number;
   max_days: number | null;
   price: number;
@@ -46,6 +56,24 @@ interface DeveloperGamePricingManagerProps {
   onPricingUpdated?: () => void;
 }
 
+interface QuickTierDraft {
+  min_days: number;
+  max_days: number | null;
+  price: string;
+  is_base: boolean;
+  label: string;
+}
+
+const STANDARD_TIER_RANGES: Array<{ min_days: number; max_days: number | null; is_base: boolean; label: string }> = [
+  { min_days: 1, max_days: 1, is_base: true, label: '1 Day (Base Tier)' },
+  { min_days: 2, max_days: 2, is_base: false, label: '2 Days' },
+  { min_days: 3, max_days: 3, is_base: false, label: '3 Days' },
+  { min_days: 4, max_days: 7, is_base: false, label: '4–7 Days' },
+  { min_days: 8, max_days: 14, is_base: false, label: '8–14 Days' },
+  { min_days: 15, max_days: 30, is_base: false, label: '15–30 Days' },
+  { min_days: 31, max_days: null, is_base: false, label: '31+ Days (Extended)' },
+];
+
 export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerProps> = ({
   game,
   onPricingUpdated,
@@ -57,19 +85,28 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Country Selection State
+  const [selectedCountry, setSelectedCountry] = useState<string>('US');
+  const [hasManuallySelectedCountry, setHasManuallySelectedCountry] = useState<boolean>(false);
+  const [defaultPricingCountry, setDefaultPricingCountry] = useState<string>('US');
+
   // Form State for Add / Edit
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [isAddingTier, setIsAddingTier] = useState<boolean>(false);
+  const [formCountryCode, setFormCountryCode] = useState<string>('US');
   const [formMinDays, setFormMinDays] = useState<string>('1');
   const [formMaxDays, setFormMaxDays] = useState<string>('1');
   const [formIsUnlimited, setFormIsUnlimited] = useState<boolean>(false);
-  const [formPrice, setFormPrice] = useState<string>('1400');
-  const [formCurrency, setFormCurrency] = useState<string>('MYR');
+  const [formPrice, setFormPrice] = useState<string>('');
+  const [formCurrency, setFormCurrency] = useState<string>('USD');
   const [formIsActive, setFormIsActive] = useState<boolean>(true);
   const [formIsBase, setFormIsBase] = useState<boolean>(false);
 
+  // Quick Setup Modal State
+  const [showQuickSetupModal, setShowQuickSetupModal] = useState<boolean>(false);
+  const [quickTiers, setQuickTiers] = useState<QuickTierDraft[]>([]);
+
   // Simulator State
-  const [simDays, setSimDays] = useState<number>(3);
   const [simStartDate, setSimStartDate] = useState<string>(() => {
     const d = new Date();
     return d.toISOString().split('T')[0];
@@ -98,7 +135,24 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.tiers)) {
-          setTiers(data.tiers.sort((a: GamePricingTier, b: GamePricingTier) => a.min_days - b.min_days));
+          const sorted = data.tiers.sort((a: GamePricingTier, b: GamePricingTier) => a.min_days - b.min_days);
+          setTiers(sorted);
+
+          // If user has not explicitly clicked a country, pick default or first configured country
+          if (!hasManuallySelectedCountry && sorted.length > 0) {
+            const configuredCodes = Array.from(
+              new Set(sorted.map((t: GamePricingTier) => (t.country_code || defaultPricingCountry).toUpperCase()))
+            );
+            if (!configuredCodes.includes(selectedCountry)) {
+              if (configuredCodes.includes(defaultPricingCountry)) {
+                setSelectedCountry(defaultPricingCountry);
+              } else if (configuredCodes.includes('US')) {
+                setSelectedCountry('US');
+              } else {
+                setSelectedCountry(configuredCodes[0]);
+              }
+            }
+          }
         }
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -110,37 +164,126 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
     } finally {
       setLoading(false);
     }
-  }, [game.id, getHeaders]);
+  }, [game.id, getHeaders, hasManuallySelectedCountry]);
 
   useEffect(() => {
     loadTiers();
   }, [loadTiers]);
+
+  // Load platform default pricing country
+  useEffect(() => {
+    apiFetch('/api/developer/pricing/settings', { headers: getHeaders() })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings?.default_pricing_country) {
+          setDefaultPricingCountry(data.settings.default_pricing_country.toUpperCase());
+        }
+      })
+      .catch(() => {});
+  }, [getHeaders]);
 
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
-  // Seed standard default tiers for this game
-  const handleSeedDefaults = async () => {
-    if (!confirm(`Seed default pricing tiers for "${game.name}"?`)) return;
+  // Groupings by country
+  const configuredCountries = useMemo(() => {
+    const map = new Map<string, number>();
+    tiers.forEach((t) => {
+      const c = (t.country_code || defaultPricingCountry).toUpperCase();
+      map.set(c, (map.get(c) || 0) + 1);
+    });
+    return map;
+  }, [tiers, defaultPricingCountry]);
+
+  const selectedCurrency = useMemo(() => {
+    return getCurrencyForCountry(selectedCountry) || 'USD';
+  }, [selectedCountry]);
+
+  const countryTiers = useMemo(() => {
+    return tiers
+      .filter((t) => (t.country_code || defaultPricingCountry).toUpperCase() === selectedCountry)
+      .sort((a, b) => a.min_days - b.min_days);
+  }, [tiers, selectedCountry, defaultPricingCountry]);
+
+  const fallbackTiers = useMemo(() => {
+    return tiers
+      .filter((t) => (t.country_code || defaultPricingCountry).toUpperCase() === defaultPricingCountry)
+      .sort((a, b) => a.min_days - b.min_days);
+  }, [tiers, defaultPricingCountry]);
+
+  const isUsingFallback = selectedCountry !== defaultPricingCountry && countryTiers.length === 0;
+
+  // Handler for selecting a country
+  const handleSelectCountry = (countryCode: string) => {
+    const norm = countryCode.trim().toUpperCase();
+    setSelectedCountry(norm);
+    setHasManuallySelectedCountry(true);
+    setIsAddingTier(false);
+    setEditingTierId(null);
+    setShowQuickSetupModal(false);
+  };
+
+  // Open Quick Setup Modal
+  const handleOpenQuickSetup = () => {
+    setQuickTiers(
+      STANDARD_TIER_RANGES.map((r) => {
+        // Pre-fill existing price if tier already exists for this exact range
+        const existing = countryTiers.find((t) => t.min_days === r.min_days && t.max_days === r.max_days);
+        return {
+          min_days: r.min_days,
+          max_days: r.max_days,
+          is_base: r.is_base,
+          label: r.label,
+          price: existing ? String(existing.price) : '',
+        };
+      })
+    );
+    setShowQuickSetupModal(true);
+  };
+
+  // Save Quick Setup Tiers
+  const handleSaveQuickSetup = async () => {
+    const validDrafts = quickTiers.filter((d) => d.price.trim() !== '' && !isNaN(parseFloat(d.price)) && parseFloat(d.price) > 0);
+    if (validDrafts.length === 0) {
+      setError(`Please enter at least one valid price in ${selectedCurrency}.`);
+      return;
+    }
+
     setSaving(true);
     setError(null);
+
     try {
-      const res = await apiFetch(`/api/developer/games/${game.id}/pricing/seed-defaults`, {
-        method: 'POST',
-        headers: getHeaders(),
+      const payloadTiers = validDrafts.map((d) => {
+        const existing = countryTiers.find((t) => t.min_days === d.min_days && t.max_days === d.max_days);
+        return {
+          id: existing?.id,
+          game_id: game.id,
+          country_code: selectedCountry,
+          currency: selectedCurrency,
+          min_days: d.min_days,
+          max_days: d.max_days,
+          price: parseFloat(d.price),
+          is_active: true,
+          is_base: d.is_base,
+        };
       });
+
+      const res = await apiFetch(`/api/developer/games/${game.id}/pricing`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ tiers: payloadTiers }),
+      });
+
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.tiers)) {
-          setTiers(data.tiers.sort((a: GamePricingTier, b: GamePricingTier) => a.min_days - b.min_days));
-        }
-        showSuccess('Default pricing tiers seeded successfully.');
+        showSuccess(`Saved ${validDrafts.length} pricing tiers for ${getCountryDisplayName(selectedCountry)} (${selectedCurrency}).`);
+        setShowQuickSetupModal(false);
+        await loadTiers();
         if (onPricingUpdated) onPricingUpdated();
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to seed default pricing.');
+        setError(err.error || err.message || 'Failed to save tiers.');
       }
     } catch (err: any) {
       setError(err.message || 'Network error.');
@@ -152,14 +295,15 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
   const handleOpenAdd = () => {
     setIsAddingTier(true);
     setEditingTierId(null);
-    // Suggest next min_days
-    const maxDay = tiers.reduce((acc, curr) => (curr.max_days ? Math.max(acc, curr.max_days) : acc), 0);
+    setFormCountryCode(selectedCountry);
+    setFormCurrency(selectedCurrency);
+    // Suggest next min_days based on selected country's tiers
+    const maxDay = countryTiers.reduce((acc, currT) => (currT.max_days ? Math.max(acc, currT.max_days) : acc), 0);
     const nextMin = maxDay > 0 ? maxDay + 1 : 1;
     setFormMinDays(String(nextMin));
     setFormMaxDays(String(nextMin));
     setFormIsUnlimited(false);
-    setFormPrice('1400');
-    setFormCurrency('MYR');
+    setFormPrice(''); // Prompt admin for authoritative price without hardcoding
     setFormIsActive(true);
     setFormIsBase(nextMin === 1);
   };
@@ -167,11 +311,13 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
   const handleOpenEdit = (tier: GamePricingTier) => {
     setEditingTierId(tier.id);
     setIsAddingTier(false);
+    const tierCountry = (tier.country_code || selectedCountry).toUpperCase();
+    setFormCountryCode(tierCountry);
     setFormMinDays(String(tier.min_days));
     setFormMaxDays(tier.max_days ? String(tier.max_days) : '');
     setFormIsUnlimited(tier.max_days === null);
     setFormPrice(String(tier.price));
-    setFormCurrency(tier.currency || 'MYR');
+    setFormCurrency(tier.currency || getCurrencyForCountry(tierCountry) || 'USD');
     setFormIsActive(tier.is_active);
     setFormIsBase(tier.is_base);
   };
@@ -199,12 +345,15 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
       return;
     }
 
-    // Client-side overlap validation
+    const normCountry = formCountryCode.trim().toUpperCase();
+
+    // Client-side overlap validation scoped strictly to the SAME country
     if (formIsActive) {
       const formMax = maxD === null ? Infinity : maxD;
       const conflicting = tiers.find((t) => {
         if (editingTierId && t.id === editingTierId) return false;
         if (!t.is_active) return false;
+        if ((t.country_code || defaultPricingCountry).toUpperCase() !== normCountry) return false;
         const tMax = t.max_days === null || t.max_days === undefined ? Infinity : t.max_days;
         return minD <= tMax && t.min_days <= formMax;
       });
@@ -213,7 +362,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           ? `${conflicting.min_days} day`
           : `${conflicting.min_days}–${conflicting.max_days || '+'} days`;
         const newLabel = minD === maxD ? `${minD} day` : `${minD}–${maxD || '+'} days`;
-        setError(`Pricing tier range (${newLabel}) overlaps with existing active tier (${existingLabel}). Overlapping active ranges are not permitted.`);
+        setError(`Pricing tier range (${newLabel}) for country ${normCountry} overlaps with existing active tier (${existingLabel}). Overlapping active ranges are not permitted.`);
         return;
       }
     }
@@ -226,6 +375,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
       max_days: maxD,
       price: priceNum,
       currency: formCurrency.toUpperCase(),
+      country_code: normCountry,
       is_active: formIsActive,
       is_base: formIsBase,
     };
@@ -239,13 +389,13 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          showSuccess('Pricing tier updated successfully.');
+          showSuccess(`Pricing tier updated for ${getCountryDisplayName(normCountry)} (${payload.currency}).`);
           handleCancelForm();
           await loadTiers();
           if (onPricingUpdated) onPricingUpdated();
         } else {
           const err = await res.json().catch(() => ({}));
-          setError(err.error || 'Failed to update tier.');
+          setError(err.error || err.message || 'Failed to update tier.');
         }
       } else {
         // Create new tier
@@ -255,13 +405,13 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          showSuccess('New pricing tier added successfully.');
+          showSuccess(`New pricing tier added for ${getCountryDisplayName(normCountry)} (${payload.currency}).`);
           handleCancelForm();
           await loadTiers();
           if (onPricingUpdated) onPricingUpdated();
         } else {
           const err = await res.json().catch(() => ({}));
-          setError(err.error || 'Failed to create tier.');
+          setError(err.error || err.message || 'Failed to create tier.');
         }
       }
     } catch (err: any) {
@@ -273,7 +423,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
   const handleDeleteTier = async (tier: GamePricingTier) => {
     const label = tier.min_days === tier.max_days ? `${tier.min_days} day` : `${tier.min_days}-${tier.max_days || '+'} days`;
-    if (!confirm(`${t('developer.confirmDeleteTier')} (${label} - ${tier.currency} ${tier.price})`)) return;
+    if (!confirm(`Delete pricing tier (${label} - ${tier.currency} ${tier.price})?`)) return;
 
     setSaving(true);
     setError(null);
@@ -298,12 +448,13 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
   };
 
   const handleToggleActive = async (tier: GamePricingTier) => {
-    // If activating an inactive tier, check for overlap with other active tiers
     if (!tier.is_active) {
       const tierMax = tier.max_days === null || tier.max_days === undefined ? Infinity : tier.max_days;
+      const tierCountry = (tier.country_code || defaultPricingCountry).toUpperCase();
       const conflicting = tiers.find((t) => {
         if (t.id === tier.id) return false;
         if (!t.is_active) return false;
+        if ((t.country_code || defaultPricingCountry).toUpperCase() !== tierCountry) return false;
         const otherMax = t.max_days === null || t.max_days === undefined ? Infinity : t.max_days;
         return tier.min_days <= otherMax && t.min_days <= tierMax;
       });
@@ -314,7 +465,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
         const tierLabel = tier.min_days === tier.max_days
           ? `${tier.min_days} day`
           : `${tier.min_days}–${tier.max_days || '+'} days`;
-        setError(`Cannot activate tier (${tierLabel}): it overlaps with existing active tier (${existingLabel}).`);
+        setError(`Cannot activate tier (${tierLabel}): it overlaps with existing active tier (${existingLabel}) for country ${tierCountry}.`);
         return;
       }
     }
@@ -356,35 +507,110 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
   const simulatedQuote = useMemo(() => {
     const days = calculatedDuration;
-    const activeTiers = tiers.filter((t) => t.is_active && t.price > 0);
-    if (activeTiers.length === 0) {
+    // Step 1: Check requested country active tiers
+    const activeReqTiers = countryTiers.filter((t) => t.is_active && t.price > 0);
+    const exactReq = activeReqTiers.find((t) => t.min_days === days && t.max_days === days);
+    if (exactReq) {
       return {
-        price: null,
-        ruleLabel: 'No Active Tiers Configured (Customers see "Custom Pricing / Contact Us")',
-        hasTier: false,
+        price: exactReq.price,
+        currency: exactReq.currency || selectedCurrency,
+        ruleLabel: `${days} day${days > 1 ? 's' : ''} (Exact Tier)`,
+        tier: exactReq,
+        hasTier: true,
+        pricingCountry: selectedCountry,
+        isFallback: false,
+      };
+    }
+    const bracketReq = activeReqTiers.find((t) => t.min_days <= days && (t.max_days === null || t.max_days >= days));
+    if (bracketReq) {
+      const label = bracketReq.max_days === null ? `${bracketReq.min_days}+ days` : `${bracketReq.min_days}–${bracketReq.max_days} days`;
+      return {
+        price: bracketReq.price,
+        currency: bracketReq.currency || selectedCurrency,
+        ruleLabel: `${label} Bracket`,
+        tier: bracketReq,
+        hasTier: true,
+        pricingCountry: selectedCountry,
+        isFallback: false,
       };
     }
 
-    // 1. Exact match
-    const exact = activeTiers.find((t) => t.min_days === days && t.max_days === days);
-    if (exact) {
-      return { price: exact.price, ruleLabel: `${days} day${days > 1 ? 's' : ''} (Exact Tier)`, tier: exact, hasTier: true };
-    }
+    // Step 2: Fall back to default pricing country if different
+    if (selectedCountry !== defaultPricingCountry) {
+      const fallbackCurr = getCurrencyForCountry(defaultPricingCountry) || 'USD';
+      const activeDefTiers = fallbackTiers.filter((t) => t.is_active && t.price > 0);
 
-    // 2. Bracket match
-    const bracket = activeTiers.find((t) => t.min_days <= days && (t.max_days === null || t.max_days >= days));
-    if (bracket) {
-      const label = bracket.max_days === null ? `${bracket.min_days}+ days` : `${bracket.min_days}–${bracket.max_days} days`;
-      return { price: bracket.price, ruleLabel: `${label} Bracket`, tier: bracket, hasTier: true };
+      if (activeDefTiers.length > 0) {
+        // Case A: default country has active tiers for this game
+        // US becomes the fallback pricing country. If duration does not match, DO NOT continue to MY!
+        const exactDef = activeDefTiers.find((t) => t.min_days === days && t.max_days === days);
+        if (exactDef) {
+          return {
+            price: exactDef.price,
+            currency: exactDef.currency || fallbackCurr,
+            ruleLabel: `${days} day${days > 1 ? 's' : ''} (Fallback Exact Tier)`,
+            tier: exactDef,
+            hasTier: true,
+            pricingCountry: defaultPricingCountry,
+            isFallback: true,
+          };
+        }
+        const bracketDef = activeDefTiers.find((t) => t.min_days <= days && (t.max_days === null || t.max_days >= days));
+        if (bracketDef) {
+          const label = bracketDef.max_days === null ? `${bracketDef.min_days}+ days` : `${bracketDef.min_days}–${bracketDef.max_days} days`;
+          return {
+            price: bracketDef.price,
+            currency: bracketDef.currency || fallbackCurr,
+            ruleLabel: `${label} Bracket (Fallback)`,
+            tier: bracketDef,
+            hasTier: true,
+            pricingCountry: defaultPricingCountry,
+            isFallback: true,
+          };
+        }
+      } else {
+        // Case B: default country has ZERO active tiers for this game. Check secondary fallback MY!
+        const myTiers = tiers.filter((t) => (t.country_code || '').toUpperCase() === 'MY' && t.is_active && t.price > 0);
+        const exactMY = myTiers.find((t) => t.min_days === days && t.max_days === days);
+        if (exactMY) {
+          return {
+            price: exactMY.price,
+            currency: exactMY.currency || 'MYR',
+            ruleLabel: `${days} day${days > 1 ? 's' : ''} (Secondary MY Fallback)`,
+            tier: exactMY,
+            hasTier: true,
+            pricingCountry: 'MY',
+            isFallback: true,
+          };
+        }
+        const bracketMY = myTiers.find((t) => t.min_days <= days && (t.max_days === null || t.max_days >= days));
+        if (bracketMY) {
+          const label = bracketMY.max_days === null ? `${bracketMY.min_days}+ days` : `${bracketMY.min_days}–${bracketMY.max_days} days`;
+          return {
+            price: bracketMY.price,
+            currency: bracketMY.currency || 'MYR',
+            ruleLabel: `${label} Bracket (Secondary MY Fallback)`,
+            tier: bracketMY,
+            hasTier: true,
+            pricingCountry: 'MY',
+            isFallback: true,
+          };
+        }
+      }
     }
 
     // 3. No match! Fail closed: Admin panel reflects exact public behavior
     return {
       price: null,
-      ruleLabel: `No Active Tier Covers ${days} Days (Customers see "Custom Pricing / Contact Us")`,
+      currency: selectedCurrency,
+      ruleLabel: `No Active Tier Covers ${days} Days in ${selectedCountry} or Fallback ${defaultPricingCountry}`,
       hasTier: false,
+      pricingCountry: selectedCountry,
+      isFallback: false,
     };
-  }, [calculatedDuration, tiers]);
+  }, [calculatedDuration, countryTiers, fallbackTiers, selectedCountry, defaultPricingCountry, selectedCurrency]);
+
+  const selectedCountryInfo = getCountryByCode(selectedCountry);
 
   return (
     <div className="space-y-6">
@@ -417,13 +643,13 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           </div>
           <div>
             <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              {t('developer.gameOwnedPricingTitle')}
+              Country-Based Pricing: {game.name}
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Authoritative
+                Authoritative Multi-Country
               </span>
             </h4>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              {t('developer.gameOwnedPricingDesc', { name: game.name })}
+              Duration pricing tiers belong to a specific country and currency. Different countries have independent duration tiers for this game. Unconfigured countries fall back to {getCountryDisplayName(defaultPricingCountry)} ({defaultPricingCountry}).
             </p>
           </div>
         </div>
@@ -438,20 +664,141 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             <span>{t('common.refresh')}</span>
           </button>
           <button
-            onClick={handleSeedDefaults}
+            onClick={handleOpenQuickSetup}
             disabled={saving}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 text-xs font-semibold rounded-xl border border-amber-500/30 transition-colors"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{t('developer.seedStandardTiers')}</span>
+            <Sliders className="w-3.5 h-3.5" />
+            <span>{t('developer.quickSetupStandardTiers', undefined, 'Quick Setup Tiers')}</span>
           </button>
           <button
             onClick={handleOpenAdd}
             className="flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-950/30 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>{t('developer.addDurationTierBtn')}</span>
+            <span>{t('developer.addDurationTier', undefined, 'Add Duration Tier')}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Country Selector Header & Tabs */}
+      <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Globe className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-white block">{t('developer.pricingCountry', undefined, 'Pricing Country')}</span>
+              <span className="text-[11px] text-slate-400">
+                Choose the target country to view and manage its duration tiers independently
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <select
+              id="developer-pricing-country-select"
+              value={selectedCountry}
+              onChange={(e) => handleSelectCountry(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-xs focus:border-amber-500 focus:outline-none"
+            >
+              <optgroup label="Configured Countries for this Game">
+                {Array.from<string>(configuredCountries.keys()).map((c: string) => {
+                  const countryInfo = getCountryByCode(c);
+                  const count = configuredCountries.get(c) || 0;
+                  return (
+                    <option key={`cfg-${c}`} value={c}>
+                      {countryInfo?.flag || '🌐'} {countryInfo?.name || c} ({getCurrencyForCountry(c) || 'USD'}) — {count} tier{count !== 1 ? 's' : ''}
+                    </option>
+                  );
+                })}
+              </optgroup>
+              <optgroup label="Popular Countries">
+                {POPULAR_COUNTRY_CODES.map((c) => {
+                  const countryInfo = getCountryByCode(c);
+                  const count = configuredCountries.get(c) || 0;
+                  return (
+                    <option key={`pop-${c}`} value={c}>
+                      {countryInfo?.flag || '🌐'} {countryInfo?.name || c} ({countryInfo?.currencyCode || 'USD'}) {count > 0 ? `(${count} tiers)` : ''}
+                    </option>
+                  );
+                })}
+              </optgroup>
+              <optgroup label="All Supported Countries">
+                {COUNTRIES.map((country) => {
+                  const count = configuredCountries.get(country.code) || 0;
+                  return (
+                    <option key={`all-${country.code}`} value={country.code}>
+                      {country.flag} {country.name} ({country.currencyCode}) {count > 0 ? `(${count} tiers)` : ''}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            </select>
+
+            <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs font-mono font-bold text-amber-300">
+              {selectedCurrency}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Country Switcher Tabs */}
+        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-800/80">
+          <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">{t('developer.quickSwitch', undefined, 'Quick Switch:')}</span>
+          {Array.from<string>(configuredCountries.keys()).map((c: string) => {
+            const countryInfo = getCountryByCode(c);
+            const count = configuredCountries.get(c) || 0;
+            const isSelected = selectedCountry === c;
+            return (
+              <button
+                key={`tab-${c}`}
+                type="button"
+                onClick={() => handleSelectCountry(c)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  isSelected
+                    ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                }`}
+              >
+                <span>{countryInfo?.flag || '🌐'}</span>
+                <span>{countryInfo?.name || c}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-amber-400'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+
+          {!configuredCountries.has('US') && (
+            <button
+              type="button"
+              onClick={() => handleSelectCountry('US')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                selectedCountry === 'US'
+                  ? 'bg-amber-500 text-slate-950 font-bold'
+                  : 'bg-slate-800/60 hover:bg-slate-700 text-slate-400 border border-dashed border-slate-700'
+              }`}
+            >
+              <span>🇺🇸</span>
+              <span>{getCountryDisplayName('US')} (USD)</span>
+              <span className="text-[10px] text-amber-400">+{t('common.add', undefined, 'Add')}</span>
+            </button>
+          )}
+
+          {!configuredCountries.has('MY') && (
+            <button
+              type="button"
+              onClick={() => handleSelectCountry('MY')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                selectedCountry === 'MY'
+                  ? 'bg-amber-500 text-slate-950 font-bold'
+                  : 'bg-slate-800/60 hover:bg-slate-700 text-slate-400 border border-dashed border-slate-700'
+              }`}
+            >
+              <span>🇲🇾</span>
+              <span>{getCountryDisplayName('MY')} (MYR)</span>
+              <span className="text-[10px] text-amber-400">+{t('common.add', undefined, 'Add')}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -464,39 +811,77 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Tag className="w-4 h-4 text-amber-400" />
-                  <span>{t('developer.configuredDurationTiers')}</span>
-                  <span className="text-xs font-mono text-slate-400">({tiers.length})</span>
+                  <span>
+                    {getCountryDisplayName(selectedCountry)} Tiers ({selectedCurrency})
+                  </span>
+                  <span className="text-xs font-mono text-slate-400">({countryTiers.length})</span>
+                  {selectedCountry === defaultPricingCountry && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      Default Country
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {t('developer.thresholdsDesc')}
+                  {countryTiers.length > 0
+                    ? `Configured active tiers for events in ${getCountryDisplayName(selectedCountry)}.`
+                    : `No pricing tiers configured specifically for ${getCountryDisplayName(selectedCountry)}.`}
                 </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleOpenAdd}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t('developer.addTier', undefined, 'Add Tier')}</span>
+                </button>
               </div>
             </div>
 
             {loading ? (
               <div className="py-16 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-3" />
-                <p className="text-xs text-slate-400">{t('developer.loadingPricingTiers', undefined, 'Loading game pricing tiers...')}</p>
+                <p className="text-xs text-slate-400">{t('developer.loadingGamePricingTiers', undefined, 'Loading game pricing tiers...')}</p>
               </div>
-            ) : tiers.length === 0 ? (
-              <div className="text-center py-12 p-6">
-                <Coins className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-white mb-1">{t('developer.noPricingTiersConfigured')}</h4>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
-                  {t('developer.noPricingTiersDesc')}
-                </p>
-                <button
-                  onClick={handleSeedDefaults}
-                  disabled={saving}
-                  className="inline-flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>{t('developer.seedStandardTiersButton')}</span>
-                </button>
+            ) : countryTiers.length === 0 ? (
+              /* Empty state for the selected country */
+              <div className="text-center py-12 p-6 space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-2xl">
+                  {selectedCountryInfo?.flag || '🌐'}
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white mb-1">
+                    No Pricing Configured for {getCountryDisplayName(selectedCountry)}
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                    Events created by organizations in {getCountryDisplayName(selectedCountry)} will currently fall back to{' '}
+                    <strong className="text-slate-200">{getCountryDisplayName(defaultPricingCountry)}</strong> ({getCurrencyForCountry(defaultPricingCountry) || 'USD'}).
+                    Add tiers below to set country-specific pricing in <strong className="text-amber-400">{selectedCurrency}</strong>.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={handleOpenAdd}
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-950/30"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add First Tier for {getCountryDisplayName(selectedCountry)}</span>
+                  </button>
+                  <button
+                    onClick={handleOpenQuickSetup}
+                    disabled={saving}
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700"
+                  >
+                    <Sliders className="w-4 h-4 text-amber-400" />
+                    <span>{t('developer.quickSetupStandardTiers', undefined, 'Quick Setup Standard Tiers')}</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="divide-y divide-slate-800/60">
-                {tiers.map((tier) => {
+                {countryTiers.map((tier) => {
                   const isEditing = editingTierId === tier.id;
                   const durationLabel =
                     tier.min_days === tier.max_days
@@ -545,7 +930,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                                   : 'bg-slate-800 text-slate-400 border border-slate-700'
                               }`}
                             >
-                              {tier.is_active ? t('developer.activeTierToggle') : t('developer.inactiveTierToggle')}
+                              {tier.is_active ? t('common.active', undefined, 'Active') : t('common.inactive', undefined, 'Inactive')}
                             </span>
                           </div>
 
@@ -571,7 +956,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                           <button
                             onClick={() => handleToggleActive(tier)}
                             disabled={saving}
-                            title={tier.is_active ? 'Deactivate Tier' : 'Activate Tier'}
+                            title={tier.is_active ? t('common.deactivate', undefined, 'Deactivate Tier') : t('common.activate', undefined, 'Activate Tier')}
                             className={`p-2 rounded-xl text-xs font-semibold transition-colors ${
                               tier.is_active
                                 ? 'text-emerald-400 hover:bg-emerald-500/10'
@@ -607,14 +992,98 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             )}
           </div>
 
+          {/* Quick Setup Modal / Drawer */}
+          {showQuickSetupModal && (
+            <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/30 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <h4 className="text-sm font-bold text-white">
+                      Quick Setup Tiers for {getCountryDisplayName(selectedCountry)} ({selectedCurrency})
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      Enter authoritative prices for each day range. Leave blank to omit a tier.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowQuickSetupModal(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {quickTiers.map((qt, idx) => (
+                  <div key={`qt-${idx}`} className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-200">{qt.label}</span>
+                      {qt.is_base && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-semibold">
+                          Base
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-mono text-slate-500 font-bold">
+                        {selectedCurrency}
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="0.01"
+                        value={qt.price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setQuickTiers((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, price: val } : item))
+                          );
+                        }}
+                        placeholder="e.g. 500.00"
+                        className="w-full pl-14 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+                <button
+                  onClick={() => setShowQuickSetupModal(false)}
+                  disabled={saving}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveQuickSetup}
+                  disabled={saving}
+                  className="flex items-center space-x-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-950/30"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save All Tiers for {getCountryDisplayName(selectedCountry)}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Add / Edit Tier Form Drawer / Card */}
           {(isAddingTier || editingTierId) && (
             <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/30 shadow-xl animate-in fade-in-50 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-amber-400" />
-                  <span>{editingTierId ? 'Edit Pricing Tier' : 'Add New Pricing Tier'}</span>
-                </h4>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">
+                      {editingTierId ? 'Edit Pricing Tier' : `Add Duration Tier for ${getCountryDisplayName(formCountryCode)}`}
+                    </h4>
+                    <span className="text-[11px] text-amber-400 font-mono">
+                      Currency: {formCurrency} ({getCountryDisplayName(formCountryCode)})
+                    </span>
+                  </div>
+                </div>
                 <button
                   onClick={handleCancelForm}
                   className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
@@ -625,7 +1094,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">{t('developer.minimumDays', undefined, 'Minimum Days')}</label>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">{t('developer.minDaysHeader', undefined, 'Minimum Days')}</label>
                   <input
                     type="number"
                     min="1"
@@ -638,7 +1107,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-300">{t('developer.maximumDays', undefined, 'Maximum Days')}</label>
+                    <label className="text-xs font-semibold text-slate-300">{t('developer.maxDaysHeader', undefined, 'Maximum Days')}</label>
                     <label className="flex items-center space-x-1 text-[10px] text-amber-400 cursor-pointer">
                       <input
                         type="checkbox"
@@ -646,7 +1115,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                         onChange={(e) => setFormIsUnlimited(e.target.checked)}
                         className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                       />
-                      <span>{t('developer.unlimitedDays', undefined, 'Unlimited (e.g. 91+)')}</span>
+                      <span>{t('developer.unlimitedMaxDays', undefined, 'Unlimited (e.g. 31+)')}</span>
                     </label>
                   </div>
                   <input
@@ -663,16 +1132,23 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">Price ({formCurrency})</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    value={formPrice}
-                    onChange={(e) => setFormPrice(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
-                    placeholder="e.g. 1400.00"
-                  />
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Price ({formCurrency})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-mono text-slate-500 font-bold">
+                      {formCurrency}
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      value={formPrice}
+                      onChange={(e) => setFormPrice(e.target.value)}
+                      className="w-full pl-14 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
+                      placeholder="e.g. 500.00"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -685,7 +1161,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                       onChange={(e) => setFormIsActive(e.target.checked)}
                       className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                     />
-                    <span>{t('developer.activeTier', undefined, 'Active Tier')}</span>
+                    <span>{t('developer.activeTierCheckbox', undefined, 'Active Tier')}</span>
                   </label>
 
                   <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
@@ -695,7 +1171,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                       onChange={(e) => setFormIsBase(e.target.checked)}
                       className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                     />
-                    <span>{t('developer.baseTierPrimaryQuote', undefined, 'Base Tier (Primary 1-day quote)')}</span>
+                    <span>{t('developer.baseTierCheckbox', undefined, 'Base Tier (Primary 1-day quote)')}</span>
                   </label>
                 </div>
 
@@ -726,18 +1202,18 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
           <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
               <Calculator className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-white">{t('developer.durationSimulator')}</h3>
+              <h3 className="text-sm font-bold text-white">{t('developer.durationPricingSimulator', undefined, 'Duration Simulator')}</h3>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              {t('developer.durationSimulatorDesc')}
+              Test how an event quote resolves for an organization in <strong className="text-white">{getCountryDisplayName(selectedCountry)}</strong> based on active tiers and fallback rules.
             </p>
 
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>{t('event.startDateInclusive', undefined, 'Start Date (Inclusive)')}</span>
+                  <span>{t('developer.startDateInclusive', undefined, 'Start Date (Inclusive)')}</span>
                 </label>
                 <CustomDatePicker
                   value={simStartDate}
@@ -748,7 +1224,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>{t('event.endDateInclusive', undefined, 'End Date (Inclusive)')}</span>
+                  <span>{t('developer.endDateInclusive', undefined, 'End Date (Inclusive)')}</span>
                 </label>
                 <CustomDatePicker
                   min={simStartDate}
@@ -768,16 +1244,30 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               </div>
 
               <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">{t('developer.requestedCountry', undefined, 'Requested Country:')}</span>
+                <span className="font-semibold text-white">{getCountryDisplayName(selectedCountry)} ({selectedCountry})</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">{t('developer.matchedRule', undefined, 'Matched Rule:')}</span>
                 <span className="font-semibold text-white text-right">{simulatedQuote.ruleLabel}</span>
               </div>
+
+              {simulatedQuote.isFallback && (
+                <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-300 flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 shrink-0 text-blue-400" />
+                  <span>
+                    No specific tier in {selectedCountry}. Using fallback pricing from {getCountryDisplayName(defaultPricingCountry)} ({simulatedQuote.currency}).
+                  </span>
+                </div>
+              )}
 
               <div className="border-t border-slate-800/80 pt-3 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase tracking-wider block">{t('developer.calculatedEventPrice', undefined, 'Calculated Event Price')}</span>
                   {simulatedQuote.price !== null ? (
                     <span className="text-xl font-black text-amber-400">
-                      MYR {simulatedQuote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {simulatedQuote.currency} {simulatedQuote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   ) : (
                     <span className="text-lg font-bold text-amber-400">
@@ -790,7 +1280,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                   <span className="text-[10px] text-slate-500 block">{t('developer.avgPerDay', undefined, 'Avg / Day')}</span>
                   <span className="text-xs font-mono font-semibold text-slate-300">
                     {simulatedQuote.price !== null
-                      ? `MYR ${(simulatedQuote.price / Math.max(1, calculatedDuration)).toFixed(2)}`
+                      ? `${simulatedQuote.currency} ${(simulatedQuote.price / Math.max(1, calculatedDuration)).toFixed(2)}`
                       : 'N/A (Quote Required)'}
                   </span>
                 </div>

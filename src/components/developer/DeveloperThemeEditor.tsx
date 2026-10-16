@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalization } from '../../context/LocalizationContext';
-import { GameTheme, normalizeGameTheme, getThemeGameType } from '../../themes';
+import { GameTheme, normalizeGameTheme, getThemeGameType, normalizeGameType } from '../../themes';
+import { PlatformGame } from '../../types/developer';
 import { LiveThemePreview } from '../studio/LiveThemePreview';
 import { VisualsTab } from '../studio/VisualsTab';
 import { ItemsTab } from '../studio/ItemsTab';
@@ -42,7 +43,8 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
 }) => {
   const { t } = useLocalization();
   const [theme, setTheme] = useState<GameTheme | null>(null);
-  const [gameName, setGameName] = useState<string>('Catch The Brand');
+  const [game, setGame] = useState<PlatformGame | null>(null);
+  const [gameName, setGameName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
@@ -58,26 +60,79 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
     }
   }, [theme?.layout?.orientation]);
 
-  // Load theme data from developer endpoint
+  // Load theme and authoritative game data from developer endpoints
   useEffect(() => {
     let isMounted = true;
-    async function loadTheme() {
+    async function loadThemeAndGame() {
       setLoading(true);
       setError(null);
       try {
         const token = localStorage.getItem('app_token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        const res = await apiFetch(`/api/developer/themes/${themeId}`, { headers });
-        if (!res.ok) throw new Error('Failed to load system theme');
-        const data = await res.json();
+        // 1. Load system theme
+        const resTheme = await apiFetch(`/api/developer/themes/${themeId}`, { headers });
+        if (!resTheme.ok) {
+          const errData = await resTheme.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to load system theme');
+        }
+        const dataTheme = await resTheme.json();
+        if (!dataTheme.theme) throw new Error('Theme not found');
 
-        if (isMounted && data.theme) {
-          const normalized = normalizeGameTheme(data.theme);
-          setTheme(normalized);
-          if (data.theme.game_name) {
-            setGameName(data.theme.game_name);
+        const rawTheme = dataTheme.theme;
+        const normalized = normalizeGameTheme(rawTheme);
+
+        // 2. Resolve authoritative game identity:
+        // Priority: gameId prop -> rawTheme.game_id -> rawTheme.game_type -> rawTheme.game_slug -> themeId
+        const candidateGameKey = (
+          gameId ||
+          rawTheme.game_id ||
+          (rawTheme as any).game_type ||
+          (rawTheme as any).game_slug ||
+          (normalized as any).game_id ||
+          (normalized as any).game_type
+        )?.toString().trim();
+
+        let loadedGame: PlatformGame | null = null;
+        if (candidateGameKey) {
+          try {
+            const resGame = await apiFetch(`/api/developer/games/${candidateGameKey}`, { headers });
+            if (resGame.ok) {
+              const gameData = await resGame.json();
+              if (gameData?.game) {
+                loadedGame = gameData.game;
+              }
+            }
+          } catch (gErr) {
+            console.warn(`[DeveloperThemeEditor] Could not fetch game by key "${candidateGameKey}":`, gErr);
           }
+        }
+
+        // If specific lookup failed but candidate matches known slug, construct or fallback safely
+        if (!loadedGame && candidateGameKey) {
+          const canonicalType = normalizeGameType(candidateGameKey, '');
+          if (canonicalType) {
+            loadedGame = {
+              id: candidateGameKey,
+              name: rawTheme.game_name || (canonicalType === 'match-3' ? 'Match-3' : canonicalType === 'memory-match' ? 'Memory Match' : canonicalType === 'reaction-tap' ? 'Reaction Tap' : 'Catch the Brand'),
+              slug: canonicalType,
+              game_type: canonicalType,
+              ownership_type: 'system',
+              is_system: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as PlatformGame;
+          }
+        }
+
+        if (isMounted) {
+          setTheme(normalized);
+          setGame(loadedGame);
+          const resolvedName =
+            loadedGame?.name ||
+            rawTheme.game_name ||
+            (loadedGame?.game_type ? loadedGame.game_type.toUpperCase() : 'Game');
+          setGameName(resolvedName);
         }
       } catch (err: any) {
         if (isMounted) setError(err.message || 'Error loading theme');
@@ -86,17 +141,22 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
       }
     }
 
-    loadTheme();
+    loadThemeAndGame();
     return () => {
       isMounted = false;
     };
-  }, [themeId]);
+  }, [themeId, gameId]);
+
 
   // Asset upload via API
   const handleUploadAsset = async (file: File): Promise<string> => {
     const token = localStorage.getItem('app_token');
     const formData = new FormData();
     formData.append('file', file);
+    if (theme?.organization_id) {
+      formData.append('organizationId', theme.organization_id);
+    }
+    formData.append('category', 'items');
 
     const res = await apiFetch('/api/upload', {
       method: 'POST',
@@ -169,8 +229,10 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
           visuals_config: theme.visuals_config,
           sounds_config: theme.sounds_config,
           layout: theme.layout,
+          game_config: theme.game_config,
         }),
       });
+
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -462,10 +524,13 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
       {isPlayingTest && (
         <DeveloperPlayTestModal
           theme={theme}
-          gameName={gameName}
+          gameName={game?.name || gameName}
+          gameType={game?.game_type || game?.slug || (gameId ? normalizeGameType(gameId, '') : '') || (theme ? getThemeGameType(theme) : 'catch-brand')}
+          game={game}
           onClose={() => setIsPlayingTest(false)}
         />
       )}
     </div>
+
   );
 };

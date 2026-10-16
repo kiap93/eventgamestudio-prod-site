@@ -539,7 +539,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               >
                 <img
                   src={clientLogoUrl}
-                  alt="Client Logo"
+                  alt={t('studio.clientLogoAlt', undefined, 'Client Logo')}
                   style={{
                     maxHeight: isPortrait ? '34px' : '38px',
                     maxWidth: '100%',
@@ -1046,7 +1046,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
                 <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
                   <h4 className="font-bold text-teal-400">🎨 {t('game.multiThemeSystem', undefined, 'Multi-Theme System')}</h4>
-                  <p>Add new themes cleanly by creating a configuration object in <code className="text-amber-300">src/themes/</code>:</p>
+                  <p>{t('game.addThemesGuide', undefined, 'Add new themes cleanly by creating a configuration object in')} <code className="text-amber-300">src/themes/</code>:</p>
                   <ul className="list-disc list-inside space-y-1 font-mono text-[11px] text-amber-300">
                     <li><code className="text-slate-200">ACTIVE_THEME_ID</code>: Single configuration value in <code className="text-slate-200">src/themes/registry.ts</code>.</li>
                     <li><code className="text-slate-200">GameTheme interface</code>: Define background, catcher, falling items, titles, and custom sounds.</li>

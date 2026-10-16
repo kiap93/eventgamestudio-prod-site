@@ -688,7 +688,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                   <span className="text-[10px] text-slate-400 font-semibold">{t('showcase.clientLogoPreview')}</span>
                   <img
                     src={clientLogoUrl}
-                    alt="Client Logo"
+                    alt={t('showcase.clientLogo', undefined, 'Client Logo')}
                     className="h-6 max-w-[120px] object-contain rounded"
                     onError={(e) => ((e.target as any).style.display = 'none')}
                   />
@@ -715,7 +715,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                 <div className="relative rounded-xl overflow-hidden border border-slate-800 max-h-36 bg-slate-950">
                   <img
                     src={coverImageUrl}
-                    alt="Showcase Cover"
+                    alt={t('showcase.coverImage', undefined, 'Showcase Cover')}
                     className="w-full h-36 object-cover"
                     onError={(e) => ((e.target as any).style.display = 'none')}
                   />

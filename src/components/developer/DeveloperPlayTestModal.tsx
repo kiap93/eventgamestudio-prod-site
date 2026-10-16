@@ -1,31 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalization } from '../../context/LocalizationContext';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, getThemeGameType, resolveAuthoritativeGameType, normalizeGameType } from '../../themes/types';
+import { PlatformGame } from '../../types/developer';
 import { GameShell } from '../shell/GameShell';
 import { X, Play, RotateCcw, Sparkles, Monitor, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
 
 interface DeveloperPlayTestModalProps {
   theme: GameTheme;
   gameName?: string;
+  gameType?: string;
+  game?: PlatformGame | null;
   onClose: () => void;
 }
 
 export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
   theme,
   gameName = 'Catch The Brand',
+  gameType,
+  game,
   onClose,
 }) => {
   const { t } = useLocalization();
   const [key, setKey] = useState<number>(Date.now());
   const [deviceFrame, setDeviceFrame] = useState<'desktop' | 'mobile'>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const modalContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const resolvedGameType = normalizeGameType(
+    resolveAuthoritativeGameType({
+      shellGameType: gameType,
+      game,
+      theme,
+    }),
+    'catch-brand'
+  );
 
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      const fsEl =
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement;
+
+      // Scoped fullscreen verification: True when our modal container (or one of its children)
+      // or documentElement is the active fullscreen element.
+      const isTargetFs = Boolean(
+        fsEl &&
+        (fsEl === modalContainerRef.current ||
+         (modalContainerRef.current?.contains(fsEl) ?? false) ||
+         fsEl === document.documentElement)
       );
+
+      setIsFullscreen(isTargetFs);
     };
+
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
     return () => {
@@ -34,25 +63,56 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
     };
   }, []);
 
-  const handleToggleFullscreen = () => {
+  const handleToggleFullscreen = async () => {
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
-    if (!isCurrentlyFs && !isFullscreen) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
+    if (!isCurrentlyFs) {
+      // Prefer the test-runner container element so the Admin Panel does not unnecessarily
+      // fullscreen the entire application / surrounding dashboard.
+      const el = modalContainerRef.current || document.documentElement;
+      const reqFs =
+        el.requestFullscreen ||
+        (el as any).webkitRequestFullscreen ||
+        (el as any).mozRequestFullScreen ||
+        (el as any).msRequestFullscreen;
+      if (reqFs) {
+        try {
+          await reqFs.call(el);
+        } catch (err) {
+          console.warn('Fullscreen request failed or was rejected:', err);
+          const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
+          setIsFullscreen(
+            Boolean(
+              fsEl &&
+              (fsEl === modalContainerRef.current ||
+               (modalContainerRef.current?.contains(fsEl) ?? false) ||
+               fsEl === document.documentElement)
+            )
+          );
         }
       }
-      setIsFullscreen(false);
+    } else {
+      const exitFs =
+        document.exitFullscreen ||
+        (document as any).webkitExitFullscreen ||
+        (document as any).mozCancelFullScreen ||
+        (document as any).msExitFullscreen;
+      if (exitFs) {
+        try {
+          await exitFs.call(document);
+        } catch (err) {
+          console.warn('Exit fullscreen failed:', err);
+          const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
+          setIsFullscreen(
+            Boolean(
+              fsEl &&
+              (fsEl === modalContainerRef.current ||
+               (modalContainerRef.current?.contains(fsEl) ?? false) ||
+               fsEl === document.documentElement)
+            )
+          );
+        }
+      }
     }
   };
 
@@ -62,6 +122,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
 
   return (
     <div
+      ref={modalContainerRef}
       className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 ${
         isFullscreen ? 'p-0' : 'p-4'
       }`}
@@ -158,6 +219,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
               <GameShell
                 key={key}
                 customTheme={theme}
+                gameType={resolvedGameType}
                 showCabinetFooter={false}
                 isFullscreen={isFullscreen}
                 onToggleFullscreen={handleToggleFullscreen}
@@ -174,13 +236,37 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
               <span>{t('developer.themeIdLabel')} <code className="text-slate-300 font-mono">{theme.id}</code></span>
             </span>
             <span className="hidden sm:inline text-slate-600">|</span>
-            <span className="hidden sm:inline">{t('developer.itemsCountLabel')} <strong className="text-slate-200">{theme.items_config?.length || 0}</strong></span>
-            <span className="hidden sm:inline text-slate-600">|</span>
-            <span className="hidden sm:inline">{t('developer.fallSpeedLabel')} <strong className="text-slate-200">{theme.physics_config?.baseFallSpeed || 500}px/s</strong></span>
+            {resolvedGameType === 'match-3' ? (
+              <>
+                <span className="hidden sm:inline">Grid: <strong className="text-slate-200 font-mono">{(theme.game_config as any)?.rows || 8}×{(theme.game_config as any)?.cols || 8}</strong></span>
+                <span className="hidden sm:inline text-slate-600">|</span>
+                <span className="hidden sm:inline">Tiles: <strong className="text-emerald-400 font-mono">{(theme.game_config as any)?.tileTypesCount || 6} Colors</strong></span>
+                <span className="hidden sm:inline text-slate-600">|</span>
+                <span className="hidden sm:inline">Round: <strong className="text-sky-400 font-mono">{theme.physics_config?.gameDurationSeconds || (theme.game_config as any)?.gameDurationSeconds || 60}s</strong></span>
+              </>
+            ) : resolvedGameType === 'memory-match' ? (
+              <>
+                <span className="hidden sm:inline">Pairs: <strong className="text-indigo-400 font-mono">{(theme.game_config as any)?.pairs?.length || 8} Pairs</strong></span>
+                <span className="hidden sm:inline text-slate-600">|</span>
+                <span className="hidden sm:inline">Duration: <strong className="text-sky-400 font-mono">{theme.physics_config?.gameDurationSeconds || 45}s</strong></span>
+              </>
+            ) : resolvedGameType === 'reaction-tap' ? (
+              <>
+                <span className="hidden sm:inline">Lights: <strong className="text-rose-400 font-mono">5 Lights</strong></span>
+                <span className="hidden sm:inline text-slate-600">|</span>
+                <span className="hidden sm:inline">Mode: <strong className="text-amber-400 font-mono">F1 Reflex</strong></span>
+              </>
+            ) : (
+              <>
+                <span className="hidden sm:inline">{t('developer.itemsCountLabel')} <strong className="text-slate-200">{theme.items_config?.length || 0}</strong></span>
+                <span className="hidden sm:inline text-slate-600">|</span>
+                <span className="hidden sm:inline">{t('developer.fallSpeedLabel')} <strong className="text-slate-200">{theme.physics_config?.baseFallSpeed || 500}px/s</strong></span>
+              </>
+            )}
           </div>
 
           <div className="flex items-center space-x-3 font-mono">
-            <span className="text-emerald-400 font-bold">{t('developer.gameModeTestPlay')}</span>
+            <span className="text-emerald-400 font-bold uppercase">{resolvedGameType} TEST PLAY</span>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed }
 import { GameRecord, BasketConfig, ItemConfig, SettingsConfig } from './types.js';
 import crypto from 'node:crypto';
 
-const localGamesCache = new Map<string, GameRecord>();
+export const localGamesCache = new Map<string, GameRecord>();
 
 export const DEFAULT_BASKET_CONFIG: BasketConfig = {
   name: 'Standard Basket',
@@ -50,7 +50,25 @@ export const CATALOG_GAMES = [
     description: 'F1-style starting light sequence reflex test. Measure reaction times down to the millisecond when red lights extinguish.',
     icon_name: 'Zap',
   },
+  {
+    name: 'Match-3',
+    slug: 'match-3',
+    game_type: 'match-3',
+    description: 'Swap matching tiles to create combinations, trigger special tiles, build combos, and achieve the highest score before time runs out.',
+    icon_name: 'Sparkles',
+  },
 ];
+
+/**
+ * Baseline pre-registered system games that are initialized on platform startup.
+ */
+export const BASELINE_PLATFORM_GAMES = CATALOG_GAMES.filter(
+  (g) =>
+    g.game_type === 'catch-brand' ||
+    g.game_type === 'memory-match' ||
+    g.game_type === 'reaction-tap' ||
+    g.game_type === 'match-3'
+);
 
 export class GameConflictError extends Error {
   code: 'GAME_TYPE_ALREADY_REGISTERED' | 'GAME_SLUG_ALREADY_REGISTERED';
@@ -137,7 +155,19 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
     return localGamesCache.get(gameId)!;
   }
   if (!isSupabaseConfigured(env) || !isUUID(gameId)) {
-    const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId || (g as any).id === gameId) || CATALOG_GAMES[0];
+    const cleanId = gameId.replace(/^game-/, '');
+    const match =
+      CATALOG_GAMES.find(
+        (g) =>
+          g.slug === gameId ||
+          g.game_type === gameId ||
+          g.slug === cleanId ||
+          g.game_type === cleanId ||
+          (g as any).id === gameId ||
+          (g as any).id === `game-${g.slug}`
+      ) || CATALOG_GAMES[0];
+    const isNonBasket = match.game_type === 'match-3' || match.game_type === 'memory-match' || match.game_type === 'reaction-tap';
+    const isNonItem = match.game_type === 'match-3' || match.game_type === 'reaction-tap';
     return {
       id: gameId,
       organization_id: null,
@@ -148,8 +178,9 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
       game_type: match.game_type as any,
       description: match.description,
       branding: { gameTitle: match.name } as any,
-      basket_config: DEFAULT_BASKET_CONFIG,
-      items_config: DEFAULT_ITEMS_CONFIG,
+      background_url: `/assets/games/${match.game_type || match.slug || 'catch-brand'}/themes/default/background.png`,
+      basket_config: isNonBasket ? null : DEFAULT_BASKET_CONFIG,
+      items_config: isNonItem ? [] : DEFAULT_ITEMS_CONFIG,
       settings_config: DEFAULT_SETTINGS_CONFIG,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -168,7 +199,19 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
       return localGamesCache.get(gameId)!;
     }
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
-      const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId) || CATALOG_GAMES[0];
+      const cleanId = gameId.replace(/^game-/, '');
+      const match =
+        CATALOG_GAMES.find(
+          (g) =>
+            g.slug === gameId ||
+            g.game_type === gameId ||
+            g.slug === cleanId ||
+            g.game_type === cleanId ||
+            (g as any).id === gameId ||
+            (g as any).id === `game-${g.slug}`
+        ) || CATALOG_GAMES[0];
+      const isNonBasket = match.game_type === 'match-3' || match.game_type === 'memory-match' || match.game_type === 'reaction-tap';
+      const isNonItem = match.game_type === 'match-3' || match.game_type === 'reaction-tap';
       return {
         id: gameId,
         organization_id: null,
@@ -179,8 +222,9 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
         game_type: match.game_type as any,
         description: match.description,
         branding: { gameTitle: match.name } as any,
-        basket_config: DEFAULT_BASKET_CONFIG,
-        items_config: DEFAULT_ITEMS_CONFIG,
+        background_url: `/assets/games/${match.game_type || match.slug || 'catch-brand'}/themes/default/background.png`,
+        basket_config: isNonBasket ? null : DEFAULT_BASKET_CONFIG,
+        items_config: isNonItem ? [] : DEFAULT_ITEMS_CONFIG,
         settings_config: DEFAULT_SETTINGS_CONFIG,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -280,6 +324,10 @@ export async function createGame(
 
   if (!isSupabaseConfigured(env)) {
     localGamesCache.set(id, newGame);
+    try {
+      const { ensureDefaultGamePricing } = await import('./gamePricing.js');
+      await ensureDefaultGamePricing(newGame.id, newGame.game_type, undefined, undefined, env);
+    } catch (_err) {}
     return newGame;
   }
 
@@ -304,11 +352,20 @@ export async function createGame(
   if (error) {
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
       localGamesCache.set(id, newGame);
+      try {
+        const { ensureDefaultGamePricing } = await import('./gamePricing.js');
+        await ensureDefaultGamePricing(newGame.id, newGame.game_type, undefined, undefined, env);
+      } catch (_err) {}
       return newGame;
     }
     console.error('Error in createGame:', error);
     throw new Error(`Failed to create game: ${error.message}`);
   }
+
+  try {
+    const { ensureDefaultGamePricing } = await import('./gamePricing.js');
+    await ensureDefaultGamePricing(id, game_type, undefined, undefined, env);
+  } catch (_err) {}
 
   return data as GameRecord;
 }
@@ -514,8 +571,8 @@ export async function ensureSystemCatalogGames(env?: Record<string, any>): Promi
   const list = (existingGames || []) as GameRecord[];
   const existingTypes = new Set(list.map((g) => g.game_type || g.slug));
 
-  // Ensure each catalog game exists in platform games
-  for (const catalogGame of CATALOG_GAMES) {
+  // Ensure each baseline catalog game exists in platform games
+  for (const catalogGame of BASELINE_PLATFORM_GAMES) {
     if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
       try {
         const id = crypto.randomUUID();
@@ -579,10 +636,14 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
 
   if (error) {
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
-      games = Array.from(localGamesCache.values());
+      games = Array.from(localGamesCache.values()).filter(
+        (g) => (g.organization_id === null || g.organization_id === undefined) && g.is_system !== false
+      );
       if (games.length === 0) {
-        for (const catalogGame of CATALOG_GAMES) {
+        for (const catalogGame of BASELINE_PLATFORM_GAMES) {
           const id = `game-${catalogGame.slug}`;
+          const isNonBasket = catalogGame.game_type === 'match-3' || catalogGame.game_type === 'memory-match' || catalogGame.game_type === 'reaction-tap';
+          const isNonItem = catalogGame.game_type === 'match-3' || catalogGame.game_type === 'reaction-tap';
           const g: GameRecord = {
             id,
             organization_id: null,
@@ -594,9 +655,9 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
             description: catalogGame.description,
             icon_name: catalogGame.icon_name,
             status: 'active',
-            background_url: '/assets/games/catch-brand/themes/default/background.png',
-            basket_config: DEFAULT_BASKET_CONFIG,
-            items_config: DEFAULT_ITEMS_CONFIG,
+            background_url: `/assets/games/${catalogGame.game_type || catalogGame.slug || 'catch-brand'}/themes/default/background.png`,
+            basket_config: isNonBasket ? null : DEFAULT_BASKET_CONFIG,
+            items_config: isNonItem ? [] : DEFAULT_ITEMS_CONFIG,
             settings_config: DEFAULT_SETTINGS_CONFIG,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -612,12 +673,14 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
   }
   const existingTypes = new Set(games.map((g) => g.game_type || g.slug));
 
-  // If any catalog game is missing, initialize it
-  for (const catalogGame of CATALOG_GAMES) {
+  // If any baseline catalog game is missing, initialize it
+  for (const catalogGame of BASELINE_PLATFORM_GAMES) {
     if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
       try {
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
+        const isNonBasket = catalogGame.game_type === 'match-3' || catalogGame.game_type === 'memory-match' || catalogGame.game_type === 'reaction-tap';
+        const isNonItem = catalogGame.game_type === 'match-3' || catalogGame.game_type === 'reaction-tap';
         const { data: created } = await supabase
           .from('games')
           .insert({
@@ -631,9 +694,9 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
             description: catalogGame.description,
             icon_name: catalogGame.icon_name,
             status: 'active',
-            background_url: '/assets/games/catch-brand/themes/default/background.png',
-            basket_config: DEFAULT_BASKET_CONFIG,
-            items_config: DEFAULT_ITEMS_CONFIG,
+            background_url: `/assets/games/${catalogGame.game_type || catalogGame.slug || 'catch-brand'}/themes/default/background.png`,
+            basket_config: isNonBasket ? null : DEFAULT_BASKET_CONFIG,
+            items_config: isNonItem ? [] : DEFAULT_ITEMS_CONFIG,
             settings_config: DEFAULT_SETTINGS_CONFIG,
             created_at: now,
             updated_at: now,
@@ -687,16 +750,19 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
     }
   }
 
-  return games.map((game) => ({
-    ...game,
-    is_system: true,
-    ownership_type: 'system',
-    status: (game.status as any) || 'active',
-    game_type: game.game_type || 'catch-brand',
-    theme_count: themeCountsByGame.get(game.id) || 0,
-    system_theme_count: systemThemeCountsByGame.get(game.id) || 0,
-    events_count: eventCountsByGame.get(game.id) || 0,
-  } as any));
+  return games.map((game) => {
+    const isSys = game.organization_id ? false : (game.is_system !== false);
+    return {
+      ...game,
+      is_system: isSys,
+      ownership_type: isSys ? 'system' : 'organization',
+      status: (game.status as any) || 'active',
+      game_type: game.game_type || 'catch-brand',
+      theme_count: themeCountsByGame.get(game.id) || 0,
+      system_theme_count: systemThemeCountsByGame.get(game.id) || 0,
+      events_count: eventCountsByGame.get(game.id) || 0,
+    } as any;
+  });
 }
 
 export async function createPlatformGame(
@@ -727,6 +793,16 @@ export async function createPlatformGame(
   }
 
   // 1. Explicit Check for Existing System Game with same game_type
+  const localExistingType = Array.from(localGamesCache.values()).find(
+    (g) => (g.is_system || !g.organization_id) && g.game_type === cleanGameType
+  );
+  if (localExistingType) {
+    throw new GameConflictError(
+      'GAME_TYPE_ALREADY_REGISTERED',
+      `This game type "${cleanGameType}" is already registered as a system game ("${localExistingType.name}"). Please manage themes under the existing game instead of creating a duplicate.`
+    );
+  }
+
   const { data: existingTypeGame } = await supabase
     .from('games')
     .select('id, name, game_type, slug')
@@ -742,6 +818,16 @@ export async function createPlatformGame(
   }
 
   // 2. Explicit Check for Existing System Game with same slug
+  const localExistingSlug = Array.from(localGamesCache.values()).find(
+    (g) => (g.is_system || !g.organization_id) && g.slug === cleanSlug
+  );
+  if (localExistingSlug) {
+    throw new GameConflictError(
+      'GAME_SLUG_ALREADY_REGISTERED',
+      `This system game slug "${cleanSlug}" is already in use by "${localExistingSlug.name}". Please choose another slug.`
+    );
+  }
+
   const { data: existingSlugGame } = await supabase
     .from('games')
     .select('id, name, game_type, slug')
@@ -768,11 +854,11 @@ export async function createPlatformGame(
     slug: cleanSlug,
     game_type: cleanGameType,
     description: params.description ? params.description.trim() : null,
-    icon_name: params.icon_name || (cleanGameType === 'reaction-tap' ? 'Zap' : cleanGameType === 'memory-match' ? 'Grid3X3' : cleanGameType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
+    icon_name: params.icon_name || (cleanGameType === 'match-3' ? 'Sparkles' : cleanGameType === 'reaction-tap' ? 'Zap' : cleanGameType === 'memory-match' ? 'Grid3X3' : cleanGameType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
     status: params.status || 'active',
-    background_url: params.background_url || '/assets/games/catch-brand/themes/default/background.png',
-    basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
-    items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
+    background_url: params.background_url || (cleanGameType === 'match-3' ? '/assets/games/match-3/themes/default/background.png' : '/assets/games/catch-brand/themes/default/background.png'),
+    basket_config: params.basket_config ?? (cleanGameType === 'match-3' || cleanGameType === 'memory-match' || cleanGameType === 'reaction-tap' ? null : DEFAULT_BASKET_CONFIG),
+    items_config: params.items_config ?? (cleanGameType === 'match-3' || cleanGameType === 'reaction-tap' ? [] : DEFAULT_ITEMS_CONFIG),
     settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
     created_at: now,
     updated_at: now,
@@ -793,11 +879,32 @@ export async function createPlatformGame(
         'This system game slug is already in use.'
       );
     }
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const fallbackRecord: GameRecord = {
+        ...insertPayload,
+        theme_count: 0,
+        system_theme_count: 0,
+        events_count: 0,
+      } as any;
+      localGamesCache.set(id, fallbackRecord);
+
+      try {
+        const { ensureSystemDefaultThemesForGame } = await import('./themes.js');
+        await ensureSystemDefaultThemesForGame(fallbackRecord.id, fallbackRecord.game_type, env);
+      } catch (_err) {}
+
+      try {
+        const { ensureDefaultGamePricing } = await import('./gamePricing.js');
+        await ensureDefaultGamePricing(fallbackRecord.id, fallbackRecord.game_type, undefined, undefined, env);
+      } catch (_err) {}
+
+      return fallbackRecord;
+    }
     console.error('Error in createPlatformGame:', error);
     throw new Error(`Failed to create platform game: ${error.message}`);
   }
 
-  return {
+  const newGame = {
     ...data,
     is_system: true,
     ownership_type: 'system',
@@ -805,6 +912,24 @@ export async function createPlatformGame(
     system_theme_count: 0,
     events_count: 0,
   } as GameRecord;
+
+  localGamesCache.set(newGame.id, newGame);
+
+  try {
+    const { ensureSystemDefaultThemesForGame } = await import('./themes.js');
+    await ensureSystemDefaultThemesForGame(newGame.id, newGame.game_type, env);
+  } catch (themeErr: any) {
+    console.warn('Could not seed system themes for game:', cleanName, themeErr?.message);
+  }
+
+  try {
+    const { ensureDefaultGamePricing } = await import('./gamePricing.js');
+    await ensureDefaultGamePricing(newGame.id, newGame.game_type, undefined, undefined, env);
+  } catch (pricingErr: any) {
+    console.warn('Could not seed default pricing for game:', cleanName, pricingErr?.message);
+  }
+
+  return newGame;
 }
 
 export async function updatePlatformGame(

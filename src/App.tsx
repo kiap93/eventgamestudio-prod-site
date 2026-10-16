@@ -19,15 +19,32 @@ import { SeoLandingPage } from './components/seo/SeoLandingPage';
 import { PublicGamesPage } from './components/seo/PublicGamesPage';
 import { PublicGameDetailPage } from './components/seo/PublicGameDetailPage';
 import { PublicShowcasesIndexPage } from './components/seo/PublicShowcasesIndexPage';
+import { SalesGamesPage } from './components/sales/SalesGamesPage';
+import { SalesGameDetailPage } from './components/sales/SalesGameDetailPage';
+import { SalesReferralsPage } from './components/sales/SalesReferralsPage';
+import { SalesCommissionsPage } from './components/sales/SalesCommissionsPage';
+import { SalesDashboardPage } from './components/sales/SalesDashboardPage';
+import { SalesCustomersPage } from './components/sales/SalesCustomersPage';
+import { SalesPartnerApplyPage } from './components/sales/SalesPartnerApplyPage';
+import { SalesNavbar } from './components/sales/SalesNavbar';
 import { SEO } from './components/common/SEO';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
 import { LocalizationProvider, useLocalization } from './context/LocalizationContext';
-import { matchesMainSection } from './lib/navigation';
+import { matchesMainSection, getSafeRedirectUrl } from './lib/navigation';
 import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, currentOrganization, currentUser } = useAuth();
+  const {
+    isAuthenticated,
+    isLoading,
+    currentOrganization,
+    organizations,
+    cancelCreateOrganization,
+    currentUser,
+    isSalesPartner,
+    salesPartnerStatus,
+  } = useAuth();
   const { t } = useLocalization();
   const routeContext = useRouteContext();
 
@@ -42,7 +59,8 @@ const AppContent: React.FC = () => {
     routeContext.mode === 'landing' ||
     routeContext.mode === 'contact' ||
     routeContext.mode === 'verify_email' ||
-    routeContext.mode === 'reset_password';
+    routeContext.mode === 'reset_password' ||
+    routeContext.mode === 'sales_apply';
 
   const isLoginRoute = routeContext.mode === 'login';
   const isProtectedRoute = !isPublicRoute && !isLoginRoute;
@@ -56,9 +74,15 @@ const AppContent: React.FC = () => {
       const isDesigner = currentOrganization?.role === 'designer';
       const defaultLanding = isDesigner ? '/games' : '/events';
 
-      // 1. Authenticated user visiting /login -> redirect automatically to redirectUrl or default landing
+      // 1. Authenticated user visiting /login -> redirect automatically to validated redirectUrl or default landing
       if (isLoginRoute) {
-        const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || defaultLanding;
+        const queryRedirect = new URLSearchParams(window.location.search).get('redirect');
+        const sessionRedirect = typeof window !== 'undefined' ? window.sessionStorage?.getItem('pending_auth_redirect') : null;
+        const candidate = queryRedirect || sessionRedirect || defaultLanding;
+        const redirectUrl = getSafeRedirectUrl(candidate, defaultLanding);
+        try {
+          window.sessionStorage?.removeItem('pending_auth_redirect');
+        } catch {}
         navigateTo(redirectUrl);
       } else if (routeContext.mode === 'developer_admin' && !currentUser?.is_developer) {
         // 2. Non-developer visiting /developer -> redirect to default landing
@@ -67,6 +91,10 @@ const AppContent: React.FC = () => {
         // 3. User with active organization on create_org route -> redirect to default landing
         console.log('[App] Active organization present on create_org route, transitioning to landing');
         navigateTo(defaultLanding);
+      } else if (!currentOrganization && organizations.length > 0 && routeContext.mode !== 'create_org') {
+        // 3.5. Existing user with memberships where active organization is temporarily null -> restore active organization
+        console.log('[App] Restoring active organization from memberships list');
+        cancelCreateOrganization();
       } else if (isDesigner) {
         const path = window.location.pathname;
         if (
@@ -87,12 +115,17 @@ const AppContent: React.FC = () => {
         }
       }
     } else {
-      // 4. Unauthenticated user visiting a protected route -> redirect automatically to /login
+      // 4. Unauthenticated user visiting a protected route -> preserve destination safely and redirect to /login
       if (isProtectedRoute) {
-        navigateTo('/login');
+        const currentTarget = window.location.pathname + window.location.search;
+        const safeTarget = getSafeRedirectUrl(currentTarget, '/events');
+        try {
+          window.sessionStorage?.setItem('pending_auth_redirect', safeTarget);
+        } catch {}
+        navigateTo(`/login?redirect=${encodeURIComponent(safeTarget)}`);
       }
     }
-  }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute, routeContext.mode, currentUser?.is_developer, currentOrganization]);
+  }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute, routeContext.mode, currentUser?.is_developer, currentOrganization, organizations.length, cancelCreateOrganization]);
 
   // 1. PUBLIC EVENT ROUTE: /play/:publicToken or /e/:publicToken (Unauthenticated Public Player View)
   if (routeContext.mode === 'public_event') {
@@ -173,6 +206,11 @@ const AppContent: React.FC = () => {
     return <ResetPasswordPage />;
   }
 
+  // 3.8. PUBLIC SALES PARTNER APPLICATION ROUTE: /sales/apply, /partner, /become-a-partner
+  if (routeContext.mode === 'sales_apply') {
+    return <SalesPartnerApplyPage />;
+  }
+
   // 4. AUTH & SESSION INITIALIZATION LOADING STATE
   if (isLoading) {
     return (
@@ -239,9 +277,106 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // 7.5. SALES PARTNER ROUTE GUARD & WORKSPACE
+  if (
+    routeContext.isSalesRoute ||
+    routeContext.mode === 'sales_dashboard' ||
+    routeContext.mode === 'sales_games' ||
+    routeContext.mode === 'sales_game_detail' ||
+    routeContext.mode === 'sales_referrals' ||
+    routeContext.mode === 'sales_commissions' ||
+    routeContext.mode === 'sales_customers'
+  ) {
+    if (!isSalesPartner) {
+      return (
+        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
+          <SEO robots="noindex, follow" title="Sales Partner Access | Event Game Studio" />
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h1 className="text-xl font-bold text-white">Sales Partner Access Required</h1>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              {salesPartnerStatus === 'pending'
+                ? 'Your Sales Partner application is currently under review by our administrator team.'
+                : salesPartnerStatus === 'suspended'
+                ? 'Your Sales Partner access is currently suspended. Your customer workspace and organization memberships remain fully accessible.'
+                : salesPartnerStatus === 'rejected'
+                ? 'Your Sales Partner application was not approved. Your customer workspace remains fully accessible.'
+                : 'You do not have active Sales Partner permissions to access this portal.'}
+            </p>
+            <div className="pt-2 flex flex-col sm:flex-row justify-center gap-3">
+              <button
+                onClick={() => navigateTo('/events')}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Return to Workspace
+              </button>
+              {salesPartnerStatus === null ? (
+                <button
+                  onClick={() => navigateTo('/sales/apply')}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+                >
+                  Apply to Become Partner
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigateTo('/sales/apply')}
+                  className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  View Application Status
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 1. Sales Game Catalogue Route: /sales/games
+    if (routeContext.mode === 'sales_games') {
+      return <SalesGamesPage />;
+    }
+
+    // 2. Sales Game Detail Route: /sales/games/:gameId
+    if (routeContext.mode === 'sales_game_detail') {
+      return <SalesGameDetailPage gameId={routeContext.salesGameId || ''} />;
+    }
+
+    // 3. Sales Referrals & Customer Attributions Route: /sales/referrals or /sales/attributions
+    if (routeContext.mode === 'sales_referrals' || routeContext.salesSection === 'referrals') {
+      return <SalesReferralsPage />;
+    }
+
+    // 3.5. Sales Commissions & Payouts Route: /sales/commissions or /sales/payouts
+    if (routeContext.mode === 'sales_commissions' || routeContext.salesSection === 'commissions') {
+      return <SalesCommissionsPage />;
+    }
+
+    // 3.8. Sales Customers Route: /sales/customers or /sales/clients
+    if (routeContext.mode === 'sales_customers' || routeContext.salesSection === 'customers') {
+      return <SalesCustomersPage />;
+    }
+
+    // 4. Sales Partner Dashboard Route: /sales or /sales/dashboard or /sales/portal
+    return <SalesDashboardPage />;
+  }
+
   // 8. ONBOARDING / CREATE ORGANIZATION ROUTE
   // Once currentOrganization exists, CreateOrganizationPage must no longer render (Requirement 6).
   if (!currentOrganization) {
+    // If the authenticated user already has organizations and is NOT on /create-organization,
+    // do not flash or render CreateOrganizationPage on /events or other routes while active organization is resolved.
+    if (organizations.length > 0 && routeContext.mode !== 'create_org') {
+      return (
+        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
+          <SEO robots="noindex, follow" />
+          <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400 font-medium">{t('common.loadingApp', undefined, 'Loading Event Game Studio...')}</p>
+        </div>
+      );
+    }
+
     return (
       <>
         <SEO robots="noindex, follow" title={`${t('auth.createWorkspace', undefined, 'Create Workspace')} | Event Game Studio`} />

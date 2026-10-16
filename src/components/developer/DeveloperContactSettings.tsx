@@ -212,7 +212,7 @@ export const DeveloperContactSettings: React.FC = () => {
             )}
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-            <span>Contact & Enquiry Variables</span>
+            <span>{t('developer.contactEnquiryVars', undefined, 'Contact & Enquiry Variables')}</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl">
             Configure the central WhatsApp click-to-chat line, prefilled message, official enquiry email, support hours, and office location. Changes take effect across the public website immediately.
@@ -228,7 +228,7 @@ export const DeveloperContactSettings: React.FC = () => {
             title={t('developer.reloadSettingsDatabase', undefined, 'Reload settings from database')}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">{t('common.refresh', undefined, 'Refresh')}</span>
           </button>
 
           {isDirty && (
@@ -268,7 +268,7 @@ export const DeveloperContactSettings: React.FC = () => {
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-sm text-rose-300 animate-in fade-in">
           <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span className="font-bold">Error: </span>
+            <span className="font-bold">{t('common.error', undefined, 'Error')}: </span>
             {error}
           </div>
         </div>
@@ -278,7 +278,7 @@ export const DeveloperContactSettings: React.FC = () => {
         <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 text-sm text-emerald-300 animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span className="font-bold">Success: </span>
+            <span className="font-bold">{t('common.success', undefined, 'Success')}: </span>
             {successMsg}
           </div>
         </div>
@@ -328,7 +328,7 @@ export const DeveloperContactSettings: React.FC = () => {
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                 <Inbox className="w-5 h-5 text-emerald-400" />
-                <span>Client Enquiries & Form Submissions</span>
+                <span>{t('developer.clientEnquiriesSubmissions', undefined, 'Client Enquiries & Form Submissions')}</span>
               </h2>
               <p className="text-xs text-slate-400 mt-1">
                 Submissions are securely persisted to the database and delivered directly to{' '}

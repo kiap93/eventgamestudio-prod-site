@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as jose from 'jose';
 import crypto from 'node:crypto';
-import { getUserById, getUserByEmail, getMember } from './db/index.js';
-import { UserRecord, OrgMemberRecord, OrgRole } from './db/types.js';
+import { getUserById, getUserByEmail, getMember, getSalesPartnerProfileByUserId } from './db/index.js';
+import { UserRecord, OrgMemberRecord, OrgRole, SalesPartnerProfileRecord } from './db/types.js';
 import { getSupabaseServerClient } from './supabase.js';
 import { verifyGoogleJwt, VerifyGoogleTokenOptions } from './google_jwks.js';
 import { AUTH_COOKIE_NAME, parseCookie } from './securityHeaders.js';
@@ -71,6 +71,7 @@ export interface AuthenticatedRequest extends Request {
   user?: UserRecord;
   orgMember?: OrgMemberRecord;
   jwtPayload?: AppJWTPayload;
+  salesPartnerProfile?: SalesPartnerProfileRecord;
 }
 
 export async function signAppToken(
@@ -280,7 +281,7 @@ export async function authenticateJWT(
   if (result.authenticated && result.user) {
     req.user = result.user;
     req.jwtPayload = result.jwtPayload;
-    next();
+    await next();
     return;
   }
 
@@ -531,6 +532,64 @@ export async function authenticateDeveloperAdmin(
       return;
     }
     next();
+  });
+}
+
+/**
+ * Checks if a user is an active Sales Partner.
+ * Fails closed on any database error, missing profile, or non-active status.
+ */
+export async function isUserActiveSalesPartner(
+  userId: string,
+  env?: Record<string, any>
+): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const profile = await getSalesPartnerProfileByUserId(userId, env);
+    return profile !== null && profile.status === 'active';
+  } catch (err) {
+    console.error('[AUTH] Failed to verify sales partner status (failing closed):', err);
+    return false;
+  }
+}
+
+/**
+ * Middleware: Enforces active Sales Partner status.
+ * Unauthenticated users are rejected with 401.
+ * Non-active or non-partner users are rejected with 403 Forbidden.
+ */
+export async function authenticateSalesPartner(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  await authenticateJWT(req, res, async () => {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ error: 'Unauthenticated: User required' });
+      return;
+    }
+
+    try {
+      const profile = await getSalesPartnerProfileByUserId(user.id);
+      if (!profile || profile.status !== 'active') {
+        res.status(403).json({
+          error: 'Forbidden: Active Sales Partner access required.',
+          code: 'SALES_PARTNER_ACCESS_REQUIRED',
+          partnerStatus: profile ? profile.status : 'none',
+        });
+        return;
+      }
+
+      req.salesPartnerProfile = profile;
+      await next();
+    } catch (err: any) {
+      console.error('[AUTH] Error during sales partner authorization check:', err);
+      res.status(403).json({
+        error: 'Forbidden: Unable to verify Sales Partner authorization.',
+        code: 'SALES_PARTNER_AUTH_ERROR',
+      });
+    }
   });
 }
 

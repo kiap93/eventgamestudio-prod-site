@@ -1,13 +1,14 @@
 import assert from 'node:assert';
-import { formatEventErrorMessage } from './eventErrorUtils';
+import { formatEventErrorMessage, isNoPricingTierError } from './eventErrorUtils';
 
 // 1. No pricing tier error from code
 {
   const msg = formatEventErrorMessage({ code: 'NO_PRICING_TIER' }, 422);
   assert.strictEqual(
     msg,
-    "No pricing is configured for this duration for the selected game. Please select a duration supported by the game's pricing tiers or contact the administrator."
+    'Pricing unavailable for this event duration. Please contact us for a custom quotation.'
   );
+  assert.strictEqual(isNoPricingTierError({ code: 'NO_PRICING_TIER' }), true);
 }
 
 // 2. No pricing tier error from message string
@@ -15,8 +16,9 @@ import { formatEventErrorMessage } from './eventErrorUtils';
   const msg = formatEventErrorMessage({ error: 'No pricing tier configured for 45-day duration' }, 422);
   assert.strictEqual(
     msg,
-    'No pricing tier configured for 45-day duration'
+    'Pricing unavailable for this event duration. Please contact us for a custom quotation.'
   );
+  assert.strictEqual(isNoPricingTierError({ error: 'No pricing tier configured for 45-day duration' }), true);
 }
 
 // 3. Invalid date range error
@@ -42,8 +44,9 @@ import { formatEventErrorMessage } from './eventErrorUtils';
   const msg = formatEventErrorMessage({ code: 'UNSUPPORTED_DURATION' }, 422);
   assert.strictEqual(
     msg,
-    "No pricing is configured for this duration for the selected game. Please select a duration supported by the game's pricing tiers or contact the administrator."
+    'Pricing unavailable for this event duration. Please contact us for a custom quotation.'
   );
+  assert.strictEqual(isNoPricingTierError({ code: 'UNSUPPORTED_DURATION' }), true);
 }
 
 // 6. Inactive game error

@@ -166,7 +166,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
                         <button
                           onClick={(e) => handleDeleteCustom(template.id, e)}
                           className="p-1 rounded hover:bg-rose-950/60 text-slate-500 hover:text-rose-400"
-                          title="Delete Template"
+                          title={t('editor.deleteTemplate', undefined, 'Delete Template')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

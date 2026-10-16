@@ -19,6 +19,13 @@ export type PresentationMode =
   | 'create_org'
   | 'theme_setup'
   | 'developer_admin'
+  | 'sales_dashboard'
+  | 'sales_games'
+  | 'sales_game_detail'
+  | 'sales_referrals'
+  | 'sales_commissions'
+  | 'sales_customers'
+  | 'sales_apply'
   | 'verify_email'
   | 'reset_password';
 
@@ -31,6 +38,10 @@ export interface RouteContext {
   isStudioRoute: boolean;
   isPreviewRoute: boolean;
   isDeveloperAdminRoute: boolean;
+  isSalesRoute?: boolean;
+  salesGameId?: string;
+  salesSection?: 'portal' | 'games' | 'referrals' | 'commissions' | 'customers' | 'apply';
+  referralCode?: string;
   isShowcaseRoute?: boolean;
   showcaseId?: string;
   seoSlug?: string;
@@ -44,7 +55,7 @@ export interface RouteContext {
   developerGameId?: string;
   developerThemeId?: string;
   developerOrgId?: string;
-  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations';
+  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations' | 'sales-partners' | 'sales-attributions' | 'sales-commissions' | 'invoices';
   developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
@@ -82,6 +93,10 @@ const RESERVED_PREFIXES = new Set([
   'exhibition-games',
   'branded-event-games',
   'digital-event-games',
+  'sales',
+  'partner',
+  'become-a-partner',
+  'ref',
 ]);
 
 export function parseRoute(pathname: string): RouteContext {
@@ -89,6 +104,22 @@ export function parseRoute(pathname: string): RouteContext {
   const parts = cleanPath.split('?')[0].split('/').filter(Boolean);
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const queryGameType = searchParams.get('game') || searchParams.get('gameType') || DEFAULT_GAME_TYPE;
+
+  // Referral code extraction from query param (?ref=... or ?referral=...) or /ref/:code
+  let referralCode: string | undefined = undefined;
+  const queryRef = searchParams.get('ref') || searchParams.get('referral');
+  if (queryRef && typeof queryRef === 'string') {
+    referralCode = queryRef.trim().toUpperCase();
+  } else if (parts.length >= 2 && parts[0].toLowerCase() === 'ref') {
+    referralCode = parts[1].trim().toUpperCase();
+  }
+
+  if (referralCode && typeof window !== 'undefined') {
+    try {
+      window.sessionStorage?.setItem('egs_referral_code', referralCode);
+      window.localStorage?.setItem('egs_referral_code', referralCode);
+    } catch {}
+  }
 
   // Check for static asset files (e.g. /logo.png, /favicon.ico, /assets/*, /images/*, /uploads/*)
   const isStaticFile =
@@ -107,6 +138,7 @@ export function parseRoute(pathname: string): RouteContext {
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
+      referralCode,
       pathname: cleanPath,
     };
   }
@@ -134,12 +166,20 @@ export function parseRoute(pathname: string): RouteContext {
       developerSection = 'errors';
     } else if (parts[1] === 'customer-invitations' || parts[1] === 'customer-invites' || parts[1] === 'invitations') {
       developerSection = 'customer-invitations';
+    } else if (parts[1] === 'sales-partners' || parts[1] === 'partners') {
+      developerSection = 'sales-partners';
+    } else if (parts[1] === 'sales-attributions' || parts[1] === 'attributions' || parts[1] === 'referrals') {
+      developerSection = 'sales-attributions';
+    } else if (parts[1] === 'sales-commissions' || parts[1] === 'commissions' || parts[1] === 'sales-payouts' || parts[1] === 'payouts') {
+      developerSection = 'sales-commissions';
     } else if (parts[1] === 'email' || parts[1] === 'mail') {
       developerSection = 'email';
     } else if (parts[1] === 'contact' || parts[1] === 'contacts' || parts[1] === 'contact-settings') {
       developerSection = 'contact';
     } else if (parts[1] === 'showcases') {
       developerSection = 'showcases';
+    } else if (parts[1] === 'invoices' || parts[1] === 'billing' || parts[1] === 'invoice-settings') {
+      developerSection = 'invoices';
     } else if (parts[1] === 'pricing' || parts[1] === 'events') {
       developerSection = 'pricing';
     } else if (parts[1] === 'games' && parts[2]) {
@@ -173,6 +213,71 @@ export function parseRoute(pathname: string): RouteContext {
       developerOrgId,
       developerSection,
       developerAction,
+      referralCode,
+      pathname: cleanPath,
+    };
+  }
+
+  // 0.5. Check for Sales Partner routes (/sales/...)
+  if (parts.length >= 1 && (parts[0].toLowerCase() === 'sales' || parts[0].toLowerCase() === 'partner' || parts[0].toLowerCase() === 'become-a-partner')) {
+    if (
+      parts[0].toLowerCase() === 'partner' ||
+      parts[0].toLowerCase() === 'become-a-partner' ||
+      (parts[1] && (parts[1].toLowerCase() === 'apply' || parts[1].toLowerCase() === 'join'))
+    ) {
+      return {
+        mode: 'sales_apply',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isEventPreviewRoute: false,
+        isStudioRoute: false,
+        isPreviewRoute: false,
+        isDeveloperAdminRoute: false,
+        isSalesRoute: false,
+        salesSection: 'apply',
+        referralCode,
+        pathname: cleanPath,
+      };
+    }
+
+    let mode: PresentationMode = 'sales_dashboard';
+    let salesSection: 'portal' | 'games' | 'referrals' | 'commissions' | 'customers' | 'apply' = 'portal';
+    let salesGameId: string | undefined = undefined;
+
+    if (parts[1] && parts[1].toLowerCase() === 'games') {
+      salesSection = 'games';
+      if (parts[2]) {
+        mode = 'sales_game_detail';
+        salesGameId = parts[2];
+      } else {
+        mode = 'sales_games';
+      }
+    } else if (parts[1] && (parts[1].toLowerCase() === 'referrals' || parts[1].toLowerCase() === 'attributions')) {
+      salesSection = 'referrals';
+      mode = 'sales_referrals';
+    } else if (parts[1] && (parts[1].toLowerCase() === 'commissions' || parts[1].toLowerCase() === 'payouts')) {
+      salesSection = 'commissions';
+      mode = 'sales_commissions';
+    } else if (parts[1] && (parts[1].toLowerCase() === 'customers' || parts[1].toLowerCase() === 'clients')) {
+      salesSection = 'customers';
+      mode = 'sales_customers';
+    } else if (parts[1] && (parts[1].toLowerCase() === 'dashboard' || parts[1].toLowerCase() === 'portal')) {
+      salesSection = 'portal';
+      mode = 'sales_dashboard';
+    }
+
+    return {
+      mode,
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isEventPreviewRoute: false,
+      isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
+      isSalesRoute: true,
+      salesSection,
+      salesGameId,
+      referralCode,
       pathname: cleanPath,
     };
   }
@@ -562,4 +667,31 @@ export function navigateBack(fallbackUrl: string = '/dashboard') {
 
   // Safe fallback if there is no meaningful previous internal route:
   navigateTo(fallbackUrl);
+}
+
+/**
+ * Returns any captured prospective referral code stored in sessionStorage or localStorage.
+ */
+export function getStoredReferralCode(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return (
+      window.sessionStorage?.getItem('egs_referral_code') ||
+      window.localStorage?.getItem('egs_referral_code') ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clears the prospective referral code from both sessionStorage and localStorage.
+ */
+export function clearStoredReferralCode(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage?.removeItem('egs_referral_code');
+    window.localStorage?.removeItem('egs_referral_code');
+  } catch {}
 }

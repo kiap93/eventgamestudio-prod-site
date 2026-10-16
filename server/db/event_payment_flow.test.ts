@@ -5,7 +5,7 @@ import { getWalletBalance, createTopup, processTopupOrderStatus, createTopupOrde
 import { createEventWithAtomicPayment } from './events.js';
 import { createTheme } from './themes.js';
 import { ensureDefaultGame } from './games.js';
-import { localGamePricingCache, buildDefaultPricingTiers } from './gamePricing.js';
+import { ensureDefaultGamePricing } from './gamePricing.js';
 
 async function runTests() {
   console.log('--- STARTING CREATE EVENT PAYMENT FLOW & TOP UP SHORTFALL TESTS ---');
@@ -20,6 +20,7 @@ async function runTests() {
   const org = await createOrganization({
     name: 'Shortfall Test Corp ' + Date.now(),
     owner_id: testUserId,
+    country_code: 'MY',
   });
   await grantWelcomeCredit({ organizationId: org.id, userId: testUserId });
 
@@ -30,7 +31,7 @@ async function runTests() {
 
   // Setup game & theme
   const game = await ensureDefaultGame(org.id, 'Test Game');
-  localGamePricingCache.set(game.id, buildDefaultPricingTiers(game.id, (game.game_type || 'catch-brand')));
+  await ensureDefaultGamePricing(game.id, (game.game_type || 'catch-brand'), org.country_code);
   const theme = await createTheme({
     organization_id: org.id,
     game_id: game.id,
@@ -82,7 +83,7 @@ async function runTests() {
     orderId: topUpOrder.id,
     newStatus: 'PAID',
     paymentMethod: 'card',
-    paymentReference: 'test_ref_shortfall_paid',
+    paymentReference: `test_ref_shortfall_paid_${Date.now()}`,
     processedBy: testUserId,
     isTrustedSettlement: true,
   });

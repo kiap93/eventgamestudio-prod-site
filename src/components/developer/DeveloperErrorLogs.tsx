@@ -348,12 +348,12 @@ export const DeveloperErrorLogs: React.FC = () => {
 
         {(searchQuery || selectedService || selectedStatusCode || selectedTimeRange !== 'all') && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
-            <span className="text-slate-400">Active filters applied</span>
+            <span className="text-slate-400">{t('developer.activeFiltersApplied', undefined, 'Active filters applied')}</span>
             <button
               onClick={handleClearFilters}
               className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
             >
-              Reset Filters
+              {t('developer.resetFilters', undefined, 'Reset Filters')}
             </button>
           </div>
         )}
@@ -373,12 +373,12 @@ export const DeveloperErrorLogs: React.FC = () => {
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Status & Time</th>
-                <th className="py-3 px-4">Request / Correlation ID</th>
-                <th className="py-3 px-4">Method & Endpoint</th>
-                <th className="py-3 px-4">Service</th>
-                <th className="py-3 px-4">Error Message / Type</th>
-                <th className="py-3 px-4 text-right">Action</th>
+                <th className="py-3 px-4">{t('developer.colStatusTime', undefined, 'Status & Time')}</th>
+                <th className="py-3 px-4">{t('developer.colCorrelationId', undefined, 'Request / Correlation ID')}</th>
+                <th className="py-3 px-4">{t('developer.colMethodEndpoint', undefined, 'Method & Endpoint')}</th>
+                <th className="py-3 px-4">{t('developer.colService', undefined, 'Service')}</th>
+                <th className="py-3 px-4">{t('developer.colErrorMessage', undefined, 'Error Message / Type')}</th>
+                <th className="py-3 px-4 text-right">{t('developer.colActions', undefined, 'Action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -386,7 +386,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-400 mb-2" />
-                    Loading API error audit logs...
+                    {t('developer.loadingApiErrorLogs', undefined, 'Loading API error audit logs...')}
                   </td>
                 </tr>
               ) : logs.length === 0 ? (

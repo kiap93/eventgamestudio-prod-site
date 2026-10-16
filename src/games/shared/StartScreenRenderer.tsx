@@ -5,7 +5,7 @@ import {
   StartScreenGameMeta,
 } from './startScreenTypes';
 import { resolveScreenBackground } from '../../themes/screenBackground';
-import { GameTheme, getThemeGameType } from '../../themes/types';
+import { GameTheme, getThemeGameType, resolveAuthoritativeGameType } from '../../themes/types';
 import { EventLeaderboardEntry } from '../../types';
 import { StartElementContent } from './StartElementContent';
 import {
@@ -139,7 +139,7 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
     };
   }, [logicalW, logicalH]);
 
-  const targetGameType = gameType || (theme ? getThemeGameType(theme) : 'catch-brand');
+  const targetGameType = resolveAuthoritativeGameType({ shellGameType: gameType, theme });
   const effectiveMeta = resolveGameMetaForStartScreen(theme, targetGameType, gameMeta);
 
   // Authoritative config resolution: always 1024x576 canonical canvas

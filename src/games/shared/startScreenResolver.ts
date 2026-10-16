@@ -13,7 +13,7 @@ import {
   DEFAULT_START_CANVAS_CONFIG,
   generateDefaultStartScreenElements,
 } from './startScreenTypes';
-import { GameTheme, getThemeGameType } from '../../themes/types';
+import { GameTheme, getThemeGameType, resolveAuthoritativeGameType } from '../../themes/types';
 
 const VALID_ELEMENT_TYPES = new Set([
   'card',
@@ -514,7 +514,7 @@ export function resolveGameMetaForStartScreen(
   gameType?: string,
   overrides?: StartScreenGameMeta
 ): StartScreenGameMeta {
-  const resolvedGameType = getThemeGameType(theme, gameType || 'catch-brand');
+  const resolvedGameType = resolveAuthoritativeGameType({ shellGameType: gameType, theme });
   const gc = (theme?.game_config || {}) as Record<string, any>;
   const branding = (theme as any)?.branding;
 
@@ -530,10 +530,32 @@ export function resolveGameMetaForStartScreen(
       ? 'Catch The Brand'
       : resolvedGameType === 'reaction-tap'
       ? 'Reaction Tap'
+      : resolvedGameType === 'match-3'
+      ? 'Match-3'
       : 'Memory Match';
 
-  const gameTitle = overrides?.gameTitle || theme?.name || defaultTitle;
-  const gameSubtitle = overrides?.gameSubtitle || theme?.description || '';
+  const defaultSubtitle =
+    resolvedGameType === 'match-3'
+      ? 'Swap tiles, create combos, and clear the board!'
+      : resolvedGameType === 'memory-match'
+      ? 'Flip cards, match pairs, and beat the clock!'
+      : resolvedGameType === 'reaction-tap'
+      ? 'Tap the lights as fast as you can!'
+      : 'Catch items, avoid hazards!';
+
+  const gameTitle =
+    overrides?.gameTitle ||
+    branding?.gameTitle ||
+    (theme as any)?.gameTitle ||
+    theme?.name ||
+    defaultTitle;
+
+  const gameSubtitle =
+    overrides?.gameSubtitle ||
+    branding?.subtitle ||
+    (theme as any)?.subtitle ||
+    theme?.description ||
+    defaultSubtitle;
 
   // 3. Memory Match specifics
   const rawRows = overrides?.rows ?? gc.board?.rows ?? gc.grid?.rows ?? 4;
@@ -545,9 +567,15 @@ export function resolveGameMetaForStartScreen(
   const totalPairs = overrides?.totalPairs ?? Math.floor(totalCards / 2);
 
   // 4. Durations
+  const match3Duration = gc.gameDurationSeconds ?? 60;
   const memoryDuration = gc.gameplay?.gameDurationSeconds ?? gc.gameplay?.duration ?? gc.duration ?? 45;
   const catchDuration = gc.gameplay?.duration ?? gc.duration ?? 30;
-  const defaultDuration = resolvedGameType === 'catch-brand' ? catchDuration : memoryDuration;
+  const defaultDuration =
+    resolvedGameType === 'match-3'
+      ? match3Duration
+      : resolvedGameType === 'catch-brand'
+      ? catchDuration
+      : memoryDuration;
   const duration = overrides?.duration ?? defaultDuration;
 
   // 5. Reaction Tap specifics
@@ -689,7 +717,7 @@ export function getStartScreenConfig(
   gameMeta?: StartScreenGameMeta,
   targetDimensions?: { width: number; height: number }
 ): StartScreenConfig {
-  const resolvedGameType = getThemeGameType(theme, gameType || 'catch-brand');
+  const resolvedGameType = resolveAuthoritativeGameType({ shellGameType: gameType, theme });
   const effectiveMeta = resolveGameMetaForStartScreen(theme, resolvedGameType, gameMeta);
   const gc = (theme?.game_config || {}) as Record<string, any>;
   const rawScreens = gc.screens || (theme as any)?.screens;
