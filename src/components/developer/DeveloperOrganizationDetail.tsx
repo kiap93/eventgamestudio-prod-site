@@ -25,6 +25,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { formatCurrency } from './DeveloperOrganizationsList';
+import { EventInvoiceModal } from '../events/EventInvoiceModal';
 
 export interface OrgDetailData {
   organization: {
@@ -109,6 +110,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [grantingWelcome, setGrantingWelcome] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'events' | 'transactions'>('overview');
+  const [selectedEventForInvoice, setSelectedEventForInvoice] = useState<any | null>(null);
 
   const fetchOrganizationDetail = async () => {
     setLoading(true);
@@ -739,6 +741,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
                     <th className="py-3 px-4 text-right">{t('developer.colEventPrice', undefined, 'Event Price')}</th>
                     <th className="py-3 px-4">{t('developer.colCreated', undefined, 'Created')}</th>
                     <th className="py-3 px-4 text-center">{t('developer.colPublicLink', undefined, 'Public Link')}</th>
+                    <th className="py-3 px-4 text-center">Invoice</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -779,6 +782,16 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
                         ) : (
                           <span className="text-slate-600">-</span>
                         )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={() => setSelectedEventForInvoice(ev)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-lg text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+                          title="View or retry invoice for this event"
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>Invoice</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -871,6 +884,14 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
             </div>
           )}
         </div>
+      )}
+
+      {selectedEventForInvoice && (
+        <EventInvoiceModal
+          isOpen={Boolean(selectedEventForInvoice)}
+          onClose={() => setSelectedEventForInvoice(null)}
+          event={selectedEventForInvoice}
+        />
       )}
     </div>
   );

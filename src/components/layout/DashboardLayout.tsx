@@ -6,7 +6,9 @@ import { EventsPage } from '../events/EventsPage';
 import { EventShowcasePage } from '../events/EventShowcasePage';
 import { OrganizationWalletPage } from '../wallet/OrganizationWalletPage';
 import { TopUpPage } from '../wallet/TopUpPage';
-import { navigateTo, useRouteContext } from '../../hooks/useRouteContext';
+import { ThemeEditor } from '../studio/ThemeEditor';
+import { GameCustomizerPage } from '../studio/GameCustomizerPage';
+import { navigateTo, navigateBack, getPreviousInternalRoute, useRouteContext } from '../../hooks/useRouteContext';
 import { apiFetch } from '../../lib/api';
 import { WalletBalanceSummary } from '../../types';
 import { getCountryByCode, getCurrencyForCountry } from '../../lib/countryUtils';
@@ -862,7 +864,25 @@ export const DashboardLayout: React.FC = () => {
         ) : (
           <>
             {activeTab === 'events' && !isDesigner && <EventsPage />}
-            {activeTab === 'games' && <GamesPage />}
+            {activeTab === 'games' && (
+              routeContext.themeId ? (
+                <ThemeEditor
+                  themeId={routeContext.themeId}
+                  onBack={() => {
+                    const prev = getPreviousInternalRoute();
+                    if (prev && (matchesMainSection(prev, '/games') || prev === '/game-themes')) {
+                      navigateBack('/games');
+                    } else {
+                      navigateTo('/games');
+                    }
+                  }}
+                />
+              ) : routeContext.pathname.startsWith('/game-themes') || routeContext.pathname === '/studio' ? (
+                <GameCustomizerPage />
+              ) : (
+                <GamesPage />
+              )
+            )}
             {activeTab === 'team' && !isDesigner && !isViewer && <TeamMembersPage />}
             {activeTab === 'wallet' && !isDesigner && (
               <OrganizationWalletPage

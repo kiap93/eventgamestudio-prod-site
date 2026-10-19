@@ -12,16 +12,22 @@ import {
   STANDARD_EVENT_PRICE,
 } from './wallet.js';
 
+import { localOrgsCache } from './organizations.js';
+import { localUsersCache } from './users.js';
+import { localEventsCache } from './events.js';
+
 async function createTestUser(): Promise<string> {
   const supabase = getSupabaseServerClient();
   const id = crypto.randomUUID();
+  const userRecord: any = {
+    id,
+    email: `test-${id.slice(0, 8)}@example.com`,
+    name: `Test User ${id.slice(0, 6)}`,
+    email_verified: true,
+  };
+  localUsersCache.set(id, userRecord);
   try {
-    await supabase.from('users').insert({
-      id,
-      email: `test-${id.slice(0, 8)}@example.com`,
-      name: `Test User ${id.slice(0, 6)}`,
-      email_verified: true,
-    });
+    await supabase.from('users').insert(userRecord);
   } catch {}
   return id;
 }
@@ -32,23 +38,23 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
   if (!validOwnerId) {
     validOwnerId = await createTestUser();
   }
+  const orgRecord: any = {
+    id: orgId,
+    name: `Test Org ${orgId.slice(0, 8)}`,
+    slug: `test-org-${orgId.slice(0, 8)}`,
+    owner_id: validOwnerId,
+    country_code: 'MY',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  localOrgsCache.set(orgId, orgRecord);
   try {
-    await supabase.from('organizations').upsert({
-      id: orgId,
-      name: `Test Org ${orgId.slice(0, 8)}`,
-      slug: `test-org-${orgId.slice(0, 8)}`,
-      owner_id: validOwnerId,
-      country_code: 'MY',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+    await supabase.from('organizations').upsert(orgRecord);
   } catch {
     // Ignore in local mode
   }
   return validOwnerId;
 }
-
-import { localEventsCache } from './events.js';
 
 async function ensureTestEvent(eventId: string, orgId: string, ownerId?: string) {
   const supabase = getSupabaseServerClient();

@@ -35,6 +35,7 @@
 import crypto from 'node:crypto';
 import { getSupabaseServerClient } from '../supabase.js';
 import { createOrganization, localOrgsCache } from './organizations.js';
+import { localUsersCache } from './users.js';
 import { localEventsCache } from './events.js';
 import {
   grantWelcomeCredit,
@@ -57,12 +58,16 @@ let failed = 0;
 async function createTestUser(): Promise<string> {
   const supabase = getSupabaseServerClient();
   const id = crypto.randomUUID();
-  await supabase.from('users').insert({
+  const userRecord: any = {
     id,
     email: `test-${id.slice(0, 8)}@example.com`,
     name: `Test User ${id.slice(0, 6)}`,
     email_verified: true,
-  });
+  };
+  localUsersCache.set(id, userRecord);
+  try {
+    await supabase.from('users').insert(userRecord);
+  } catch {}
   return id;
 }
 

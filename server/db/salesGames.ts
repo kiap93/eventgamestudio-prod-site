@@ -299,11 +299,29 @@ export async function resolveSalesPricing(
     (t) => (t.country_code || '').toUpperCase() === normCountry && Number(t.price) > 0
   );
 
+  const isExplicitlyEmpty = localGamePricingCache.has(gameId) && (localGamePricingCache.get(gameId)?.length === 0);
+
+  // If no matching tiers for a valid country in test/local fallback mode, generate them
+  if (matchingTiers.length === 0 && !isExplicitlyEmpty && isLocalFallbackAllowed(env) && getCountryByCode(normCountry)) {
+    const countryTiers = buildDefaultPricingTiers(
+      gameId,
+      undefined,
+      normCountry,
+      getCurrencyForCountry(normCountry) || 'USD'
+    );
+    if (countryTiers.length > 0) {
+      const existing = localGamePricingCache.get(gameId) || [];
+      localGamePricingCache.set(gameId, [...existing, ...countryTiers]);
+      matchingTiers = countryTiers;
+      allActiveTiers = [...allActiveTiers, ...countryTiers];
+    }
+  }
+
   let isFallback = false;
   let pricingCountry = normCountry;
 
   // 2. Fallback to default country (e.g. US or MY) if none found
-  if (matchingTiers.length === 0) {
+  if (matchingTiers.length === 0 && !isExplicitlyEmpty) {
     const defaultTiers = allActiveTiers.filter(
       (t) => (t.country_code || '').toUpperCase() === defaultCountry && Number(t.price) > 0
     );

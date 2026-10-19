@@ -110,6 +110,7 @@ export const localInvoicesCache = new Map<string, InvoiceRecord>();
 export const localInvoicePdfs = new Map<string, Uint8Array>();
 export const localCreditNotesCache = new Map<string, CreditNoteRecord>();
 export const localInvoiceAuditLogs = new Map<string, InvoiceAuditLogRecord[]>();
+export const inFlightInvoiceGenerations = new Map<string, Promise<GenerateInvoiceResult>>();
 
 let localInvoiceCounter = 1;
 let localCreditNoteCounter = 1;
@@ -119,6 +120,7 @@ export function resetLocalInvoicesForTesting(): void {
   localInvoicePdfs.clear();
   localCreditNotesCache.clear();
   localInvoiceAuditLogs.clear();
+  inFlightInvoiceGenerations.clear();
   localInvoiceCounter = 1;
   localCreditNoteCounter = 1;
 }
@@ -666,25 +668,45 @@ export async function generateEventInvoice(
     actorEmail?: string;
   }
 ): Promise<GenerateInvoiceResult> {
-  const now = options?.now || new Date();
-  const nowIso = now.toISOString();
-
-  // 1. Fetch Event
-  const event = await getEventById(eventId, env);
-  if (!event) {
-    throw new Error(`Event ${eventId} not found.`);
+  // If not force, check if a generation is already in-flight for this event
+  if (!options?.force && inFlightInvoiceGenerations.has(eventId)) {
+    return inFlightInvoiceGenerations.get(eventId)!;
   }
 
-  // 2. Idempotency Check: if invoice already exists, retrieve and return it
-  const existingInvoice = await getInvoiceByEventId(eventId, env);
-  if (existingInvoice && !options?.force) {
-    return {
-      invoice: existingInvoice,
-      created: false,
-      pdfGenerated: existingInvoice.pdf_status === 'generated',
-      emailSent: existingInvoice.email_status === 'sent',
-    };
-  }
+  const runGeneration = async (): Promise<GenerateInvoiceResult> => {
+    const now = options?.now || new Date();
+    const nowIso = now.toISOString();
+
+    // 1. Fetch Event
+    const event = await getEventById(eventId, env);
+    if (!event) {
+      throw new Error(`Event ${eventId} not found.`);
+    }
+
+    // 2. Idempotency Check: if invoice already exists, retrieve and return it
+    const existingInvoice = await getInvoiceByEventId(eventId, env);
+    if (existingInvoice && !options?.force) {
+      // If invoice exists but PDF generation previously failed or is missing, repair it
+      if (existingInvoice.pdf_status === 'failed' || !existingInvoice.pdf_path) {
+        try {
+          const repaired = await retryInvoicePdf(existingInvoice.id, env, options?.actorId, options?.actorEmail);
+          return {
+            invoice: repaired,
+            created: false,
+            pdfGenerated: true,
+            emailSent: repaired.email_status === 'sent',
+          };
+        } catch (pdfErr) {
+          console.warn(`[Invoices] Notice: Could not recover PDF for existing invoice ${existingInvoice.invoice_number}:`, pdfErr);
+        }
+      }
+      return {
+        invoice: existingInvoice,
+        created: false,
+        pdfGenerated: existingInvoice.pdf_status === 'generated',
+        emailSent: existingInvoice.email_status === 'sent',
+      };
+    }
 
   // 3. Strict Authoritative Price & Currency Validation (Do not silently invent charge or currency)
   const rawPrice = event.event_price;
@@ -1069,6 +1091,40 @@ export async function generateEventInvoice(
     }
     dbPersisted = true;
   } catch (err: any) {
+    // Phase 3 & Concurrency Safety: Check if another concurrent execution already created the invoice
+    const isDuplicate =
+      err?.code === '23505' ||
+      err?.message?.includes('duplicate key') ||
+      err?.message?.includes('invoices_event_id_key') ||
+      err?.message?.includes('invoices_invoice_number_key');
+
+    if (isDuplicate) {
+      console.warn(`[Invoices] Concurrency notice: Invoice already exists for event ${event.id}, recovering existing record.`);
+      const recovered = await getInvoiceByEventId(event.id, env);
+      if (recovered) {
+        // If recovered invoice exists but has failed PDF, attempt recovery
+        if (recovered.pdf_status === 'failed' || !recovered.pdf_path) {
+          try {
+            const repaired = await retryInvoicePdf(recovered.id, env, options?.actorId, options?.actorEmail);
+            return {
+              invoice: repaired,
+              created: false,
+              pdfGenerated: true,
+              emailSent: repaired.email_status === 'sent',
+            };
+          } catch (pdfErr) {
+            console.warn(`[Invoices] Notice: Could not recover PDF for concurrent invoice ${recovered.invoice_number}:`, pdfErr);
+          }
+        }
+        return {
+          invoice: recovered,
+          created: false,
+          pdfGenerated: recovered.pdf_status === 'generated',
+          emailSent: recovered.email_status === 'sent',
+        };
+      }
+    }
+
     if (!isLocalFallbackAllowed(env) && !err.message?.includes('Placeholder') && err.code !== 'PGRST000') {
       console.error(`[Invoices] Fatal: Failed to persist invoice ${invoiceNumber} in database:`, err);
       throw new Error(`Database error creating invoice: ${err.message || err}`);
@@ -1159,6 +1215,111 @@ export async function generateEventInvoice(
     created: true,
     pdfGenerated,
     emailSent,
+  };
+  };
+
+  const executionPromise = runGeneration();
+
+  if (!options?.force) {
+    inFlightInvoiceGenerations.set(eventId, executionPromise);
+  }
+
+  try {
+    return await executionPromise;
+  } finally {
+    if (!options?.force) {
+      inFlightInvoiceGenerations.delete(eventId);
+    }
+  }
+}
+
+/**
+ * Authoritative Developer Admin action to retry invoice generation for an event.
+ *
+ * Requirements:
+ * 1. Checks event exists and is eligible for invoicing (paid and concluded/completed).
+ * 2. Checks if an invoice is already linked to the event.
+ *    - If an existing invoice is found:
+ *      - If pdf_status === 'failed' or pdf_path is missing: calls retryInvoicePdf to recover PDF.
+ *      - Returns existing invoice with created: false, recovered: true.
+ *    - If invoice does not exist:
+ *      - Calls generateEventInvoice(eventId, env, { actorId, actorEmail, now }).
+ *      - Returns newly created invoice with created: true.
+ * 3. Safe against concurrent invocations (in-flight promise lock + DB unique constraint handling).
+ * 4. Never marks event as failed or rolls back completion if invoice generation fails.
+ */
+export async function retryEventInvoice(
+  eventId: string,
+  env?: Record<string, any>,
+  options?: {
+    actorId?: string;
+    actorEmail?: string;
+    now?: Date;
+    bypassEmail?: boolean;
+    force?: boolean;
+  }
+): Promise<GenerateInvoiceResult & { recovered?: boolean }> {
+  const now = options?.now || new Date();
+
+  // 1. Fetch Event
+  const event = await getEventById(eventId, env);
+  if (!event) {
+    throw new Error(`Event ${eventId} not found.`);
+  }
+
+  // 2. Strict Eligibility Check
+  const eligibility = isEventEligibleForInvoicing(event, now);
+  if (!eligibility.eligible) {
+    throw new Error(`Event ${eventId} is not eligible for invoicing: ${eligibility.reason}`);
+  }
+
+  // 3. Strict Authoritative Price & Currency Validation
+  const rawPrice = event.event_price;
+  const eventPrice = Number(rawPrice);
+  const eventCurrency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
+
+  if (rawPrice === undefined || rawPrice === null || isNaN(eventPrice) || eventPrice <= 0 || !eventCurrency) {
+    throw new Error(
+      `Pricing configuration error: Event ${eventId} is missing a confirmed authoritative price or currency. Cannot generate invoice.`
+    );
+  }
+
+  // 4. Check for Existing Invoice
+  const existingInvoice = await getInvoiceByEventId(eventId, env);
+  if (existingInvoice) {
+    let finalInvoice = existingInvoice;
+    let pdfRecovered = existingInvoice.pdf_status === 'generated';
+
+    if (existingInvoice.pdf_status === 'failed' || !existingInvoice.pdf_path) {
+      try {
+        finalInvoice = await retryInvoicePdf(existingInvoice.id, env, options?.actorId, options?.actorEmail);
+        pdfRecovered = finalInvoice.pdf_status === 'generated';
+      } catch (pdfErr: any) {
+        console.warn(`[Invoices] Retry PDF recovery for ${existingInvoice.invoice_number} warning:`, pdfErr?.message || pdfErr);
+      }
+    }
+
+    return {
+      invoice: finalInvoice,
+      created: false,
+      recovered: true,
+      pdfGenerated: pdfRecovered,
+      emailSent: finalInvoice.email_status === 'sent',
+    };
+  }
+
+  // 5. Generate Invoice via canonical engine
+  const result = await generateEventInvoice(eventId, env, {
+    actorId: options?.actorId,
+    actorEmail: options?.actorEmail,
+    now,
+    bypassEmail: options?.bypassEmail,
+    force: options?.force,
+  });
+
+  return {
+    ...result,
+    recovered: false,
   };
 }
 

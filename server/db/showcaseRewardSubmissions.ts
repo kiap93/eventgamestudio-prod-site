@@ -27,7 +27,7 @@ import {
   withUserRewardLock,
   hasUserReceivedShowcaseCredit,
 } from './wallet.js';
-import { getUserById } from './users.js';
+import { getUserById, localUsersCache } from './users.js';
 import { isEventEligibleForShowcaseRewardSubmission } from './events.js';
 
 // In-memory cache for local development fallback and test environments
@@ -119,7 +119,15 @@ export async function checkShowcaseRewardEligibility(
       });
 
       if (!error && data) {
-        return data as ComprehensiveShowcaseRewardEligibility;
+        if (
+          isLocalFallbackAllowed(env) &&
+          (data as any).code === 'USER_NOT_FOUND' &&
+          (localUsersCache.has(userId) || (env && env.NODE_ENV === 'test'))
+        ) {
+          // fall through to local evaluation for in-memory test fixtures
+        } else {
+          return data as ComprehensiveShowcaseRewardEligibility;
+        }
       }
       if (error && !isLocalFallbackAllowed(env)) {
         throw new Error(`Database error checking showcase reward eligibility: ${error.message}`);

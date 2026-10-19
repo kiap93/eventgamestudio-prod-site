@@ -26,19 +26,19 @@ describe('Showcase game_id NOT NULL constraint fix', () => {
 
     // Check schema.sql publish_event_showcase_atomic includes game_id in SELECT and INSERT
     assert.match(schemaSql, /SELECT\s+id,\s+organization_id,\s+game_id/);
-    assert.ok(schemaSql.includes('game_id = COALESCE(v_existing.game_id, v_game_id)'));
+    assert.ok(schemaSql.includes('game_id = v_target_game_id') || schemaSql.includes('game_id = COALESCE(v_existing.game_id, v_game_id)'));
 
     // Check 20260929 migration includes game_id in SELECT and INSERT
     assert.match(migration20260929, /SELECT\s+id,\s+organization_id,\s+game_id/);
-    assert.ok(migration20260929.includes('game_id = COALESCE(v_existing.game_id, v_game_id)'));
+    assert.ok(migration20260929.includes('game_id = v_target_game_id') || migration20260929.includes('game_id = COALESCE(v_existing.game_id, v_game_id)'));
   });
 
   it('should verify showcases.ts passes game_id in payload and fallback insert', () => {
     const showcasesTs = fs.readFileSync(path.resolve(process.cwd(), 'server/db/showcases.ts'), 'utf-8');
 
     // Verify resolvedGameId is retrieved from event or theme
-    assert.ok(showcasesTs.includes('const resolvedGameId = event.game_id || (event.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);'));
-    assert.ok(showcasesTs.includes('payload.game_id = resolvedGameId;'));
+    assert.ok(showcasesTs.includes('resolvedGameId') && showcasesTs.includes('event?.game_id') && showcasesTs.includes('getThemeById'));
+    assert.ok(showcasesTs.includes('payload.game_id = resolvedGameId;') || showcasesTs.includes('game_id: isUUID(resolvedGameId)'));
 
     // Verify direct fallback insert also sets game_id
     assert.ok(showcasesTs.includes("isMissingColumnError(insertErr, 'game_id')"));

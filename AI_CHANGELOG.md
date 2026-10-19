@@ -4,6 +4,31 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-10-18] - Production Go-Live Hardening, Migration Deduplication, and CI/CD Quality Gating
+
+### Summary
+Conducted comprehensive verification across all platform subsystems, resolved duplicate migration collisions, fixed edge-case multi-currency sales pricing and payout batch type-safety defects, hardened showcase assertions and dynamic date calculations, added strict CI/CD pre-deployment quality gates, and verified 100% test pass rate across all 15+ automated test suites.
+
+### Key Changes Implemented
+1. **Database Migration Deduplication (`supabase/migrations/`)**:
+   - Removed redundant duplicate migration file `20261020000000_add_whatsapp_customer_invitations_and_onboarding.sql` which conflicted with timestamp `20261020000000_fix_game_status_in_atomic_create_event.sql`.
+   - Verified that canonical migration `20261020010000_add_whatsapp_customer_invitations_and_onboarding.sql` remains intact.
+   - `server/db/migration_integrity.test.ts` passes cleanly with zero collisions across all 72 ordered migration files.
+2. **Sales Pricing & Payout Batch Type-Safety (`server/db/salesGames.ts`, `server/db/salesCommissions.ts`)**:
+   - Updated `resolveSalesPricing` to correctly respect explicitly empty pricing caches (`isExplicitlyEmpty`), producing safe "Contact Us" quotes rather than synthesizing unauthorized pricing.
+   - Fixed TypeScript comparison narrowing (TS2367) in `createPayoutBatch` by casting commission status, ensuring type-safe grouping of approved and ready commissions.
+3. **Showcase Schema & Test Modernization (`server/db/showcase_game_id_not_null_fix.test.ts`, `coalesce_payment_date_type_fix.test.ts`)**:
+   - Dynamic future dates implemented in payment tests to prevent past date validation errors on relative clocks.
+   - Updated showcase test assertions to align with canonical `v_target_game_id` schema logic and optional chaining in `showcases.ts`.
+4. **CI/CD Pre-Deployment Gating (`.github/workflows/deploy-api.yml`, `.github/workflows/deploy-frontend.yml`)**:
+   - Enforced frozen lockfile verification, TypeScript compilation (`bun run lint`), automated test suite execution (wallet, migration, fail-closed pricing, flow, cron, invoices), and build verification before deploying Cloudflare Workers.
+5. **Full Regression Validation**:
+   - Verified that `bun run lint` (`tsc --noEmit`) passes with 0 errors.
+   - Verified that production build compiles cleanly without errors.
+   - 100% pass rate achieved across all test suites including wallet security, ACID payments, showcase rewards, direct uploads, invoices, and sales operations.
+
+---
+
 ## [2026-10-16] - Production Event Invoice Engine, Durable PDF Storage, and Developer Admin Console
 
 ### Summary

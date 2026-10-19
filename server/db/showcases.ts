@@ -2010,6 +2010,11 @@ export async function getOwnerShowcaseRewardStatus(
           .maybeSingle();
         if (ur?.organization_id) orgId = ur.organization_id;
       }
+    } else {
+      const localReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
+      if (localReward?.organization_id) {
+        orgId = localReward.organization_id;
+      }
     }
     return {
       hasReceivedReward: true,
@@ -2452,10 +2457,14 @@ export async function publishShowcase(
           throw err;
         }
         if (rpcError.code === 'P0002' || String(rpcError.message || '').includes('Event not found')) {
-          const err = new Error('Event not found');
-          (err as any).code = 'EVENT_NOT_FOUND';
-          (err as any).status = 404;
-          throw err;
+          const hasLocalEvent = isLocalFallbackAllowed(env) && localEventsCache.has(eventId);
+          if (!hasLocalEvent) {
+            const err = new Error('Event not found');
+            (err as any).code = 'EVENT_NOT_FOUND';
+            (err as any).status = 404;
+            throw err;
+          }
+          rpcMissing = true;
         }
         if (rpcError.code === 'P0004' || String(rpcError.message || '').includes('confirmed, paid event')) {
           const err = new Error('Showcase requires a confirmed, paid event.');

@@ -47,6 +47,7 @@ export interface RouteContext {
   seoSlug?: string;
   publicGameSlug?: string;
   eventId?: string;
+  themeId?: string;
   publicToken?: string;
   organizationSlug?: string;
   gameSlug?: string;
@@ -101,8 +102,12 @@ const RESERVED_PREFIXES = new Set([
 
 export function parseRoute(pathname: string): RouteContext {
   const cleanPath = pathname.trim();
-  const parts = cleanPath.split('?')[0].split('/').filter(Boolean);
-  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const pathOnly = cleanPath.split('?')[0].split('#')[0];
+  const parts = pathOnly.split('/').filter(Boolean);
+  const queryPart = cleanPath.includes('?')
+    ? cleanPath.slice(cleanPath.indexOf('?'))
+    : (typeof window !== 'undefined' ? window.location.search : '');
+  const searchParams = new URLSearchParams(queryPart);
   const queryGameType = searchParams.get('game') || searchParams.get('gameType') || DEFAULT_GAME_TYPE;
 
   // Referral code extraction from query param (?ref=... or ?referral=...) or /ref/:code
@@ -530,14 +535,27 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 6. Default: Studio Route (e.g. /studio, /events, /events/:eventId/showcase, /game-themes, /team, /dashboard)
+  // 6. Default: Studio Route (e.g. /studio, /studio/:themeId, /events, /events/:eventId/showcase, /game-themes, /team, /dashboard)
   let eventId: string | undefined = undefined;
   let isShowcaseRoute = false;
+  let themeId: string | undefined = undefined;
 
   if (parts.length >= 2 && parts[0].toLowerCase() === 'events') {
     eventId = parts[1];
     if (parts.length >= 3 && parts[2].toLowerCase() === 'showcase') {
       isShowcaseRoute = true;
+    }
+  } else if (parts[0]?.toLowerCase() === 'studio' && parts[1]) {
+    themeId = decodeURIComponent(parts[1]);
+  } else if (parts[0]?.toLowerCase() === 'game-themes' && parts[1] && parts[1].toLowerCase() !== 'new') {
+    themeId = decodeURIComponent(parts[1]);
+  }
+
+  // Also extract query parameter fallback (?editTheme=... or ?themeId=...)
+  if (!themeId) {
+    const queryTheme = searchParams.get('editTheme') || searchParams.get('themeId');
+    if (queryTheme && typeof queryTheme === 'string' && queryTheme.trim()) {
+      themeId = queryTheme.trim();
     }
   }
 
@@ -551,6 +569,7 @@ export function parseRoute(pathname: string): RouteContext {
     isDeveloperAdminRoute: false,
     isShowcaseRoute,
     eventId,
+    themeId,
     gameType: queryGameType,
     pathname: cleanPath,
   };
@@ -558,7 +577,7 @@ export function parseRoute(pathname: string): RouteContext {
 
 export function useRouteContext(): RouteContext {
   const [routeContext, setRouteContext] = useState<RouteContext>(() =>
-    parseRoute(window.location.pathname)
+    parseRoute(typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/')
   );
 
   useEffect(() => {
@@ -576,7 +595,7 @@ export function useRouteContext(): RouteContext {
         }
         lastPath = newPath;
       }
-      setRouteContext(parseRoute(window.location.pathname));
+      setRouteContext(parseRoute(window.location.pathname + window.location.search));
     };
 
     window.addEventListener('popstate', handleLocationChange);

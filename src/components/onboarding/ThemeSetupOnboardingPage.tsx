@@ -84,7 +84,7 @@ export const ThemeSetupOnboardingPage: React.FC = () => {
       await fetchThemes();
 
       // 2. Direct to theme editor with onboarding query parameters
-      navigateTo(`/games?editTheme=${encodeURIComponent(themeId)}&onboarding=true`);
+      navigateTo(`/studio/${encodeURIComponent(themeId)}?onboarding=true`);
     } catch (err: any) {
       console.error('[ThemeSetupOnboardingPage] Failed to start theme setup:', err);
       setError(err.message || 'Unable to start theme setup. Please try again.');

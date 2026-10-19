@@ -164,6 +164,13 @@ describe('Country-Based Game Pricing with Authoritative Fallback Architecture', 
     expect(vn8d.error).toBe('NO_PRICING_TIER');
     expect(vn8d.requestedCountry).toBe('VN');
     expect(vn8d.pricingCountry).toBeNull();
+
+    // 4. US organization 1 Day -> US has 0 tiers -> MUST NOT fall back to MYR! Must return NO_PRICING_TIER
+    const us1d = await resolveGamePrice(gameId, 1, 'US', testEnv);
+    expect(us1d.success).toBe(false);
+    expect(us1d.error).toBe('NO_PRICING_TIER');
+    expect(us1d.requestedCountry).toBe('US');
+    expect(us1d.pricingCountry).toBeNull();
   });
 
   it('Test 4: Fail-closed integration with calculateEventAuthoritativePrice', async () => {
@@ -462,5 +469,347 @@ describe('Country-Based Game Pricing with Authoritative Fallback Architecture', 
     // Organization country MUST NOT be changed during fallback!
     const orgAfter = localOrgsCache.get(orgId);
     expect(orgAfter?.country_code).toBe('VN');
+  });
+
+  // ============================================================================
+  // PHASE D REGRESSION TESTS: MULTI-DIMENSIONAL PRICING INTEGRITY
+  // ============================================================================
+
+  it('Test 11 (Phase D.1): MY organization + MYR tier -> event creation succeeds with authoritative MYR pricing', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000011';
+    const orgId = '00000000-0000-0000-0000-000000000012';
+    const themeId = '00000000-0000-0000-0000-000000000013';
+
+    localOrgsCache.set(orgId, {
+      id: orgId,
+      name: 'Malaysia Org',
+      slug: 'malaysia-org',
+      country_code: 'MY',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamesCache.set(gameId, {
+      id: gameId,
+      name: 'Catch Game MY',
+      slug: 'catch-brand',
+      status: 'active',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localThemesCache.set(themeId, {
+      id: themeId,
+      organization_id: orgId,
+      game_id: gameId,
+      name: 'MY Theme',
+      status: 'active',
+      is_system: false,
+      is_active: true,
+      ownership_type: 'organization',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-my-1d-test11', game_id: gameId, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', country_code: 'MY', is_active: true, is_base: true },
+      { id: 'tier-us-1d-test11', game_id: gameId, min_days: 1, max_days: 1, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+    ]);
+
+    const event = await createEvent({
+      organization_id: orgId,
+      game_id: gameId,
+      game_theme_id: themeId,
+      name: 'Malaysia 1-Day Event',
+      start_date: '2026-11-10',
+      end_date: '2026-11-10',
+    }, testEnv);
+
+    expect(event).toBeDefined();
+    expect(event.event_price).toBe(1400);
+    expect(event.event_currency).toBe('MYR');
+    expect(event.pricing_id).toBe('tier-my-1d-test11');
+    expect((event as any).pricing_country).toBe('MY');
+  });
+
+  it('Test 12 (Phase D.2): US organization + USD tier -> event creation succeeds with authoritative USD pricing', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000021';
+    const orgId = '00000000-0000-0000-0000-000000000022';
+    const themeId = '00000000-0000-0000-0000-000000000023';
+
+    localOrgsCache.set(orgId, {
+      id: orgId,
+      name: 'US Org',
+      slug: 'us-org',
+      country_code: 'US',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamesCache.set(gameId, {
+      id: gameId,
+      name: 'Catch Game US',
+      slug: 'catch-brand',
+      status: 'active',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localThemesCache.set(themeId, {
+      id: themeId,
+      organization_id: orgId,
+      game_id: gameId,
+      name: 'US Theme',
+      status: 'active',
+      is_system: false,
+      is_active: true,
+      ownership_type: 'organization',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-my-1d-test12', game_id: gameId, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', country_code: 'MY', is_active: true, is_base: true },
+      { id: 'tier-us-1d-test12', game_id: gameId, min_days: 1, max_days: 1, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+    ]);
+
+    const event = await createEvent({
+      organization_id: orgId,
+      game_id: gameId,
+      game_theme_id: themeId,
+      name: 'US 1-Day Event',
+      start_date: '2026-11-10',
+      end_date: '2026-11-10',
+    }, testEnv);
+
+    expect(event).toBeDefined();
+    expect(event.event_price).toBe(500);
+    expect(event.event_currency).toBe('USD');
+    expect(event.pricing_id).toBe('tier-us-1d-test12');
+    expect((event as any).pricing_country).toBe('US');
+  });
+
+  it('Test 13 (Phase D.3): MYR and USD tiers for the same game and duration are not considered duplicates', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000031';
+
+    // Same game, same duration range (1–1 days), distinct country & currency
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-my-1d', game_id: gameId, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', country_code: 'MY', is_active: true, is_base: true },
+      { id: 'tier-us-1d', game_id: gameId, min_days: 1, max_days: 1, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+    ]);
+
+    // Malaysia resolves cleanly without ambiguous tier error
+    const myQuote = await resolveGamePrice(gameId, 1, 'MY', testEnv);
+    expect(myQuote.success).toBe(true);
+    if (myQuote.success) {
+      expect(myQuote.price).toBe(1400);
+      expect(myQuote.currency).toBe('MYR');
+      expect(myQuote.pricingId).toBe('tier-my-1d');
+    }
+
+    // US resolves cleanly without ambiguous tier error
+    const usQuote = await resolveGamePrice(gameId, 1, 'US', testEnv);
+    expect(usQuote.success).toBe(true);
+    if (usQuote.success) {
+      expect(usQuote.price).toBe(500);
+      expect(usQuote.currency).toBe('USD');
+      expect(usQuote.pricingId).toBe('tier-us-1d');
+    }
+  });
+
+  it('Test 14 (Phase D.4): Duplicate active tiers for the same game, country, and currency are detected and fail closed', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000041';
+
+    // Duplicate active tiers for SAME duration (1 day) in US with USD
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-us-dup-1', game_id: gameId, min_days: 1, max_days: 1, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+      { id: 'tier-us-dup-2', game_id: gameId, min_days: 1, max_days: 1, price: 550, currency: 'USD', country_code: 'US', is_active: true, is_base: false },
+    ]);
+
+    const quote = await resolveGamePrice(gameId, 1, 'US', testEnv);
+    expect(quote.success).toBe(false);
+    expect(quote.error).toBe('AMBIGUOUS_PRICING_TIER');
+    expect(quote.message).toContain('Multiple active pricing tiers match duration');
+  });
+
+  it('Test 15 (Phase D.5): Overlapping duration ranges within the same game, country, and currency are rejected', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000051';
+
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-us-1-3', game_id: gameId, min_days: 1, max_days: 3, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+    ]);
+
+    // Same country (US) and currency (USD): range 2–5 days overlaps with 1–3 days -> MUST be rejected with 409
+    let rejected = false;
+    try {
+      await validateNoOverlappingPricingTier(gameId, 'US', 2, 5, undefined, testEnv, 'USD');
+    } catch (err: any) {
+      rejected = true;
+      expect(err.status).toBe(409);
+      expect(err.code).toBe('OVERLAPPING_PRICING_TIER');
+    }
+    expect(rejected).toBe(true);
+
+    // Different country (MY) with range 2–5 days -> MUST be allowed
+    let allowedDiffCountry = true;
+    try {
+      await validateNoOverlappingPricingTier(gameId, 'MY', 2, 5, undefined, testEnv, 'MYR');
+    } catch {
+      allowedDiffCountry = false;
+    }
+    expect(allowedDiffCountry).toBe(true);
+  });
+
+  it('Test 16 (Phase D.6): US organization with missing US pricing fails closed and NEVER falls back to MYR', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000061';
+    const orgId = '00000000-0000-0000-0000-000000000062';
+    const themeId = '00000000-0000-0000-0000-000000000063';
+
+    localOrgsCache.set(orgId, {
+      id: orgId,
+      name: 'US Only Org',
+      slug: 'us-only-org',
+      country_code: 'US',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamesCache.set(gameId, {
+      id: gameId,
+      name: 'MY Only Game',
+      slug: 'catch-brand',
+      status: 'active',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localThemesCache.set(themeId, {
+      id: themeId,
+      organization_id: orgId,
+      game_id: gameId,
+      name: 'MY Only Theme',
+      status: 'active',
+      is_system: false,
+      is_active: true,
+      ownership_type: 'organization',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    // Only MY pricing is configured; US pricing is completely missing
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-my-1d-only', game_id: gameId, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', country_code: 'MY', is_active: true, is_base: true },
+    ]);
+
+    // 1. Direct price resolution fails closed with NO_PRICING_TIER
+    const quote = await resolveGamePrice(gameId, 1, 'US', testEnv);
+    expect(quote.success).toBe(false);
+    expect(quote.error).toBe('NO_PRICING_TIER');
+    expect(quote.requestedCountry).toBe('US');
+    expect(quote.pricingCountry).toBeNull();
+
+    // 2. Event creation fails closed with 422 NO_PRICING_TIER
+    let eventFailedClosed = false;
+    try {
+      await createEvent({
+        organization_id: orgId,
+        game_id: gameId,
+        game_theme_id: themeId,
+        name: 'US Event Lacking US Pricing',
+        start_date: '2026-11-10',
+        end_date: '2026-11-10',
+      }, testEnv);
+    } catch (err: any) {
+      eventFailedClosed = true;
+      expect(err.code).toBe('NO_PRICING_TIER');
+      expect(err.status).toBe(422);
+    }
+    expect(eventFailedClosed).toBe(true);
+  });
+
+  it('Test 17 (Phase D.7): Organization country takes precedence over client-supplied currency or country parameters', async () => {
+    const gameId = '00000000-0000-0000-0000-000000000071';
+    const orgId = '00000000-0000-0000-0000-000000000072';
+    const themeId = '00000000-0000-0000-0000-000000000073';
+
+    // Organization is US
+    localOrgsCache.set(orgId, {
+      id: orgId,
+      name: 'US Corporate Org',
+      slug: 'us-corp',
+      country_code: 'US',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamesCache.set(gameId, {
+      id: gameId,
+      name: 'Dual Country Game',
+      slug: 'catch-brand',
+      status: 'active',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localThemesCache.set(themeId, {
+      id: themeId,
+      organization_id: orgId,
+      game_id: gameId,
+      name: 'Dual Theme',
+      status: 'active',
+      is_system: false,
+      is_active: true,
+      ownership_type: 'organization',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    localGamePricingCache.set(gameId, [
+      { id: 'tier-my-test17', game_id: gameId, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', country_code: 'MY', is_active: true, is_base: true },
+      { id: 'tier-us-test17', game_id: gameId, min_days: 1, max_days: 1, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+    ]);
+
+    // Client passes malicious/spoofed parameters: country_code='MY' and currency='MYR'
+    const event = await createEvent({
+      organization_id: orgId,
+      game_id: gameId,
+      game_theme_id: themeId,
+      name: 'Spoofed Client Params Event',
+      start_date: '2026-11-10',
+      end_date: '2026-11-10',
+      country_code: 'MY',
+      event_currency: 'MYR',
+    } as any, testEnv);
+
+    // Must resolve authoritatively to US ($500 USD) based on organization, ignoring spoofed client params
+    expect(event.event_price).toBe(500);
+    expect(event.event_currency).toBe('USD');
+    expect(event.pricing_id).toBe('tier-us-test17');
+    expect((event as any).pricing_country).toBe('US');
+  });
+
+  it('Test 18 (Phase D.8): Historical pricing data retains correct currency and country assignments', async () => {
+    // Verifies that the diagnostic inspection function identifies and classifies tiers correctly
+    const gameId = '00000000-0000-0000-0000-000000000081';
+    localGamePricingCache.set(gameId, [
+      // Valid MY tier
+      { id: 'hist-my-1', game_id: gameId, min_days: 1, max_days: 1, price: 1400, currency: 'MYR', country_code: 'MY', is_active: true, is_base: true },
+      // Valid US tier
+      { id: 'hist-us-1', game_id: gameId, min_days: 1, max_days: 1, price: 500, currency: 'USD', country_code: 'US', is_active: true, is_base: true },
+      // Corrupt historical record: USD currency incorrectly stamped with country_code = 'MY'
+      { id: 'hist-corrupt-1', game_id: gameId, min_days: 2, max_days: 2, price: 800, currency: 'USD', country_code: 'MY', is_active: true, is_base: false },
+    ]);
+
+    const { runGamePricingDiagnostics } = await import('../scripts/diagnose_game_pricing.js');
+    const diag = await runGamePricingDiagnostics(testEnv);
+
+    expect(diag.usdAssignedToMy.length).toBe(1);
+    expect(diag.usdAssignedToMy[0].id).toBe('hist-corrupt-1');
+    expect(diag.usdAssignedToMy[0].currency).toBe('USD');
+    expect(diag.usdAssignedToMy[0].country_code).toBe('MY');
   });
 });

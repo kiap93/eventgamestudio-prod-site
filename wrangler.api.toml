@@ -1,4 +1,4 @@
-name = "eventgamestudio-api"
+name = "eventgamestudio-prod-api"
 main = "./worker.ts"
 compatibility_date = "2026-08-07"
 compatibility_flags = ["nodejs_compat"]

@@ -49,6 +49,7 @@ import {
   ChevronDown,
   Globe,
   Palette,
+  Award,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -319,6 +320,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [activeCalculation, setActiveCalculation] = useState<EventPaymentCalculation | null>(null);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMode>('FULL_PAID');
   const [useWelcomeCredit, setUseWelcomeCredit] = useState(true);
+  const [useShowcaseCredit, setUseShowcaseCredit] = useState(true);
   const [useEventCredit, setUseEventCredit] = useState(true);
 
   // Payment Execution & Success State

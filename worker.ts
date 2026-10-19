@@ -269,6 +269,8 @@ import {
   retryInvoicePdf,
   retryInvoiceEmail,
   generateEventInvoice,
+  retryEventInvoice,
+  isEventEligibleForInvoicing,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
@@ -306,7 +308,13 @@ import {
   getCustomerInvitationStats,
   handleCustomerInvitationWebhook,
   findCrossCompanyDuplicates,
+  generateCustomerWhatsAppInvitation,
+  recordRecipientWhatsAppStatus,
 } from './server/db/customerInvitations.js';
+import {
+  getOnboardingOverview,
+  deriveCompanyOnboardingStatus,
+} from './server/db/customerOnboarding.js';
 import { generateCustomerInvitationEmail } from './server/email/customerInvitationTemplate.js';
 import { handleResendInboundWebhookRequest } from './server/email/inbound.js';
 
@@ -4236,8 +4244,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           topup_credit_requested,
           event_price,
           use_welcome_credit,
+          use_showcase_credit,
           use_event_credit,
           welcome_credit_requested,
+          showcase_credit_requested,
           start_date,
           end_date,
           startDate,
@@ -4292,12 +4302,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
 
           try {
-            let quoteCountry = body.country_code || body.countryCode;
-            if (!quoteCountry && organizationId) {
+            let quoteCountry: string | undefined = undefined;
+            if (organizationId) {
               try {
                 const org = await getOrganizationById(organizationId, env);
                 if (org?.country_code) quoteCountry = org.country_code;
               } catch (_) {}
+            }
+            if (!quoteCountry) {
+              quoteCountry = body.country_code || body.countryCode;
             }
 
             const pricing = await calculateEventAuthoritativePrice({
@@ -4336,9 +4349,11 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
         const walletSummary = await getWalletBalance(organizationId, env);
         let selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
-        if (use_welcome_credit !== undefined || use_event_credit !== undefined) {
-          if (use_welcome_credit && use_event_credit) selectedMode = 'COMBINED_CREDIT';
+        if (use_welcome_credit !== undefined || use_showcase_credit !== undefined || use_event_credit !== undefined) {
+          const activeCount = (use_welcome_credit ? 1 : 0) + (use_showcase_credit ? 1 : 0) + (use_event_credit ? 1 : 0);
+          if (activeCount > 1) selectedMode = 'COMBINED_CREDIT';
           else if (use_welcome_credit) selectedMode = 'WELCOME_CREDIT';
+          else if (use_showcase_credit) selectedMode = 'SHOWCASE_CREDIT';
           else if (use_event_credit) selectedMode = 'TOPUP_CREDIT';
           else selectedMode = 'FULL_PAID';
         }
@@ -4351,8 +4366,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           {
             topupCreditRequested: topup_credit_requested,
             useWelcomeCredit: use_welcome_credit,
+            useShowcaseCredit: use_showcase_credit,
             useEventCredit: use_event_credit,
             welcomeCreditRequested: welcome_credit_requested,
+            showcaseCreditRequested: showcase_credit_requested,
           },
           env
         );
@@ -4388,28 +4405,32 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               reasons: welcomeCalc.reasons,
             }
           ] : []),
-          {
-            mode: 'SHOWCASE_CREDIT',
-            title: 'Showcase Credit',
-            badge: 'Save RM300.00',
-            isEligible: showcaseCalc.isPayable,
-            creditApplied: showcaseCalc.showcaseCreditUsed,
-            paidAmount: showcaseCalc.paidAmount,
-            remainingPaidBalance: showcaseCalc.remainingPaidBalance,
-            remainingCreditBalance: showcaseCalc.remainingCreditBalance,
-            reasons: showcaseCalc.reasons,
-          },
-          {
-            mode: 'TOPUP_CREDIT',
-            title: 'Top-up Bonus Credit',
-            badge: 'Save up to 20% (RM280.00)',
-            isEligible: topupCalc.isPayable,
-            creditApplied: topupCalc.topupCreditUsed,
-            paidAmount: topupCalc.paidAmount,
-            remainingPaidBalance: topupCalc.remainingPaidBalance,
-            remainingCreditBalance: topupCalc.remainingCreditBalance,
-            reasons: topupCalc.reasons,
-          },
+          ...(walletSummary.showcase_credit > 0 ? [
+            {
+              mode: 'SHOWCASE_CREDIT' as const,
+              title: 'Showcase Credit',
+              badge: 'Save RM300.00',
+              isEligible: showcaseCalc.isPayable,
+              creditApplied: showcaseCalc.showcaseCreditUsed,
+              paidAmount: showcaseCalc.paidAmount,
+              remainingPaidBalance: showcaseCalc.remainingPaidBalance,
+              remainingCreditBalance: showcaseCalc.remainingCreditBalance,
+              reasons: showcaseCalc.reasons,
+            }
+          ] : []),
+          ...(walletSummary.topup_credit > 0 ? [
+            {
+              mode: 'TOPUP_CREDIT' as const,
+              title: 'Top-up Bonus Credit',
+              badge: 'Save up to 20% (RM280.00)',
+              isEligible: topupCalc.isPayable,
+              creditApplied: topupCalc.topupCreditUsed,
+              paidAmount: topupCalc.paidAmount,
+              remainingPaidBalance: topupCalc.remainingPaidBalance,
+              remainingCreditBalance: topupCalc.remainingCreditBalance,
+              reasons: topupCalc.reasons,
+            }
+          ] : []),
         ];
 
         return jsonResponse({
@@ -4639,8 +4660,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           payment_mode = 'FULL_PAID',
           topup_credit_requested,
           use_welcome_credit,
+          use_showcase_credit,
           use_event_credit,
           welcome_credit_requested,
+          showcase_credit_requested,
           reference_id,
         } = body;
 
@@ -4666,8 +4689,10 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               eventName: event.name,
               paymentMode: payment_mode,
               useWelcomeCredit: use_welcome_credit,
+              useShowcaseCredit: use_showcase_credit,
               useEventCredit: use_event_credit,
               welcomeCreditRequested: welcome_credit_requested,
+              showcaseCreditRequested: showcase_credit_requested,
               topupCreditRequested: topup_credit_requested,
               eventPrice: authoritativeEventPrice,
               referenceId: reference_id,
@@ -7645,6 +7670,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               company_name,
               contact_person,
               notes,
+              organization_id: body.organization_id || null,
+              lead_status: body.lead_status || 'lead',
               recipients,
               created_by: auth.user?.id,
             },
@@ -7819,7 +7846,14 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         try {
           const updated = await updateCustomerCompany(
             id,
-            { company_name, contact_person, notes, recipients },
+            {
+              company_name,
+              contact_person,
+              notes,
+              organization_id: body.organization_id,
+              lead_status: body.lead_status,
+              recipients,
+            },
             env
           );
           return jsonResponse({
@@ -7904,6 +7938,104 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           return jsonResponse({ success: true, template }, 200, cors);
         } catch (err: any) {
           console.error('Admin preview customer invitation email error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/customer-invitations/whatsapp-link
+      if ((pathname === '/api/developer/customer-invitations/whatsapp-link' || pathname === '/api/admin/customer-invitations/whatsapp-link') && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { companyId, recipientId, organizationId, role } = body;
+        if (!companyId || !recipientId) {
+          return errorResponse('companyId and recipientId are required', 400, cors);
+        }
+
+        try {
+          const result = await generateCustomerWhatsAppInvitation({
+            companyId,
+            recipientId,
+            organizationId,
+            role,
+            invitedByUserId: auth.user?.id,
+            request,
+            env,
+          });
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          console.error('Error generating WhatsApp invitation link:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/customer-invitations/recipients/:recipientId/whatsapp-status
+      const recWhatsAppStatusMatch = parseRoute('/api/developer/customer-invitations/recipients/:recipientId/whatsapp-status', pathname) ||
+                                     parseRoute('/api/admin/customer-invitations/recipients/:recipientId/whatsapp-status', pathname);
+      if (recWhatsAppStatusMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { recipientId } = recWhatsAppStatusMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { status, error, verifiedCallback } = body;
+
+        try {
+          const updated = await recordRecipientWhatsAppStatus(
+            recipientId,
+            { status, error, verifiedCallback },
+            env
+          );
+          return jsonResponse({ success: true, recipient: updated }, 200, cors);
+        } catch (err: any) {
+          console.error('Error recording WhatsApp recipient status:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/customer-invitations/onboarding-overview
+      if ((pathname === '/api/developer/customer-invitations/onboarding-overview' || pathname === '/api/admin/customer-invitations/onboarding-overview') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const overview = await getOnboardingOverview(env);
+          return jsonResponse({ success: true, overview }, 200, cors);
+        } catch (err: any) {
+          console.error('Error getting onboarding overview:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/customer-invitations/companies/:id/onboarding
+      const devCompanyOnboardingMatch = parseRoute('/api/developer/customer-invitations/companies/:id/onboarding', pathname) ||
+                                        parseRoute('/api/admin/customer-invitations/companies/:id/onboarding', pathname);
+      if (devCompanyOnboardingMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { id } = devCompanyOnboardingMatch;
+        try {
+          const status = await deriveCompanyOnboardingStatus(id, env);
+          if (!status) {
+            return errorResponse('Customer company not found', 404, cors);
+          }
+          return jsonResponse({ success: true, onboarding: status }, 200, cors);
+        } catch (err: any) {
+          console.error('Error deriving company onboarding status:', err);
           return handleWorkerApiError(err, request, cors, env);
         }
       }
@@ -8134,7 +8266,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           const validStatuses = ['pending', 'active', 'suspended', 'rejected'];
           const filterStatus = statusQuery && validStatuses.includes(statusQuery) ? (statusQuery as any) : undefined;
           const partners = await listSalesPartnerProfiles({ status: filterStatus, search: searchQuery }, env);
-          return jsonResponse({ success: true, salesPartners: partners }, 200, cors);
+          return jsonResponse({ success: true, salesPartners: partners, partners }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }
@@ -11176,7 +11308,14 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
 
           const invoice = await getInvoiceByEventId(eventId, env);
-          return jsonResponse({ invoice: invoice || null }, 200, cors);
+          const eligibility = isEventEligibleForInvoicing(ev);
+
+          return jsonResponse({
+            invoice: invoice || null,
+            eligible: eligibility.eligible,
+            eligibility_reason: eligibility.reason,
+            can_retry: Boolean(isDev && eligibility.eligible && (!invoice || invoice.pdf_status === 'failed')),
+          }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }
@@ -11337,6 +11476,52 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           const body = (await request.json().catch(() => ({}))) as any;
           const updated = await updatePlatformInvoiceSettings(body || {}, auth.user.id, env);
           return jsonResponse({ success: true, settings: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/developer/events/:eventId/retry-invoice
+      const devRetryEventInvoiceMatch = pathname.match(/^\/api\/developer\/events\/([^\/]+)\/retry-invoice$/);
+      if (devRetryEventInvoiceMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const eventId = devRetryEventInvoiceMatch[1];
+        try {
+          const ev = await getEventById(eventId, env);
+          if (!ev) {
+            return errorResponse('Event not found', 404, cors);
+          }
+
+          const eligibility = isEventEligibleForInvoicing(ev);
+          if (!eligibility.eligible) {
+            return jsonResponse({
+              error: `Event is not eligible for invoicing: ${eligibility.reason}`,
+              reason: eligibility.reason,
+            }, 422, cors);
+          }
+
+          const result = await retryEventInvoice(eventId, env, {
+            actorId: auth.user.id,
+            actorEmail: auth.user.email,
+          });
+
+          return jsonResponse({
+            success: true,
+            invoice: result.invoice,
+            created: result.created,
+            recovered: result.recovered,
+            pdfGenerated: result.pdfGenerated,
+            emailSent: result.emailSent,
+            message: result.recovered
+              ? 'Existing invoice recovered and validated successfully'
+              : 'Invoice generated successfully',
+          }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }

@@ -34,11 +34,8 @@ async function runPendingEventLimitExpirationTests() {
   };
 
   const games = await getAllPlatformGames(testEnv);
-  for (const g of games) {
-    localGamePricingCache.set(g.id, buildDefaultPricingTiers(g.id, g.game_type || g.slug));
-  }
   const gameId = games[0]?.id || 'game-catch-brand';
-  localGamePricingCache.set(gameId, buildDefaultPricingTiers(gameId, 'catch-brand'));
+  localGamePricingCache.clear();
 
   const user = await createUser({
     email: `pending_limit_tester_${Date.now()}@example.com`,
@@ -89,40 +86,42 @@ async function runPendingEventLimitExpirationTests() {
   console.log('  ✓ PASS: TEST 1: Count is 1 for future unpaid event');
 
   // --------------------------------------------------------------------------
-  // TEST 2: Create second unpaid event ending in the future -> Count = 2
+  // TEST 2: Create unpaid events ending in the future up to limit (Count = 5)
   // --------------------------------------------------------------------------
-  console.log('--- TEST 2: Create second unpaid event ending in the future (Count = 2) ---');
-  const futureEvent2 = await createEvent({
-    organization_id: org.id,
-    game_id: gameId,
-    game_theme_id: theme.id,
-    name: 'Future Pending Event 2',
-    start_date: getOffsetDate(todaySingapore, 3),
-    end_date: getOffsetDate(todaySingapore, 4),
-    event_price: 1400,
-    payment_status: 'UNPAID',
-    status: 'draft',
-    created_by: user.id,
-    event_timezone: 'Asia/Singapore',
-  }, testEnv);
+  console.log('--- TEST 2: Create unpaid events ending in the future up to limit (Count = 5) ---');
+  for (let i = 2; i <= 5; i++) {
+    await createEvent({
+      organization_id: org.id,
+      game_id: gameId,
+      game_theme_id: theme.id,
+      name: `Future Pending Event ${i}`,
+      start_date: getOffsetDate(todaySingapore, i * 2),
+      end_date: getOffsetDate(todaySingapore, i * 2 + 1),
+      event_price: 1400,
+      payment_status: 'UNPAID',
+      status: 'draft',
+      created_by: user.id,
+      event_timezone: 'Asia/Singapore',
+    }, testEnv);
+  }
 
   count = await getPendingEventsCountByOrgId(org.id, testEnv);
-  assert.strictEqual(count, 2, 'TEST 2: Pending count must be 2 after creating 2 future unpaid events');
-  console.log('  ✓ PASS: TEST 2: Count is 2 for two future unpaid events');
+  assert.strictEqual(count, 5, 'TEST 2: Pending count must be 5 after creating 5 future unpaid events');
+  console.log('  ✓ PASS: TEST 2: Count is 5 for five future unpaid events');
 
   // --------------------------------------------------------------------------
-  // TEST 3: Attempt third unpaid future event -> Must receive PENDING_EVENT_LIMIT_REACHED
+  // TEST 3: Attempt sixth unpaid future event -> Must receive PENDING_EVENT_LIMIT_REACHED
   // --------------------------------------------------------------------------
-  console.log('--- TEST 3: Attempt third unpaid future event -> Must receive PENDING_EVENT_LIMIT_REACHED ---');
-  let thirdRejected = false;
+  console.log('--- TEST 3: Attempt sixth unpaid future event -> Must receive PENDING_EVENT_LIMIT_REACHED ---');
+  let sixthRejected = false;
   try {
     await createEvent({
       organization_id: org.id,
       game_id: gameId,
       game_theme_id: theme.id,
-      name: 'Future Pending Event 3 (Should Reject)',
-      start_date: getOffsetDate(todaySingapore, 5),
-      end_date: getOffsetDate(todaySingapore, 6),
+      name: 'Future Pending Event 6 (Should Reject)',
+      start_date: getOffsetDate(todaySingapore, 15),
+      end_date: getOffsetDate(todaySingapore, 16),
       event_price: 1400,
       payment_status: 'UNPAID',
       status: 'draft',
@@ -130,12 +129,12 @@ async function runPendingEventLimitExpirationTests() {
       event_timezone: 'Asia/Singapore',
     }, testEnv);
   } catch (err: any) {
-    thirdRejected = true;
+    sixthRejected = true;
     assert.strictEqual(err.code, 'PENDING_EVENT_LIMIT_REACHED', 'Error code must be PENDING_EVENT_LIMIT_REACHED');
     assert.strictEqual(err.status, 422, 'HTTP status must be 422');
   }
-  assert.strictEqual(thirdRejected, true, 'TEST 3: Third unpaid event must be rejected with PENDING_EVENT_LIMIT_REACHED');
-  console.log('  ✓ PASS: TEST 3: Third future unpaid event rejected cleanly');
+  assert.strictEqual(sixthRejected, true, 'TEST 3: Sixth unpaid event must be rejected with PENDING_EVENT_LIMIT_REACHED');
+  console.log('  ✓ PASS: TEST 3: Sixth future unpaid event rejected cleanly');
 
   // --------------------------------------------------------------------------
   // TEST 4: Have one unpaid event whose end date is yesterday -> Count must exclude it

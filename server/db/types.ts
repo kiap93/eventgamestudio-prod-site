@@ -1279,6 +1279,7 @@ export interface SalesPayoutBatchRecord {
   total_amount: number;
   currency: string;
   total_commissions: number;
+  commission_count?: number;
   total_partners: number;
   status: SalesPayoutBatchStatus;
   payment_reference: string | null;

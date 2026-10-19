@@ -31,7 +31,10 @@ async function runEventDurationPricingTiersTestSuite() {
     slug: 'catch-brand',
     game_type: 'catch-brand',
   });
-  localGamePricingCache.set(catchGame.id, buildDefaultPricingTiers(catchGame.id, 'catch-brand'));
+  localGamePricingCache.set(catchGame.id, [
+    ...buildDefaultPricingTiers(catchGame.id, 'catch-brand', 'MY', 'MYR'),
+    ...buildDefaultPricingTiers(catchGame.id, 'catch-brand', 'US', 'USD'),
+  ]);
 
   const memoryGame = await createGame({
     organization_id: orgId,
@@ -39,7 +42,10 @@ async function runEventDurationPricingTiersTestSuite() {
     slug: 'memory-match',
     game_type: 'memory-match',
   });
-  localGamePricingCache.set(memoryGame.id, buildDefaultPricingTiers(memoryGame.id, 'memory-match'));
+  localGamePricingCache.set(memoryGame.id, [
+    ...buildDefaultPricingTiers(memoryGame.id, 'memory-match', 'MY', 'MYR'),
+    ...buildDefaultPricingTiers(memoryGame.id, 'memory-match', 'US', 'USD'),
+  ]);
 
   const reactionGame = await createGame({
     organization_id: orgId,
@@ -47,7 +53,10 @@ async function runEventDurationPricingTiersTestSuite() {
     slug: 'reaction-tap',
     game_type: 'reaction-tap',
   });
-  localGamePricingCache.set(reactionGame.id, buildDefaultPricingTiers(reactionGame.id, 'reaction-tap'));
+  localGamePricingCache.set(reactionGame.id, [
+    ...buildDefaultPricingTiers(reactionGame.id, 'reaction-tap', 'MY', 'MYR'),
+    ...buildDefaultPricingTiers(reactionGame.id, 'reaction-tap', 'US', 'USD'),
+  ]);
 
   // Create organization themes for each game (required for event creation)
   const catchTheme = await createTheme({

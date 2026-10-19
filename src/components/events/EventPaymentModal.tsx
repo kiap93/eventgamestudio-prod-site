@@ -23,6 +23,7 @@ import {
   ArrowRight,
   Calendar,
   Check,
+  Award,
 } from 'lucide-react';
 
 interface EventPaymentModalProps {
@@ -46,8 +47,9 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [activeCalculation, setActiveCalculation] = useState<EventPaymentCalculation | null>(null);
 
-  // Credit checkboxes (welcome credit only enabled if available in wallet)
+  // Credit checkboxes (welcome, showcase, event credits enabled if available in wallet)
   const [useWelcomeCredit, setUseWelcomeCredit] = useState(false);
+  const [useShowcaseCredit, setUseShowcaseCredit] = useState(false);
   const [useEventCredit, setUseEventCredit] = useState(true);
 
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -84,19 +86,23 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       setQuoteError(null);
 
       // Fetch wallet balance
-      let hasWelcome = false;
       const walletRes = await apiFetch(`/api/organizations/${orgId}/wallet`);
-      if (walletRes.ok) {
-        const wData = await walletRes.json();
-        const wl = wData.wallet || wData;
-        setWallet(wl);
-        if (Number(wl?.welcome_credit ?? 0) > 0) {
-          hasWelcome = true;
-          setUseWelcomeCredit(true);
-        } else {
-          setUseWelcomeCredit(false);
-        }
+      if (!walletRes.ok) {
+        const errData = await walletRes.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || 'Failed to fetch wallet balance');
       }
+
+      const wData = await walletRes.json();
+      const wl = wData.wallet || wData;
+      setWallet(wl);
+
+      const hasWelcome = Number(wl?.welcome_credit ?? 0) > 0;
+      const hasShowcase = Number(wl?.showcase_credit ?? 0) > 0;
+      const hasEvent = Number(wl?.topup_credit ?? 0) > 0;
+
+      setUseWelcomeCredit(hasWelcome);
+      setUseShowcaseCredit(hasShowcase);
+      setUseEventCredit(hasEvent);
 
       // Fetch quote for pricing validation
       const quoteRes = await apiFetch('/api/events/quote', {
@@ -109,13 +115,14 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
           start_date: event.start_date || undefined,
           end_date: event.end_date || undefined,
           use_welcome_credit: hasWelcome,
-          use_event_credit: true,
+          use_showcase_credit: hasShowcase,
+          use_event_credit: hasEvent,
         }),
       });
 
       if (!quoteRes.ok) {
         const errData = await quoteRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to calculate payment quote');
+        throw new Error(errData.error || errData.message || 'Failed to calculate payment quote');
       }
 
       const quoteData = await quoteRes.json();
@@ -137,32 +144,53 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
     if (isOpen && event) {
       setSuccessEvent(null);
       setPaymentError(null);
+      setWallet(null);
+      setActiveCalculation(null);
+      setQuoteError(null);
       setUseWelcomeCredit(true);
+      setUseShowcaseCredit(true);
       setUseEventCredit(true);
       fetchWallet();
     }
-  }, [isOpen, event?.id]);
+  }, [isOpen, event?.id, event?.organization_id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleWalletUpdated = () => {
+      fetchWallet();
+    };
+    window.addEventListener('wallet_updated', handleWalletUpdated);
+    return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
+  }, [isOpen, event?.id, event?.organization_id]);
 
   if (!isOpen || !event) return null;
 
   // Pricing & Balances - Authoritative from server calculation / event record
   const eventPrice = Number(activeCalculation?.eventPrice ?? event.event_price ?? 0);
-  const availableWelcomeCredit = Number(wallet?.welcome_credit ?? 0);
-  const availableEventCredit = Number(wallet?.topup_credit ?? 0);
-  const availablePaidBalance = Number(wallet?.paid_balance ?? 0);
+  const availableWelcomeCredit = Number(activeCalculation?.availableBalances?.welcome_credit ?? wallet?.welcome_credit ?? 0);
+  const availableShowcaseCredit = Number(activeCalculation?.availableBalances?.showcase_credit ?? wallet?.showcase_credit ?? 0);
+  const availableEventCredit = Number(activeCalculation?.availableBalances?.topup_credit ?? wallet?.topup_credit ?? 0);
+  const availablePaidBalance = Number(activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0);
 
   // Maximum allowed event credit: 20% of event price
   const maxEventCredit = Math.round(eventPrice * 0.20);
 
   // Dynamic Credit Deductions based on checkboxes
+  // 1. Welcome Credit (up to event price)
   const eligibleWelcomeCredit = Math.min(availableWelcomeCredit, eventPrice);
-  const eligibleEventCredit = Math.min(availableEventCredit, maxEventCredit);
-
   const welcomeCreditUsed = useWelcomeCredit && availableWelcomeCredit > 0 ? eligibleWelcomeCredit : 0;
   const remainingPriceAfterWelcome = Math.max(0, eventPrice - welcomeCreditUsed);
-  const eventCreditUsed = useEventCredit && availableEventCredit > 0 ? Math.min(eligibleEventCredit, remainingPriceAfterWelcome) : 0;
 
-  const totalDiscount = welcomeCreditUsed + eventCreditUsed;
+  // 2. Showcase Credit (up to remaining price after welcome credit)
+  const eligibleShowcaseCredit = Math.min(availableShowcaseCredit, remainingPriceAfterWelcome);
+  const showcaseCreditUsed = useShowcaseCredit && availableShowcaseCredit > 0 ? eligibleShowcaseCredit : 0;
+  const remainingPriceAfterShowcase = Math.max(0, remainingPriceAfterWelcome - showcaseCreditUsed);
+
+  // 3. Event Credit (capped at 20% of event price and remaining price)
+  const eligibleEventCredit = Math.min(availableEventCredit, maxEventCredit);
+  const eventCreditUsed = useEventCredit && availableEventCredit > 0 ? Math.min(eligibleEventCredit, remainingPriceAfterShowcase) : 0;
+
+  const totalDiscount = welcomeCreditUsed + showcaseCreditUsed + eventCreditUsed;
   const amountRequired = Math.max(0, eventPrice - totalDiscount);
   const shortfall = Math.max(0, amountRequired - availablePaidBalance);
   const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && shortfall > 0;
@@ -179,10 +207,13 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       setSubmittingPayment(true);
 
       let resolvedPaymentMode: PaymentMode = 'FULL_PAID';
-      if (welcomeCreditUsed > 0 && eventCreditUsed > 0) {
+      const activeCredits = (welcomeCreditUsed > 0 ? 1 : 0) + (showcaseCreditUsed > 0 ? 1 : 0) + (eventCreditUsed > 0 ? 1 : 0);
+      if (activeCredits > 1) {
         resolvedPaymentMode = 'COMBINED_CREDIT';
       } else if (welcomeCreditUsed > 0) {
         resolvedPaymentMode = 'WELCOME_CREDIT';
+      } else if (showcaseCreditUsed > 0) {
+        resolvedPaymentMode = 'SHOWCASE_CREDIT';
       } else if (eventCreditUsed > 0) {
         resolvedPaymentMode = 'TOPUP_CREDIT';
       } else {
@@ -195,8 +226,10 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
         body: JSON.stringify({
           payment_mode: resolvedPaymentMode,
           use_welcome_credit: useWelcomeCredit,
+          use_showcase_credit: useShowcaseCredit,
           use_event_credit: useEventCredit,
           welcome_credit_requested: welcomeCreditUsed,
+          showcase_credit_requested: showcaseCreditUsed,
           topup_credit_requested: eventCreditUsed,
         }),
       });
@@ -417,134 +450,175 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Apply Credits Section */}
-                  <div className="space-y-2.5">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-200">{t('payment.applyCredits', undefined, 'Apply Credits')}</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {t('payment.selectCreditsDesc', undefined, 'Select the credits you want to use for this event.')}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      {/* Welcome Credit Row */}
-                      <div
-                        role="checkbox"
-                        aria-checked={useWelcomeCredit}
-                        tabIndex={availableWelcomeCredit <= 0 ? -1 : 0}
-                        onClick={() => {
-                          if (availableWelcomeCredit > 0) {
-                            setUseWelcomeCredit(!useWelcomeCredit);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if ((e.key === ' ' || e.key === 'Enter') && availableWelcomeCredit > 0) {
-                            e.preventDefault();
-                            setUseWelcomeCredit(!useWelcomeCredit);
-                          }
-                        }}
-                        className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
-                          availableWelcomeCredit <= 0
-                            ? 'opacity-60 cursor-not-allowed border-slate-800 bg-slate-950/40'
-                            : useWelcomeCredit
-                            ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
-                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                              useWelcomeCredit && availableWelcomeCredit > 0
-                                ? 'bg-emerald-500 border-emerald-400 text-slate-950'
-                                : 'border-slate-700 bg-slate-900'
-                            }`}
-                          >
-                            {useWelcomeCredit && availableWelcomeCredit > 0 && <Check className="w-3 h-3 stroke-[3]" />}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>{t('payment.welcomeCredits', undefined, 'Welcome Credit')}</span>
-                            </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                              {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableWelcomeCredit)}</span>
-                              {availableWelcomeCredit <= 0 && <span className="text-slate-400 ml-1.5">({t('payment.noBalance', undefined, 'No balance')})</span>}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                            {useWelcomeCredit && welcomeCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
-                          </div>
-                          <div className={`font-mono font-bold text-xs sm:text-sm ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : formatCurrency(0)}
-                          </div>
-                        </div>
+                  {/* Apply Credits Section - Only displayed when at least one positive eligible credit option exists */}
+                  {(!loadingQuote && !quoteError && wallet !== null && (availableWelcomeCredit > 0 || availableShowcaseCredit > 0 || availableEventCredit > 0)) && (
+                    <div className="space-y-2.5">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-200">{t('payment.applyCredits', undefined, 'Apply Credits')}</h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {t('payment.selectCreditsDesc', undefined, 'Select the credits you want to use for this event.')}
+                        </p>
                       </div>
 
-                      {/* Event Credit Row */}
-                      <div
-                        role="checkbox"
-                        aria-checked={useEventCredit}
-                        tabIndex={availableEventCredit <= 0 ? -1 : 0}
-                        onClick={() => {
-                          if (availableEventCredit > 0) {
-                            setUseEventCredit(!useEventCredit);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if ((e.key === ' ' || e.key === 'Enter') && availableEventCredit > 0) {
-                            e.preventDefault();
-                            setUseEventCredit(!useEventCredit);
-                          }
-                        }}
-                        className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
-                          availableEventCredit <= 0
-                            ? 'opacity-60 cursor-not-allowed border-slate-800 bg-slate-950/40'
-                            : useEventCredit
-                            ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
-                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
+                      <div className="space-y-2">
+                        {/* Welcome Credit Row - Completely hidden if usable balance is RM0 */}
+                        {availableWelcomeCredit > 0 && (
                           <div
-                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                              useEventCredit && availableEventCredit > 0
-                                ? 'bg-emerald-500 border-emerald-400 text-slate-950'
-                                : 'border-slate-700 bg-slate-900'
+                            role="checkbox"
+                            aria-checked={useWelcomeCredit}
+                            tabIndex={0}
+                            onClick={() => setUseWelcomeCredit(!useWelcomeCredit)}
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault();
+                                setUseWelcomeCredit(!useWelcomeCredit);
+                              }
+                            }}
+                            className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
+                              useWelcomeCredit
+                                ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
+                                : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
                             }`}
                           >
-                            {useEventCredit && availableEventCredit > 0 && <Check className="w-3 h-3 stroke-[3]" />}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>{t('payment.eventCredit', undefined, 'Event Credit')}</span>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                                  useWelcomeCredit
+                                    ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                                    : 'border-slate-700 bg-slate-900'
+                                }`}
+                              >
+                                {useWelcomeCredit && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  <span>{t('payment.welcomeCredits', undefined, 'Welcome Credit')}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                                  {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableWelcomeCredit)}</span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                              {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableEventCredit)}</span>
-                              {availableEventCredit > 0 && (
-                                <span className="text-slate-400 ml-1.5">
-                                  ({t('payment.max20Percent', undefined, 'Max 20%')}: {formatCurrency(maxEventCredit)})
-                                </span>
-                              )}
-                              {availableEventCredit <= 0 && <span className="text-slate-400 ml-1.5">({t('payment.noBalance', undefined, 'No balance')})</span>}
-                            </div>
-                          </div>
-                        </div>
 
-                        <div className="text-right shrink-0">
-                          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                            {useEventCredit && eventCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
+                            <div className="text-right shrink-0">
+                              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                                {useWelcomeCredit && welcomeCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
+                              </div>
+                              <div className={`font-mono font-bold text-xs sm:text-sm ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : formatCurrency(0)}
+                              </div>
+                            </div>
                           </div>
-                          <div className={`font-mono font-bold text-xs sm:text-sm ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : formatCurrency(0)}
+                        )}
+
+                        {/* Showcase Credit / Showcase Reward Row - Completely hidden if usable balance is RM0 */}
+                        {availableShowcaseCredit > 0 && (
+                          <div
+                            role="checkbox"
+                            aria-checked={useShowcaseCredit}
+                            tabIndex={0}
+                            onClick={() => setUseShowcaseCredit(!useShowcaseCredit)}
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault();
+                                setUseShowcaseCredit(!useShowcaseCredit);
+                              }
+                            }}
+                            className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
+                              useShowcaseCredit
+                                ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
+                                : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                                  useShowcaseCredit
+                                    ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                                    : 'border-slate-700 bg-slate-900'
+                                }`}
+                              >
+                                {useShowcaseCredit && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
+                                  <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span>{t('payment.showcaseCredit', undefined, 'Showcase Reward')}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                                  {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableShowcaseCredit)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                                {useShowcaseCredit && showcaseCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
+                              </div>
+                              <div className={`font-mono font-bold text-xs sm:text-sm ${useShowcaseCredit && showcaseCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                {useShowcaseCredit && showcaseCreditUsed > 0 ? `-${formatCurrency(showcaseCreditUsed)}` : formatCurrency(0)}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {/* Event Credit Row - Completely hidden if usable balance is RM0 */}
+                        {availableEventCredit > 0 && (
+                          <div
+                            role="checkbox"
+                            aria-checked={useEventCredit}
+                            tabIndex={0}
+                            onClick={() => setUseEventCredit(!useEventCredit)}
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault();
+                                setUseEventCredit(!useEventCredit);
+                              }
+                            }}
+                            className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
+                              useEventCredit
+                                ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
+                                : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                                  useEventCredit
+                                    ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                                    : 'border-slate-700 bg-slate-900'
+                                }`}
+                              >
+                                {useEventCredit && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                  <span>{t('payment.eventCredit', undefined, 'Event Credit')}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                                  {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableEventCredit)}</span>
+                                  <span className="text-slate-400 ml-1.5">
+                                    ({t('payment.max20Percent', undefined, 'Max 20%')}: {formatCurrency(maxEventCredit)})
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                                {useEventCredit && eventCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
+                              </div>
+                              <div className={`font-mono font-bold text-xs sm:text-sm ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : formatCurrency(0)}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Itemized Financial Breakdown Summary */}
                   <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
@@ -565,11 +639,22 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                       </div>
                     )}
 
+                    {/* Showcase Credit Applied */}
+                    {useShowcaseCredit && showcaseCreditUsed > 0 && (
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <span className="flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                          <span>{t('payment.showcaseCreditApplied', undefined, 'Showcase Reward Applied')}</span>
+                        </span>
+                        <span className="font-mono font-bold">-{formatCurrency(showcaseCreditUsed)}</span>
+                      </div>
+                    )}
+
                     {/* Event Credit Applied */}
                     {useEventCredit && eventCreditUsed > 0 && (
                       <div className="flex items-center justify-between text-emerald-400">
                         <span className="flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <Sparkles className="w-3.5 h-3.5 shrink-0 text-blue-400" />
                           <span>{t('payment.eventCreditApplied', undefined, 'Event Credit Applied')}</span>
                         </span>
                         <span className="font-mono font-bold">-{formatCurrency(eventCreditUsed)}</span>

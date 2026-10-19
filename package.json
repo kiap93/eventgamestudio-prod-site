@@ -46,7 +46,8 @@
     "test:localization": "tsx server/db/localization_system.test.ts",
     "test:customer-invitations": "tsx server/customer_invitations.test.ts",
     "test:customer-invitations-duplicates": "bun server/customer_invitations_duplicate_detection.test.ts",
-    "test:resend-invitations": "bun server/email/resend_invitations_dedicated.test.ts"
+    "test:resend-invitations": "bun server/email/resend_invitations_dedicated.test.ts",
+    "test:credit-repair": "bun server/db/credit_visibility_and_showcase_repair.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -91,9 +91,12 @@ describe('COALESCE Date Type Mismatch Fix & Payment Processing', () => {
     const walletBefore = await getWalletBalance(org.id, env);
     assert.ok(walletBefore.paid_balance >= 1400, 'Org wallet must have sufficient funds');
 
-    // 3. Create Event with string dates
-    const startDate = '2026-10-15';
-    const endDate = '2026-10-16';
+    // 3. Create Event with dynamic future dates
+    const d = new Date();
+    d.setDate(d.getDate() + 10);
+    const startDate = d.toISOString().split('T')[0];
+    d.setDate(d.getDate() + 1);
+    const endDate = d.toISOString().split('T')[0];
     const event = await createEvent(
       {
         organization_id: org.id,

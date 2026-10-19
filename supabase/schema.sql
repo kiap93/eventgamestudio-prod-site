@@ -4126,6 +4126,17 @@ BEGIN
 
     NEW.country_code := UPPER(TRIM(NEW.country_code));
 
+    IF NEW.currency IS NULL OR TRIM(NEW.currency) = '' THEN
+      NEW.currency := CASE NEW.country_code
+        WHEN 'MY' THEN 'MYR'
+        WHEN 'US' THEN 'USD'
+        ELSE 'USD'
+      END;
+    END IF;
+
+    NEW.currency := UPPER(TRIM(NEW.currency));
+
+    -- Check minimum and maximum day bounds
     IF NEW.min_days < 1 THEN
       RAISE EXCEPTION 'Minimum days must be an integer >= 1'
         USING ERRCODE = 'check_violation';
@@ -4136,12 +4147,13 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
 
-    -- Look for any other active pricing tier for the same game and same country that overlaps
+    -- Look for any other active pricing tier for the SAME game, SAME country, and SAME currency that overlaps
     SELECT id, min_days, max_days, price, currency, country_code
     INTO v_conflicting
     FROM public.game_pricing
     WHERE game_id = NEW.game_id
       AND country_code = NEW.country_code
+      AND currency = NEW.currency
       AND is_active = true
       AND (NEW.id IS NULL OR id != NEW.id)
       AND (
@@ -4151,10 +4163,11 @@ BEGIN
     LIMIT 1;
 
     IF v_conflicting.id IS NOT NULL THEN
-      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) for country % overlaps with existing active tier (%–% days) for this game.',
+      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) for country % (%) overlaps with existing active tier (%–% days) for this game.',
         NEW.min_days,
         COALESCE(NEW.max_days::text, '+'),
         NEW.country_code,
+        NEW.currency,
         v_conflicting.min_days,
         COALESCE(v_conflicting.max_days::text, '+')
         USING ERRCODE = 'check_violation';
@@ -4196,6 +4209,7 @@ DECLARE
   v_matching_count INT;
   v_resolved_price NUMERIC(10, 2);
   v_resolved_currency TEXT;
+  v_expected_currency TEXT;
   v_is_custom_price BOOLEAN := false;
   v_requested_country TEXT;
   v_default_country TEXT := 'US';
@@ -4316,7 +4330,30 @@ BEGIN
     );
   END IF;
 
-  -- If an explicit pricing tier was provided, validate it
+  -- Derive expected currency strictly from the requested country
+  v_expected_currency := CASE v_requested_country
+    WHEN 'MY' THEN 'MYR'
+    WHEN 'SG' THEN 'SGD'
+    WHEN 'TH' THEN 'THB'
+    WHEN 'ID' THEN 'IDR'
+    WHEN 'PH' THEN 'PHP'
+    WHEN 'VN' THEN 'VND'
+    WHEN 'JP' THEN 'JPY'
+    WHEN 'KR' THEN 'KRW'
+    WHEN 'TW' THEN 'TWD'
+    WHEN 'HK' THEN 'HKD'
+    WHEN 'AU' THEN 'AUD'
+    WHEN 'NZ' THEN 'NZD'
+    WHEN 'IN' THEN 'INR'
+    WHEN 'US' THEN 'USD'
+    WHEN 'GB' THEN 'GBP'
+    WHEN 'CA' THEN 'CAD'
+    WHEN 'DE' THEN 'EUR'
+    WHEN 'FR' THEN 'EUR'
+    ELSE 'USD'
+  END;
+
+  -- If explicit pricing tier was provided, validate existence, game association, status, and duration
   IF v_pricing_id IS NOT NULL THEN
     SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
     INTO v_pricing_record
@@ -4331,7 +4368,7 @@ BEGIN
       );
     END IF;
 
-    IF v_pricing_record.game_id != v_target_game_id THEN
+    IF v_pricing_record.game_id <> v_target_game_id THEN
       RETURN jsonb_build_object(
         'success', false,
         'code', 'PRICING_GAME_MISMATCH',
@@ -4339,7 +4376,7 @@ BEGIN
       );
     END IF;
 
-    IF v_pricing_record.is_active != true THEN
+    IF NOT COALESCE(v_pricing_record.is_active, false) THEN
       RETURN jsonb_build_object(
         'success', false,
         'code', 'PRICING_TIER_INACTIVE',
@@ -4354,19 +4391,103 @@ BEGIN
         'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
       );
     END IF;
+  END IF;
 
+  -- STEP 1: Multi-dimensional lookup in requested country AND expected currency
+  SELECT count(*)
+  INTO v_matching_count
+  FROM public.game_pricing
+  WHERE game_id = v_target_game_id
+    AND country_code = v_requested_country
+    AND currency = v_expected_currency
+    AND is_active = true
+    AND min_days <= v_duration_days
+    AND (max_days IS NULL OR max_days >= v_duration_days);
+
+  IF v_matching_count > 1 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'AMBIGUOUS_PRICING_TIER',
+      'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game in country ' || v_requested_country || ' (' || v_expected_currency || '). Overlapping active tiers must be resolved in Developer Settings.',
+      'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game in country ' || v_requested_country || ' (' || v_expected_currency || '). Overlapping active tiers must be resolved in Developer Settings.'
+    );
+  END IF;
+
+  IF v_matching_count = 1 THEN
+    SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND country_code = v_requested_country
+      AND currency = v_expected_currency
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    -- If client supplied a pricing_id, verify that it matches this authoritative tier
+    IF v_pricing_id IS NOT NULL AND v_pricing_id != v_pricing_record.id THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_COUNTRY_MISMATCH',
+        'error', 'The specified pricing tier does not match the authoritative pricing tier for your country and duration.',
+        'message', 'The specified pricing tier does not match the authoritative pricing tier for your country and duration.'
+      );
+    END IF;
+
+    v_pricing_id := v_pricing_record.id;
     v_resolved_price := v_pricing_record.price;
     v_resolved_currency := v_pricing_record.currency;
-    v_pricing_country := v_pricing_record.country_code;
-    v_is_fallback := (v_pricing_country != v_requested_country);
-  ELSE
-    -- Automatic Resolution with Fallback:
-    -- Step 1: Look for active tier in requested country
+    v_pricing_country := v_requested_country;
+    v_is_fallback := false;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'price', v_resolved_price,
+      'currency', v_resolved_currency,
+      'duration_days', v_duration_days,
+      'is_custom_price', false,
+      'pricing_id', v_pricing_id,
+      'requested_country', v_requested_country,
+      'pricing_country', v_pricing_country,
+      'is_fallback', false,
+      'fallback_level', 0
+    );
+  END IF;
+
+  -- STEP 2: Requested country has NO match.
+  -- Strict Fail-Closed Rule for Primary Configured Markets (US and MY):
+  -- Malaysia organizations must use MYR. US organizations must use USD.
+  -- They MUST NOT cross-fallback to another country or currency.
+  IF v_requested_country IN ('US', 'MY') THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'NO_PRICING_TIER',
+      'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game in country ' || v_requested_country || '.',
+      'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game in country ' || v_requested_country || '.',
+      'requested_country', v_requested_country,
+      'pricing_country', NULL,
+      'default_country', v_default_country
+    );
+  END IF;
+
+  -- STEP 3: Unconfigured third-country fallback (e.g. VN, FR)
+  -- Fall back to default pricing country (US with USD)
+  SELECT count(*)
+  INTO v_matching_count
+  FROM public.game_pricing
+  WHERE game_id = v_target_game_id
+    AND country_code = v_default_country
+    AND currency = 'USD'
+    AND is_active = true
+    AND price > 0;
+
+  IF v_matching_count > 0 THEN
     SELECT count(*)
     INTO v_matching_count
     FROM public.game_pricing
     WHERE game_id = v_target_game_id
-      AND country_code = v_requested_country
+      AND country_code = v_default_country
+      AND currency = 'USD'
       AND is_active = true
       AND min_days <= v_duration_days
       AND (max_days IS NULL OR max_days >= v_duration_days);
@@ -4375,8 +4496,8 @@ BEGIN
       RETURN jsonb_build_object(
         'success', false,
         'code', 'AMBIGUOUS_PRICING_TIER',
-        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game in country ' || v_requested_country || '. Overlapping active tiers must be resolved in Developer Settings.',
-        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game in country ' || v_requested_country || '. Overlapping active tiers must be resolved in Developer Settings.'
+        'error', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in default country ' || v_default_country || '.',
+        'message', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in default country ' || v_default_country || '.'
       );
     END IF;
 
@@ -4385,113 +4506,110 @@ BEGIN
       INTO v_pricing_record
       FROM public.game_pricing
       WHERE game_id = v_target_game_id
-        AND country_code = v_requested_country
+        AND country_code = v_default_country
+        AND currency = 'USD'
         AND is_active = true
         AND min_days <= v_duration_days
         AND (max_days IS NULL OR max_days >= v_duration_days);
 
-      v_pricing_id := v_pricing_record.id;
-      v_resolved_price := v_pricing_record.price;
-      v_resolved_currency := v_pricing_record.currency;
-      v_pricing_country := v_requested_country;
-      v_is_fallback := false;
-    ELSE
-      -- Step 2: Fall back to default pricing country (if different)
-      IF v_requested_country != v_default_country THEN
-        SELECT count(*)
-        INTO v_matching_count
-        FROM public.game_pricing
-        WHERE game_id = v_target_game_id
-          AND country_code = v_default_country
-          AND is_active = true
-          AND min_days <= v_duration_days
-          AND (max_days IS NULL OR max_days >= v_duration_days);
-
-        IF v_matching_count > 1 THEN
-          RETURN jsonb_build_object(
-            'success', false,
-            'code', 'AMBIGUOUS_PRICING_TIER',
-            'error', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in default country ' || v_default_country || '.',
-            'message', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in default country ' || v_default_country || '.'
-          );
-        END IF;
-
-        IF v_matching_count = 1 THEN
-          SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
-          INTO v_pricing_record
-          FROM public.game_pricing
-          WHERE game_id = v_target_game_id
-            AND country_code = v_default_country
-            AND is_active = true
-            AND min_days <= v_duration_days
-            AND (max_days IS NULL OR max_days >= v_duration_days);
-
-          v_pricing_id := v_pricing_record.id;
-          v_resolved_price := v_pricing_record.price;
-          v_resolved_currency := v_pricing_record.currency;
-          v_pricing_country := v_default_country;
-          v_is_fallback := true;
-        END IF;
-      END IF;
-
-      -- If neither has a matching tier -> Fail closed with NO_PRICING_TIER
-      IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      IF v_pricing_id IS NOT NULL AND v_pricing_id != v_pricing_record.id THEN
         RETURN jsonb_build_object(
           'success', false,
-          'code', 'NO_PRICING_TIER',
-          'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
-          'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
-          'requested_country', v_requested_country,
-          'default_country', v_default_country
+          'code', 'PRICING_COUNTRY_MISMATCH',
+          'error', 'The specified pricing tier does not match the authoritative pricing tier for your country and duration.',
+          'message', 'The specified pricing tier does not match the authoritative pricing tier for your country and duration.'
         );
       END IF;
-    END IF;
-  END IF;
 
-  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'price', v_pricing_record.price,
+        'currency', v_pricing_record.currency,
+        'duration_days', v_duration_days,
+        'is_custom_price', false,
+        'pricing_id', v_pricing_record.id,
+        'requested_country', v_requested_country,
+        'pricing_country', v_default_country,
+        'is_fallback', true,
+        'fallback_level', 1
+      );
+    END IF;
+
+    -- Default country has tiers but none cover this duration -> fail closed
     RETURN jsonb_build_object(
       'success', false,
-      'code', 'PRICING_CONFIGURATION_ERROR',
-      'error', 'Event price must be positive and valid. Could not resolve pricing.',
-      'message', 'Event price must be positive and valid. Could not resolve pricing.'
+      'code', 'NO_PRICING_TIER',
+      'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.',
+      'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.',
+      'requested_country', v_requested_country,
+      'pricing_country', NULL,
+      'default_country', v_default_country
     );
   END IF;
 
-  -- Ensure currency is set
-  IF v_resolved_currency IS NULL OR v_resolved_currency = '' THEN
-    v_resolved_currency := CASE COALESCE(v_pricing_country, v_requested_country)
-      WHEN 'MY' THEN 'MYR'
-      WHEN 'SG' THEN 'SGD'
-      WHEN 'TH' THEN 'THB'
-      WHEN 'ID' THEN 'IDR'
-      WHEN 'PH' THEN 'PHP'
-      WHEN 'VN' THEN 'VND'
-      WHEN 'JP' THEN 'JPY'
-      WHEN 'KR' THEN 'KRW'
-      WHEN 'TW' THEN 'TWD'
-      WHEN 'HK' THEN 'HKD'
-      WHEN 'AU' THEN 'AUD'
-      WHEN 'NZ' THEN 'NZD'
-      WHEN 'IN' THEN 'INR'
-      WHEN 'US' THEN 'USD'
-      WHEN 'GB' THEN 'GBP'
-      WHEN 'CA' THEN 'CAD'
-      WHEN 'DE' THEN 'EUR'
-      WHEN 'FR' THEN 'EUR'
-      ELSE 'USD'
-    END;
+  -- Default country (US) has ZERO active tiers for this game. Check secondary fallback MY.
+  SELECT count(*)
+  INTO v_matching_count
+  FROM public.game_pricing
+  WHERE game_id = v_target_game_id
+    AND country_code = 'MY'
+    AND currency = 'MYR'
+    AND is_active = true
+    AND min_days <= v_duration_days
+    AND (max_days IS NULL OR max_days >= v_duration_days);
+
+  IF v_matching_count > 1 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'AMBIGUOUS_PRICING_TIER',
+      'error', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in secondary fallback country MY.',
+      'message', 'Multiple active fallback pricing tiers match duration of ' || v_duration_days || ' days for this game in secondary fallback country MY.'
+    );
   END IF;
 
+  IF v_matching_count = 1 THEN
+    SELECT id, game_id, price, currency, is_active, min_days, max_days, country_code
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND country_code = 'MY'
+      AND currency = 'MYR'
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_pricing_id IS NOT NULL AND v_pricing_id != v_pricing_record.id THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_COUNTRY_MISMATCH',
+        'error', 'The specified pricing tier does not match the authoritative pricing tier for your country and duration.',
+        'message', 'The specified pricing tier does not match the authoritative pricing tier for your country and duration.'
+      );
+    END IF;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'price', v_pricing_record.price,
+      'currency', v_pricing_record.currency,
+      'duration_days', v_duration_days,
+      'is_custom_price', false,
+      'pricing_id', v_pricing_record.id,
+      'requested_country', v_requested_country,
+      'pricing_country', 'MY',
+      'is_fallback', true,
+      'fallback_level', 2
+    );
+  END IF;
+
+  -- No tier found anywhere
   RETURN jsonb_build_object(
-    'success', true,
-    'price', v_resolved_price,
-    'currency', v_resolved_currency,
-    'duration_days', v_duration_days,
-    'pricing_id', v_pricing_id,
-    'is_custom_price', false,
+    'success', false,
+    'code', 'NO_PRICING_TIER',
+    'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.',
+    'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.',
     'requested_country', v_requested_country,
-    'pricing_country', v_pricing_country,
-    'is_fallback', v_is_fallback
+    'pricing_country', NULL,
+    'default_country', v_default_country
   );
 END;
 $$;

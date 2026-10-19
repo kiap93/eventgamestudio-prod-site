@@ -487,11 +487,249 @@ export function calculateTopupCredit(topupAmount: number): number {
 }
 
 /**
+ * Authoritatively check if an organization owner has an approved Showcase Reward entitlement
+ * whose initial grant transaction in wallet_transactions is missing, and repair it safely.
+ * 
+ * INVARIANTS ENFORCED:
+ * 1. Owner-level lifetime eligibility: Max 1 showcase reward grant per owner user lifetime.
+ * 2. Organization-level spendable balance: Granted strictly to the designated organization.
+ * 3. Never create duplicate grant transactions.
+ * 4. Never grant another reward simply because an organization wallet has a zero balance (e.g. spent).
+ * 5. Reconcile ledger and recalculate wallet balances authoritatively.
+ */
+export async function repairMissingShowcaseRewardGrant(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<{ repaired: boolean; transaction: WalletTransactionRecord | null; wallet: WalletBalanceSummary }> {
+  if (!organizationId) {
+    throw new Error('Organization ID is required');
+  }
+
+  // 1. Resolve owner of this organization
+  const targetOwnerId = await resolveOrgOwnerId(organizationId, env);
+  if (!targetOwnerId) {
+    const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+    return { repaired: false, transaction: null, wallet: currentWallet };
+  }
+
+  return await withUserRewardLock(targetOwnerId, async () => {
+    return await withOrganizationLock(organizationId, async () => {
+      // 2. Check if a completed SHOWCASE_CREDIT grant transaction already exists ANYWHERE for this owner
+      let existingGrantTxn: WalletTransactionRecord | null = null;
+      if (isSupabaseConfigured(env)) {
+        const supabase = getSupabaseServerClient(env);
+        const { data } = await supabase
+          .from('wallet_transactions')
+          .select('*')
+          .eq('transaction_type', 'SHOWCASE_CREDIT')
+          .eq('status', 'COMPLETED')
+          .gt('amount', 0)
+          .or(`owner_user_id.eq.${targetOwnerId},created_by.eq.${targetOwnerId}`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          existingGrantTxn = data as WalletTransactionRecord;
+        }
+      } else {
+        existingGrantTxn = Array.from(localTransactionsCache.values()).find(
+          (t) =>
+            (t.owner_user_id === targetOwnerId || t.created_by === targetOwnerId) &&
+            t.transaction_type === 'SHOWCASE_CREDIT' &&
+            t.status === 'COMPLETED' &&
+            t.amount > 0
+        ) || null;
+      }
+
+      // If a grant transaction already exists anywhere:
+      if (existingGrantTxn) {
+        // Already granted! No repair needed, never duplicate.
+        const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+        return { repaired: false, transaction: existingGrantTxn, wallet: currentWallet };
+      }
+
+      // 3. Since no grant transaction exists anywhere for this owner, check if an authoritative entitlement exists:
+      let entitlementRecord: {
+        organizationId?: string | null;
+        eventId?: string | null;
+        showcaseId?: string | null;
+        amount?: number;
+      } | null = null;
+
+      // Check user_rewards table
+      if (isSupabaseConfigured(env)) {
+        const supabase = getSupabaseServerClient(env);
+        try {
+          const { data: userReward } = await supabase
+            .from('user_rewards')
+            .select('*')
+            .eq('user_id', targetOwnerId)
+            .in('reward_type', ['SHOWCASE_REWARD', 'SHOWCASE_CREDIT', 'SHOWCASE_REWARD_RM300'])
+            .maybeSingle();
+
+          if (userReward) {
+            const uRewardAny = userReward as any;
+            entitlementRecord = {
+              organizationId: userReward.organization_id || uRewardAny.metadata?.organization_id || uRewardAny.metadata?.organizationId,
+              eventId: uRewardAny.metadata?.event_id || uRewardAny.metadata?.eventId,
+              showcaseId: uRewardAny.metadata?.showcase_id || uRewardAny.metadata?.showcaseId,
+              amount: userReward.amount || SHOWCASE_CREDIT_AMOUNT,
+            };
+          }
+        } catch {}
+
+        // Check owner_showcase_rewards
+        if (!entitlementRecord) {
+          try {
+            const { data: ownerReward } = await supabase
+              .from('owner_showcase_rewards')
+              .select('*')
+              .eq('owner_user_id', targetOwnerId)
+              .maybeSingle();
+            if (ownerReward) {
+              entitlementRecord = {
+                organizationId: ownerReward.organization_id,
+                eventId: ownerReward.event_id,
+                showcaseId: ownerReward.showcase_id,
+                amount: ownerReward.amount || SHOWCASE_CREDIT_AMOUNT,
+              };
+            }
+          } catch {}
+        }
+
+        // Check showcase_reward_submissions
+        if (!entitlementRecord) {
+          try {
+            const { data: sub } = await supabase
+              .from('showcase_reward_submissions')
+              .select('*')
+              .eq('user_id', targetOwnerId)
+              .eq('status', 'APPROVED')
+              .maybeSingle();
+            if (sub) {
+              entitlementRecord = {
+                organizationId: null,
+                eventId: sub.event_id,
+                showcaseId: sub.showcase_id,
+                amount: sub.reward_amount || SHOWCASE_CREDIT_AMOUNT,
+              };
+            }
+          } catch {}
+        }
+
+        // Check event_showcases
+        if (!entitlementRecord) {
+          try {
+            const { data: sc } = await supabase
+              .from('event_showcases')
+              .select('*')
+              .eq('owner_user_id', targetOwnerId)
+              .in('reward_status', ['REWARDED', 'APPROVED'])
+              .maybeSingle();
+            if (sc) {
+              entitlementRecord = {
+                organizationId: sc.organization_id,
+                eventId: sc.event_id,
+                showcaseId: sc.id,
+                amount: sc.reward_amount || SHOWCASE_CREDIT_AMOUNT,
+              };
+            }
+          } catch {}
+        }
+      }
+
+      // If not found in Supabase or in local fallback mode:
+      if (!entitlementRecord && isLocalFallbackAllowed(env)) {
+        const userReward =
+          localUserRewardsCache.get(`${targetOwnerId}:SHOWCASE_CREDIT`) ||
+          localUserRewardsCache.get(`${targetOwnerId}:SHOWCASE_REWARD`) ||
+          localUserRewardsCache.get(`${targetOwnerId}:SHOWCASE_REWARD_RM300`);
+        if (userReward) {
+          const uRewardAny = userReward as any;
+          entitlementRecord = {
+            organizationId: userReward.organization_id || uRewardAny.metadata?.organization_id || uRewardAny.metadata?.organizationId,
+            eventId: uRewardAny.metadata?.event_id || uRewardAny.metadata?.eventId,
+            showcaseId: uRewardAny.metadata?.showcase_id || uRewardAny.metadata?.showcaseId,
+            amount: userReward.amount || SHOWCASE_CREDIT_AMOUNT,
+          };
+        }
+
+        if (!entitlementRecord) {
+          const ownerReward = localOwnerShowcaseRewardsCache.get(targetOwnerId);
+          if (ownerReward) {
+            entitlementRecord = {
+              organizationId: ownerReward.organization_id,
+              eventId: ownerReward.event_id,
+              showcaseId: ownerReward.showcase_id,
+              amount: ownerReward.amount || SHOWCASE_CREDIT_AMOUNT,
+            };
+          }
+        }
+      }
+
+      // If no entitlement exists, the owner has never received a showcase reward.
+      if (!entitlementRecord) {
+        const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+        return { repaired: false, transaction: null, wallet: currentWallet };
+      }
+
+      // 4. Verify designated organization:
+      // If the entitlement specifies an organizationId, it must match this organizationId.
+      if (entitlementRecord.organizationId && entitlementRecord.organizationId !== organizationId) {
+        // Belongs to another organization owned by the same user. Do not credit this org!
+        const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+        return { repaired: false, transaction: null, wallet: currentWallet };
+      }
+
+      // 5. Entitlement exists, belongs to this organization, but grant transaction was missing!
+      // Safely perform idempotent repair by appending the missing SHOWCASE_CREDIT grant transaction:
+      const repairRef = entitlementRecord.showcaseId
+        ? `showcase_${entitlementRecord.showcaseId}`
+        : `showcase_reward_repair_${targetOwnerId}`;
+
+      const newTxn = await appendLedgerTransaction(
+        {
+          organization_id: organizationId,
+          owner_user_id: targetOwnerId,
+          event_id: entitlementRecord.eventId || null,
+          transaction_type: 'SHOWCASE_CREDIT',
+          balance_type: 'SHOWCASE_CREDIT',
+          amount: SHOWCASE_CREDIT_AMOUNT,
+          currency: 'MYR',
+          status: 'COMPLETED',
+          reference_id: repairRef,
+          description: `One-time Event Showcase completion reward credit of RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}`,
+          metadata: {
+            program: 'EVENT_SHOWCASE_APPROVED_REWARD',
+            repair: true,
+            owner_user_id: targetOwnerId,
+            showcase_id: entitlementRecord.showcaseId || null,
+            event_id: entitlementRecord.eventId || null,
+          },
+          created_by: targetOwnerId,
+        },
+        env
+      );
+
+      // 6. Recalculate authoritative wallet balances with the newly inserted transaction
+      const updatedWallet = await recalculateWalletBalances(organizationId, env, true);
+
+      return {
+        repaired: true,
+        transaction: newTxn,
+        wallet: updatedWallet,
+      };
+    });
+  });
+}
+
+/**
  * Recompute organization wallet balances strictly from the immutable ledger transactions.
  */
 export async function recalculateWalletBalances(
   organizationId: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  skipRepair: boolean = false
 ): Promise<WalletBalanceSummary> {
   const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
@@ -562,6 +800,20 @@ export async function recalculateWalletBalances(
       }
     } else if (txn.balance_type === 'TOPUP_CREDIT') {
       topupCreditCents += amountCents;
+    }
+  }
+
+  // If showcase credit grant was never recorded in transactions for this org,
+  // check if this organization's owner holds an authoritative showcase entitlement that needs safe repair.
+  if (!skipRepair && !showcaseCreditGranted) {
+    try {
+      const repairResult = await repairMissingShowcaseRewardGrant(organizationId, env);
+      if (repairResult.repaired && repairResult.transaction) {
+        showcaseCreditCents += toCents(repairResult.transaction.amount);
+        showcaseCreditGranted = true;
+      }
+    } catch (repairErr: any) {
+      console.warn('[recalculateWalletBalances] Showcase repair notice:', repairErr?.message);
     }
   }
 
@@ -2186,6 +2438,18 @@ export async function grantShowcaseCredit(
           ) || null;
         }
 
+        if (!existingTxn) {
+          const repair = await repairMissingShowcaseRewardGrant(organizationId, env);
+          if (repair.repaired && repair.transaction) {
+            return {
+              transaction: repair.transaction,
+              wallet: repair.wallet,
+              alreadyGranted: true,
+              message: 'First-event showcase reward credit restored to organization wallet.',
+            };
+          }
+        }
+
         const currentWallet = await getWalletBalance(organizationId, env);
         return {
           transaction: existingTxn || ({
@@ -2237,6 +2501,15 @@ export async function grantShowcaseCredit(
               insertError.message?.includes('ux_user_rewards') ||
               insertError.message?.includes('unique')
             ) {
+              const repair = await repairMissingShowcaseRewardGrant(organizationId, env);
+              if (repair.repaired && repair.transaction) {
+                return {
+                  transaction: repair.transaction,
+                  wallet: repair.wallet,
+                  alreadyGranted: true,
+                  message: 'First-event showcase reward credit restored to organization wallet.',
+                };
+              }
               const currentWallet = await getWalletBalance(organizationId, env);
               return {
                 transaction: null as any,
@@ -2626,9 +2899,11 @@ export async function calculateEventPayment(
   options?: {
     topupCreditRequested?: number;
     useWelcomeCredit?: boolean;
+    useShowcaseCredit?: boolean;
     useEventCredit?: boolean;
     useTopupCredit?: boolean;
     welcomeCreditRequested?: number;
+    showcaseCreditRequested?: number;
   },
   env?: Record<string, any>
 ): Promise<EventPaymentCalculation> {
@@ -2654,12 +2929,20 @@ export async function calculateEventPayment(
 
   const isExplicitCombined =
     paymentMode === 'COMBINED_CREDIT' ||
-    (options && (options.useWelcomeCredit !== undefined || options.useEventCredit !== undefined || options.useTopupCredit !== undefined));
+    (options && (
+      options.useWelcomeCredit !== undefined ||
+      options.useShowcaseCredit !== undefined ||
+      options.useEventCredit !== undefined ||
+      options.useTopupCredit !== undefined
+    ));
 
   if (isExplicitCombined) {
     const useWelcome = options?.useWelcomeCredit !== undefined
       ? options.useWelcomeCredit === true
       : (paymentMode === 'WELCOME_CREDIT' || paymentMode === 'COMBINED_CREDIT');
+    const useShowcase = options?.useShowcaseCredit !== undefined
+      ? options.useShowcaseCredit === true
+      : (paymentMode === 'SHOWCASE_CREDIT' || paymentMode === 'COMBINED_CREDIT');
     const useEvent = (options?.useEventCredit !== undefined || options?.useTopupCredit !== undefined)
       ? (options.useEventCredit === true || options.useTopupCredit === true)
       : (paymentMode === 'TOPUP_CREDIT' || paymentMode === 'COMBINED_CREDIT');
@@ -2673,18 +2956,29 @@ export async function calculateEventPayment(
     }
 
     const remainingPriceAfterWelcome = Math.max(0, fromCents(toCents(normalizedPrice) - toCents(welcomeCreditUsed)));
+
+    if (useShowcase && wallet.showcase_credit > 0) {
+      showcaseCreditUsed = Math.min(wallet.showcase_credit, remainingPriceAfterWelcome);
+      if (options?.showcaseCreditRequested !== undefined) {
+        showcaseCreditUsed = Math.min(showcaseCreditUsed, Math.max(0, options.showcaseCreditRequested));
+      }
+      showcaseCreditUsed = fromCents(toCents(showcaseCreditUsed));
+    }
+
+    const remainingPriceAfterShowcase = Math.max(0, fromCents(toCents(remainingPriceAfterWelcome) - toCents(showcaseCreditUsed)));
     const maxAllowedEventCredit = fromCents(Math.round(toCents(normalizedPrice) * MAX_TOPUP_CREDIT_PER_EVENT_PERCENT));
 
     if (useEvent && wallet.topup_credit > 0) {
       const requested = options?.topupCreditRequested !== undefined ? Math.max(0, options.topupCreditRequested) : maxAllowedEventCredit;
-      topupCreditUsed = Math.min(wallet.topup_credit, maxAllowedEventCredit, requested, remainingPriceAfterWelcome);
+      topupCreditUsed = Math.min(wallet.topup_credit, maxAllowedEventCredit, requested, remainingPriceAfterShowcase);
       topupCreditUsed = fromCents(toCents(topupCreditUsed));
     }
 
-    totalDiscount = fromCents(toCents(welcomeCreditUsed) + toCents(topupCreditUsed));
+    totalDiscount = fromCents(toCents(welcomeCreditUsed) + toCents(showcaseCreditUsed) + toCents(topupCreditUsed));
     paidAmount = fromCents(Math.max(0, toCents(normalizedPrice) - toCents(totalDiscount)));
     remainingCreditBalance = fromCents(
       Math.max(0, toCents(wallet.welcome_credit) - toCents(welcomeCreditUsed)) +
+      Math.max(0, toCents(wallet.showcase_credit) - toCents(showcaseCreditUsed)) +
       Math.max(0, toCents(wallet.topup_credit) - toCents(topupCreditUsed))
     );
 
@@ -2817,9 +3111,11 @@ export async function calculateEventPaymentQuote(
     creditChoice?: EventCreditOption;
     paymentMode?: PaymentMode;
     useWelcomeCredit?: boolean;
+    useShowcaseCredit?: boolean;
     useEventCredit?: boolean;
     useTopupCredit?: boolean;
     welcomeCreditRequested?: number;
+    showcaseCreditRequested?: number;
     topupCreditRequested?: number;
     topupCreditAmountToUse?: number;
     eventPrice?: number;
@@ -2828,11 +3124,19 @@ export async function calculateEventPaymentQuote(
 ): Promise<EventPaymentQuote> {
   const { organizationId, eventId, creditChoice = 'NONE' } = params;
   let mode: PaymentMode = 'FULL_PAID';
-  if (params.useWelcomeCredit !== undefined || params.useEventCredit !== undefined || params.useTopupCredit !== undefined) {
+  if (
+    params.useWelcomeCredit !== undefined ||
+    params.useShowcaseCredit !== undefined ||
+    params.useEventCredit !== undefined ||
+    params.useTopupCredit !== undefined
+  ) {
     const useWelcome = params.useWelcomeCredit === true;
+    const useShowcase = params.useShowcaseCredit === true;
     const useEvent = params.useEventCredit === true || params.useTopupCredit === true;
-    if (useWelcome && useEvent) mode = 'COMBINED_CREDIT';
+    const activeCount = (useWelcome ? 1 : 0) + (useShowcase ? 1 : 0) + (useEvent ? 1 : 0);
+    if (activeCount > 1) mode = 'COMBINED_CREDIT';
     else if (useWelcome) mode = 'WELCOME_CREDIT';
+    else if (useShowcase) mode = 'SHOWCASE_CREDIT';
     else if (useEvent) mode = 'TOPUP_CREDIT';
     else mode = 'FULL_PAID';
   } else if (params.paymentMode) {
@@ -2876,8 +3180,10 @@ export async function calculateEventPaymentQuote(
     {
       topupCreditRequested: params.topupCreditRequested ?? params.topupCreditAmountToUse,
       useWelcomeCredit: params.useWelcomeCredit,
+      useShowcaseCredit: params.useShowcaseCredit,
       useEventCredit: params.useEventCredit ?? params.useTopupCredit,
       welcomeCreditRequested: params.welcomeCreditRequested,
+      showcaseCreditRequested: params.showcaseCreditRequested,
     },
     env
   );
@@ -2941,9 +3247,11 @@ export async function processEventPayment(
     paymentMode?: PaymentMode;
     creditChoice?: EventCreditOption;
     useWelcomeCredit?: boolean;
+    useShowcaseCredit?: boolean;
     useEventCredit?: boolean;
     useTopupCredit?: boolean;
     welcomeCreditRequested?: number;
+    showcaseCreditRequested?: number;
     eventPrice?: number;
     topupCreditRequested?: number;
     topupCreditAmountToUse?: number;
@@ -2966,13 +3274,22 @@ export async function processEventPayment(
 
   // Resolve paymentMode from explicit credit options, paymentMode, or legacy creditChoice
   let mode: PaymentMode = 'FULL_PAID';
-  if (params.useWelcomeCredit !== undefined || params.useEventCredit !== undefined || params.useTopupCredit !== undefined) {
+  if (
+    params.useWelcomeCredit !== undefined ||
+    params.useShowcaseCredit !== undefined ||
+    params.useEventCredit !== undefined ||
+    params.useTopupCredit !== undefined
+  ) {
     const useWelcome = params.useWelcomeCredit === true;
+    const useShowcase = params.useShowcaseCredit === true;
     const useEvent = params.useEventCredit === true || params.useTopupCredit === true;
-    if (useWelcome && useEvent) {
+    const activeCount = (useWelcome ? 1 : 0) + (useShowcase ? 1 : 0) + (useEvent ? 1 : 0);
+    if (activeCount > 1) {
       mode = 'COMBINED_CREDIT';
     } else if (useWelcome) {
       mode = 'WELCOME_CREDIT';
+    } else if (useShowcase) {
+      mode = 'SHOWCASE_CREDIT';
     } else if (useEvent) {
       mode = 'TOPUP_CREDIT';
     } else {
@@ -3034,12 +3351,28 @@ export async function processEventPayment(
     {
       topupCreditRequested,
       useWelcomeCredit: params.useWelcomeCredit,
+      useShowcaseCredit: params.useShowcaseCredit,
       useEventCredit: params.useEventCredit ?? params.useTopupCredit,
       welcomeCreditRequested: params.welcomeCreditRequested,
+      showcaseCreditRequested: params.showcaseCreditRequested,
     },
     env
   );
-  const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
+  const quote = await calculateEventPaymentQuote(
+    {
+      organizationId,
+      eventId,
+      creditChoice: mode,
+      useWelcomeCredit: params.useWelcomeCredit,
+      useShowcaseCredit: params.useShowcaseCredit,
+      useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+      topupCreditRequested,
+      welcomeCreditRequested: params.welcomeCreditRequested,
+      showcaseCreditRequested: params.showcaseCreditRequested,
+      eventPrice,
+    },
+    env
+  );
 
   // PRODUCTION MODE: Atomic PostgreSQL RPC Transaction Block
   if (isSupabaseConfigured(env)) {
@@ -3067,6 +3400,14 @@ export async function processEventPayment(
       }
     }
 
+    const paymentMetadata = {
+      ...(params.metadata || {}),
+      use_welcome_credit: params.useWelcomeCredit,
+      use_showcase_credit: params.useShowcaseCredit,
+      use_event_credit: params.useEventCredit ?? params.useTopupCredit,
+      showcase_credit_requested: params.showcaseCreditRequested,
+    };
+
     const supabase = getSupabaseServerClient(env);
     const { data, error } = await supabase.rpc('process_event_payment_atomic', {
       p_organization_id: organizationId,
@@ -3077,7 +3418,7 @@ export async function processEventPayment(
       p_reference_id: referenceId || null,
       p_created_by: createdBy || null,
       p_description: params.description || null,
-      p_metadata: params.metadata || {},
+      p_metadata: paymentMetadata,
     });
 
     if (error) {
@@ -3208,6 +3549,9 @@ export async function processEventPayment(
     if (payload.credit_transaction) {
       transactions.push(payload.credit_transaction as WalletTransactionRecord);
     }
+    if (payload.showcase_credit_transaction) {
+      transactions.push(payload.showcase_credit_transaction as WalletTransactionRecord);
+    }
     if (payload.topup_credit_transaction) {
       transactions.push(payload.topup_credit_transaction as WalletTransactionRecord);
     }
@@ -3311,12 +3655,28 @@ export async function processEventPayment(
         {
           topupCreditRequested,
           useWelcomeCredit: params.useWelcomeCredit,
+          useShowcaseCredit: params.useShowcaseCredit,
           useEventCredit: params.useEventCredit ?? params.useTopupCredit,
           welcomeCreditRequested: params.welcomeCreditRequested,
+          showcaseCreditRequested: params.showcaseCreditRequested,
         },
         env
       );
-      const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
+      const quote = await calculateEventPaymentQuote(
+        {
+          organizationId,
+          eventId,
+          creditChoice: mode,
+          useWelcomeCredit: params.useWelcomeCredit,
+          useShowcaseCredit: params.useShowcaseCredit,
+          useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+          topupCreditRequested,
+          welcomeCreditRequested: params.welcomeCreditRequested,
+          showcaseCreditRequested: params.showcaseCreditRequested,
+          eventPrice,
+        },
+        env
+      );
 
       return {
         success: true,
@@ -3335,8 +3695,10 @@ export async function processEventPayment(
       {
         topupCreditRequested,
         useWelcomeCredit: params.useWelcomeCredit,
+        useShowcaseCredit: params.useShowcaseCredit,
         useEventCredit: params.useEventCredit ?? params.useTopupCredit,
         welcomeCreditRequested: params.welcomeCreditRequested,
+        showcaseCreditRequested: params.showcaseCreditRequested,
       },
       env
     );

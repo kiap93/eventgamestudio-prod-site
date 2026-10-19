@@ -2731,10 +2731,13 @@ export async function createEvent(
 
   // 5. Resolve server-authoritative event pricing based on game and calendar duration
   let price = params.event_price;
-  let currency = params.event_currency ? params.event_currency.trim().toUpperCase() : undefined;
   let pricingId: string | null = (params as any).pricing_id || null;
   let durationDays: number = calculateEventCalendarDays(norm.startDate, norm.endDate);
-  const orgCountry = (params as any).country_code || (params as any).countryCode || org?.country_code || undefined;
+  const orgCountry = org?.country_code || (params as any).country_code || (params as any).countryCode || undefined;
+  const expectedCurrency = (orgCountry ? getCurrencyForCountry(orgCountry) : undefined) || 'USD';
+  let currency = params.custom_price_override && params.event_currency
+    ? params.event_currency.trim().toUpperCase()
+    : expectedCurrency;
 
   let pricingCountry: string | null = null;
 
@@ -2794,7 +2797,7 @@ export async function createEvent(
     }
 
     price = durationPricing.price;
-    currency = durationPricing.currency;
+    currency = durationPricing.currency || expectedCurrency;
     pricingId = durationPricing.tierId || null;
     durationDays = durationPricing.durationDays;
     pricingCountry = durationPricing.pricingCountry || null;
@@ -2809,7 +2812,7 @@ export async function createEvent(
 
   // Ensure resolved currency is present
   if (!currency) {
-    currency = (orgCountry ? getCurrencyForCountry(orgCountry) : undefined) || 'USD';
+    currency = expectedCurrency;
   }
 
   // 6. Generate collision-resistant unique token

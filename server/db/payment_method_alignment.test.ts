@@ -13,23 +13,18 @@ import path from 'path';
 let passed = 0;
 let failed = 0;
 
-async function ensureTestOrg(orgId: string): Promise<string> {
+async function ensureTestOrg(): Promise<{ orgId: string; userId: string }> {
   const supabase = getSupabaseServerClient();
   try {
-    const { data: users } = await supabase.from('users').select('id').limit(1);
-    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
-    await supabase.from('organizations').upsert({
-      id: orgId,
-      name: `Test Org ${orgId.slice(0, 8)}`,
-      slug: `test-org-${orgId.slice(0, 8)}`,
-      owner_id: validOwnerId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    return validOwnerId;
-  } catch {
-    return '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
-  }
+    const { data: orgs } = await supabase.from('organizations').select('id, owner_id').limit(1);
+    if (orgs && orgs.length > 0 && orgs[0].id && orgs[0].owner_id) {
+      return { orgId: orgs[0].id, userId: orgs[0].owner_id };
+    }
+  } catch {}
+
+  const testOrgId = crypto.randomUUID();
+  const validOwnerId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  return { orgId: testOrgId, userId: validOwnerId };
 }
 
 function assert(condition: boolean, message: string) {
@@ -89,8 +84,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 2: Checkout Session Alignment ---');
 
-  const testOrgId = crypto.randomUUID();
-  const testUserId = await ensureTestOrg(testOrgId);
+  const { orgId: testOrgId, userId: testUserId } = await ensureTestOrg();
 
   // Create standard top-up order with card payment method
   const cardOrder = await createTopupOrder({

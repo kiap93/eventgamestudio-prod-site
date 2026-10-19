@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { GameTheme, getThemeGameType, isMemoryMatchTheme, isReactionTheme, isMatch3Theme } from '../../themes';
+import { GameTheme, getThemeGameType, isMemoryMatchTheme, isReactionTheme, isMatch3Theme, normalizeGameTheme } from '../../themes';
+import { apiFetch } from '../../lib/api';
 import { deepEqual } from '../../lib/deepEqual';
 import { LiveThemePreview } from './LiveThemePreview';
 import { VisualsTab } from './VisualsTab';
@@ -145,6 +146,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploadingAsset, setUploadingAsset] = useState<string | null>(null);
   const [hasCompletedOnboardingSave, setHasCompletedOnboardingSave] = useState(false);
+  const [isLoadingTheme, setIsLoadingTheme] = useState<boolean>(true);
+  const [themeLoadError, setThemeLoadError] = useState<{ message: string; status?: number } | null>(null);
 
   // Unsaved changes confirmation dialog
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -165,32 +168,85 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   // Ref tracking loaded theme ID to prevent context updates from overriding dirty state
   const loadedThemeIdRef = useRef<string | null>(null);
 
-  // Initialize or fetch theme
+  // Initialize or fetch theme authoritatively
   useEffect(() => {
-    // Only load if we haven't loaded this themeId yet
-    if (loadedThemeIdRef.current === themeId && draftTheme) {
+    // Only skip if we already attempted to load this exact themeId
+    if (loadedThemeIdRef.current === themeId && (draftTheme || themeLoadError)) {
       return;
     }
 
-    const found = themes.find((t) => t.id === themeId);
-    if (found) {
-      const cloned = JSON.parse(JSON.stringify(found));
-      setDraftTheme(cloned);
-      setSavedThemeSnapshot(cloned);
-      loadedThemeIdRef.current = themeId;
-    } else {
-      // If themes list is empty or not yet loaded, fetch
-      fetchThemes().then((list) => {
-        const t = list.find((item) => item.id === themeId);
-        if (t) {
-          const cloned = JSON.parse(JSON.stringify(t));
-          setDraftTheme(cloned);
-          setSavedThemeSnapshot(cloned);
-          loadedThemeIdRef.current = themeId;
+    let isMounted = true;
+    setIsLoadingTheme(true);
+    setThemeLoadError(null);
+
+    const loadTheme = async () => {
+      // 1. Check if theme is already present in AuthContext themes cache
+      const found = themes.find((t) => t.id === themeId);
+      if (found) {
+        if (!isMounted) return;
+        const cloned = JSON.parse(JSON.stringify(found));
+        setDraftTheme(cloned);
+        setSavedThemeSnapshot(cloned);
+        loadedThemeIdRef.current = themeId;
+        setIsLoadingTheme(false);
+        setThemeLoadError(null);
+        return;
+      }
+
+      // 2. Fetch single theme from authoritative backend endpoint GET /api/themes/:themeId
+      try {
+        const res = await apiFetch(`/api/themes/${encodeURIComponent(themeId)}`);
+        if (!isMounted) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.theme) {
+            const normalized = normalizeGameTheme(data.theme);
+            setDraftTheme(normalized);
+            setSavedThemeSnapshot(JSON.parse(JSON.stringify(normalized)));
+            loadedThemeIdRef.current = themeId;
+            setIsLoadingTheme(false);
+            setThemeLoadError(null);
+            return;
+          }
         }
-      });
-    }
-  }, [themeId, themes, draftTheme]);
+
+        const errData = await res.json().catch(() => ({}));
+        const status = res.status;
+        const errorMessage =
+          errData.error ||
+          (status === 404
+            ? t('studio.themeNotFound', undefined, 'Theme not found')
+            : status === 403
+            ? t('common.accessDenied', undefined, 'Access denied to this theme')
+            : t('studio.failedToLoadTheme', undefined, 'Failed to load theme configuration'));
+
+        loadedThemeIdRef.current = themeId;
+        setThemeLoadError({
+          status,
+          message: errorMessage,
+        });
+      } catch (err: any) {
+        if (!isMounted) return;
+        console.error('[ThemeEditor] Error fetching theme by ID:', err);
+        loadedThemeIdRef.current = themeId;
+        setThemeLoadError({
+          status: 500,
+          message: err.message || t('studio.failedToLoadTheme', undefined, 'Failed to load theme configuration'),
+        });
+      } finally {
+        if (isMounted) {
+          setIsLoadingTheme(false);
+        }
+      }
+    };
+
+    loadTheme();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [themeId]);
 
   // Determine if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -312,14 +368,45 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
     await fetchThemes();
   };
 
-  if (!draftTheme) {
+  if (themeLoadError) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto shadow-inner">
+          <AlertCircle className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-lg font-bold text-slate-100">
+            {themeLoadError.status === 404
+              ? t('studio.themeNotFound', undefined, 'Theme Not Found')
+              : themeLoadError.status === 403
+              ? t('common.accessDenied', undefined, 'Access Denied')
+              : t('studio.failedToLoadTheme', undefined, 'Unable to Load Theme')}
+          </h2>
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+            {themeLoadError.message}
+          </p>
+        </div>
+        <div className="pt-2">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/10 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>{t('studio.returnToThemes', undefined, 'Return to Themes')}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingTheme || !draftTheme) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400 space-y-4">
         <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="font-bold text-xs tracking-wider uppercase">{t('studio.loadingThemeConfig')}</p>
         <button
           onClick={onBack}
-          className="text-xs text-amber-400 hover:underline inline-flex items-center gap-1 mt-2"
+          className="text-xs text-amber-400 hover:underline inline-flex items-center gap-1 mt-2 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>{t('studio.returnToThemes')}</span>

@@ -1712,12 +1712,38 @@ export async function getCommissionsReadyForPayout(
  * Create a new Payout Batch from selected approved commissions.
  */
 export async function createPayoutBatch(
-  commissionIds: string[],
+  commissionIdsOrFilter: string[] | { partner_user_id?: string; currency?: string; commissionIds?: string[]; notes?: string },
   adminUserId: string,
   notes?: string,
   env?: Record<string, any>
 ): Promise<SalesPayoutBatchRecord> {
   assertProductionSafe('createPayoutBatch', env);
+
+  let commissionIds: string[] = [];
+  let explicitNotes = notes;
+
+  if (Array.isArray(commissionIdsOrFilter)) {
+    commissionIds = commissionIdsOrFilter;
+  } else if (commissionIdsOrFilter && typeof commissionIdsOrFilter === 'object') {
+    if (Array.isArray(commissionIdsOrFilter.commissionIds) && commissionIdsOrFilter.commissionIds.length > 0) {
+      commissionIds = commissionIdsOrFilter.commissionIds;
+    } else if (commissionIdsOrFilter.partner_user_id) {
+      const partnerId = commissionIdsOrFilter.partner_user_id;
+      const targetCurrency = commissionIdsOrFilter.currency ? commissionIdsOrFilter.currency.toUpperCase() : undefined;
+      const partnerCommissions = await getPartnerCommissions(partnerId, env);
+      commissionIds = partnerCommissions
+        .filter((c) => {
+          const isEligible = c.status === 'approved' || (c.status as string) === 'ready';
+          const notInBatch = !c.payout_batch_id;
+          const currencyMatch = !targetCurrency || (c.currency || 'MYR').toUpperCase() === targetCurrency;
+          return isEligible && notInBatch && currencyMatch;
+        })
+        .map((c) => c.id);
+    }
+    if (commissionIdsOrFilter.notes) {
+      explicitNotes = commissionIdsOrFilter.notes;
+    }
+  }
 
   if (!Array.isArray(commissionIds) || commissionIds.length === 0) {
     throw new Error('At least one commission ID is required to create a payout batch');
@@ -1730,8 +1756,9 @@ export async function createPayoutBatch(
     if (!c) {
       throw new Error(`Commission ${cid} not found`);
     }
-    if (c.status !== 'approved') {
-      throw new Error(`Commission ${cid} has status '${c.status}', must be 'approved' to batch`);
+    const currentStatus = c.status as string;
+    if (currentStatus !== 'approved' && currentStatus !== 'ready') {
+      throw new Error(`Commission ${cid} has status '${c.status}', must be 'approved' or 'ready' to batch`);
     }
     if (c.payout_batch_id) {
       throw new Error(`Commission ${cid} is already assigned to a payout batch`);
@@ -1762,10 +1789,11 @@ export async function createPayoutBatch(
     total_amount: Number(totalAmount.toFixed(2)),
     currency: batchCurrency || 'MYR',
     total_commissions: targetCommissions.length,
+    commission_count: targetCommissions.length,
     total_partners: uniquePartners.size,
     status: 'draft',
     payment_reference: null,
-    payment_notes: notes || null,
+    payment_notes: explicitNotes || null,
     paid_at: null,
     paid_by_user_id: null,
     created_at: now.toISOString(),
@@ -1828,7 +1856,7 @@ export async function createPayoutBatch(
  */
 export async function markPayoutBatchPaid(
   batchId: string,
-  paymentReference: string,
+  paymentReferenceOrPayload: string | { payment_reference: string; payment_method?: string; notes?: string },
   adminUserId: string,
   notes?: string,
   env?: Record<string, any>
@@ -1842,7 +1870,18 @@ export async function markPayoutBatchPaid(
   }
 
   if (batch.status === 'paid') {
-    return batch; // idempotent
+    throw new Error('Batch is already marked as paid');
+  }
+
+  let paymentReference = '';
+  let paymentNotes = notes;
+  if (typeof paymentReferenceOrPayload === 'string') {
+    paymentReference = paymentReferenceOrPayload;
+  } else if (paymentReferenceOrPayload && typeof paymentReferenceOrPayload === 'object') {
+    paymentReference = paymentReferenceOrPayload.payment_reference || '';
+    if (paymentReferenceOrPayload.notes) {
+      paymentNotes = paymentReferenceOrPayload.notes;
+    }
   }
 
   if (!paymentReference || !paymentReference.trim()) {
@@ -1850,11 +1889,12 @@ export async function markPayoutBatchPaid(
   }
 
   const now = new Date().toISOString();
+  const finalNotes = typeof paymentNotes === 'string' ? paymentNotes.trim() : (batch.payment_notes || null);
   const updatedBatch: SalesPayoutBatchRecord = {
     ...batch,
     status: 'paid',
     payment_reference: paymentReference.trim(),
-    payment_notes: notes?.trim() || batch.payment_notes,
+    payment_notes: finalNotes,
     paid_at: now,
     paid_by_user_id: adminUserId,
     updated_at: now,

@@ -21,6 +21,7 @@ export * from './gamePricing.js';
 export * from './showcaseRewardSubmissions.js';
 export * from './translations.js';
 export * from './customerInvitations.js';
+export * from './customerOnboarding.js';
 export * from './salesPartners.js';
 export * from './salesGames.js';
 export * from './salesAttribution.js';

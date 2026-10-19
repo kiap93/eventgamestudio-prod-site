@@ -104,16 +104,18 @@ async function runTests() {
 
   await ensureResultWithClient(mockSupabaseEmpty);
 
-  assert.strictEqual(createdBuckets.length, 2, 'Should create both game-assets and showcase-media');
+  assert.strictEqual(createdBuckets.length, 3, 'Should create game-assets, showcase-media, and invoices');
   assert.strictEqual(createdBuckets[0].id, 'game-assets');
   assert.strictEqual(createdBuckets[0].options.fileSizeLimit, 25 * 1024 * 1024, 'game-assets limit must be 25MB');
   assert.strictEqual(createdBuckets[1].id, 'showcase-media');
   assert.strictEqual(createdBuckets[1].options.fileSizeLimit, 200 * 1024 * 1024, 'showcase-media limit must be 200MB');
+  assert.strictEqual(createdBuckets[2].id, 'invoices');
+  assert.strictEqual(createdBuckets[2].options.fileSizeLimit, 10 * 1024 * 1024, 'invoices limit must be 10MB');
 
-  console.log('✓ Test 2 Passed: Automatic creation provisions game-assets (25MB) and showcase-media (200MB)');
+  console.log('✓ Test 2 Passed: Automatic creation provisions game-assets (25MB), showcase-media (200MB), and invoices (10MB)');
 
   // --------------------------------------------------------------------------
-  // Test 3: ensureStorageBuckets upgrade when existing buckets have old 10MB limit
+  // Test 3: ensureStorageBuckets upgrade when existing buckets have old limits
   // --------------------------------------------------------------------------
   createdBuckets.length = 0;
   updatedBuckets.length = 0;
@@ -124,6 +126,7 @@ async function runTests() {
         data: [
           { id: 'game-assets', name: 'game-assets', file_size_limit: 10485760 }, // legacy 10MB
           { id: 'showcase-media', name: 'showcase-media', file_size_limit: 10485760 }, // legacy 10MB
+          { id: 'invoices', name: 'invoices', file_size_limit: 5242880 }, // legacy 5MB
         ],
         error: null,
       }),
@@ -141,13 +144,15 @@ async function runTests() {
   await ensureResultWithClient(mockSupabaseLegacy);
 
   assert.strictEqual(createdBuckets.length, 0, 'Should not create existing buckets');
-  assert.strictEqual(updatedBuckets.length, 2, 'Should update both existing buckets');
+  assert.strictEqual(updatedBuckets.length, 3, 'Should update all existing buckets');
   assert.strictEqual(updatedBuckets[0].id, 'game-assets');
   assert.strictEqual(updatedBuckets[0].options.fileSizeLimit, 25 * 1024 * 1024, 'game-assets upgraded to 25MB');
   assert.strictEqual(updatedBuckets[1].id, 'showcase-media');
   assert.strictEqual(updatedBuckets[1].options.fileSizeLimit, 200 * 1024 * 1024, 'showcase-media upgraded to 200MB');
+  assert.strictEqual(updatedBuckets[2].id, 'invoices');
+  assert.strictEqual(updatedBuckets[2].options.fileSizeLimit, 10 * 1024 * 1024, 'invoices upgraded to 10MB');
 
-  console.log('✓ Test 3 Passed: Existing buckets upgraded to 25MB and 200MB');
+  console.log('✓ Test 3 Passed: Existing buckets upgraded to 25MB, 200MB, and 10MB');
 
   // --------------------------------------------------------------------------
   // Test 4: createSignedUploadUrlForShowcase bucket targeting

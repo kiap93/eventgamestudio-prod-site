@@ -238,6 +238,10 @@ import {
   getCustomerInvitationStats,
   handleCustomerInvitationWebhook,
   findCrossCompanyDuplicates,
+  generateCustomerWhatsAppInvitation,
+  recordRecipientWhatsAppStatus,
+  getOnboardingOverview,
+  deriveCompanyOnboardingStatus,
   getSalesPartnerProfileByUserId,
   listSalesPartnerProfiles,
   createSalesPartnerApplication,
@@ -294,6 +298,8 @@ import {
   retryInvoicePdf,
   retryInvoiceEmail,
   generateEventInvoice,
+  retryEventInvoice,
+  isEventEligibleForInvoicing,
 } from './server/db/index.js';
 import { translationService } from './server/translation/service.js';
 import { isValidTimezone } from './src/lib/countryUtils.js';
@@ -3633,8 +3639,10 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       topup_credit_requested,
       event_price,
       use_welcome_credit,
+      use_showcase_credit,
       use_event_credit,
       welcome_credit_requested,
+      showcase_credit_requested,
       start_date,
       end_date,
       startDate,
@@ -3691,12 +3699,15 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       }
 
       try {
-        let quoteCountry = req.body.country_code || req.body.countryCode;
-        if (!quoteCountry && organizationId) {
+        let quoteCountry: string | undefined = undefined;
+        if (organizationId) {
           try {
             const org = await getOrganizationById(organizationId);
             if (org?.country_code) quoteCountry = org.country_code;
           } catch (_) {}
+        }
+        if (!quoteCountry) {
+          quoteCountry = req.body.country_code || req.body.countryCode;
         }
 
         const pricing = await calculateEventAuthoritativePrice({
@@ -3735,9 +3746,11 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
 
     const walletSummary = await getWalletBalance(organizationId);
     let selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
-    if (use_welcome_credit !== undefined || use_event_credit !== undefined) {
-      if (use_welcome_credit && use_event_credit) selectedMode = 'COMBINED_CREDIT';
+    if (use_welcome_credit !== undefined || use_showcase_credit !== undefined || use_event_credit !== undefined) {
+      const activeCount = (use_welcome_credit ? 1 : 0) + (use_showcase_credit ? 1 : 0) + (use_event_credit ? 1 : 0);
+      if (activeCount > 1) selectedMode = 'COMBINED_CREDIT';
       else if (use_welcome_credit) selectedMode = 'WELCOME_CREDIT';
+      else if (use_showcase_credit) selectedMode = 'SHOWCASE_CREDIT';
       else if (use_event_credit) selectedMode = 'TOPUP_CREDIT';
       else selectedMode = 'FULL_PAID';
     }
@@ -3750,8 +3763,10 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       {
         topupCreditRequested: topup_credit_requested,
         useWelcomeCredit: use_welcome_credit,
+        useShowcaseCredit: use_showcase_credit,
         useEventCredit: use_event_credit,
         welcomeCreditRequested: welcome_credit_requested,
+        showcaseCreditRequested: showcase_credit_requested,
       }
     );
 
@@ -3786,28 +3801,32 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
           reasons: welcomeCalc.reasons,
         }
       ] : []),
-      {
-        mode: 'SHOWCASE_CREDIT',
-        title: 'Showcase Credit',
-        badge: 'Save RM300.00',
-        isEligible: showcaseCalc.isPayable,
-        creditApplied: showcaseCalc.showcaseCreditUsed,
-        paidAmount: showcaseCalc.paidAmount,
-        remainingPaidBalance: showcaseCalc.remainingPaidBalance,
-        remainingCreditBalance: showcaseCalc.remainingCreditBalance,
-        reasons: showcaseCalc.reasons,
-      },
-      {
-        mode: 'TOPUP_CREDIT',
-        title: 'Top-up Bonus Credit',
-        badge: 'Save up to 20% (RM280.00)',
-        isEligible: topupCalc.isPayable,
-        creditApplied: topupCalc.topupCreditUsed,
-        paidAmount: topupCalc.paidAmount,
-        remainingPaidBalance: topupCalc.remainingPaidBalance,
-        remainingCreditBalance: topupCalc.remainingCreditBalance,
-        reasons: topupCalc.reasons,
-      },
+      ...(walletSummary.showcase_credit > 0 ? [
+        {
+          mode: 'SHOWCASE_CREDIT' as const,
+          title: 'Showcase Credit',
+          badge: 'Save RM300.00',
+          isEligible: showcaseCalc.isPayable,
+          creditApplied: showcaseCalc.showcaseCreditUsed,
+          paidAmount: showcaseCalc.paidAmount,
+          remainingPaidBalance: showcaseCalc.remainingPaidBalance,
+          remainingCreditBalance: showcaseCalc.remainingCreditBalance,
+          reasons: showcaseCalc.reasons,
+        }
+      ] : []),
+      ...(walletSummary.topup_credit > 0 ? [
+        {
+          mode: 'TOPUP_CREDIT' as const,
+          title: 'Top-up Bonus Credit',
+          badge: 'Save up to 20% (RM280.00)',
+          isEligible: topupCalc.isPayable,
+          creditApplied: topupCalc.topupCreditUsed,
+          paidAmount: topupCalc.paidAmount,
+          remainingPaidBalance: topupCalc.remainingPaidBalance,
+          remainingCreditBalance: topupCalc.remainingCreditBalance,
+          reasons: topupCalc.reasons,
+        }
+      ] : []),
     ];
 
     res.json({
@@ -4053,8 +4072,10 @@ app.post(['/api/events/:eventId/pay', '/events/:eventId/pay'], walletRateLimiter
       payment_mode = 'FULL_PAID',
       topup_credit_requested,
       use_welcome_credit,
+      use_showcase_credit,
       use_event_credit,
       welcome_credit_requested,
+      showcase_credit_requested,
       reference_id,
     } = req.body;
 
@@ -4073,8 +4094,10 @@ app.post(['/api/events/:eventId/pay', '/events/:eventId/pay'], walletRateLimiter
       eventName: event.name,
       paymentMode: payment_mode,
       useWelcomeCredit: use_welcome_credit,
+      useShowcaseCredit: use_showcase_credit,
       useEventCredit: use_event_credit,
       welcomeCreditRequested: welcome_credit_requested,
+      showcaseCreditRequested: showcase_credit_requested,
       topupCreditRequested: topup_credit_requested,
       eventPrice: authoritativeEventPrice,
       referenceId: reference_id,
@@ -7210,6 +7233,8 @@ const handleCreateCustomerCompany = async (req: AuthenticatedRequest, res: any) 
       company_name,
       contact_person,
       notes,
+      organization_id: req.body?.organization_id || null,
+      lead_status: req.body?.lead_status || 'lead',
       recipients,
       created_by: req.user?.id,
     });
@@ -7298,6 +7323,8 @@ const handleUpdateCustomerCompany = async (req: AuthenticatedRequest, res: any) 
       company_name,
       contact_person,
       notes,
+      organization_id: req.body?.organization_id,
+      lead_status: req.body?.lead_status,
       recipients,
     });
 
@@ -7476,6 +7503,98 @@ const handlePreviewCustomerInvitationEmail = async (req: AuthenticatedRequest, r
 
 app.get('/api/developer/customer-invitations/preview-email', authenticateDeveloperAdmin, handlePreviewCustomerInvitationEmail);
 app.get('/api/admin/customer-invitations/preview-email', authenticateDeveloperAdmin, handlePreviewCustomerInvitationEmail);
+
+/**
+ * POST /api/developer/customer-invitations/whatsapp-link
+ * Generate a WhatsApp deep link with secure, expiring invitation URL
+ */
+const handleGenerateCustomerWhatsAppLink = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { companyId, recipientId, organizationId, role } = req.body || {};
+    if (!companyId || !recipientId) {
+      res.status(400).json({ success: false, error: 'companyId and recipientId are required' });
+      return;
+    }
+
+    const result = await generateCustomerWhatsAppInvitation({
+      companyId,
+      recipientId,
+      organizationId,
+      role,
+      invitedByUserId: req.user?.id,
+      request: req,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/customer-invitations/whatsapp-link', authenticateDeveloperAdmin, handleGenerateCustomerWhatsAppLink);
+app.post('/api/admin/customer-invitations/whatsapp-link', authenticateDeveloperAdmin, handleGenerateCustomerWhatsAppLink);
+
+/**
+ * POST /api/developer/customer-invitations/recipients/:recipientId/whatsapp-status
+ * Record WhatsApp invitation status
+ */
+const handleRecordCustomerWhatsAppStatus = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { recipientId } = req.params;
+    const { status, error, verifiedCallback } = req.body || {};
+
+    const updated = await recordRecipientWhatsAppStatus(recipientId, {
+      status,
+      error,
+      verifiedCallback,
+    });
+
+    res.json({ success: true, recipient: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/customer-invitations/recipients/:recipientId/whatsapp-status', authenticateDeveloperAdmin, handleRecordCustomerWhatsAppStatus);
+app.post('/api/admin/customer-invitations/recipients/:recipientId/whatsapp-status', authenticateDeveloperAdmin, handleRecordCustomerWhatsAppStatus);
+
+/**
+ * GET /api/developer/customer-invitations/onboarding-overview
+ * Aggregate onboarding funnel stats across all customer organizations
+ */
+const handleGetCustomerOnboardingOverview = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const overview = await getOnboardingOverview();
+    res.json({ success: true, overview });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/onboarding-overview', authenticateDeveloperAdmin, handleGetCustomerOnboardingOverview);
+app.get('/api/admin/customer-invitations/onboarding-overview', authenticateDeveloperAdmin, handleGetCustomerOnboardingOverview);
+
+/**
+ * GET /api/developer/customer-invitations/companies/:id/onboarding
+ * Derive detailed onboarding funnel progress for a single customer company
+ */
+const handleGetCompanyOnboardingStatus = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { id } = req.params;
+    const status = await deriveCompanyOnboardingStatus(id);
+    if (!status) {
+      res.status(404).json({ success: false, error: 'Customer company not found' });
+      return;
+    }
+    res.json({ success: true, onboarding: status });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/customer-invitations/companies/:id/onboarding', authenticateDeveloperAdmin, handleGetCompanyOnboardingStatus);
+app.get('/api/admin/customer-invitations/companies/:id/onboarding', authenticateDeveloperAdmin, handleGetCompanyOnboardingStatus);
+
 
 /**
  * POST /api/developer/customer-invitations/resend-webhook
@@ -7950,6 +8069,7 @@ const handleListAdminSalesPartners = async (req: AuthenticatedRequest, res: any)
     res.json({
       success: true,
       salesPartners: partners,
+      partners,
     });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -10617,7 +10737,14 @@ app.get('/api/events/:eventId/invoice', authenticateJWT, async (req: Authenticat
     }
 
     const invoice = await getInvoiceByEventId(eventId);
-    res.json({ invoice: invoice || null });
+    const eligibility = isEventEligibleForInvoicing(event);
+
+    res.json({
+      invoice: invoice || null,
+      eligible: eligibility.eligible,
+      eligibility_reason: eligibility.reason,
+      can_retry: Boolean(isDev && eligibility.eligible && (!invoice || invoice.pdf_status === 'failed')),
+    });
   } catch (err: any) {
     handleApiError(err, req, res);
   }
@@ -10757,6 +10884,56 @@ app.post('/api/developer/invoices/:id/credit-notes', authenticateDeveloperAdmin,
 
     const creditNote = await createCreditNote(id, Number(amount), String(reason || ''), undefined, user.id);
     res.json({ success: true, credit_note: creditNote });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/events/:eventId/retry-invoice
+ * Retries invoice generation directly from the original event for Developer Admins.
+ */
+app.post('/api/developer/events/:eventId/retry-invoice', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    if (!isUUID(eventId)) {
+      res.status(400).json({ error: `Invalid event ID format: ${eventId}` });
+      return;
+    }
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const eligibility = isEventEligibleForInvoicing(event);
+    if (!eligibility.eligible) {
+      res.status(422).json({
+        error: `Event is not eligible for invoicing: ${eligibility.reason}`,
+        reason: eligibility.reason,
+      });
+      return;
+    }
+
+    const result = await retryEventInvoice(eventId, undefined, {
+      actorId: user.id,
+      actorEmail: user.email,
+    });
+
+    res.json({
+      success: true,
+      invoice: result.invoice,
+      created: result.created,
+      recovered: result.recovered,
+      pdfGenerated: result.pdfGenerated,
+      emailSent: result.emailSent,
+      message: result.recovered
+        ? 'Existing invoice recovered and validated successfully'
+        : 'Invoice generated successfully',
+    });
   } catch (err: any) {
     handleApiError(err, req, res);
   }
