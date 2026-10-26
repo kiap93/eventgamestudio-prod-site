@@ -162,11 +162,12 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
 
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => navigateTo('/studio')}
+            onClick={() => navigateTo('/events')}
             className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] hover:underline cursor-pointer"
+            title={t('developer.backToWorkspace', undefined, 'Back to Workspace')}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>{t('developer.returnToStudio')}</span>
+            <span>{t('developer.backToWorkspace', undefined, 'Back to Workspace')}</span>
           </button>
         </div>
       </div>
@@ -292,13 +293,13 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
 
             <button
               onClick={() => {
-                navigateTo('/studio');
+                navigateTo('/events');
                 setMobileMenuOpen(false);
               }}
               className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer pt-2 border-t border-slate-800"
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap cjk-keep-all">{t('developer.returnToStudio')}</span>
+              <span className="whitespace-nowrap cjk-keep-all">{t('developer.backToWorkspace', undefined, 'Back to Workspace')}</span>
             </button>
           </div>
         )}
@@ -311,7 +312,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
 
       {/* Footer */}
       <footer className="border-t border-slate-900 py-4 bg-slate-950 text-center text-xs text-slate-600">
-        <p>{t('developer.adminFooterNote', undefined, 'Brand Engagement Games Platform • Developer Administration Architecture')}</p>
+        <p>{t('developer.adminFooterText', undefined, 'EventGameStudio — Developer & Platform Administration Console')}</p>
       </footer>
     </div>
   );

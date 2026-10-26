@@ -271,6 +271,8 @@ import {
   generateEventInvoice,
   retryEventInvoice,
   isEventEligibleForInvoicing,
+  createRequestDbTracker,
+  getDbMetricsSummary,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
@@ -295,6 +297,7 @@ import {
   upsertShowcaseTranslation,
   deleteShowcaseTranslation,
   getTranslationJob,
+  createTranslationJob,
 } from './server/db/translations.js';
 
 import {
@@ -1003,6 +1006,16 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
           return response;
         };
+
+        // Backward-compatibility redirect: migrate legacy and obsolete Carnival theme asset requests
+        if (
+          pathname.startsWith('/assets/themes/carnival/')
+        ) {
+          const filename = pathname.split('/').pop();
+          const targetUrl = new URL(request.url);
+          targetUrl.pathname = `/assets/games/catch-brand/themes/carnival/${filename}`;
+          return Response.redirect(targetUrl.toString(), 301);
+        }
 
         let assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) {
@@ -2833,7 +2846,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in worker:', err));
         }
 
-        await markInvitationAccepted(invite.id, env);
+        await markInvitationAccepted(invite.id, env, user.id);
 
         const appToken = await signAppToken(user.id, invite.organization_id, effectiveRole, undefined, env);
         const authCookie = buildAuthCookie(appToken, getWorkerCookieOptions(request, env));
@@ -4129,6 +4142,12 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             return errorResponse('Either text or fields must be provided', 400, cors);
           }
 
+          // Ensure Gemini client has worker env API key if configured
+          const geminiProvider = translationService.getProvider('gemini') as any;
+          if (geminiProvider && typeof geminiProvider.initClient === 'function' && env.GEMINI_API_KEY) {
+            geminiProvider.initClient(env.GEMINI_API_KEY);
+          }
+
           const result = await translationService.translate({
             sourceLanguage: normalizeLanguageCode(sourceLanguage),
             targetLanguage: normalizeLanguageCode(targetLanguage),
@@ -4147,6 +4166,71 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             error: err?.message || 'Translation failed. Please try again.',
             code: 'TRANSLATION_FAILED',
           }, 500, cors);
+        }
+      }
+
+      if (pathname === '/api/translations/jobs' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body: any = await request.json();
+          const {
+            entity_type,
+            entity_id,
+            source_language = 'en',
+            target_language,
+            fields,
+            glossary,
+            context,
+          } = body || {};
+
+          if (!entity_type || !entity_id || !target_language || !fields) {
+            return errorResponse('Missing required parameters for translation job', 400, cors);
+          }
+
+          const geminiProvider = translationService.getProvider('gemini') as any;
+          if (geminiProvider && typeof geminiProvider.initClient === 'function' && env.GEMINI_API_KEY) {
+            geminiProvider.initClient(env.GEMINI_API_KEY);
+          }
+
+          const job = await translationService.queueTranslationJob({
+            entity_type,
+            entity_id,
+            user_id: auth.user!.id,
+            source_language: normalizeLanguageCode(source_language),
+            target_language: normalizeLanguageCode(target_language),
+            fields,
+            glossary,
+            context,
+          });
+
+          return jsonResponse({ job }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const getJobParams = parseRoute('/api/translations/jobs/:jobId', pathname);
+      if (getJobParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const { jobId } = getJobParams;
+          const job = await getTranslationJob(jobId);
+          if (!job) {
+            return errorResponse('Translation job not found', 404, cors);
+          }
+
+          // Authorization check: verify owner or developer
+          if (job.user_id && job.user_id !== auth.user!.id && !auth.user!.is_developer) {
+            return errorResponse('Forbidden: You do not have permission to view this translation job', 403, cors);
+          }
+
+          return jsonResponse({ job }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4221,19 +4305,23 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
       // Quote Event Payment
       if (pathname === '/api/events/quote' && method === 'POST') {
-        const auth = await authenticateWorkerRequest(request, env, cors);
+        const requestId = resolveCorrelationId(request);
+        const tracker = createRequestDbTracker(requestId);
+        const scopedEnv = { ...env, __dbTracker: tracker };
+
+        const auth = await authenticateWorkerRequest(request, scopedEnv, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
         const user = auth.user!;
         const organizationId = auth.jwtPayload?.organizationId;
 
         if (!organizationId) {
-          return errorResponse('No active organization selected', 422, cors);
+          return errorResponse('No active organization selected', 422, cors, requestId);
         }
 
-        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view', env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view', scopedEnv);
         if (!isMember || !hasPermission) {
-          return errorResponse('Permission denied: Not a member of this organization', 403, cors);
+          return errorResponse('Permission denied: Not a member of this organization', 403, cors, requestId);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -4265,12 +4353,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         let pricingCountry: string | undefined = undefined;
         let requestedCountry: string | undefined = undefined;
         let isFallbackPricing: boolean = false;
+        let cachedTheme: any = null;
 
         if (event_id) {
           // Existing event: event.event_price and event.event_currency MUST be authoritative
-          const existing = await getEventById(event_id, env);
+          const existing = await getEventById(event_id, scopedEnv);
           if (!existing) {
-            return errorResponse('Event not found', 404, cors);
+            return errorResponse('Event not found', 404, cors, requestId);
           }
           const existingPrice = existing.event_price !== undefined && existing.event_price !== null ? Number(existing.event_price) : NaN;
           const existingCurrency = typeof existing.event_currency === 'string' ? existing.event_currency.trim().toUpperCase() : '';
@@ -4280,7 +4369,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             err.status = 503;
             err.statusCode = 503;
             err.code = 'PRICING_CONFIGURATION_ERROR';
-            return handleWorkerApiError(err, request, cors, env);
+            return handleWorkerApiError(err, request, cors, scopedEnv, { endpoint: pathname, method, requestId });
           }
 
           price = existingPrice;
@@ -4291,12 +4380,12 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             targetGameId = existing.game_id;
           }
         } else {
-          // New event quote (event does not exist yet): calculate dynamically from game pricing tiers
-          if (!targetGameId && game_theme_id) {
+          // New event quote: look up theme once to resolve game engine and theme metadata
+          if (game_theme_id) {
             try {
-              const theme = await getThemeById(game_theme_id, env);
-              if (theme?.game_id) {
-                targetGameId = theme.game_id;
+              cachedTheme = await getThemeById(game_theme_id, scopedEnv);
+              if (!targetGameId && cachedTheme?.game_id) {
+                targetGameId = cachedTheme.game_id;
               }
             } catch (_) {}
           }
@@ -4305,7 +4394,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             let quoteCountry: string | undefined = undefined;
             if (organizationId) {
               try {
-                const org = await getOrganizationById(organizationId, env);
+                const org = await getOrganizationById(organizationId, scopedEnv);
                 if (org?.country_code) quoteCountry = org.country_code;
               } catch (_) {}
             }
@@ -4321,7 +4410,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               starts_at,
               expires_at,
               country_code: quoteCountry,
-            }, env);
+            }, scopedEnv);
             price = pricing.price;
             currency = pricing.currency;
             durationDays = pricing.durationDays;
@@ -4330,24 +4419,38 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             pricingCountry = pricing.pricingCountry;
             isFallbackPricing = Boolean(pricing.isFallback);
           } catch (e: any) {
-            console.error('Authoritative pricing calculation failed in quote (worker):', e);
-            return handleWorkerApiError(e, request, cors, env);
+            console.error(`[Quote Calculation Failed][${requestId}]:`, e);
+            return handleWorkerApiError(e, request, cors, scopedEnv, { endpoint: pathname, method, requestId });
           }
         }
 
         let themeInfo: any = null;
-        if (game_theme_id) {
-          const theme = await getThemeById(game_theme_id, env);
-          if (theme) {
-            themeInfo = {
-              id: theme.id,
-              name: theme.name,
-              game_id: theme.game_id,
-            };
-          }
+        if (cachedTheme) {
+          themeInfo = {
+            id: cachedTheme.id,
+            name: cachedTheme.name,
+            game_id: cachedTheme.game_id,
+          };
+        } else if (game_theme_id) {
+          try {
+            const theme = await getThemeById(game_theme_id, scopedEnv);
+            if (theme) {
+              themeInfo = {
+                id: theme.id,
+                name: theme.name,
+                game_id: theme.game_id,
+              };
+            }
+          } catch (_) {}
         }
 
-        const walletSummary = await getWalletBalance(organizationId, env);
+        // Single authoritative wallet balance read (readOnly, no mutations, no repair scans)
+        const walletSummary = await getWalletBalance(organizationId, scopedEnv, {
+          readOnly: true,
+          skipRepair: true,
+          skipUpsert: true,
+        });
+
         let selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
         if (use_welcome_credit !== undefined || use_showcase_credit !== undefined || use_event_credit !== undefined) {
           const activeCount = (use_welcome_credit ? 1 : 0) + (use_showcase_credit ? 1 : 0) + (use_event_credit ? 1 : 0);
@@ -4358,27 +4461,32 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           else selectedMode = 'FULL_PAID';
         }
 
-        // Calculate quote for selected payment mode
+        // Calculate quote for selected payment mode (pure in-memory calculation reusing walletSummary)
+        const quoteOptions = {
+          topupCreditRequested: topup_credit_requested,
+          useWelcomeCredit: use_welcome_credit,
+          useShowcaseCredit: use_showcase_credit,
+          useEventCredit: use_event_credit,
+          welcomeCreditRequested: welcome_credit_requested,
+          showcaseCreditRequested: showcase_credit_requested,
+          wallet: walletSummary,
+          currency,
+          pricingCountry,
+          durationDays,
+        };
         const selectedCalculation = await calculateEventPayment(
           price,
           selectedMode,
           organizationId,
-          {
-            topupCreditRequested: topup_credit_requested,
-            useWelcomeCredit: use_welcome_credit,
-            useShowcaseCredit: use_showcase_credit,
-            useEventCredit: use_event_credit,
-            welcomeCreditRequested: welcome_credit_requested,
-            showcaseCreditRequested: showcase_credit_requested,
-          },
-          env
+          quoteOptions,
+          scopedEnv
         );
 
-        // Calculate options for all payment modes
-        const fullPaidCalc = await calculateEventPayment(price, 'FULL_PAID', organizationId, {}, env);
-        const welcomeCalc = await calculateEventPayment(price, 'WELCOME_CREDIT', organizationId, {}, env);
-        const showcaseCalc = await calculateEventPayment(price, 'SHOWCASE_CREDIT', organizationId, {}, env);
-        const topupCalc = await calculateEventPayment(price, 'TOPUP_CREDIT', organizationId, { topupCreditRequested: topup_credit_requested }, env);
+        // Calculate options for all payment modes (pure in-memory calculations reusing walletSummary)
+        const fullPaidCalc = await calculateEventPayment(price, 'FULL_PAID', organizationId, quoteOptions, scopedEnv);
+        const welcomeCalc = await calculateEventPayment(price, 'WELCOME_CREDIT', organizationId, quoteOptions, scopedEnv);
+        const showcaseCalc = await calculateEventPayment(price, 'SHOWCASE_CREDIT', organizationId, quoteOptions, scopedEnv);
+        const topupCalc = await calculateEventPayment(price, 'TOPUP_CREDIT', organizationId, quoteOptions, scopedEnv);
 
         const options = [
           {
@@ -4433,6 +4541,11 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           ] : []),
         ];
 
+        const metrics = getDbMetricsSummary(tracker);
+        if (metrics && metrics.totalOperations > 0) {
+          console.log(`[Quote Operations Summary][${requestId}]: total=${metrics.totalOperations}, ops=`, metrics.operations);
+        }
+
         return jsonResponse({
           standard_price: price,
           event_price: price,
@@ -4446,12 +4559,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           is_fallback: isFallbackPricing,
           theme: themeInfo,
           selected_mode: selectedMode,
-          calculation: selectedCalculation,
+          calculation: {
+            ...selectedCalculation,
+            currency: currency || selectedCalculation.currency,
+          },
           wallet: walletSummary,
           options,
           is_payable: selectedCalculation.isPayable,
           reasons: selectedCalculation.reasons,
-        }, 200, cors);
+        }, 200, { ...cors, 'x-correlation-id': requestId });
       }
 
       if (pathname === '/api/events' && method === 'POST') {
@@ -4483,6 +4599,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           starts_at,
           expires_at,
           event_price,
+          event_currency,
           event_timezone,
         } = body;
 
@@ -4564,6 +4681,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               payment_status: 'UNPAID',
               created_by: user.id,
               event_price,
+              event_currency,
               event_timezone: resolvedTz,
               currentDate: serverToday,
               country_code: orgRecord?.country_code || undefined,
@@ -4861,8 +4979,21 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }, 422, cors);
         }
 
-        await deleteEvent(eventId, undefined, env);
-        return jsonResponse({ success: true, message: 'Event deleted successfully' }, 200, cors);
+        try {
+          await deleteEvent(eventId, undefined, env);
+          return jsonResponse({ success: true, message: 'Event deleted successfully' }, 200, cors);
+        } catch (delErr: any) {
+          if (delErr.status === 422 || delErr.code === 'EVENT_PAID' || delErr.code === 'FINANCIAL_RECORDS_EXIST' || delErr.code === 'SETUP_DAY_STARTED' || delErr.code === 'EVENT_LIVE' || delErr.code === 'EVENT_ENDED' || delErr.code === 'ALREADY_CANCELLED' || delErr.code === 'EVENT_DELETE_NOT_ALLOWED') {
+            return jsonResponse({
+              error: delErr.message,
+              message: delErr.message,
+              reason: delErr.message,
+              code: delErr.code || 'EVENT_DELETE_NOT_ALLOWED',
+              eligibility: delErr.eligibility,
+            }, 422, cors);
+          }
+          return handleWorkerApiError(delErr, request, cors, env);
+        }
       }
 
       const deleteEligibilityParams = parseRoute('/api/events/:eventId/deletion-eligibility', pathname);
@@ -7625,7 +7756,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = body;
+        const { company_name, contact_person, phone, notes, recipients, confirm_cross_company_duplicates } = body;
 
         if (!Array.isArray(recipients) || recipients.length === 0) {
           return errorResponse('At least one recipient email address is required', 400, cors);
@@ -7669,6 +7800,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             {
               company_name,
               contact_person,
+              phone: body.phone || phone || null,
               notes,
               organization_id: body.organization_id || null,
               lead_status: body.lead_status || 'lead',
@@ -7806,7 +7938,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
         const { id } = devCompanyDetailMatch;
         const body = (await request.json().catch(() => ({}))) as any;
-        const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = body;
+        const { company_name, contact_person, phone, notes, recipients, confirm_cross_company_duplicates } = body;
 
         if (Array.isArray(recipients)) {
           // CASE 1: Duplicate inside same company (error)
@@ -7849,6 +7981,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             {
               company_name,
               contact_person,
+              phone: body?.phone !== undefined ? body.phone : (phone !== undefined ? phone : undefined),
               notes,
               organization_id: body.organization_id,
               lead_status: body.lead_status,
@@ -7954,6 +8087,14 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         const { companyId, recipientId, organizationId, role } = body;
         if (!companyId || !recipientId) {
           return errorResponse('companyId and recipientId are required', 400, cors);
+        }
+
+        if (role && !['admin', 'designer', 'viewer', 'owner'].includes(role)) {
+          return jsonResponse({
+            success: false,
+            code: 'INVALID_ROLE',
+            error: `Invalid role "${role}". Allowed roles are: admin, designer, viewer.`,
+          }, 400, cors);
         }
 
         try {
@@ -11210,21 +11351,23 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
           const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, invoice.organization_id, 'organization.view', env);
           const isDev = isUserDeveloperAdmin(auth.user, env);
+          const isCustomer = Boolean(invoice.customer_user_id && invoice.customer_user_id === auth.user.id);
 
-          if (!isMember && !isDev) {
+          if (!isMember && !isDev && !isCustomer) {
             return errorResponse('Access denied: You do not have permission to view this invoice PDF', 403, cors);
           }
 
-          const pdfBytes = await getInvoicePdfBytes(invoiceId, env);
+          const pdfBytes = await getInvoicePdfBytes(invoice, env);
           if (!pdfBytes) {
             return errorResponse('Failed to generate or retrieve invoice PDF', 500, cors);
           }
 
+          const dispositionType = url.searchParams.get('download') === '1' ? 'attachment' : 'inline';
           return new Response(pdfBytes, {
             status: 200,
             headers: {
               'Content-Type': 'application/pdf',
-              'Content-Disposition': `inline; filename="${invoice.invoice_number}.pdf"`,
+              'Content-Disposition': `${dispositionType}; filename="${invoice.invoice_number}.pdf"`,
               'Cache-Control': 'private, max-age=3600',
               ...cors,
             },

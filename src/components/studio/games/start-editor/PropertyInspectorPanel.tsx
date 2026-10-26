@@ -1437,7 +1437,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               <input
                 type="text"
                 value={(el as StartScreenBadgeElement).value || ''}
-                placeholder="AUTO"
+                placeholder={t('editor.placeholderAutoGrid', undefined, 'AUTO')}
                 onChange={(e) =>
                   onUpdateElement((prev) => ({
                     ...prev,
@@ -1526,10 +1526,10 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 }
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200"
               >
-                <option value="startGame">Start Game / Play</option>
-                <option value="viewLeaderboard">Open Leaderboard</option>
-                <option value="howToPlay">Open Rules / How to Play</option>
-                <option value="settings">Open Settings</option>
+                <option value="startGame">{t('editor.startGameAction', undefined, 'Start Game / Play')}</option>
+                <option value="viewLeaderboard">{t('editor.openLeaderboardAction', undefined, 'Open Leaderboard')}</option>
+                <option value="howToPlay">{t('editor.openRulesAction', undefined, 'Open Rules / How to Play')}</option>
+                <option value="settings">{t('editor.openSettingsAction', undefined, 'Open Settings')}</option>
               </select>
             </div>
             <div className="grid grid-cols-2 gap-2">

@@ -280,6 +280,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   // Centralized gameplay timer, countdown, and animation cleanup
   const cleanupGameplay = useCallback(() => {
+    memorySounds.stopAll();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -292,11 +293,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     clearAutoDemoTimers();
   }, [clearCardTimeouts, clearAutoDemoTimers]);
 
-  // Cleanup all pending timers and timeouts on component unmount
+  // Cleanup all pending timers, timeouts, and audio on component unmount
   useEffect(() => {
     return () => {
       cleanupGameplay();
       clearAutoDemoTimers();
+      memorySounds.stopAll();
     };
   }, [cleanupGameplay, clearAutoDemoTimers]);
 
@@ -2091,7 +2093,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           <div className="absolute bottom-3.5 left-4 z-30 pointer-events-none flex items-center gap-2">
             <div className="bg-orange-500/20 backdrop-blur-sm border border-orange-500/40 rounded-xl px-2.5 py-1 text-orange-400 text-xs font-mono font-bold flex items-center gap-1 shadow-md animate-bounce">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
-              <span>{comboStreak}x Combo</span>
+              <span>{t('game.comboStreak', { count: comboStreak }, `${comboStreak}x Combo`)}</span>
             </div>
           </div>
         )}
@@ -2204,7 +2206,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                   onClick={() => setShowLeaderboardModal(false)}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold font-mono transition-colors"
                 >
-                  Close
+                  {t('common.close', undefined, 'Close')}
                 </button>
               </div>
             </div>

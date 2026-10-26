@@ -17,9 +17,15 @@ import {
   ResultWorstReactionElement,
   ResultRoundResultsElement,
   ResultRatingElement,
+  ResultTargetScoreElement,
+  ResultStarRatingElement,
+  ResultMatchesElement,
+  ResultSpecialsElement,
+  ResultComboElement,
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
 } from '../../../../games/memory-match/types';
+import { normalizeGameType } from '../../../../themes/types';
 
 export type InteractionMode = 'idle' | 'drag' | 'resize' | 'rotate' | 'pan';
 export type ResizeHandle = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
@@ -54,8 +60,13 @@ export const ZOOM_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] as const;
 // Create default element factory
 export const createDefaultElement = (
   type: ResultScreenElementType,
-  id: string
+  id: string,
+  gameType?: string,
+  subType?: string
 ): ResultScreenElement => {
+  const normGame = normalizeGameType(gameType || '');
+  const isMatch3 = normGame === 'match-3';
+
   switch (type) {
     case 'card':
       return {
@@ -84,10 +95,10 @@ export const createDefaultElement = (
       return {
         id,
         type: 'image',
-        x: 350,
-        y: 200,
-        width: 300,
-        height: 180,
+        x: subType === 'logo' ? 380 : 350,
+        y: subType === 'logo' ? 40 : 200,
+        width: subType === 'logo' ? 240 : 300,
+        height: subType === 'logo' ? 100 : 180,
         rotation: 0,
         visible: true,
         locked: false,
@@ -98,6 +109,52 @@ export const createDefaultElement = (
       } as ResultImageElement;
 
     case 'text':
+      if (subType === 'title') {
+        return {
+          id,
+          type: 'text',
+          x: 100,
+          y: 40,
+          width: 800,
+          height: 60,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          text: isMatch3 ? 'SWEET VICTORY!' : 'Victory!',
+          style: {
+            fontSize: 44,
+            fontWeight: '900',
+            color: '#fbbf24',
+            textAlign: 'center',
+            letterSpacing: 2,
+          },
+        } as ResultTextElement;
+      }
+      if (subType === 'message') {
+        return {
+          id,
+          type: 'text',
+          x: 100,
+          y: 110,
+          width: 800,
+          height: 48,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          text: isMatch3 ? 'Outstanding Cascade Combos!' : 'Great performance!',
+          style: {
+            fontSize: 22,
+            fontWeight: '600',
+            color: '#cbd5e1',
+            textAlign: 'center',
+            letterSpacing: 1,
+          },
+        } as ResultTextElement;
+      }
       return {
         id,
         type: 'text',
@@ -110,7 +167,7 @@ export const createDefaultElement = (
         locked: false,
         opacity: 1,
         zIndex: 2,
-        text: 'Victory!',
+        text: isMatch3 ? 'Match-3 Text' : 'Victory!',
         style: {
           fontSize: 42,
           fontWeight: '900',
@@ -140,7 +197,7 @@ export const createDefaultElement = (
           backgroundColor: 'rgba(2, 6, 23, 0.85)',
           borderColor: '#334155',
           borderRadius: 18,
-          fontSize: 36,
+          fontSize: isMatch3 ? 40 : 36,
           textAlign: 'center',
           layout: 'vertical',
         },
@@ -251,6 +308,31 @@ export const createDefaultElement = (
       } as ResultAccuracyElement;
 
     case 'button':
+      if (subType === 'exit') {
+        return {
+          id,
+          type: 'button',
+          x: 250,
+          y: 780,
+          width: 500,
+          height: 55,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          text: 'EXIT GAME',
+          action: 'exit',
+          style: {
+            backgroundColor: '#334155',
+            textColor: '#f8fafc',
+            fontSize: 18,
+            fontWeight: '800',
+            borderRadius: 16,
+            shadow: false,
+          },
+        } as ResultButtonElement;
+      }
       return {
         id,
         type: 'button',
@@ -470,6 +552,140 @@ export const createDefaultElement = (
           textAlign: 'center',
         },
       } as ResultRatingElement;
+
+    case 'target-score':
+      return {
+        id,
+        type: 'target-score',
+        x: 250,
+        y: 480,
+        width: 235,
+        height: 85,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'TARGET SCORE',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#a78bfa',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 24,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultTargetScoreElement;
+
+    case 'star-rating':
+      return {
+        id,
+        type: 'star-rating',
+        x: 300,
+        y: 270,
+        width: 400,
+        height: 80,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'RATING',
+        starsCount: 3,
+        style: {
+          starCount: 3,
+          starSize: 38,
+          starSpacing: 10,
+          filledColor: '#fbbf24',
+          emptyColor: '#334155',
+          showLabel: false,
+          label: 'STAR RATING',
+          labelColor: '#94a3b8',
+          fontSize: 18,
+          backgroundColor: 'transparent',
+          borderRadius: 12,
+        },
+      } as ResultStarRatingElement;
+
+    case 'matches':
+      return {
+        id,
+        type: 'matches',
+        x: 250,
+        y: 580,
+        width: 235,
+        height: 85,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'MATCHES CLEARED',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#38bdf8',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 24,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultMatchesElement;
+
+    case 'combo':
+      return {
+        id,
+        type: 'combo',
+        x: 515,
+        y: 580,
+        width: 235,
+        height: 85,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'BEST COMBO',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#fb923c',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 24,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultComboElement;
+
+    case 'specials':
+      return {
+        id,
+        type: 'specials',
+        x: 515,
+        y: 480,
+        width: 235,
+        height: 85,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'SPECIALS CREATED',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#34d399',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 24,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultSpecialsElement;
 
     default:
       return {

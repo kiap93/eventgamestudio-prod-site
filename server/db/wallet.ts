@@ -39,6 +39,7 @@ import {
   dispatchPaymentLifecycleTransition,
 } from '../notifications/dispatcher.js';
 import { PricingConfigurationError, AppError } from '../errors.js';
+import { recordDbOperation } from './dbMetrics.js';
 
 // Business Constants
 export const STANDARD_EVENT_PRICE = 1400.00;
@@ -216,30 +217,31 @@ export async function withOrganizationLock<T>(
     return await operation();
   }
 
-  // Wait for any existing lock on this organization to finish
-  while (orgLocks.has(organizationId)) {
-    try {
-      await orgLocks.get(organizationId);
-    } catch {
-      // Ignore errors from previous operation
-    }
-  }
+  // Atomically chain onto the existing lock for this organization (strict FIFO queue)
+  const previousLock = orgLocks.get(organizationId) || Promise.resolve();
 
   let releaseLock: () => void;
-  const lockPromise = new Promise<void>((resolve) => {
+  const currentLock = new Promise<void>((resolve) => {
     releaseLock = resolve;
   });
 
-  orgLocks.set(organizationId, lockPromise);
+  // Set this operation as the tail of the queue synchronously before any awaits
+  orgLocks.set(organizationId, currentLock);
 
   const nextLocks = new Set(currentLocks || []);
   nextLocks.add(lockKey);
+
+  try {
+    await previousLock;
+  } catch {
+    // Ignore errors from previous operation
+  }
 
   return await heldLocksContext.run(nextLocks, async () => {
     try {
       return await operation();
     } finally {
-      if (orgLocks.get(organizationId) === lockPromise) {
+      if (orgLocks.get(organizationId) === currentLock) {
         orgLocks.delete(organizationId);
       }
       releaseLock!();
@@ -265,29 +267,31 @@ export async function withUserRewardLock<T>(
     return await operation();
   }
 
-  while (userRewardLocks.has(userId)) {
-    try {
-      await userRewardLocks.get(userId);
-    } catch {
-      // Ignore errors from previous operation
-    }
-  }
+  // Atomically chain onto the existing lock for this user (strict FIFO queue)
+  const previousLock = userRewardLocks.get(userId) || Promise.resolve();
 
   let releaseLock: () => void;
-  const lockPromise = new Promise<void>((resolve) => {
+  const currentLock = new Promise<void>((resolve) => {
     releaseLock = resolve;
   });
 
-  userRewardLocks.set(userId, lockPromise);
+  // Set this operation as the tail of the queue synchronously before any awaits
+  userRewardLocks.set(userId, currentLock);
 
   const nextLocks = new Set(currentLocks || []);
   nextLocks.add(lockKey);
+
+  try {
+    await previousLock;
+  } catch {
+    // Ignore errors from previous operation
+  }
 
   return await heldLocksContext.run(nextLocks, async () => {
     try {
       return await operation();
     } finally {
-      if (userRewardLocks.get(userId) === lockPromise) {
+      if (userRewardLocks.get(userId) === currentLock) {
         userRewardLocks.delete(userId);
       }
       releaseLock!();
@@ -499,16 +503,19 @@ export function calculateTopupCredit(topupAmount: number): number {
  */
 export async function repairMissingShowcaseRewardGrant(
   organizationId: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  options?: { skipRecalculate?: boolean }
 ): Promise<{ repaired: boolean; transaction: WalletTransactionRecord | null; wallet: WalletBalanceSummary }> {
   if (!organizationId) {
     throw new Error('Organization ID is required');
   }
 
+  recordDbOperation('showcase_repair_check', env);
+
   // 1. Resolve owner of this organization
   const targetOwnerId = await resolveOrgOwnerId(organizationId, env);
   if (!targetOwnerId) {
-    const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+    const currentWallet = options?.skipRecalculate ? (null as any) : await recalculateWalletBalances(organizationId, env, true);
     return { repaired: false, transaction: null, wallet: currentWallet };
   }
 
@@ -544,7 +551,7 @@ export async function repairMissingShowcaseRewardGrant(
       // If a grant transaction already exists anywhere:
       if (existingGrantTxn) {
         // Already granted! No repair needed, never duplicate.
-        const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+        const currentWallet = options?.skipRecalculate ? (null as any) : await recalculateWalletBalances(organizationId, env, true);
         return { repaired: false, transaction: existingGrantTxn, wallet: currentWallet };
       }
 
@@ -669,7 +676,7 @@ export async function repairMissingShowcaseRewardGrant(
 
       // If no entitlement exists, the owner has never received a showcase reward.
       if (!entitlementRecord) {
-        const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+        const currentWallet = options?.skipRecalculate ? (null as any) : await recalculateWalletBalances(organizationId, env, true);
         return { repaired: false, transaction: null, wallet: currentWallet };
       }
 
@@ -677,7 +684,7 @@ export async function repairMissingShowcaseRewardGrant(
       // If the entitlement specifies an organizationId, it must match this organizationId.
       if (entitlementRecord.organizationId && entitlementRecord.organizationId !== organizationId) {
         // Belongs to another organization owned by the same user. Do not credit this org!
-        const currentWallet = await recalculateWalletBalances(organizationId, env, true);
+        const currentWallet = options?.skipRecalculate ? (null as any) : await recalculateWalletBalances(organizationId, env, true);
         return { repaired: false, transaction: null, wallet: currentWallet };
       }
 
@@ -729,8 +736,15 @@ export async function repairMissingShowcaseRewardGrant(
 export async function recalculateWalletBalances(
   organizationId: string,
   env?: Record<string, any>,
-  skipRepair: boolean = false
+  skipRepairOrOptions: boolean | { skipRepair?: boolean; readOnly?: boolean; skipUpsert?: boolean } = false
 ): Promise<WalletBalanceSummary> {
+  const isOptionsObj = typeof skipRepairOrOptions === 'object' && skipRepairOrOptions !== null;
+  const readOnly = isOptionsObj ? Boolean(skipRepairOrOptions.readOnly) : false;
+  const skipRepair = isOptionsObj ? Boolean(skipRepairOrOptions.skipRepair || skipRepairOrOptions.readOnly) : Boolean(skipRepairOrOptions);
+  const skipUpsert = isOptionsObj ? Boolean(skipRepairOrOptions.skipUpsert || skipRepairOrOptions.readOnly) : false;
+
+  recordDbOperation('wallet_transactions_read', env);
+
   const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
 
@@ -807,7 +821,7 @@ export async function recalculateWalletBalances(
   // check if this organization's owner holds an authoritative showcase entitlement that needs safe repair.
   if (!skipRepair && !showcaseCreditGranted) {
     try {
-      const repairResult = await repairMissingShowcaseRewardGrant(organizationId, env);
+      const repairResult = await repairMissingShowcaseRewardGrant(organizationId, env, { skipRecalculate: true });
       if (repairResult.repaired && repairResult.transaction) {
         showcaseCreditCents += toCents(repairResult.transaction.amount);
         showcaseCreditGranted = true;
@@ -841,7 +855,8 @@ export async function recalculateWalletBalances(
     updated_at: now,
   };
 
-  if (isProdDb) {
+  if (isProdDb && !skipUpsert) {
+    recordDbOperation('organization_wallets_upsert', env);
     try {
       const { error: upsertError } = await supabase.from('organization_wallets').upsert(
         {
@@ -965,12 +980,69 @@ export async function initializeEmptyWallet(
  */
 export async function getWalletBalance(
   organizationId: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  options?: { skipRepair?: boolean; readOnly?: boolean; skipUpsert?: boolean; forceRecalculate?: boolean }
 ): Promise<WalletBalanceSummary> {
   if (!organizationId) {
     throw new Error('Organization ID is required');
   }
-  return recalculateWalletBalances(organizationId, env);
+
+  // Fast path: When Supabase is configured and not explicitly forced to recalculate,
+  // query organization_wallets directly in a single efficient database read.
+  if (isSupabaseConfigured(env) && !options?.forceRecalculate) {
+    try {
+      recordDbOperation('organization_wallets_read', env);
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('organization_wallets')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (error) {
+        if (!isLocalFallbackAllowed(env)) {
+          console.error('Fatal: Failed to query organization_wallets from database:', error);
+          throw new Error(`Database error querying wallet: ${error.message}`);
+        }
+      } else if (data) {
+        const paidBalance = Math.max(0, fromCents(toCents(Number(data.paid_balance) || 0)));
+        const welcomeCredit = Math.max(0, fromCents(toCents(Number(data.welcome_credit) || 0)));
+        const showcaseCredit = Math.max(0, fromCents(toCents(Number(data.showcase_credit) || 0)));
+        const topupCredit = Math.max(0, fromCents(toCents(Number(data.topup_credit) || 0)));
+        const outstandingBalance = Math.max(0, fromCents(toCents(Number(data.outstanding_balance) || 0)));
+        const totalBalance = fromCents(
+          toCents(paidBalance) + toCents(welcomeCredit) + toCents(showcaseCredit) + toCents(topupCredit)
+        );
+
+        const totalCredit = fromCents(
+          toCents(welcomeCredit) + toCents(showcaseCredit) + toCents(topupCredit)
+        );
+
+        return {
+          organization_id: organizationId,
+          currency: data.currency || 'MYR',
+          paid_balance: paidBalance,
+          welcome_credit: welcomeCredit,
+          showcase_credit: showcaseCredit,
+          topup_credit: topupCredit,
+          outstanding_balance: outstandingBalance,
+          total_balance: totalBalance,
+          total_credit: totalCredit,
+          welcome_credit_granted: Boolean(data.welcome_credit_granted),
+          showcase_credit_granted: Boolean(data.showcase_credit_granted),
+          can_use_welcome_credit: welcomeCredit > 0,
+          can_use_showcase_credit: showcaseCredit > 0,
+          updated_at: data.updated_at || data.created_at || new Date().toISOString(),
+        };
+      }
+    } catch (err: any) {
+      if (!isLocalFallbackAllowed(env) || isProductionEnvironment(env)) {
+        throw err;
+      }
+    }
+  }
+
+  return recalculateWalletBalances(organizationId, env, options);
 }
 
 export async function getPaidBalance(organizationId: string, env?: Record<string, any>): Promise<number> {
@@ -1005,6 +1077,8 @@ export async function getOutstandingBalance(
   env?: Record<string, any>
 ): Promise<number> {
   if (!organizationId) return 0.0;
+
+  recordDbOperation('outstanding_balance_read', env);
 
   const isProd = isProductionEnvironment(env) || !isLocalFallbackAllowed(env);
 
@@ -1060,7 +1134,11 @@ export async function getOutstandingBalance(
     } catch (err: any) {
       console.error('Fatal: Database connection failed querying outstanding balance:', err.message);
       // DB read fails -> FAIL CLOSED. NEVER silently fall back to local cache.
-      throw new Error(`Database error querying outstanding balance: ${err.message}`);
+      let cleanMsg = String(err?.message || err || 'Unknown database error');
+      while (cleanMsg.startsWith('Database error querying outstanding balance: ')) {
+        cleanMsg = cleanMsg.slice('Database error querying outstanding balance: '.length).trim();
+      }
+      throw new Error(`Database error querying outstanding balance: ${cleanMsg}`);
     }
   }
 
@@ -2904,6 +2982,10 @@ export async function calculateEventPayment(
     useTopupCredit?: boolean;
     welcomeCreditRequested?: number;
     showcaseCreditRequested?: number;
+    wallet?: WalletBalanceSummary;
+    currency?: string;
+    pricingCountry?: string | null;
+    durationDays?: number;
   },
   env?: Record<string, any>
 ): Promise<EventPaymentCalculation> {
@@ -2912,7 +2994,7 @@ export async function calculateEventPayment(
     throw new PricingConfigurationError('Pricing configuration error: Event price is missing or invalid. Authoritative price required.');
   }
   const normalizedPrice = Math.max(0, fromCents(toCents(resolvedPrice)));
-  const wallet = await getWalletBalance(organizationId, env);
+  const wallet = options?.wallet || (await getWalletBalance(organizationId, env));
 
   let paidAmount = 0;
   let welcomeCreditUsed = 0;
@@ -3081,6 +3163,9 @@ export async function calculateEventPayment(
 
   return {
     eventPrice: normalizedPrice,
+    currency: options?.currency,
+    pricingCountry: options?.pricingCountry,
+    durationDays: options?.durationDays,
     paymentMode,
     paidAmount,
     welcomeCreditUsed,
@@ -3119,6 +3204,7 @@ export async function calculateEventPaymentQuote(
     topupCreditRequested?: number;
     topupCreditAmountToUse?: number;
     eventPrice?: number;
+    wallet?: WalletBalanceSummary;
   },
   env?: Record<string, any>
 ): Promise<EventPaymentQuote> {
@@ -3184,6 +3270,7 @@ export async function calculateEventPaymentQuote(
       useEventCredit: params.useEventCredit ?? params.useTopupCredit,
       welcomeCreditRequested: params.welcomeCreditRequested,
       showcaseCreditRequested: params.showcaseCreditRequested,
+      wallet: params.wallet,
     },
     env
   );

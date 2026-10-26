@@ -417,7 +417,9 @@ export const LoginPage: React.FC = () => {
             <AlertTriangle className="w-5 h-5 shrink-0 text-rose-400 mt-0.5" />
             <div className="flex-1 space-y-1">
               <div className="font-bold text-rose-200 text-sm">
-                {authMode === 'signup' ? 'Registration failed' : 'Authentication Notice'}
+                {authMode === 'signup'
+                  ? t('auth.registrationFailed', undefined, 'Registration failed')
+                  : t('auth.authenticationNotice', undefined, 'Authentication Notice')}
               </div>
               <p className="leading-relaxed text-slate-200">{error}</p>
               {authMode === 'signup' && (
@@ -427,7 +429,7 @@ export const LoginPage: React.FC = () => {
                     onClick={() => setError(null)}
                     className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
                   >
-                    Try Again
+                    {t('common.tryAgain', undefined, 'Try Again')}
                   </button>
                 </div>
               )}
@@ -435,7 +437,7 @@ export const LoginPage: React.FC = () => {
               {authMode === 'signin' && unverifiedEmail && (
                 <div className="mt-2.5 pt-2 border-t border-rose-500/20 flex flex-col gap-1.5">
                   <p className="text-[11px] text-slate-300">
-                    Did not receive the verification email?
+                    {t('auth.didNotReceiveVerificationEmail', undefined, 'Did not receive the verification email?')}
                   </p>
                   <button
                     type="button"
@@ -445,7 +447,7 @@ export const LoginPage: React.FC = () => {
                     }}
                     className="self-start text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline cursor-pointer"
                   >
-                    Go to email verification recovery
+                    {t('auth.goToVerificationRecovery', undefined, 'Go to email verification recovery')}
                   </button>
                 </div>
               )}
@@ -905,12 +907,12 @@ export const LoginPage: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-medium text-slate-300">
-                      Referral Code <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
+                      {t('auth.referralCode')} <span className="text-[10px] text-slate-500 font-normal">({t('common.optional')})</span>
                     </label>
                     {referralCode.trim() && (
                       <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        Partner code applied
+                        {t('auth.partnerCodeApplied')}
                       </span>
                     )}
                   </div>
@@ -922,7 +924,7 @@ export const LoginPage: React.FC = () => {
                       type="text"
                       value={referralCode}
                       onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                      placeholder="e.g. REF-ABC12345"
+                      placeholder={t('auth.referralCodePlaceholder')}
                       className="w-full bg-slate-950/80 border border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-600 uppercase font-mono"
                     />
                   </div>
@@ -989,7 +991,7 @@ export const LoginPage: React.FC = () => {
               {isDev && (
                 <div className="w-full pt-3 border-t border-slate-800 space-y-2">
                   <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider text-center">
-                    Development Mode Test Sign-In
+                    {t('auth.devModeTestSignIn', undefined, 'Development Mode Test Sign-In')}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -998,7 +1000,7 @@ export const LoginPage: React.FC = () => {
                       disabled={loading}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 px-2.5 rounded-lg font-medium transition-colors border border-slate-700 cursor-pointer"
                     >
-                      Test Owner
+                      {t('auth.testOwner', undefined, 'Test Owner')}
                     </button>
                     <button
                       type="button"
@@ -1006,7 +1008,7 @@ export const LoginPage: React.FC = () => {
                       disabled={loading}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 px-2.5 rounded-lg font-medium transition-colors border border-slate-700 cursor-pointer"
                     >
-                      Test Staff
+                      {t('auth.testStaff', undefined, 'Test Staff')}
                     </button>
                   </div>
                 </div>

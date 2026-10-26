@@ -401,7 +401,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-200">{t('showcase.noShowcaseYet')}</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Create an Event Showcase to display your event photos, branding, and activation results. Normal showcases publish immediately without administrative pre-approval.
+                {t('showcase.noShowcaseDesc', undefined, 'Create an Event Showcase to display your event photos, branding, and activation results. Normal showcases publish immediately without administrative pre-approval.')}
               </p>
             </div>
           </div>
@@ -409,14 +409,14 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
           {!isViewer && (
             <form onSubmit={handleCreateShowcase} className="space-y-4 bg-slate-950/40 border border-slate-800 rounded-3xl p-5">
               <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                Create Event Showcase
+                {t('showcase.createShowcase', undefined, 'Create Event Showcase')}
               </div>
 
               <div className="space-y-3">
                 {/* Title */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Showcase Title <span className="text-amber-400">*</span>
+                    {t('showcase.titleLabel', undefined, 'Showcase Title')} <span className="text-amber-400">*</span>
                   </label>
                   <input
                     type="text"
@@ -493,7 +493,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                   className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{saving ? 'Creating & Publishing...' : 'Create & Publish Showcase'}</span>
+                  <span>{saving ? t('showcase.creatingAndPublishing', undefined, 'Creating & Publishing...') : t('showcase.createAndPublish', undefined, 'Create & Publish Showcase')}</span>
                 </button>
               </div>
             </form>
@@ -629,8 +629,8 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                   <Lock className="w-3.5 h-3.5 text-slate-500" />
                   <span>
                     {isBlocked
-                      ? 'Showcase is blocked by administrative moderation. Editing is locked.'
-                      : 'You have read-only access to this showcase.'}
+                      ? t('showcase.blockedByModerationMsg', undefined, 'Showcase is blocked by administrative moderation. Editing is locked.')
+                      : t('showcase.readOnlyAccessMsg', undefined, 'You have read-only access to this showcase.')}
                   </span>
                 </div>
               )}
@@ -638,7 +638,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               {/* Title */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Showcase Title <span className="text-amber-400">*</span>
+                  {t('showcase.titleLabel', undefined, 'Showcase Title')} <span className="text-amber-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -655,7 +655,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Client / Sponsor Name
+                    {t('showcase.clientName', undefined, 'Client / Sponsor Name')}
                   </label>
                   <input
                     type="text"
@@ -720,7 +720,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                     onError={(e) => ((e.target as any).style.display = 'none')}
                   />
                   <div className="absolute bottom-2 left-2 bg-slate-950/80 px-2 py-0.5 rounded text-[10px] text-slate-300">
-                    Cover Preview
+                    {t('showcase.coverImagePreview', undefined, 'Cover Preview')}
                   </div>
                 </div>
               )}
@@ -728,7 +728,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               {/* Description */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Description & Highlights
+                  {t('showcase.eventHighlights', undefined, 'Description & Highlights')}
                 </label>
                 <textarea
                   value={description}

@@ -437,7 +437,7 @@ import {
 } from './server/securityHeaders.js';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // ==========================================
 // Security Headers Middleware
@@ -517,6 +517,15 @@ app.use('/api', (req, res, next) => {
     return generalApiRateLimiter(req, res, next);
   }
   next();
+});
+
+// Backward-compatibility redirect: migrate legacy and obsolete Carnival theme asset requests
+app.get([
+  '/assets/themes/carnival/*',
+  '/assets/game/catch-brand/themes/carnival/*',
+], (req: any, res: any) => {
+  const filename = req.params[0] || path.basename(req.path);
+  res.redirect(301, `/assets/games/catch-brand/themes/carnival/${filename}`);
 });
 
 // Serve public static assets (logo.png, favicon.ico, images, fonts, styles) without authentication
@@ -2166,7 +2175,7 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
     }
 
     // Mark invitation as accepted
-    await markInvitationAccepted(invite.id);
+    await markInvitationAccepted(invite.id, undefined, user.id);
 
     const appToken = await signAppToken(user.id, invite.organization_id, effectiveRole);
     setAuthCookieOnResponse(res, appToken, getCookieOptionsFromRequest(req));
@@ -3580,6 +3589,7 @@ app.post('/api/translations/jobs', authenticateJWT, async (req: AuthenticatedReq
     const job = await translationService.queueTranslationJob({
       entity_type,
       entity_id,
+      user_id: req.user?.id,
       source_language: normalizeLanguageCode(source_language),
       target_language: normalizeLanguageCode(target_language),
       fields,
@@ -3603,6 +3613,12 @@ app.get('/api/translations/jobs/:jobId', authenticateJWT, async (req: Authentica
     const job = await getTranslationJob(jobId);
     if (!job) {
       res.status(404).json({ error: 'Translation job not found' });
+      return;
+    }
+
+    // Ownership Authorization Check
+    if (job.user_id && job.user_id !== req.user?.id && !req.user?.is_developer) {
+      res.status(403).json({ error: 'Forbidden: You do not have permission to view this translation job' });
       return;
     }
 
@@ -3756,25 +3772,30 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
     }
 
     // Calculate quote for selected payment mode
+    const quoteOptions = {
+      topupCreditRequested: topup_credit_requested,
+      useWelcomeCredit: use_welcome_credit,
+      useShowcaseCredit: use_showcase_credit,
+      useEventCredit: use_event_credit,
+      welcomeCreditRequested: welcome_credit_requested,
+      showcaseCreditRequested: showcase_credit_requested,
+      wallet: walletSummary,
+      currency,
+      pricingCountry,
+      durationDays,
+    };
     const selectedCalculation = await calculateEventPayment(
       price,
       selectedMode,
       organizationId,
-      {
-        topupCreditRequested: topup_credit_requested,
-        useWelcomeCredit: use_welcome_credit,
-        useShowcaseCredit: use_showcase_credit,
-        useEventCredit: use_event_credit,
-        welcomeCreditRequested: welcome_credit_requested,
-        showcaseCreditRequested: showcase_credit_requested,
-      }
+      quoteOptions
     );
 
     // Calculate options for all payment modes
-    const fullPaidCalc = await calculateEventPayment(price, 'FULL_PAID', organizationId);
-    const welcomeCalc = await calculateEventPayment(price, 'WELCOME_CREDIT', organizationId);
-    const showcaseCalc = await calculateEventPayment(price, 'SHOWCASE_CREDIT', organizationId);
-    const topupCalc = await calculateEventPayment(price, 'TOPUP_CREDIT', organizationId, { topupCreditRequested: topup_credit_requested });
+    const fullPaidCalc = await calculateEventPayment(price, 'FULL_PAID', organizationId, quoteOptions);
+    const welcomeCalc = await calculateEventPayment(price, 'WELCOME_CREDIT', organizationId, quoteOptions);
+    const showcaseCalc = await calculateEventPayment(price, 'SHOWCASE_CREDIT', organizationId, quoteOptions);
+    const topupCalc = await calculateEventPayment(price, 'TOPUP_CREDIT', organizationId, quoteOptions);
 
     const options = [
       {
@@ -3842,7 +3863,10 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       is_fallback: isFallbackPricing,
       theme: themeInfo,
       selected_mode: selectedMode,
-      calculation: selectedCalculation,
+      calculation: {
+        ...selectedCalculation,
+        currency: currency || selectedCalculation.currency,
+      },
       wallet: walletSummary,
       options,
       is_payable: selectedCalculation.isPayable,
@@ -3888,6 +3912,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       starts_at,
       expires_at,
       event_price,
+      event_currency,
       event_timezone,
     } = req.body;
 
@@ -3976,6 +4001,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       payment_status: 'UNPAID',
       created_by: user.id,
       event_price,
+      event_currency,
       event_timezone: resolvedTz,
       currentDate: serverToday,
       country_code: orgRecord?.country_code || undefined,
@@ -4234,10 +4260,12 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
 
 /**
  * DELETE /api/events/:eventId
- * Delete an event enforcing strict lifecycle and payment rules:
- * - Unpaid + before Setup Day => ALLOWED
- * - Paid + before Setup Day => FORBIDDEN (Must use Cancel & Refund)
- * - On/After Setup Day / Live / Completed / Expired / Cancelled => FORBIDDEN
+ * Delete an event enforcing strict lifecycle, ownership, and payment rules:
+ * - Unpaid event (newly created, on Setup Day, or past event date/expired) => ALLOWED
+ * - Paid event => FORBIDDEN (Must use Cancel & Refund workflow if eligible)
+ * - Cancelled or Refunded event => FORBIDDEN (preserves financial/audit history)
+ * - Events with associated financial/invoice records => FORBIDDEN (retention safeguard)
+ * - Other organization / unauthorized member => FORBIDDEN (403)
  */
 app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -4272,7 +4300,7 @@ app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReq
     res.json({ success: true, message: 'Event deleted successfully' });
   } catch (err: any) {
     console.error('Delete event error:', err);
-    if (err.status === 422 || err.code === 'EVENT_PAID' || err.code === 'SETUP_DAY_STARTED' || err.code === 'EVENT_LIVE' || err.code === 'EVENT_ENDED' || err.code === 'ALREADY_CANCELLED' || err.code === 'EVENT_DELETE_NOT_ALLOWED') {
+    if (err.status === 422 || err.code === 'EVENT_PAID' || err.code === 'FINANCIAL_RECORDS_EXIST' || err.code === 'SETUP_DAY_STARTED' || err.code === 'EVENT_LIVE' || err.code === 'EVENT_ENDED' || err.code === 'ALREADY_CANCELLED' || err.code === 'EVENT_DELETE_NOT_ALLOWED') {
       res.status(422).json({
         error: err.message,
         message: err.message,
@@ -7192,7 +7220,7 @@ app.post('/api/admin/customer-invitations/check-duplicates', authenticateDevelop
  */
 const handleCreateCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = req.body || {};
+    const { company_name, contact_person, phone, notes, recipients, confirm_cross_company_duplicates } = req.body || {};
 
     if (!Array.isArray(recipients) || recipients.length === 0) {
       res.status(400).json({ success: false, error: 'At least one recipient email address is required', code: 'VALIDATION_ERROR' });
@@ -7232,6 +7260,7 @@ const handleCreateCustomerCompany = async (req: AuthenticatedRequest, res: any) 
     const company = await createCustomerCompany({
       company_name,
       contact_person,
+      phone: req.body?.phone || phone || null,
       notes,
       organization_id: req.body?.organization_id || null,
       lead_status: req.body?.lead_status || 'lead',
@@ -7285,7 +7314,7 @@ app.get('/api/admin/customer-invitations/companies/:id', authenticateDeveloperAd
 const handleUpdateCustomerCompany = async (req: AuthenticatedRequest, res: any) => {
   try {
     const { id } = req.params;
-    const { company_name, contact_person, notes, recipients, confirm_cross_company_duplicates } = req.body || {};
+    const { company_name, contact_person, phone, notes, recipients, confirm_cross_company_duplicates } = req.body || {};
 
     if (Array.isArray(recipients)) {
       // CASE 1: Duplicate inside same company (error)
@@ -7322,6 +7351,7 @@ const handleUpdateCustomerCompany = async (req: AuthenticatedRequest, res: any) 
     const updated = await updateCustomerCompany(id, {
       company_name,
       contact_person,
+      phone: req.body?.phone !== undefined ? req.body.phone : (phone !== undefined ? phone : undefined),
       notes,
       organization_id: req.body?.organization_id,
       lead_status: req.body?.lead_status,
@@ -7513,6 +7543,15 @@ const handleGenerateCustomerWhatsAppLink = async (req: AuthenticatedRequest, res
     const { companyId, recipientId, organizationId, role } = req.body || {};
     if (!companyId || !recipientId) {
       res.status(400).json({ success: false, error: 'companyId and recipientId are required' });
+      return;
+    }
+
+    if (role && !['admin', 'designer', 'viewer', 'owner'].includes(role)) {
+      res.status(400).json({
+        success: false,
+        code: 'INVALID_ROLE',
+        error: `Invalid role "${role}". Allowed roles are: admin, designer, viewer.`,
+      });
       return;
     }
 
@@ -10692,20 +10731,22 @@ app.get('/api/invoices/:id/pdf', authenticateJWT, async (req: AuthenticatedReque
 
     const { isMember } = await verifyOrgMembershipAndPermission(user.id, invoice.organization_id, 'organization.view');
     const isDev = isUserDeveloperAdmin(user);
+    const isCustomer = Boolean(invoice.customer_user_id && invoice.customer_user_id === user.id);
 
-    if (!isMember && !isDev) {
+    if (!isMember && !isDev && !isCustomer) {
       res.status(403).json({ error: 'Access denied: You do not have permission to view this invoice PDF' });
       return;
     }
 
-    const pdfBytes = await getInvoicePdfBytes(id);
+    const pdfBytes = await getInvoicePdfBytes(invoice);
     if (!pdfBytes) {
       res.status(500).json({ error: 'Failed to generate or retrieve invoice PDF' });
       return;
     }
 
+    const dispositionType = req.query.download === '1' ? 'attachment' : 'inline';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.pdf"`);
+    res.setHeader('Content-Disposition', `${dispositionType}; filename="${invoice.invoice_number}.pdf"`);
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {

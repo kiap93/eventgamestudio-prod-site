@@ -45,6 +45,9 @@ import {
   PanelLeft,
   Box,
   LayoutTemplate,
+  Star,
+  Target,
+  Grid3X3,
 } from 'lucide-react';
 
 interface LayerTreePanelProps {
@@ -57,8 +60,8 @@ interface LayerTreePanelProps {
   onMoveLayer: (idOrIds: string | string[], direction: 'forward' | 'backward' | 'front' | 'back') => void;
   onDuplicateElement: (id: string) => void;
   onDeleteElement: (id: string) => void;
-  onAddChildElement: (parentId: string, type: ResultScreenElementType) => void;
-  onAddNewRootElement: (type: ResultScreenElementType) => void;
+  onAddChildElement: (parentId: string, type: ResultScreenElementType, subType?: string) => void;
+  onAddNewRootElement: (type: ResultScreenElementType, subType?: string) => void;
   onGroup?: () => void;
   onUngroup?: (ids?: string[]) => void;
   canGroup?: boolean;
@@ -80,6 +83,16 @@ export const getElementIcon = (type: ResultScreenElementType) => {
       return <Type className="w-3.5 h-3.5 text-amber-400" />;
     case 'score':
       return <Award className="w-3.5 h-3.5 text-yellow-400" />;
+    case 'target-score':
+      return <Target className="w-3.5 h-3.5 text-purple-400" />;
+    case 'star-rating':
+      return <Star className="w-3.5 h-3.5 text-amber-400" />;
+    case 'matches':
+      return <Grid3X3 className="w-3.5 h-3.5 text-cyan-400" />;
+    case 'combo':
+      return <Zap className="w-3.5 h-3.5 text-orange-400" />;
+    case 'specials':
+      return <Sparkles className="w-3.5 h-3.5 text-emerald-400" />;
     case 'moves':
       return <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />;
     case 'pairs':
@@ -238,7 +251,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 ? `Btn: ${(el as ResultButtonElement).text || 'Action'}`
                 : el.type === 'leaderboard'
                 ? (el as ResultLeaderboardElement).headerText || 'Leaderboard'
-                : getDefaultElementLabel(el.type, gameType)}
+                : getDefaultElementLabel(el.type, gameType, el.id)}
             </span>
 
             {/* Container Count Badge */}
@@ -396,10 +409,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                           </span>
                           {groupedElements.visual.map((item) => (
                             <button
-                              key={item.type}
+                              key={item.subType ? `${item.type}-${item.subType}` : item.type}
                               type="button"
                               onClick={() => {
-                                onAddChildElement(el.id, item.type);
+                                onAddChildElement(el.id, item.type, item.subType);
                                 setActiveChildMenuId(null);
                               }}
                               className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -419,10 +432,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                           </span>
                           {groupedElements.stat.map((item) => (
                             <button
-                              key={item.type}
+                              key={item.subType ? `${item.type}-${item.subType}` : item.type}
                               type="button"
                               onClick={() => {
-                                onAddChildElement(el.id, item.type);
+                                onAddChildElement(el.id, item.type, item.subType);
                                 setActiveChildMenuId(null);
                               }}
                               className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center justify-between transition-colors"
@@ -450,10 +463,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                           </span>
                           {groupedElements.control.map((item) => (
                             <button
-                              key={item.type}
+                              key={item.subType ? `${item.type}-${item.subType}` : item.type}
                               type="button"
                               onClick={() => {
-                                onAddChildElement(el.id, item.type);
+                                onAddChildElement(el.id, item.type, item.subType);
                                 setActiveChildMenuId(null);
                               }}
                               className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -613,10 +626,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                     </span>
                     {groupedElements.container.map((item) => (
                       <button
-                        key={item.type}
+                        key={item.subType ? `${item.type}-${item.subType}` : item.type}
                         type="button"
                         onClick={() => {
-                          onAddNewRootElement(item.type);
+                          onAddNewRootElement(item.type, item.subType);
                           setRootAddMenuOpen(false);
                         }}
                         className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -635,10 +648,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                       </span>
                       {groupedElements.visual.map((item) => (
                         <button
-                          key={item.type}
+                          key={item.subType ? `${item.type}-${item.subType}` : item.type}
                           type="button"
                           onClick={() => {
-                            onAddNewRootElement(item.type);
+                            onAddNewRootElement(item.type, item.subType);
                             setRootAddMenuOpen(false);
                           }}
                           className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -658,10 +671,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                       </span>
                       {groupedElements.stat.map((item) => (
                         <button
-                          key={item.type}
+                          key={item.subType ? `${item.type}-${item.subType}` : item.type}
                           type="button"
                           onClick={() => {
-                            onAddNewRootElement(item.type);
+                            onAddNewRootElement(item.type, item.subType);
                             setRootAddMenuOpen(false);
                           }}
                           className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center justify-between transition-colors"
@@ -689,10 +702,10 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                       </span>
                       {groupedElements.control.map((item) => (
                         <button
-                          key={item.type}
+                          key={item.subType ? `${item.type}-${item.subType}` : item.type}
                           type="button"
                           onClick={() => {
-                            onAddNewRootElement(item.type);
+                            onAddNewRootElement(item.type, item.subType);
                             setRootAddMenuOpen(false);
                           }}
                           className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"

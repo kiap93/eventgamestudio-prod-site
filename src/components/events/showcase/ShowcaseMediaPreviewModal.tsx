@@ -164,7 +164,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
                     <span>{t('showcase.videoPosterThumbnail')}</span>
                     {media.thumbnail_url ? (
                       <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Set
+                        <Check className="w-3.5 h-3.5" /> {t('showcase.posterSet', undefined, 'Set')}
                       </span>
                     ) : (
                       <span className="text-slate-500">{t('showcase.autoDefault')}</span>
@@ -179,7 +179,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
                       className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Camera className="w-3.5 h-3.5" />
-                      <span>{isCapturingPoster ? 'Capturing...' : 'Capture Current Frame as Poster'}</span>
+                      <span>{isCapturingPoster ? t('showcase.capturing', undefined, 'Capturing...') : t('showcase.captureCurrentFramePoster', undefined, 'Capture Current Frame as Poster')}</span>
                     </button>
 
                     <button
@@ -187,7 +187,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
                       onClick={() => setIsSettingCustomPoster(!isSettingCustomPoster)}
                       className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors cursor-pointer"
                     >
-                      Custom URL
+                      {t('showcase.customUrl', undefined, 'Custom URL')}
                     </button>
                   </div>
                 </div>
@@ -219,7 +219,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
 
               {captureSuccess && (
                 <div className="mt-2 text-xs text-emerald-400 font-medium flex items-center gap-1">
-                  <Check className="w-4 h-4" /> Thumbnail poster updated successfully!
+                  <Check className="w-4 h-4" /> {t('showcase.thumbnailUpdatedSuccess', undefined, 'Thumbnail poster updated successfully!')}
                 </div>
               )}
             </div>
@@ -239,7 +239,7 @@ export const ShowcaseMediaPreviewModal: React.FC<ShowcaseMediaPreviewModalProps>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              Uploaded {new Date(media.created_at).toLocaleString()}
+              {t('showcase.uploadedAt', undefined, 'Uploaded')} {new Date(media.created_at).toLocaleString()}
             </span>
           </div>
 

@@ -691,27 +691,27 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
             <Globe className="w-3.5 h-3.5" />
-            PUBLISHED
+            {t('showcase.statusPublished', undefined, 'PUBLISHED')}
           </span>
         );
       case 'UNPUBLISHED':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300">
             <EyeOff className="w-3.5 h-3.5 text-slate-400" />
-            UNPUBLISHED
+            {t('showcase.statusUnpublished', undefined, 'UNPUBLISHED')}
           </span>
         );
       case 'DRAFT':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
             <Clock className="w-3.5 h-3.5" />
-            DRAFT
+            {t('showcase.statusDraft', undefined, 'DRAFT')}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 border border-slate-700 text-slate-400">
-            NOT CREATED
+            {t('showcase.statusNotCreated', undefined, 'NOT CREATED')}
           </span>
         );
     }
@@ -835,7 +835,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               <div>{getStatusBadge(showcase?.status)}</div>
               {showcase?.published_at && (
                 <span className="text-[11px] text-slate-400">
-                  Published on {new Date(showcase.published_at).toLocaleDateString()}
+                  {t('showcase.publishedOn', undefined, 'Published on')} {new Date(showcase.published_at).toLocaleDateString()}
                 </span>
               )}
             </div>
@@ -950,7 +950,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
                 >
                   <Save className="w-4 h-4 text-amber-400" />
-                  <span>{saving ? 'Saving...' : showcase ? 'Save Changes' : 'Save Draft'}</span>
+                  <span>{saving ? t('common.saving', undefined, 'Saving...') : showcase ? t('common.saveChanges', undefined, 'Save Changes') : t('showcase.saveDraft', undefined, 'Save Draft')}</span>
                 </button>
 
                 {showcase?.status === 'PUBLISHED' ? (
@@ -961,7 +961,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
                   >
                     <EyeOff className="w-4 h-4 text-slate-400" />
-                    <span>{publishing ? 'Unpublishing...' : 'Unpublish Showcase'}</span>
+                    <span>{publishing ? t('showcase.unpublishing', undefined, 'Unpublishing...') : t('showcase.unpublishShowcase', undefined, 'Unpublish Showcase')}</span>
                   </button>
                 ) : (
                   <button
@@ -971,7 +971,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
                   >
                     <Globe className="w-4 h-4" />
-                    <span>{publishing ? 'Publishing...' : 'Publish Showcase'}</span>
+                    <span>{publishing ? t('showcase.publishing', undefined, 'Publishing...') : t('showcase.publishShowcase', undefined, 'Publish Showcase')}</span>
                   </button>
                 )}
               </>
@@ -990,7 +990,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             </div>
             {rewardSubmission.submitted_at && (
               <span className="text-[11px] font-mono text-amber-400/80 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
-                Submitted on {new Date(rewardSubmission.submitted_at).toLocaleDateString()}
+                {t('showcase.submittedOn', undefined, 'Submitted on')} {new Date(rewardSubmission.submitted_at).toLocaleDateString()}
               </span>
             )}
           </div>
@@ -1005,7 +1005,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               </div>
               {rewardSubmission.rejection_reason && (
                 <p className="text-slate-300 text-xs pl-6">
-                  Reason: {rewardSubmission.rejection_reason}
+                  {t('common.reason', undefined, 'Reason')}: {rewardSubmission.rejection_reason}
                 </p>
               )}
             </div>
@@ -1154,7 +1154,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                 onError={(e) => ((e.target as any).style.display = 'none')}
               />
               <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-slate-200 border border-slate-800">
-                Cover Image Preview
+                {t('showcase.coverImagePreview', undefined, 'Cover Image Preview')}
               </div>
               {!isViewer && (
                 <button
@@ -1162,7 +1162,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                   onClick={() => setCoverImageUrl('')}
                   className="absolute top-3 right-3 bg-slate-950/80 hover:bg-red-500 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg text-xs transition-colors"
                 >
-                  Clear
+                  {t('common.clear', undefined, 'Clear')}
                 </button>
               )}
             </div>
@@ -1170,7 +1170,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center space-y-2 bg-slate-950/30">
               <ImageIcon className="w-8 h-8 text-slate-600 mx-auto" />
               <p className="text-xs text-slate-400">
-                Add a high-resolution banner image URL to represent this event showcase on cards and public listings.
+                {t('showcase.coverImageEmptyDesc', undefined, 'Add a high-resolution banner image URL to represent this event showcase on cards and public listings.')}
               </p>
             </div>
           )}
@@ -1230,10 +1230,10 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="flex flex-col items-center justify-center space-y-2">
               <UploadCloud className="w-6 h-6 text-emerald-400" />
               <p className="text-xs font-semibold text-slate-200">
-                Drag & Drop Photos here, or <span className="text-emerald-400 underline">{t('common.browseFiles')}</span>
+                {t('showcase.dragDropPhotosHere', undefined, 'Drag & Drop Photos here, or')} <span className="text-emerald-400 underline">{t('common.browseFiles')}</span>
               </p>
               <span className="text-[11px] text-slate-500">
-                Supported formats: JPG, PNG, WEBP (Max 25MB each)
+                {t('showcase.supportedPhotoFormats', undefined, 'Supported formats: JPG, PNG, WEBP (Max 25MB each)')}
               </span>
             </div>
           </div>
@@ -1242,7 +1242,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         {/* Photos Grid */}
         {photos.length === 0 ? (
           <div className="py-8 text-center text-xs text-slate-500">
-            No photos added to this showcase yet.
+            {t('showcase.noPhotosYet', undefined, 'No photos added to this showcase yet.')}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -1316,10 +1316,10 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             <div className="flex flex-col items-center justify-center space-y-2">
               <UploadCloud className="w-6 h-6 text-purple-400" />
               <p className="text-xs font-semibold text-slate-200">
-                Drag & Drop Videos here, or <span className="text-purple-400 underline">{t('common.browseFiles')}</span>
+                {t('showcase.dragDropVideosHere', undefined, 'Drag & Drop Videos here, or')} <span className="text-purple-400 underline">{t('common.browseFiles')}</span>
               </p>
               <span className="text-[11px] text-slate-500">
-                Supported formats: MP4, WEBM, MOV (Max 200MB each with direct upload)
+                {t('showcase.supportedVideoFormats', undefined, 'Supported formats: MP4, WEBM, MOV (Max 200MB each with direct upload)')}
               </span>
             </div>
           </div>
@@ -1328,7 +1328,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         {/* Videos Grid */}
         {videos.length === 0 ? (
           <div className="py-8 text-center text-xs text-slate-500">
-            No video clips added to this showcase yet.
+            {t('showcase.noVideosYet', undefined, 'No video clips added to this showcase yet.')}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -1353,7 +1353,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       {!isViewer && (
         <div className="flex items-center justify-between p-4 bg-slate-900/90 border border-slate-800 rounded-2xl backdrop-blur-md">
           <span className="text-xs text-slate-400">
-            Ready to publish or save your showcase updates?
+            {t('showcase.readyToSavePrompt', undefined, 'Ready to publish or save your showcase updates?')}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -1363,7 +1363,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>{saving ? 'Saving...' : 'Save Showcase'}</span>
+              <span>{saving ? t('common.saving', undefined, 'Saving...') : t('showcase.saveShowcase', undefined, 'Save Showcase')}</span>
             </button>
           </div>
         </div>

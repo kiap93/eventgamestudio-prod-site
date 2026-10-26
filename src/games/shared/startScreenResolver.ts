@@ -708,6 +708,132 @@ export function updateStartScreenElementsVisibilityMap(
 }
 
 /**
+ * Recursively finds text content for an element by ID.
+ */
+export function findStartScreenElementText(
+  elements: StartScreenElement[],
+  id: string
+): string | undefined {
+  for (const el of elements) {
+    if (el.id === id && (el.type === 'text' || el.type === 'title' || el.type === 'description')) {
+      return (el as any).text;
+    }
+    if (Array.isArray((el as any).children)) {
+      const found = findStartScreenElementText((el as any).children, id);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Recursively updates text content for an element by ID.
+ */
+export function updateStartScreenElementText(
+  elements: StartScreenElement[],
+  id: string,
+  newText: string
+): StartScreenElement[] {
+  return elements.map((el) => {
+    let nextEl = { ...el };
+    if (el.id === id && (el.type === 'text' || el.type === 'title' || el.type === 'description')) {
+      (nextEl as any).text = newText;
+    }
+    if (Array.isArray((el as any).children)) {
+      (nextEl as any).children = updateStartScreenElementText((el as any).children, id, newText);
+    }
+    return nextEl;
+  });
+}
+
+/**
+ * Recursively finds button text by action or ID.
+ */
+export function findStartScreenButtonText(
+  elements: StartScreenElement[],
+  actionOrId: string = 'start'
+): string | undefined {
+  for (const el of elements) {
+    if (el.type === 'button') {
+      const btn = el as any;
+      if (btn.id === actionOrId || btn.action === actionOrId) {
+        return btn.text;
+      }
+    }
+    if (Array.isArray((el as any).children)) {
+      const found = findStartScreenButtonText((el as any).children, actionOrId);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Recursively updates button text by action or ID.
+ */
+export function updateStartScreenButtonText(
+  elements: StartScreenElement[],
+  actionOrId: string = 'start',
+  newText: string
+): StartScreenElement[] {
+  return elements.map((el) => {
+    let nextEl = { ...el };
+    if (el.type === 'button') {
+      const btn = el as any;
+      if (btn.id === actionOrId || btn.action === actionOrId) {
+        btn.text = newText;
+      }
+    }
+    if (Array.isArray((el as any).children)) {
+      (nextEl as any).children = updateStartScreenButtonText((el as any).children, actionOrId, newText);
+    }
+    return nextEl;
+  });
+}
+
+/**
+ * Recursively updates element style by ID.
+ */
+export function updateStartScreenElementStyle(
+  elements: StartScreenElement[],
+  id: string,
+  partialStyle: Record<string, any>
+): StartScreenElement[] {
+  return elements.map((el) => {
+    let nextEl = { ...el };
+    if (el.id === id) {
+      (nextEl as any).style = {
+        ...((nextEl as any).style || {}),
+        ...partialStyle,
+      };
+    }
+    if (Array.isArray((el as any).children)) {
+      (nextEl as any).children = updateStartScreenElementStyle((el as any).children, id, partialStyle);
+    }
+    return nextEl;
+  });
+}
+
+/**
+ * Recursively finds element style by ID.
+ */
+export function findStartScreenElementStyle(
+  elements: StartScreenElement[],
+  id: string
+): Record<string, any> | undefined {
+  for (const el of elements) {
+    if (el.id === id) {
+      return (el as any).style;
+    }
+    if (Array.isArray((el as any).children)) {
+      const found = findStartScreenElementStyle((el as any).children, id);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
  * The Authoritative Single Resolver for Start Screen Configuration.
  * Guaranteed to produce a complete, non-corrupt, valid StartScreenConfig.
  */
@@ -808,6 +934,16 @@ export function getStartScreenConfig(
   const showTimerInfo = timerVis !== undefined ? timerVis : (rawStart?.showTimerInfo !== false);
 
   const resolvedConfig: StartScreenConfig = {
+    enabled: rawStart?.enabled !== false,
+    screenTitle: rawStart?.screenTitle,
+    descriptionText: rawStart?.descriptionText,
+    startButtonText: rawStart?.startButtonText,
+    titleColor: rawStart?.titleColor,
+    descriptionColor: rawStart?.descriptionColor,
+    startButtonBgColor: rawStart?.startButtonBgColor,
+    startButtonTextColor: rawStart?.startButtonTextColor,
+    logoUrl: rawStart?.logoUrl,
+
     // Legacy fields for backward compatibility
     backgroundType: bgType,
     backgroundColor: bgColor,
@@ -848,6 +984,15 @@ export function saveStartScreenConfig<T extends Partial<GameTheme>>(
   // Harmonize background object and legacy top-level properties
   const synchronizedStartConfig: StartScreenConfig = {
     ...startConfig,
+    enabled: startConfig.enabled !== false,
+    screenTitle: startConfig.screenTitle,
+    descriptionText: startConfig.descriptionText,
+    startButtonText: startConfig.startButtonText,
+    titleColor: startConfig.titleColor,
+    descriptionColor: startConfig.descriptionColor,
+    startButtonBgColor: startConfig.startButtonBgColor,
+    startButtonTextColor: startConfig.startButtonTextColor,
+    logoUrl: startConfig.logoUrl,
     background: {
       type: startConfig.backgroundType || startConfig.background?.type || 'theme',
       color: startConfig.backgroundColor || startConfig.background?.color || '#0f172a',

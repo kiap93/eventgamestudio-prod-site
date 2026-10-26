@@ -156,6 +156,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [cancellingEvent, setCancellingEvent] = useState<any | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<any | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Close modals when navigating directly to root /events
   useEffect(() => {
@@ -267,6 +268,22 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
+      {/* Success Notification Banner */}
+      {successMessage && (
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-300 text-xs flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-semibold">{successMessage}</span>
+          </div>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="p-1 text-emerald-400 hover:text-emerald-200 hover:bg-emerald-500/20 rounded-lg transition-colors cursor-pointer"
+          >
+            <span className="text-xs font-bold">{t('common.dismiss', undefined, 'Dismiss')}</span>
+          </button>
+        </div>
+      )}
+
       {/* Top Banner & Header with View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -482,7 +499,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
           <div className="space-y-1.5">
             <h3 className="text-base font-bold text-slate-100">{t('common.error', undefined, 'Unable to load events')}</h3>
             <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
-              We couldn't retrieve your event deployments. Please check your connection and try again.
+              {t('event.loadEventsErrorDesc', undefined, "We couldn't retrieve your event deployments. Please check your connection and try again.")}
             </p>
             {error && error !== 'Unable to load events' && (
               <p className="text-[11px] font-mono text-red-400/80 bg-red-500/5 py-1 px-3 rounded-lg inline-block mt-1">
@@ -692,6 +709,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
           userRole={currentOrganization?.role}
           onClose={() => setEditingEvent(null)}
           onEventUpdated={handleEventUpdated}
+          onDelete={handleDeleteEvent}
         />
       )}
 
@@ -715,8 +733,12 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
           event={deletingEvent}
           onClose={() => setDeletingEvent(null)}
           onSuccess={(deletedId) => {
+            const evName = deletingEvent?.name || 'Event';
             setEvents((prev) => prev.filter((e) => e.id !== deletedId));
             setDeletingEvent(null);
+            setSuccessMessage(`Event "${evName}" was successfully deleted.`);
+            setTimeout(() => setSuccessMessage(null), 5000);
+            fetchEvents();
           }}
         />
       )}

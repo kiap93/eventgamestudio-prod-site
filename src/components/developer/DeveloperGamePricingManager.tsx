@@ -949,7 +949,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                           <span className="text-base font-extrabold text-white">
                             {tier.currency} {tier.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
-                          <span className="text-[10px] text-slate-500 block">{t('developer.perEventActivation', undefined, 'per event activation')}</span>
+                          <span className="text-[10px] text-slate-500 block">{t('developer.totalEventLicense', undefined, 'Total Event License')}</span>
                         </div>
 
                         <div className="flex items-center space-x-1">
@@ -1171,7 +1171,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                       onChange={(e) => setFormIsBase(e.target.checked)}
                       className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0"
                     />
-                    <span>{t('developer.baseTierCheckbox', undefined, 'Base Tier (Primary 1-day quote)')}</span>
+                    <span>{t('developer.base1DayTierCheckbox', undefined, 'Base 1-Day Tier')}</span>
                   </label>
                 </div>
 
@@ -1181,7 +1181,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                     disabled={saving}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
                   >
-                    Cancel
+                    {t('common.cancel', undefined, 'Cancel')}
                   </button>
                   <button
                     onClick={handleSaveTier}
@@ -1189,7 +1189,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
                     className="flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-950/30"
                   >
                     <Check className="w-4 h-4" />
-                    <span>{editingTierId ? 'Save Changes' : 'Create Tier'}</span>
+                    <span>{editingTierId ? t('common.saveChanges', undefined, 'Save Changes') : t('developer.createTier', undefined, 'Create Tier')}</span>
                   </button>
                 </div>
               </div>
@@ -1213,7 +1213,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>{t('developer.startDateInclusive', undefined, 'Start Date (Inclusive)')}</span>
+                  <span>{t('developer.eventStartDateLabel', undefined, 'Event Start Date (Inclusive)')}</span>
                 </label>
                 <CustomDatePicker
                   value={simStartDate}
@@ -1224,7 +1224,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>{t('developer.endDateInclusive', undefined, 'End Date (Inclusive)')}</span>
+                  <span>{t('developer.eventEndDateLabel', undefined, 'Event End Date (Inclusive)')}</span>
                 </label>
                 <CustomDatePicker
                   min={simStartDate}
@@ -1237,7 +1237,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             {/* Resolved Quote Box */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">{t('developer.totalCalendarDays', undefined, 'Total Calendar Days:')}</span>
+                <span className="text-slate-400">{t('developer.calculatedDurationLabel', undefined, 'Calculated Duration:')}</span>
                 <span className="font-mono font-bold text-amber-400 text-sm">
                   {calculatedDuration} {calculatedDuration === 1 ? 'day' : 'days'}
                 </span>
@@ -1249,7 +1249,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
               </div>
 
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">{t('developer.matchedRule', undefined, 'Matched Rule:')}</span>
+                <span className="text-slate-400">{t('developer.matchedPricingRuleLabel', undefined, 'Matched Pricing Rule:')}</span>
                 <span className="font-semibold text-white text-right">{simulatedQuote.ruleLabel}</span>
               </div>
 
@@ -1264,20 +1264,20 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
 
               <div className="border-t border-slate-800/80 pt-3 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">{t('developer.calculatedEventPrice', undefined, 'Calculated Event Price')}</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">{t('developer.resolvedEventPriceLabel', undefined, 'Resolved Event Price')}</span>
                   {simulatedQuote.price !== null ? (
                     <span className="text-xl font-black text-amber-400">
                       {simulatedQuote.currency} {simulatedQuote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   ) : (
                     <span className="text-lg font-bold text-amber-400">
-                      Custom Pricing / Contact Us
+                      {t('developer.customPricingContactUs', undefined, 'Custom Pricing / Contact Us')}
                     </span>
                   )}
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-500 block">{t('developer.avgPerDay', undefined, 'Avg / Day')}</span>
+                  <span className="text-[10px] text-slate-500 block">{t('developer.effectivePerDayLabel', undefined, 'Effective / Day')}</span>
                   <span className="text-xs font-mono font-semibold text-slate-300">
                     {simulatedQuote.price !== null
                       ? `${simulatedQuote.currency} ${(simulatedQuote.price / Math.max(1, calculatedDuration)).toFixed(2)}`
@@ -1290,8 +1290,7 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300/90 leading-relaxed flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
-                Authoritative price resolution happens on the backend during event quote and event creation.
-                The browser never provides or overrides the event price.
+                {t('developer.authoritativePriceResolutionNote', undefined, 'Authoritative price resolution happens on the backend during event quote and event creation. The browser never provides or overrides the event price.')}
               </span>
             </div>
           </div>

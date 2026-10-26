@@ -3,6 +3,7 @@ import { SalesNavbar } from './SalesNavbar';
 import { SEO } from '../common/SEO';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import {
   SalesPartnerCustomer,
@@ -39,6 +40,7 @@ import {
 
 export const SalesCustomersPage: React.FC = () => {
   const { currentUser, isSalesPartner, isLoading, isAuthenticated } = useAuth();
+  const { t } = useLocalization();
   const [customers, setCustomers] = useState<SalesPartnerCustomer[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [page, setPage] = useState<number>(1);
@@ -100,26 +102,25 @@ export const SalesCustomersPage: React.FC = () => {
         sort_by: sortBy,
       });
 
-      if (debouncedSearch.trim()) {
-        queryParams.set('search', debouncedSearch.trim());
-      }
-
       if (statusFilter !== 'all') {
         queryParams.set('status', statusFilter);
+      }
+      if (debouncedSearch.trim()) {
+        queryParams.set('search', debouncedSearch.trim());
       }
 
       const res = await apiFetch(`/api/sales/customers?${queryParams.toString()}`);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to load customer list');
+        throw new Error(errData.error || 'Failed to load customers');
       }
 
       const data = await res.json();
       setCustomers(data.customers || []);
-      setTotal(data.total || 0);
-      setTotalPages(data.total_pages || 1);
+      setTotal(data.pagination?.total || 0);
+      setTotalPages(data.pagination?.totalPages || 1);
     } catch (err: any) {
-      setError(err?.message || 'Error loading customers');
+      setError(err?.message || 'Error loading customers list');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -203,7 +204,6 @@ export const SalesCustomersPage: React.FC = () => {
 
       alert('Sales opportunity request submitted successfully for administrator review!');
       setShowOpportunityModal(false);
-      // Refresh current view
       if (selectedCustomerId) {
         handleViewDetail(selectedCustomerId);
       }
@@ -227,47 +227,45 @@ export const SalesCustomersPage: React.FC = () => {
       case 'approved':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3 h-3" /> Approved
+            <CheckCircle2 className="w-3 h-3" />
+            <span>{t('sales.commissions.statusApproved')}</span>
           </span>
         );
       case 'pending':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
-            <Clock className="w-3 h-3" /> Pending Review
+            <Clock className="w-3 h-3" />
+            <span>{t('sales.commissions.statusPending')}</span>
           </span>
         );
       case 'needs_review':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <AlertTriangle className="w-3 h-3" /> Flagged Review
+            <AlertTriangle className="w-3 h-3" />
+            <span>{t('sales.commissions.pendingReview')}</span>
           </span>
         );
       case 'rejected':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-            <XCircle className="w-3 h-3" /> Rejected
-          </span>
-        );
-      case 'reassigned':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-            Reassigned
+            <XCircle className="w-3 h-3" />
+            <span>{t('sales.developer.reject')}</span>
           </span>
         );
       default:
         return (
-          <span className="px-2 py-0.5 rounded text-xs bg-slate-800 text-slate-300">
-            {status}
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+            <span>{status}</span>
           </span>
         );
     }
   };
 
-  const getWindowBadge = (customer: SalesPartnerCustomer) => {
+  const getWindowBadge = (customer: SalesPartnerCustomer | SalesPartnerCustomerDetail) => {
     if (customer.window_status === 'active') {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-          <span>Active (5% repeat)</span>
+          <span>{t('sales.customers.repeatOrderRate')}</span>
           {customer.days_remaining !== null && (
             <span className="text-[10px] text-emerald-300">({customer.days_remaining}d)</span>
           )}
@@ -277,20 +275,20 @@ export const SalesCustomersPage: React.FC = () => {
     if (customer.window_status === 'expired') {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-          <span>Window Expired</span>
+          <span>{t('sales.customers.windowExpired')}</span>
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
-        <span>No orders yet (10% 1st order)</span>
+        <span>{t('sales.customers.firstOrderRate')}</span>
       </span>
     );
   };
 
   return (
     <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
-      <SEO robots="noindex, follow" title="Attributed Customers | Event Game Studio" />
+      <SEO robots="noindex, follow" title={`${t('sales.customers.title')} | ${t('sales.nav.brandTitle')}`} />
       <SalesNavbar activeSection="customers" />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -299,13 +297,13 @@ export const SalesCustomersPage: React.FC = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 mb-1">
               <Users className="w-3.5 h-3.5" />
-              <span>Client Portfolio</span>
+              <span>{t('sales.nav.customers')}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Attributed Clients & Organizations
+              {t('sales.customers.title')}
             </h1>
             <p className="text-sm text-slate-400 max-w-2xl">
-              Track client organizations registered through your referral codes, monitor event activation counts, and verify 12-month repeat order commission eligibility.
+              {t('sales.customers.subtitle')}
             </p>
           </div>
 
@@ -314,17 +312,17 @@ export const SalesCustomersPage: React.FC = () => {
               onClick={handleRefresh}
               disabled={loading || refreshing}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-semibold text-slate-200 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
-              title="Refresh Client List"
+              title={t('sales.dashboard.refresh')}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              <span>{refreshing ? t('sales.dashboard.refreshing') : t('sales.dashboard.refresh')}</span>
             </button>
             <button
               onClick={() => navigateTo('/sales/referrals')}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-450 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/10 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Refer New Client</span>
+              <span>{t('sales.referrals.copyLink')}</span>
             </button>
           </div>
         </div>
@@ -338,7 +336,7 @@ export const SalesCustomersPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by client name, email, referral code..."
+              placeholder={t('sales.customers.searchPlaceholder')}
               className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
             />
             {searchQuery && (
@@ -354,11 +352,11 @@ export const SalesCustomersPage: React.FC = () => {
           {/* Status Filter Tabs */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 overflow-x-auto text-xs">
             {[
-              { id: 'all', label: 'All Clients' },
-              { id: 'approved', label: 'Approved' },
-              { id: 'pending', label: 'Pending' },
-              { id: 'needs_review', label: 'Review' },
-              { id: 'rejected', label: 'Rejected' },
+              { id: 'all', label: t('sales.customers.filterAll') },
+              { id: 'approved', label: t('sales.commissions.statusApproved') },
+              { id: 'pending', label: t('sales.commissions.statusPending') },
+              { id: 'needs_review', label: t('sales.commissions.pendingReview') },
+              { id: 'rejected', label: t('sales.developer.reject') },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -379,7 +377,7 @@ export const SalesCustomersPage: React.FC = () => {
 
           {/* Sorting Dropdown */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-400">Sort:</span>
+            <span className="text-xs text-slate-400">{t('common.sort', undefined, 'Sort:')}</span>
             <select
               value={sortBy}
               onChange={(e) => {
@@ -388,10 +386,10 @@ export const SalesCustomersPage: React.FC = () => {
               }}
               className="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500/50 cursor-pointer"
             >
-              <option value="latest_activity">Latest Activity</option>
-              <option value="commissions">Highest Commissions</option>
-              <option value="name">Client Name</option>
-              <option value="established">Date Established</option>
+              <option value="latest_activity">{t('sales.customers.sortLatestActivity', undefined, 'Latest Activity')}</option>
+              <option value="commissions">{t('sales.customers.sortHighestCommissions', undefined, 'Highest Commissions')}</option>
+              <option value="name">{t('sales.customers.sortClientName', undefined, 'Client Name')}</option>
+              <option value="established">{t('sales.customers.sortDateEstablished', undefined, 'Date Established')}</option>
             </select>
           </div>
         </div>
@@ -407,7 +405,7 @@ export const SalesCustomersPage: React.FC = () => {
               onClick={handleRefresh}
               className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
-              Retry
+              {t('sales.aiTranslator.retry')}
             </button>
           </div>
         )}
@@ -428,13 +426,13 @@ export const SalesCustomersPage: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3.5 px-4">Client / Organization</th>
-                    <th className="py-3.5 px-4">Attribution Status</th>
-                    <th className="py-3.5 px-4">Method & Code</th>
-                    <th className="py-3.5 px-4">Events / Activations</th>
-                    <th className="py-3.5 px-4">Earned Commission</th>
-                    <th className="py-3.5 px-4">12-Mo Repeat Window</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
+                    <th className="py-3.5 px-4">{t('sales.customers.clientCol')}</th>
+                    <th className="py-3.5 px-4">{t('sales.customers.statusCol')}</th>
+                    <th className="py-3.5 px-4">{t('sales.referrals.yourReferralCode')}</th>
+                    <th className="py-3.5 px-4">{t('sales.customers.eventsCol')}</th>
+                    <th className="py-3.5 px-4">{t('sales.customers.commissionCol')}</th>
+                    <th className="py-3.5 px-4">{t('sales.customers.windowCol')}</th>
+                    <th className="py-3.5 px-4 text-right">{t('sales.customers.actionsCol')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -522,7 +520,7 @@ export const SalesCustomersPage: React.FC = () => {
                           <button
                             onClick={() => handleViewDetail(cust.id)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                            title="View Customer Details"
+                            title={t('sales.customers.inspect')}
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
@@ -530,7 +528,7 @@ export const SalesCustomersPage: React.FC = () => {
                             <button
                               onClick={() => handleOpenOpportunityModal(cust.organization_id!, cust.organization_name)}
                               className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-slate-950 transition-colors cursor-pointer"
-                              title="Request Opportunity for Repeat Event"
+                              title={t('sales.customers.requestOpportunityTitle', undefined, 'Request Opportunity for Repeat Event')}
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
@@ -546,11 +544,11 @@ export const SalesCustomersPage: React.FC = () => {
             {/* Pagination Controls */}
             <div className="bg-slate-950/80 border-t border-slate-800 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
               <div>
-                Showing <span className="font-semibold text-white">{(page - 1) * limit + 1}</span> to{' '}
-                <span className="font-semibold text-white">
-                  {Math.min(page * limit, total)}
-                </span>{' '}
-                of <span className="font-semibold text-white">{total}</span> client accounts
+                {t('common.paginationShowing', {
+                  start: (page - 1) * limit + 1,
+                  end: Math.min(page * limit, total),
+                  total
+                }, `Showing ${(page - 1) * limit + 1} to ${Math.min(page * limit, total)} of ${total}`)}
               </div>
 
               <div className="flex items-center gap-2">
@@ -560,17 +558,17 @@ export const SalesCustomersPage: React.FC = () => {
                   className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white disabled:opacity-40 disabled:hover:text-slate-300 cursor-pointer flex items-center gap-1"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
+                  <span>{t('common.prev', undefined, 'Prev')}</span>
                 </button>
                 <span className="px-2 text-slate-400">
-                  Page {page} of {totalPages}
+                  {t('common.pageOfTotal', { page, totalPages }, `Page ${page} of ${totalPages}`)}
                 </span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white disabled:opacity-40 disabled:hover:text-slate-300 cursor-pointer flex items-center gap-1"
                 >
-                  <span>Next</span>
+                  <span>{t('common.next', undefined, 'Next')}</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -585,11 +583,9 @@ export const SalesCustomersPage: React.FC = () => {
               <Users className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-white">No Attributed Clients Found</h3>
+              <h3 className="text-base font-bold text-white">{t('sales.customers.emptyState')}</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                {searchQuery || statusFilter !== 'all'
-                  ? 'No clients match your search criteria. Try resetting your filter or search query.'
-                  : 'You have not yet attributed any clients. Share your unique partner referral link with event planners to get started.'}
+                {t('sales.customers.emptyStateDesc')}
               </p>
             </div>
             <div className="pt-2 flex justify-center gap-3">
@@ -609,7 +605,7 @@ export const SalesCustomersPage: React.FC = () => {
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <Share2 className="w-3.5 h-3.5" />
-                  <span>Get Referral Link</span>
+                  <span>{t('sales.referrals.copyLink')}</span>
                 </button>
               )}
             </div>
@@ -628,7 +624,7 @@ export const SalesCustomersPage: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white">
-                      {customerDetail?.organization_name || 'Client Account Details'}
+                      {customerDetail?.organization_name || t('sales.customers.modalTitle')}
                     </h3>
                     <div className="text-xs text-slate-400">
                       Attribution ID: {selectedCustomerId}
@@ -646,7 +642,7 @@ export const SalesCustomersPage: React.FC = () => {
               {/* Loading Detail */}
               {loadingDetail && (
                 <div className="py-12 text-center text-slate-400 text-xs animate-pulse">
-                  Loading client details, events, and commission history...
+                  {t('sales.dashboard.refreshing')}
                 </div>
               )}
 
@@ -663,47 +659,47 @@ export const SalesCustomersPage: React.FC = () => {
                   {/* Overview Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <div className="text-slate-400 text-[10px] uppercase font-semibold">Status</div>
+                      <div className="text-slate-400 text-[10px] uppercase font-semibold">{t('sales.customers.statusCol')}</div>
                       <div className="mt-1">{getAttributionBadge(customerDetail.attribution_status)}</div>
                     </div>
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <div className="text-slate-400 text-[10px] uppercase font-semibold">Total Events</div>
+                      <div className="text-slate-400 text-[10px] uppercase font-semibold">{t('sales.customers.totalActivations')}</div>
                       <div className="mt-1 text-base font-black text-white">
                         {customerDetail.total_events} ({customerDetail.total_paid_events} paid)
                       </div>
                     </div>
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <div className="text-slate-400 text-[10px] uppercase font-semibold">Earned Commission</div>
+                      <div className="text-slate-400 text-[10px] uppercase font-semibold">{t('sales.customers.earnedCommission')}</div>
                       <div className="mt-1 text-base font-black text-amber-400">
                         {formatCurrency(customerDetail.total_commissions_earned, customerDetail.currency)}
                       </div>
                     </div>
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                      <div className="text-slate-400 text-[10px] uppercase font-semibold">12-Mo Repeat Window</div>
+                      <div className="text-slate-400 text-[10px] uppercase font-semibold">{t('sales.customers.windowCol')}</div>
                       <div className="mt-1">{getWindowBadge(customerDetail)}</div>
                     </div>
                   </div>
 
                   {/* Contact & Attribution Details */}
                   <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
-                    <h4 className="font-bold text-white text-xs">Attribution Profile</h4>
+                    <h4 className="font-bold text-white text-xs">{t('sales.customers.modalTitle')}</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
                       <div>
-                        <span className="text-slate-500">Referral Code:</span>{' '}
+                        <span className="text-slate-500">{t('sales.referrals.yourReferralCode')}:</span>{' '}
                         <span className="font-mono font-bold text-amber-400">
                           {customerDetail.referral_code}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-500">Referral Method:</span>{' '}
+                        <span className="text-slate-500">{t('sales.customers.referralMethodLabel', undefined, 'Method:')}</span>{' '}
                         <span className="capitalize">{customerDetail.referral_method}</span>
                       </div>
                       <div>
-                        <span className="text-slate-500">Contact Email:</span>{' '}
-                        <span>{customerDetail.contact_email || 'Not provided'}</span>
+                        <span className="text-slate-500">{t('sales.customers.contactEmailLabel', undefined, 'Contact Email:')}</span>{' '}
+                        <span>{customerDetail.contact_email || t('common.notProvided', undefined, 'Not provided')}</span>
                       </div>
                       <div>
-                        <span className="text-slate-500">Established Date:</span>{' '}
+                        <span className="text-slate-500">{t('sales.customers.registeredOn')}:</span>{' '}
                         <span>
                           {new Date(
                             customerDetail.established_at || customerDetail.created_at
@@ -716,7 +712,7 @@ export const SalesCustomersPage: React.FC = () => {
                   {/* Related Events Section */}
                   <div className="space-y-3">
                     <h4 className="font-bold text-white text-xs flex items-center justify-between">
-                      <span>Client Event Activations ({customerDetail.events.length})</span>
+                      <span>{t('sales.customers.eventsCol')} ({customerDetail.events.length})</span>
                       {customerDetail.organization_id && (
                         <button
                           onClick={() =>
@@ -728,7 +724,7 @@ export const SalesCustomersPage: React.FC = () => {
                           className="text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
-                          <span>Request Opportunity</span>
+                          <span>{t('sales.commissions.requestOpportunity')}</span>
                         </button>
                       )}
                     </h4>
@@ -770,7 +766,7 @@ export const SalesCustomersPage: React.FC = () => {
                   {/* Commissions History for this Client */}
                   <div className="space-y-3">
                     <h4 className="font-bold text-white text-xs">
-                      Commissions Earned from this Client ({customerDetail.commissions.length})
+                      {t('sales.customers.earnedCommission')} ({customerDetail.commissions.length})
                     </h4>
                     {customerDetail.commissions.length > 0 ? (
                       <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40 text-xs">
@@ -779,13 +775,13 @@ export const SalesCustomersPage: React.FC = () => {
                             <div>
                               <div className="font-bold text-white">
                                 {comm.order_type === 'first_order'
-                                  ? 'First Order Commission (10%)'
+                                  ? t('sales.customers.firstOrderRate')
                                   : comm.order_type === 'repeat_order'
-                                  ? 'Repeat Order Commission (5%)'
+                                  ? t('sales.customers.repeatOrderRate')
                                   : 'Opportunity Commission'}
                               </div>
                               <div className="text-[11px] text-slate-400">
-                                Cash collected: {formatCurrency(comm.cash_collected_amount, comm.currency)} •{' '}
+                                {t('sales.customers.spendCol')}: {formatCurrency(comm.cash_collected_amount, comm.currency)} •{' '}
                                 {new Date(comm.eligibility_date).toLocaleDateString()}
                               </div>
                             </div>
@@ -810,7 +806,7 @@ export const SalesCustomersPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-xl text-center text-xs text-slate-500">
-                        No commissions generated yet. Commissions record upon completed event activations.
+                        {t('sales.commissions.emptyLedger')}
                       </div>
                     )}
                   </div>
@@ -821,7 +817,7 @@ export const SalesCustomersPage: React.FC = () => {
                       onClick={() => setSelectedCustomerId(null)}
                       className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                     >
-                      Close
+                      {t('sales.customers.close')}
                     </button>
                   </div>
                 </div>
@@ -838,7 +834,7 @@ export const SalesCustomersPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-amber-400" />
                   <h3 className="text-base font-bold text-white">
-                    Request Sales Opportunity
+                    {t('sales.commissions.requestOpportunity')}
                   </h3>
                 </div>
                 <button
@@ -850,27 +846,27 @@ export const SalesCustomersPage: React.FC = () => {
               </div>
 
               <p className="text-xs text-slate-400 leading-relaxed">
-                Submit an opportunity request to lock in commission eligibility for upcoming repeat event activations outside the 12-month window for <span className="font-bold text-white">{opportunityOrgName}</span>.
+                {t('sales.commissions.requestOpportunityDesc')}
               </p>
 
               <form onSubmit={handleSubmitOpportunity} className="space-y-4 text-xs">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Opportunity Title *
+                    {t('sales.commissions.opportunityTitleLabel')} *
                   </label>
                   <input
                     type="text"
                     required
                     value={opportunityTitle}
                     onChange={(e) => setOpportunityTitle(e.target.value)}
-                    placeholder="e.g. Q4 Annual Conference Interactive Arena"
+                    placeholder={t('sales.customers.opportunityPlaceholder', undefined, 'e.g. Q4 Annual Conference Interactive Arena')}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Expected Event Date (Optional)
+                    {t('sales.commissions.opportunityDateLabel')}
                   </label>
                   <input
                     type="date"
@@ -882,31 +878,31 @@ export const SalesCustomersPage: React.FC = () => {
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Details & Pitch Notes
+                    {t('sales.commissions.opportunityDescLabel')}
                   </label>
                   <textarea
                     rows={3}
                     value={opportunityDescription}
                     onChange={(e) => setOpportunityDescription(e.target.value)}
-                    placeholder="Provide details on the client pitch, proposed game formats, and timeline..."
+                    placeholder={t('sales.customers.opportunityDetailsPlaceholder', undefined, 'Provide details on the client pitch, proposed game formats, and timeline...')}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-500 resize-none"
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-850">
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-855">
                   <button
                     type="button"
                     onClick={() => setShowOpportunityModal(false)}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-semibold transition-colors cursor-pointer"
                   >
-                    Cancel
+                    {t('sales.commissions.cancel')}
                   </button>
                   <button
                     type="submit"
                     disabled={submittingOpportunity}
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {submittingOpportunity ? 'Submitting...' : 'Submit Request'}
+                    {submittingOpportunity ? t('sales.commissions.submitting') : t('sales.commissions.submitOpportunity')}
                   </button>
                 </div>
               </form>

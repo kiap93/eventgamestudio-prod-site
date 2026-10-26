@@ -19,22 +19,46 @@ import {
 
 interface GameplayTabProps {
   theme: GameTheme;
-  onChange: (updated: GameTheme) => void;
+  onChange?: (updated: GameTheme) => void;
+  onFieldChange?: (field: keyof GameTheme, value: any) => void;
+  isViewer?: boolean;
 }
 
-export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => {
+export const GameplayTab: React.FC<GameplayTabProps> = ({
+  theme,
+  onChange,
+  onFieldChange,
+  isViewer = false,
+}) => {
   const { t } = useLocalization();
+
+  // Authoritative theme change dispatcher: supports onChange and adapts onFieldChange
+  const handleThemeChange = (updated: GameTheme) => {
+    if (typeof onChange === 'function') {
+      onChange(updated);
+    } else if (typeof onFieldChange === 'function') {
+      if (updated.game_config !== theme.game_config) {
+        onFieldChange('game_config', updated.game_config);
+      }
+      if (updated.physics_config !== theme.physics_config) {
+        onFieldChange('physics_config', updated.physics_config);
+      }
+    }
+  };
+
+  const [showAdvancedPhysics, setShowAdvancedPhysics] = useState(false);
+
   const isReaction = isReactionTheme(theme);
   if (isReaction) {
-    return <ReactionGameGameplayCustomizer theme={theme} onChange={onChange} />;
+    return <ReactionGameGameplayCustomizer theme={theme} onChange={handleThemeChange} />;
   }
 
   const isMatch3 = isMatch3Theme(theme);
   if (isMatch3) {
     return (
       <div className="space-y-6">
-        <Match3GameplayCustomizer theme={theme} onChange={onChange} />
-        <Match3HazardsCustomizer theme={theme} onChange={onChange} />
+        <Match3GameplayCustomizer theme={theme} onChange={handleThemeChange} />
+        <Match3HazardsCustomizer theme={theme} onChange={handleThemeChange} />
       </div>
     );
   }
@@ -42,10 +66,8 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
   const isMemoryMatch = isMemoryMatchTheme(theme);
 
   if (isMemoryMatch) {
-    return <MemoryMatchGameplayCustomizer theme={theme} onChange={onChange} />;
+    return <MemoryMatchGameplayCustomizer theme={theme} onChange={handleThemeChange} />;
   }
-
-  const [showAdvancedPhysics, setShowAdvancedPhysics] = useState(false);
 
   const physics = theme.physics_config || {
     gameDurationSeconds: 20,
@@ -58,7 +80,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
   };
 
   const handleUpdatePhysics = (updates: Partial<typeof physics>) => {
-    onChange({
+    handleThemeChange({
       ...theme,
       physics_config: {
         ...physics,

@@ -124,10 +124,23 @@ Paid:     │ Preview Only        │ Live URL Open (Test Score)│ Live URL Ope
 
 ---
 
-## 5. Cancellation & Refund Rules
+## 5. Deletion, Cancellation & Refund Rules
 
+### Deletion Rules
+- **Unpaid Events (Newly Created, Setup Day, or Expired)**:
+  - When an event has been created but payment has not been made, the event owner or admin can permanently delete it.
+  - Deletion is available even if the event date has already passed (expired) or if Setup Day has arrived, provided the event remains unpaid and no financial records (e.g., invoices) or operational restrictions prevent deletion.
+  - Deletion requires a confirmation modal with the event name and explicit warning that the action cannot be undone.
+- **Paid Events**:
+  - Physical deletion is strictly forbidden. Paid events must use the authorized Cancel & Refund workflow before Setup Day.
+- **Cancelled or Refunded Events**:
+  - Physical deletion is strictly forbidden to preserve financial/audit ledger history.
+- **Financial Record Safeguard**:
+  - Events with existing tax invoices, credit notes, or confirmed financial transactions cannot be deleted.
+
+### Cancellation & Refund Rules
 Event cancellation is handled by `cancelEvent` and `determineEventRefund` in `server/db/events.ts`:
-- **Unpaid Events**: Can be cancelled at any time before `end_date`. No financial refund is required.
+- **Unpaid Events**: Can be deleted directly.
 - **Paid Events Cancelled BEFORE Setup Day (`current_date < live_open_date`)**:
   - Status: Transitions to `CANCELLED`.
   - Refund Eligibility: Eligible for a **100% refund** credited back to the organization's wallet (`determineEventRefund` returns `eligible: true, refundPercentage: 100`).

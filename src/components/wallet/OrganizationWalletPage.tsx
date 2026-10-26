@@ -536,8 +536,8 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </div>
           </div>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl pt-1">
-            Real-time balance breakdown and immutable audit ledger for{' '}
-            <strong className="text-slate-200">{currentOrganization?.name || 'your workspace'}</strong>.
+            {t('payment.walletHeaderSubtitlePrefix', undefined, 'Real-time balance breakdown and immutable audit ledger for')}{' '}
+            <strong className="text-slate-200">{currentOrganization?.name || t('payment.yourWorkspace', undefined, 'your workspace')}</strong>.
           </p>
         </div>
 
@@ -549,11 +549,11 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 {currentOrganization?.name}
               </span>
               <span className="text-[9px] font-mono text-slate-500 truncate max-w-[150px]">
-                Org: {currentOrganization?.id?.slice(0, 8)}...
+                {t('payment.orgShortLabel', undefined, 'Org')}: {currentOrganization?.id?.slice(0, 8)}...
               </span>
             </div>
             <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 ml-1">
-              {currentOrganization?.role || 'Member'}
+              {currentOrganization?.role || t('org.roleMember', undefined, 'Member')}
             </span>
           </div>
 
@@ -625,7 +625,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               )}
               <div className="text-[11px] text-slate-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t('payment.standardEventPrice')} <strong>RM1,400</strong></span>
+                <span>{t('payment.standardEventPriceDesc', { price: 'RM1,400' }, 'Standard Event Price: RM1,400')}</span>
               </div>
             </div>
           </div>
@@ -659,7 +659,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-2.5">
-            100% refundable cash balance prior to event setup days. Usable on any event.
+            {t('payment.paidBalanceCardDesc', undefined, '100% refundable cash balance prior to event setup days. Usable on any event.')}
           </p>
         </div>
 
@@ -670,7 +670,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full">
-              5%–7% Promo
+              {t('payment.promo5To7Percent', undefined, '5%–7% Promo')}
             </span>
           </div>
           <div>
@@ -680,7 +680,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-2.5">
-            Earned bonus credits from bulk top-ups. Deducted automatically upon event launch.
+            {t('payment.topUpCreditCardDesc', undefined, 'Earned bonus credits from bulk top-ups. Deducted automatically upon event launch.')}
           </p>
         </div>
 
@@ -714,10 +714,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-2.5">
             {wallet?.can_use_welcome_credit
-              ? 'Promotional discount credit available to offset your event deployment.'
+              ? t('payment.welcomeCreditReadyDesc', undefined, 'Promotional discount credit available to offset your event deployment.')
               : wallet?.welcome_credit_granted
-              ? 'Welcome bonus discount has already been redeemed on an active event.'
-              : 'Promotional credit available for special marketing campaigns or administrative grants.'}
+              ? t('payment.welcomeCreditClaimedDesc', undefined, 'Welcome bonus discount has already been redeemed on an active event.')
+              : t('payment.welcomeCreditPromoDesc', undefined, 'Promotional credit available for special marketing campaigns or administrative grants.')}
           </p>
         </div>
 
@@ -742,7 +742,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 ? t('payment.claimed', undefined, 'Claimed')
                 : userLifetimeShowcaseRewardClaimed
                 ? t('payment.claimedAccount', undefined, 'Claimed (Account)')
-                : 'Earn RM300'}
+                : t('payment.earnRm300Badge', undefined, 'Earn RM300')}
             </span>
           </div>
           <div>
@@ -752,7 +752,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-2.5">
-            Earned by submitting event photo/video showcases. Applied as instant RM300 discount on subsequent events.
+            {t('payment.showcaseCreditCardDesc', undefined, 'Earned by submitting event photo/video showcases. Applied as instant RM300 discount on subsequent events.')}
           </p>
         </div>
       </div>
@@ -767,7 +767,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <span>{t('payment.transactionHistory')}</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Complete read-only transaction ledger scoped to <strong className="text-slate-300">{currentOrganization?.name}</strong>.
+              {t('payment.transactionHistoryScopedPrefix', undefined, 'Complete read-only transaction ledger scoped to')} <strong className="text-slate-300">{currentOrganization?.name}</strong>.
             </p>
           </div>
 
@@ -978,8 +978,8 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 <h4 className="text-sm font-bold text-slate-200">{t('payment.noTransactionsFound')}</h4>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
                   {hasActiveFilters
-                    ? 'No transactions matched your active filters and date selections.'
-                    : 'No ledger transactions have been recorded for this organization yet.'}
+                    ? t('payment.noTransactionsMatchedFilters', undefined, 'No transactions matched your active filters and date selections.')
+                    : t('payment.noLedgerTransactionsRecordedYet', undefined, 'No ledger transactions have been recorded for this organization yet.')}
                 </p>
               </div>
               {hasActiveFilters && (
@@ -1056,7 +1056,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                               <span>{info.displayTitle}</span>
                               {info.isTopUpRelated && (
                                 <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                  Details
+                                  {t('common.details', undefined, 'Details')}
                                 </span>
                               )}
                             </div>
@@ -1139,7 +1139,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         {!isLoadingTxns && displayTransactions.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 border-t border-slate-800 pt-3 gap-2">
             <span>
-              Showing {displayTransactions.length} of {totalTxns} recorded transactions in organization ledger
+              {t('payment.showingRecordedTransactions', { shown: displayTransactions.length, total: totalTxns }, `Showing ${displayTransactions.length} of ${totalTxns} recorded transactions in organization ledger`)}
             </span>
             <span className="flex items-center gap-1 text-slate-400">
               <Lock className="w-3 h-3 text-emerald-400" />
@@ -1162,7 +1162,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <span>{t('payment.fullCancellationRefunds')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              Events cancelled prior to setup day receive 100% full refund back to your Paid Balance, and used credits are reversed back to your wallet.
+              {t('payment.fullCancellationRefundsDesc', undefined, 'Events cancelled prior to setup day receive 100% full refund back to your Paid Balance, and used credits are reversed back to your wallet.')}
             </p>
           </div>
 
@@ -1172,7 +1172,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <span>{t('payment.promotionalCreditPriority')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              Welcome Credit (RM800), Showcase Credit (RM300), or Top-up Credits (5%–7%) can be chosen to offset event deployments instantly.
+              {t('payment.promotionalCreditPriorityDesc', undefined, 'Welcome Credit (RM800), Showcase Credit (RM300), or Top-up Credits (5%–7%) can be chosen to offset event deployments instantly.')}
             </p>
           </div>
 
@@ -1182,7 +1182,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <span>{t('payment.earnShowcaseRewards')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              Submit high-quality photos/videos of your live event game activations in the Showcase tab to earn RM300 wallet reward upon review.
+              {t('payment.earnShowcaseRewardsDesc', undefined, 'Submit high-quality photos/videos of your live event game activations in the Showcase tab to earn RM300 wallet reward upon review.')}
             </p>
           </div>
         </div>

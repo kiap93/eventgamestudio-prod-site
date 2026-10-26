@@ -16,6 +16,7 @@ import { LayoutElementKey, GameLayoutConfig, getDefaultUILayout } from '../../th
 import { navigateTo } from '../../hooks/useRouteContext';
 import { RenameThemeDialog } from './RenameThemeDialog';
 import { useLocalization } from '../../context/LocalizationContext';
+import { shouldShowGameHeader } from '../../lib/headerVisibility';
 import {
   ArrowLeft,
   Palette,
@@ -52,9 +53,16 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
     uploadAsset,
     currentOrganization,
     activeGame,
+    fetchActiveGame,
     fetchThemes,
   } = useAuth();
   const { t } = useLocalization();
+
+  useEffect(() => {
+    if (!activeGame) {
+      fetchActiveGame();
+    }
+  }, [activeGame, fetchActiveGame]);
 
   const role = currentOrganization?.role || 'viewer';
   const isViewer = role === 'viewer';
@@ -421,24 +429,40 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   // ONLY render the simple toolbar + actual GameShell
   // ============================================================
   if (isPlayingLiveGame) {
+    const showHeader = shouldShowGameHeader({
+      context: 'theme_editor_preview',
+      isFullscreen,
+    });
+
     return (
       <div
         ref={liveGameContainerRef}
         className={
           isFullscreen
-            ? 'fixed inset-0 z-[99999] w-screen h-screen bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col items-center justify-center'
+            ? 'fixed inset-0 z-[99999] w-screen h-screen h-[100dvh] bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col'
             : 'max-w-[1600px] mx-auto px-4 sm:px-6 py-4 flex flex-col space-y-4 min-h-[calc(100vh-120px)]'
         }
       >
-        {/* Simple Toolbar (hidden in fullscreen) */}
-        {!isFullscreen && (
-          <header className="bg-slate-900 border border-slate-800 rounded-2xl px-4 sm:px-6 py-3 shadow-xl flex items-center justify-between gap-4">
+        {/* Simple Toolbar (visible in both windowed and fullscreen preview) */}
+        {showHeader && (
+          <header
+            className={
+              isFullscreen
+                ? 'bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 py-2.5 shadow-xl flex items-center justify-between gap-4 w-full shrink-0 z-50 select-none'
+                : 'bg-slate-900 border border-slate-800 rounded-2xl px-4 sm:px-6 py-3 shadow-xl flex items-center justify-between gap-4 shrink-0'
+            }
+          >
             {/* Left: Back to Editor + Theme Name */}
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <button
                 type="button"
-                onClick={() => setIsPlayingLiveGame(false)}
-                className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0"
+                onClick={async () => {
+                  if (isFullscreen) {
+                    await handleCloseFullscreen();
+                  }
+                  setIsPlayingLiveGame(false);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4 text-amber-400" />
                 <span>{t('studio.backToEditor')}</span>
@@ -463,7 +487,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               <button
                 type="button"
                 onClick={() => setRestartKey((prev) => prev + 1)}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                 title={t('studio.restartGame')}
               >
                 <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
@@ -473,11 +497,11 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               <button
                 type="button"
                 onClick={handleToggleFullscreen}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                 title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
               >
                 {isFullscreen ? (
-                  <Minimize2 className="w-3.5 h-3.5 text-slate-300" />
+                  <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
                 ) : (
                   <Maximize2 className="w-3.5 h-3.5 text-slate-300" />
                 )}
@@ -489,7 +513,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
 
         {/* Full-width Game Viewport using current draftTheme */}
         <div
-          className={`flex-1 w-full flex flex-col items-center justify-center overflow-hidden ${
+          className={`flex-1 min-h-0 w-full flex flex-col items-center justify-center overflow-hidden ${
             isFullscreen
               ? 'p-0 m-0 bg-[#07130b] border-none rounded-none shadow-none h-full'
               : 'bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl min-h-[580px] h-[calc(100vh-140px)]'
@@ -505,21 +529,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             onToggleFullscreen={handleToggleFullscreen}
           />
         </div>
-
-        {isFullscreen && (
-          <button
-            type="button"
-            onClick={handleCloseFullscreen}
-            className="fixed top-4 right-4 z-[100000] flex items-center gap-2 px-4 py-2 bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-2xl backdrop-blur-md cursor-pointer"
-            title={t('studio.closeFullscreen')}
-          >
-            <Minimize2 className="w-4 h-4 text-amber-400" />
-            <span>{t('studio.closeFullscreen')}</span>
-            <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
-              ESC
-            </span>
-          </button>
-        )}
       </div>
     );
   }

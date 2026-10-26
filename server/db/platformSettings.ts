@@ -3,7 +3,8 @@ import { PlatformPricingSettings, EventPricingRule, PlatformContactSettings, Pla
 export type { PlatformInvoiceSettings };
 import { normalizeEventDateBoundaries } from './events.js';
 import { resolveGamePrice } from './gamePricing.js';
-import { getCurrencyForCountry } from '../../src/lib/countryUtils.js';
+import { getCurrencyForCountry, isValidCountryCode } from '../../src/lib/countryUtils.js';
+import { recordDbOperation } from './dbMetrics.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -392,13 +393,12 @@ export async function calculateEventAuthoritativePrice(
   const durationDays = calculateEventCalendarDays(norm.startDate, norm.endDate);
   const targetGameId = params.game_id || params.gameId;
   const defaultCountry = await getDefaultPricingCountry(env);
-  const targetCountry = (params.country_code || params.countryCode)
-    ? (params.country_code || params.countryCode)!.trim().toUpperCase()
-    : defaultCountry;
+  const rawCountry = (params.country_code || params.countryCode)?.trim().toUpperCase();
+  const targetCountry = rawCountry && isValidCountryCode(rawCountry) ? rawCountry : undefined;
 
   // If a specific game is specified, resolve through the game-level pricing architecture with country fallback
   if (targetGameId) {
-    const gameQuote = await resolveGamePrice(targetGameId, durationDays, targetCountry, env);
+    const gameQuote = await resolveGamePrice(targetGameId, durationDays, targetCountry, env, { defaultCountry });
     if (!gameQuote.success) {
       const failQuote = gameQuote as any;
       const err: any = new Error(
@@ -442,6 +442,7 @@ export async function calculateEventAuthoritativePrice(
 }
 
 export async function getDefaultPricingCountry(env?: Record<string, any>): Promise<string> {
+  recordDbOperation('platform_settings_read', env);
   const isProd = !isLocalFallbackAllowed(env);
   const hasSupabase = isSupabaseConfigured(env);
 

@@ -22,7 +22,9 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
+import { downloadInvoicePdf } from '../../lib/invoiceDownload';
 import { DeveloperInvoiceSettings } from './DeveloperInvoiceSettings';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export interface InvoiceItem {
   id: string;
@@ -81,6 +83,7 @@ export interface InvoiceAuditLog {
 }
 
 export const DeveloperInvoicesManager: React.FC = () => {
+  const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<'invoices' | 'settings'>('invoices');
 
   // List states
@@ -105,6 +108,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
   // Actions states
   const [retryingPdf, setRetryingPdf] = useState<boolean>(false);
   const [retryingEmail, setRetryingEmail] = useState<boolean>(false);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
   // Credit Note Modal
   const [showCreditNoteModal, setShowCreditNoteModal] = useState<boolean>(false);
@@ -169,8 +173,20 @@ export const DeveloperInvoicesManager: React.FC = () => {
     }
   };
 
-  const handleDownloadPdf = (inv: InvoiceItem) => {
-    window.open(`/api/invoices/${inv.id}/pdf`, '_blank');
+  const handleDownloadPdf = async (inv: InvoiceItem) => {
+    if (!inv?.id || downloadingInvoiceId) return;
+    setDownloadingInvoiceId(inv.id);
+    setError(null);
+    try {
+      const result = await downloadInvoicePdf(inv.id, inv.invoice_number);
+      if (!result.success) {
+        setError(result.error || `Failed to download PDF for ${inv.invoice_number}`);
+      }
+    } catch (err: any) {
+      setError(err?.message || `Failed to download PDF for ${inv.invoice_number}`);
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
   };
 
   const handleRetryPdf = async (inv: InvoiceItem) => {
@@ -248,21 +264,21 @@ export const DeveloperInvoicesManager: React.FC = () => {
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3 h-3" />
-            Paid
+            {t('dev.invoices.statusPaid', undefined, 'Paid')}
           </span>
         );
       case 'partially_paid':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
             <Clock className="w-3 h-3" />
-            Partially Paid
+            {t('dev.invoices.statusPartiallyPaid', undefined, 'Partially Paid')}
           </span>
         );
       case 'unpaid':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
             <Clock className="w-3 h-3" />
-            Unpaid
+            {t('dev.invoices.statusUnpaid', undefined, 'Unpaid')}
           </span>
         );
       case 'cancelled':
@@ -289,10 +305,10 @@ export const DeveloperInvoicesManager: React.FC = () => {
         <div>
           <h1 className="text-xl font-black text-white flex items-center gap-2">
             <FileText className="w-6 h-6 text-emerald-400" />
-            Tax Invoices & Billing Engine
+            {t('dev.invoices.title', undefined, 'Tax Invoices & Billing Engine')}
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Authoritative billing snapshot records, sequential numbering, automated PDF vector generation, and seller compliance.
+            {t('dev.invoices.subtitle', undefined, 'Authoritative billing snapshot records, sequential numbering, automated PDF vector generation, and seller compliance.')}
           </p>
         </div>
 
@@ -306,7 +322,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>All Invoices ({totalCount})</span>
+            <span>{t('dev.invoices.allInvoicesTab', { count: totalCount }, `All Invoices (${totalCount})`)}</span>
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -317,7 +333,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Seller Settings</span>
+            <span>{t('dev.invoices.sellerSettingsTab', undefined, 'Seller Settings')}</span>
           </button>
         </div>
       </div>
@@ -360,7 +376,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by invoice number (INV-2026-...) or organization..."
+                  placeholder={t('dev.invoices.searchPlaceholder', undefined, 'Search by invoice number (INV-2026-...) or organization...')}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none transition-colors"
                 />
               </div>
@@ -368,7 +384,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                 type="submit"
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
               >
-                Search
+                {t('common.search', undefined, 'Search')}
               </button>
             </form>
 
@@ -381,19 +397,19 @@ export const DeveloperInvoicesManager: React.FC = () => {
                 }}
                 className="bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none transition-colors cursor-pointer"
               >
-                <option value="">All Statuses</option>
-                <option value="paid">Paid</option>
-                <option value="partially_paid">Partially Paid</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="void">Void</option>
+                <option value="">{t('dev.invoices.allStatuses', undefined, 'All Statuses')}</option>
+                <option value="paid">{t('dev.invoices.statusPaid', undefined, 'Paid')}</option>
+                <option value="partially_paid">{t('dev.invoices.statusPartiallyPaid', undefined, 'Partially Paid')}</option>
+                <option value="unpaid">{t('dev.invoices.statusUnpaid', undefined, 'Unpaid')}</option>
+                <option value="cancelled">{t('dev.invoices.statusCancelled', undefined, 'Cancelled')}</option>
+                <option value="void">{t('dev.invoices.statusVoid', undefined, 'Void')}</option>
               </select>
 
               <button
                 onClick={fetchInvoices}
                 disabled={loading}
                 className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors cursor-pointer"
-                title="Refresh"
+                title={t('common.refresh', undefined, 'Refresh')}
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
               </button>
@@ -406,16 +422,16 @@ export const DeveloperInvoicesManager: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4">Invoice #</th>
-                    <th className="py-3 px-4">Organization / Event</th>
-                    <th className="py-3 px-4">Issue Date</th>
-                    <th className="py-3 px-4 text-right">Subtotal</th>
-                    <th className="py-3 px-4 text-right">Discounts</th>
-                    <th className="py-3 px-4 text-right">Total</th>
-                    <th className="py-3 px-4 text-right">Paid</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-center">PDF</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4">{t('dev.invoices.colInvoiceNum', undefined, 'Invoice #')}</th>
+                    <th className="py-3 px-4">{t('dev.invoices.colOrgEvent', undefined, 'Organization / Event')}</th>
+                    <th className="py-3 px-4">{t('dev.invoices.colIssueDate', undefined, 'Issue Date')}</th>
+                    <th className="py-3 px-4 text-right">{t('dev.invoices.colSubtotal', undefined, 'Subtotal')}</th>
+                    <th className="py-3 px-4 text-right">{t('dev.invoices.colDiscounts', undefined, 'Discounts')}</th>
+                    <th className="py-3 px-4 text-right">{t('dev.invoices.colTotal', undefined, 'Total')}</th>
+                    <th className="py-3 px-4 text-right">{t('dev.invoices.colPaid', undefined, 'Paid')}</th>
+                    <th className="py-3 px-4 text-center">{t('common.status', undefined, 'Status')}</th>
+                    <th className="py-3 px-4 text-center">{t('dev.invoices.colPdf', undefined, 'PDF')}</th>
+                    <th className="py-3 px-4 text-right">{t('common.actions', undefined, 'Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -423,14 +439,14 @@ export const DeveloperInvoicesManager: React.FC = () => {
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-slate-500">
                         <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-400" />
-                        <span>Loading platform invoices...</span>
+                        <span>{t('dev.invoices.loadingInvoices', undefined, 'Loading platform invoices...')}</span>
                       </td>
                     </tr>
                   ) : invoices.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-slate-500">
                         <FileText className="w-8 h-8 mx-auto mb-2 opacity-30 text-slate-400" />
-                        <span>No invoices found matching your filters.</span>
+                        <span>{t('dev.invoices.noInvoicesFound', undefined, 'No invoices found matching your filters.')}</span>
                       </td>
                     </tr>
                   ) : (
@@ -486,15 +502,20 @@ export const DeveloperInvoicesManager: React.FC = () => {
                           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => handleDownloadPdf(inv)}
-                              className="p-1 bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 rounded transition-colors"
-                              title="Download PDF"
+                              disabled={downloadingInvoiceId === inv.id}
+                              className="p-1 bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 rounded transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                              title={downloadingInvoiceId === inv.id ? t('dev.invoices.downloadingPdf', undefined, 'Downloading PDF...') : t('dev.invoices.downloadPdf', undefined, 'Download PDF')}
                             >
-                              <Download className="w-3.5 h-3.5" />
+                              {downloadingInvoiceId === inv.id ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
                             </button>
                             <button
                               onClick={() => handleOpenDetail(inv)}
                               className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded transition-colors"
-                              title="Inspect Details"
+                              title={t('dev.invoices.inspectDetails', undefined, 'Inspect Details')}
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
@@ -510,8 +531,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
             {/* Pagination footer */}
             <div className="px-4 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
               <div>
-                Showing Page <span className="font-bold text-white">{page}</span> of{' '}
-                <span className="font-bold text-white">{totalPages}</span> ({totalCount} total)
+                {t('dev.invoices.showingPage', { page, totalPages, totalCount }, `Showing Page ${page} of ${totalPages} (${totalCount} total)`)}
               </div>
               <div className="flex items-center gap-1.5">
                 <button
@@ -549,7 +569,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                     {renderStatusBadge(selectedInvoice.status)}
                   </div>
                   <p className="text-xs text-slate-400 mt-1">
-                    Event: {selectedInvoice.event_details?.event_name || selectedInvoice.event_id}
+                    {t('common.event', undefined, 'Event')}: {selectedInvoice.event_details?.event_name || selectedInvoice.event_id}
                   </p>
                 </div>
                 <button
@@ -564,10 +584,20 @@ export const DeveloperInvoicesManager: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <button
                   onClick={() => handleDownloadPdf(selectedInvoice)}
-                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  disabled={downloadingInvoiceId === selectedInvoice.id}
+                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
+                  {downloadingInvoiceId === selectedInvoice.id ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{t('dev.invoices.downloading', undefined, 'Downloading...')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{t('dev.invoices.downloadPdf', undefined, 'Download PDF')}</span>
+                    </>
+                  )}
                 </button>
 
                 <button
@@ -576,7 +606,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${retryingPdf ? 'animate-spin text-emerald-400' : ''}`} />
-                  <span>{retryingPdf ? 'Regenerating...' : 'Regenerate PDF'}</span>
+                  <span>{retryingPdf ? t('dev.invoices.regenerating', undefined, 'Regenerating...') : t('dev.invoices.regeneratePdf', undefined, 'Regenerate PDF')}</span>
                 </button>
 
                 <button
@@ -585,7 +615,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Mail className={`w-3.5 h-3.5 ${retryingEmail ? 'animate-spin text-emerald-400' : ''}`} />
-                  <span>{retryingEmail ? 'Sending...' : 'Resend Email'}</span>
+                  <span>{retryingEmail ? t('dev.invoices.sending', undefined, 'Sending...') : t('dev.invoices.resendEmail', undefined, 'Resend Email')}</span>
                 </button>
 
                 <button
@@ -593,122 +623,226 @@ export const DeveloperInvoicesManager: React.FC = () => {
                   className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ml-auto"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span>Issue Credit Note</span>
+                  <span>{t('dev.invoices.issueCreditNote', undefined, 'Issue Credit Note')}</span>
                 </button>
               </div>
 
-              {/* Customer & Event Details */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Customer</span>
-                  <div className="font-bold text-slate-200">
-                    {selectedInvoice.customer_details?.organization_name || 'Organization'}
+              {/* Pure White Official Invoice Document Sheet */}
+              <div className="bg-white text-slate-800 rounded-2xl p-6 border border-[#CBD5E1] shadow-xl space-y-6">
+                {/* 1. Header Section — Company Details & Invoice Information */}
+                <div className="flex items-start justify-between pb-4 border-b border-[#CBD5E1]">
+                  {/* Left Side: Company Information */}
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-black text-[#172B4D] tracking-tight">EVENTGAMESTUDIO</h2>
+                    {selectedInvoice.seller_details?.company_name && selectedInvoice.seller_details.company_name !== 'EVENTGAMESTUDIO' && (
+                      <div className="text-xs font-semibold text-[#334155]">{selectedInvoice.seller_details.company_name}</div>
+                    )}
+                    {selectedInvoice.seller_details?.registration_number && (
+                      <div className="text-[#64748B] font-mono text-xs">Reg No: {selectedInvoice.seller_details.registration_number}</div>
+                    )}
+                    {selectedInvoice.seller_details?.tax_number && (
+                      <div className="text-[#64748B] font-mono text-xs">Tax ID: {selectedInvoice.seller_details.tax_number}</div>
+                    )}
+                    {selectedInvoice.seller_details?.address && (
+                      <div className="text-[#64748B] text-xs leading-relaxed max-w-sm">{selectedInvoice.seller_details.address}</div>
+                    )}
                   </div>
-                  <div className="text-slate-400">{selectedInvoice.customer_details?.contact_email}</div>
-                  <div className="text-slate-500">Country: {selectedInvoice.customer_details?.country_code || 'MY'}</div>
+
+                  {/* Right Side: Invoice Information */}
+                  <div className="text-right space-y-1">
+                    <h1 className="text-xl font-black text-[#172B4D] tracking-tight">{t('invoice.title', undefined, 'INVOICE')}</h1>
+                    <div className="text-xs text-[#64748B]">
+                      <span>{t('invoice.invoiceNo', undefined, 'Invoice No.')} </span>
+                      <span className="font-mono font-bold text-[#172B4D]">{selectedInvoice.invoice_number}</span>
+                    </div>
+
+                    {/* Payment Status Badge */}
+                    <div className="flex justify-end pt-0.5">
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${
+                        selectedInvoice.status === 'paid'
+                          ? 'bg-[#DCFCE7] text-[#166534] border-[#BBF7D0]'
+                          : selectedInvoice.status === 'partially_paid'
+                          ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+                          : 'bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]'
+                      }`}>
+                        {selectedInvoice.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                        {selectedInvoice.status}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Dates & Terms</span>
-                  <div className="text-slate-300">
-                    Issue Date: <span className="font-mono tabular-nums text-white">{(selectedInvoice.issue_date || '').slice(0, 10)}</span>
+                {/* 2. Bill To and Invoice Dates Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start pb-4 border-b border-[#CBD5E1]">
+                  {/* Left Side: Bill To in #F8FAFC Panel */}
+                  <div className="sm:col-span-7 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 space-y-1 text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">{t('invoice.billTo', undefined, 'BILL TO')}</span>
+                    <div className="font-bold text-sm text-[#172B4D]">
+                      {selectedInvoice.customer_details?.organization_name || t('invoice.customerOrganization', undefined, 'Customer Organization')}
+                    </div>
+                    {selectedInvoice.customer_details?.contact_name && (
+                      <div className="text-[#334155]">Attn: {selectedInvoice.customer_details.contact_name}</div>
+                    )}
+                    {selectedInvoice.customer_details?.contact_email && (
+                      <div className="text-[#334155]">{selectedInvoice.customer_details.contact_email}</div>
+                    )}
+                    {selectedInvoice.customer_details?.country_code && (
+                      <div className="text-[#334155]">Country: {selectedInvoice.customer_details.country_code}</div>
+                    )}
+                    {selectedInvoice.customer_details?.billing_address && (
+                      <div className="text-[#334155] leading-relaxed max-w-sm">{selectedInvoice.customer_details.billing_address}</div>
+                    )}
                   </div>
-                  <div className="text-slate-300">
-                    Due Date: <span className="font-mono tabular-nums text-white">{(selectedInvoice.due_date || '').slice(0, 10)}</span>
-                  </div>
-                  <div className="text-slate-500">
-                    Duration: {selectedInvoice.event_details?.duration_days || 1} Days
+
+                  {/* Right Side: Invoice Dates */}
+                  <div className="sm:col-span-5 text-left sm:text-right space-y-2 pt-0.5">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">{t('invoice.issueDate', undefined, 'ISSUE DATE')}</span>
+                      <span className="font-mono text-xs font-bold text-[#172B4D]">
+                        {(selectedInvoice.issue_date || '').slice(0, 10) || '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">{t('invoice.dueDate', undefined, 'DUE DATE')}</span>
+                      <span className="font-mono text-xs font-bold text-[#172B4D]">
+                        {(selectedInvoice.due_date || '').slice(0, 10) || '—'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Line Items Table */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Itemized Breakdown</h3>
-                <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden text-xs">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-800/80 text-slate-500 text-[10px] uppercase">
-                        <th className="py-2 px-3 text-left">Description</th>
-                        <th className="py-2 px-3 text-right">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/40">
-                      {selectedInvoice.line_items?.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-900/40">
-                          <td className="py-2.5 px-3 text-slate-300">
-                            {item.description}
-                          </td>
-                          <td className={`py-2.5 px-3 text-right font-mono tabular-nums ${
-                            item.total_price < 0 ? 'text-amber-400 font-bold' : 'text-slate-200 font-semibold'
-                          }`}>
-                            {formatCurrency(item.total_price, selectedInvoice.currency)}
-                          </td>
+                {/* 3. Description of Services */}
+                <div className="space-y-2 pb-4 border-b border-[#CBD5E1]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#172B4D]">{t('invoice.descriptionOfServices', undefined, 'DESCRIPTION OF SERVICES')}</h3>
+
+                  <div className="border border-[#E2E8F0] rounded-xl overflow-hidden text-xs">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-bold uppercase text-[#172B4D]">
+                          <th className="py-2 px-3 text-left">{t('invoice.serviceItem', undefined, 'Service / Item')}</th>
+                          <th className="py-2 px-3 text-right w-14">{t('invoice.qty', undefined, 'Qty')}</th>
+                          <th className="py-2 px-3 text-right w-24">{t('invoice.unitPrice', undefined, 'Unit Price')}</th>
+                          <th className="py-2 px-3 text-right w-24">{t('invoice.amount', undefined, 'Amount')}</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Financial Totals */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-400">
-                  <span>Subtotal:</span>
-                  <span className="font-mono tabular-nums text-slate-200">{formatCurrency(selectedInvoice.subtotal, selectedInvoice.currency)}</span>
-                </div>
-                {selectedInvoice.discount_amount > 0 && (
-                  <div className="flex justify-between text-amber-400">
-                    <span>Applied Discounts & Promotional Credits:</span>
-                    <span className="font-mono tabular-nums font-bold">-{formatCurrency(selectedInvoice.discount_amount, selectedInvoice.currency)}</span>
+                      </thead>
+                      <tbody className="divide-y divide-[#E2E8F0] bg-white">
+                        {selectedInvoice.line_items?.map((item, idx) => {
+                          const isCredit = item.total_price < 0;
+                          return (
+                            <tr key={idx}>
+                              <td className="py-2.5 px-3 text-[#334155]">
+                                <div className={`font-semibold ${isCredit ? 'text-[#166534]' : 'text-[#172B4D]'}`}>{item.description}</div>
+                                {idx === 0 && selectedInvoice.event_details?.event_name && (
+                                  <div className="text-[11px] text-[#64748B] mt-0.5">
+                                    Event: "{selectedInvoice.event_details.event_name}" · Duration: {selectedInvoice.event_details.duration_days || 1} Day(s)
+                                    {selectedInvoice.event_details.start_date && selectedInvoice.event_details.end_date && (
+                                      <span> ({selectedInvoice.event_details.start_date} – {selectedInvoice.event_details.end_date})</span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-[#334155]">{item.quantity || 1}</td>
+                              <td className="py-2.5 px-3 text-right font-mono text-[#334155]">
+                                {formatCurrency(item.unit_price, selectedInvoice.currency)}
+                              </td>
+                              <td className={`py-2.5 px-3 text-right font-mono tabular-nums ${
+                                isCredit ? 'text-[#166534] font-bold' : 'text-[#172B4D] font-bold'
+                              }`}>
+                                {formatCurrency(item.total_price, selectedInvoice.currency)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                )}
-                {selectedInvoice.tax_amount > 0 && (
-                  <div className="flex justify-between text-slate-400">
-                    <span>Service Tax ({(selectedInvoice.tax_rate * 100).toFixed(1)}%):</span>
-                    <span className="font-mono tabular-nums text-slate-200">{formatCurrency(selectedInvoice.tax_amount, selectedInvoice.currency)}</span>
-                  </div>
-                )}
-                <div className="border-t border-slate-800 pt-2 flex justify-between text-sm font-bold text-white">
-                  <span>Total Amount:</span>
-                  <span className="font-mono tabular-nums text-emerald-400">{formatCurrency(selectedInvoice.total_amount, selectedInvoice.currency)}</span>
                 </div>
-                <div className="flex justify-between text-slate-400 text-xs">
-                  <span>Reconciled Payments Received:</span>
-                  <span className="font-mono tabular-nums text-emerald-400 font-semibold">{formatCurrency(selectedInvoice.amount_paid, selectedInvoice.currency)}</span>
-                </div>
-                <div className="flex justify-between text-slate-400 text-xs">
-                  <span>Outstanding Balance:</span>
-                  <span className={`font-mono tabular-nums font-bold ${selectedInvoice.outstanding_balance > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
-                    {formatCurrency(selectedInvoice.outstanding_balance, selectedInvoice.currency)}
-                  </span>
-                </div>
-              </div>
 
-              {/* Credit Notes Section */}
-              {creditNotes.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Issued Credit Notes</h3>
-                  <div className="bg-slate-950 rounded-xl border border-slate-800 p-3 space-y-2">
+                {/* 4. Invoice Totals and Payment Summary */}
+                <div className="flex flex-col sm:flex-row sm:justify-end pb-4 border-b border-[#CBD5E1]">
+                  <div className="w-full sm:w-72 space-y-1.5 text-xs">
+                    {selectedInvoice.subtotal && selectedInvoice.subtotal !== selectedInvoice.total_amount && (
+                      <div className="flex justify-between text-[#64748B]">
+                        <span>{t('invoice.subtotal', undefined, 'Subtotal')}:</span>
+                        <span className="font-mono tabular-nums text-[#334155]">{formatCurrency(selectedInvoice.subtotal, selectedInvoice.currency)}</span>
+                      </div>
+                    )}
+                    {selectedInvoice.discount_amount > 0 && (
+                      <div className="flex justify-between text-[#166534]">
+                        <span>{t('invoice.appliedCreditsDiscount', undefined, 'Applied Credits / Discount')}:</span>
+                        <span className="font-mono tabular-nums font-bold">-{formatCurrency(selectedInvoice.discount_amount, selectedInvoice.currency)}</span>
+                      </div>
+                    )}
+                    {selectedInvoice.tax_amount > 0 && (
+                      <div className="flex justify-between text-[#64748B]">
+                        <span>{t('invoice.tax', undefined, 'Tax')} ({(selectedInvoice.tax_rate * 100).toFixed(1)}%):</span>
+                        <span className="font-mono tabular-nums text-[#334155]">{formatCurrency(selectedInvoice.tax_amount, selectedInvoice.currency)}</span>
+                      </div>
+                    )}
+
+                    {/* Row 1: Total Amount */}
+                    <div className="flex justify-between text-sm font-bold text-[#172B4D] pt-1">
+                      <span>{t('invoice.totalAmount', undefined, 'Total Amount')}</span>
+                      <span className="font-mono tabular-nums">{formatCurrency(selectedInvoice.total_amount, selectedInvoice.currency)}</span>
+                    </div>
+
+                    {/* Row 2: Payments Received */}
+                    <div className="flex justify-between text-xs text-[#64748B]">
+                      <span>{t('invoice.paymentsReceived', undefined, 'Payments Received')}</span>
+                      <span className="font-mono tabular-nums text-[#334155] font-semibold">{formatCurrency(selectedInvoice.amount_paid, selectedInvoice.currency)}</span>
+                    </div>
+
+                    {/* Row 3: Balance Due */}
+                    <div className="flex justify-between text-sm pt-1">
+                      <span className="font-bold text-[#172B4D]">{t('invoice.balanceDue', undefined, 'Balance Due')}</span>
+                      <span className={`font-mono tabular-nums font-bold ${
+                        selectedInvoice.outstanding_balance <= 0 ? 'text-[#166534]' : 'text-[#92400E]'
+                      }`}>
+                        {formatCurrency(selectedInvoice.outstanding_balance, selectedInvoice.currency)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Credit Notes if any */}
+                {creditNotes.length > 0 && (
+                  <div className="space-y-2 pb-4 border-b border-[#CBD5E1]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">{t('dev.invoices.issuedCreditNotes', undefined, 'Issued Credit Notes')}</span>
                     {creditNotes.map((cn) => (
-                      <div key={cn.id} className="flex justify-between items-center text-xs border-b border-slate-800/60 pb-2 last:border-0 last:pb-0">
+                      <div key={cn.id} className="bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0] flex justify-between items-center text-xs">
                         <div>
-                          <span className="font-mono font-bold text-amber-400">{cn.credit_note_number}</span>
-                          <p className="text-slate-400 text-[11px]">{cn.reason}</p>
+                          <span className="font-mono font-bold text-[#92400E]">{cn.credit_note_number}</span>
+                          <p className="text-[11px] text-[#64748B]">{cn.reason}</p>
                         </div>
-                        <div className="font-mono tabular-nums text-right font-bold text-rose-400">
+                        <span className="font-mono tabular-nums text-[#991B1B] font-bold">
                           -{formatCurrency(cn.amount, cn.currency)}
-                        </div>
+                        </span>
                       </div>
                     ))}
                   </div>
+                )}
+
+                {/* 5. Footer — Exact Latest Format */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
+                  {/* Left Footer Section */}
+                  <div className="text-left space-y-1 text-[#64748B]">
+                    <p>{t('invoice.paymentVerifiedFooter', undefined, 'Payment verified and settled via platform wallet.')}</p>
+                    <p>{t('invoice.thankYouFooter', undefined, 'Thank you for choosing EventGameStudio.')}</p>
+                  </div>
+
+                  {/* Right Footer Section */}
+                  <div className="text-left sm:text-right space-y-1">
+                    <p className="font-semibold text-[#172B4D]">{t('invoice.taglineFooter', undefined, 'Interactive Event Gaming Solutions')}</p>
+                    <p className="text-[#64748B]">Website: eventgamestudio.com</p>
+                    <p className="text-[#64748B]">Email: eventgamestudio@gmail.com</p>
+                  </div>
                 </div>
-              )}
+              </div>
 
               {/* Audit Logs */}
               {auditLogs.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Audit Trail History</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{t('dev.invoices.auditTrailHistory', undefined, 'Audit Trail History')}</h3>
                   <div className="bg-slate-950 rounded-xl border border-slate-800 p-3 max-h-48 overflow-y-auto space-y-2 text-[11px]">
                     {auditLogs.map((log) => (
                       <div key={log.id} className="border-b border-slate-800/50 pb-1.5 last:border-0 last:pb-0">
@@ -716,7 +850,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                           <span className="font-mono font-semibold text-emerald-400">{log.action}</span>
                           <span className="text-slate-500">{new Date(log.created_at).toLocaleString()}</span>
                         </div>
-                        {log.actor_email && <div className="text-slate-500">By: {log.actor_email}</div>}
+                        {log.actor_email && <div className="text-slate-500">{t('common.by', undefined, 'By')}: {log.actor_email}</div>}
                       </div>
                     ))}
                   </div>
@@ -730,7 +864,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
                 onClick={() => setSelectedInvoice(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
-                Close Drawer
+                {t('dev.invoices.closeDrawer', undefined, 'Close Drawer')}
               </button>
             </div>
           </div>
@@ -744,7 +878,7 @@ export const DeveloperInvoicesManager: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <PlusCircle className="w-4 h-4 text-amber-400" />
-                Issue Audited Credit Note
+                {t('dev.invoices.issueAuditedCreditNote', undefined, 'Issue Audited Credit Note')}
               </h3>
               <button
                 onClick={() => setShowCreditNoteModal(false)}
@@ -755,14 +889,14 @@ export const DeveloperInvoicesManager: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-400">
-              Issuing a credit note creates a permanent sequential credit document (CN-YYYY-NNNNN) linked to{' '}
+              {t('dev.invoices.creditNoteDesc', undefined, 'Issuing a credit note creates a permanent sequential credit document (CN-YYYY-NNNNN) linked to')}{' '}
               <span className="font-mono font-bold text-emerald-400">{selectedInvoice.invoice_number}</span>.
             </p>
 
             <form onSubmit={handleCreateCreditNote} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Credit Note Amount ({selectedInvoice.currency})
+                  {t('dev.invoices.creditNoteAmountLabel', undefined, 'Credit Note Amount')} ({selectedInvoice.currency})
                 </label>
                 <input
                   type="number"
@@ -776,20 +910,20 @@ export const DeveloperInvoicesManager: React.FC = () => {
                   className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none"
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Maximum allowable: {formatCurrency(selectedInvoice.total_amount, selectedInvoice.currency)}
+                  {t('dev.invoices.maxAllowable', undefined, 'Maximum allowable')}: {formatCurrency(selectedInvoice.total_amount, selectedInvoice.currency)}
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Audit Reason / Justification
+                  {t('dev.invoices.auditReasonLabel', undefined, 'Audit Reason / Justification')}
                 </label>
                 <textarea
                   rows={2}
                   required
                   value={creditNoteReason}
                   onChange={(e) => setCreditNoteReason(e.target.value)}
-                  placeholder="e.g. Approved weather contingency refund or event duration modification credit"
+                  placeholder={t('dev.invoices.creditNoteReasonPlaceholder', undefined, 'e.g. Approved weather contingency refund or event duration modification credit')}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none resize-none"
                 />
               </div>
@@ -800,14 +934,14 @@ export const DeveloperInvoicesManager: React.FC = () => {
                   onClick={() => setShowCreditNoteModal(false)}
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', undefined, 'Cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={issuingCreditNote}
                   className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {issuingCreditNote ? 'Issuing...' : 'Confirm & Issue'}
+                  {issuingCreditNote ? t('dev.invoices.issuing', undefined, 'Issuing...') : t('dev.invoices.confirmIssue', undefined, 'Confirm & Issue')}
                 </button>
               </div>
             </form>

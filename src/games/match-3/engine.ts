@@ -57,8 +57,13 @@ export interface SpecialComboDetails {
   bombCol?: number;
   rocketRow?: number;
   rocketCol?: number;
+  colorBombRow?: number;
+  colorBombCol?: number;
   clearedRows?: number[];
   clearedCols?: number[];
+  targetColor?: string;
+  targetSpecial?: SpecialTileType;
+  convertedCoords?: { row: number; col: number }[];
 }
 
 export interface SpecialComboResult {
@@ -870,29 +875,118 @@ export function resolveSpecialCombination(
     const partnerTile = s1 === 'color-bomb' ? t2 : t1;
     const targetColor = partnerTile.type;
 
-    if (specialPartner === 'rocket-horizontal' || specialPartner === 'rocket-vertical') {
-      // Converts all of targetColor to Rockets and detonates
+    // Color Bomb + Horizontal Rocket: Converts all eligible tiles of targetColor to Horizontal Rockets and detonates all affected rows
+    if (specialPartner === 'rocket-horizontal') {
+      const convertedCoords: { row: number; col: number }[] = [];
+      const clearedRowsSet = new Set<number>();
+      clearedRowsSet.add(r1);
+      clearedRowsSet.add(r2);
+
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           if (board[r][c].type === targetColor) {
-            // Row and col clear
-            for (let i = 0; i < cols; i++) cleared.add(`${r},${i}`);
-            for (let i = 0; i < rows; i++) cleared.add(`${i},${c}`);
+            convertedCoords.push({ row: r, col: c });
+            clearedRowsSet.add(r);
           }
         }
       }
+
+      for (const r of clearedRowsSet) {
+        for (let c = 0; c < cols; c++) {
+          cleared.add(`${r},${c}`);
+        }
+      }
+
+      const clearedRows = Array.from(clearedRowsSet).sort((a, b) => a - b);
       return {
         clearedCoords: cleared,
-        comboType: 'color-bomb-rocket',
-        details: { comboType: 'color-bomb-rocket', r1, c1, r2, c2, centerRow: r2, centerCol: c2 },
+        comboType: 'color-bomb-rocket-horizontal',
+        details: {
+          comboType: 'color-bomb-rocket-horizontal',
+          r1,
+          c1,
+          r2,
+          c2,
+          centerRow: r2,
+          centerCol: c2,
+          rocketRow: s1 === 'rocket-horizontal' ? r1 : r2,
+          rocketCol: s1 === 'rocket-horizontal' ? c1 : c2,
+          colorBombRow: s1 === 'color-bomb' ? r1 : r2,
+          colorBombCol: s1 === 'color-bomb' ? c1 : c2,
+          targetColor,
+          targetSpecial: 'rocket-horizontal',
+          convertedCoords,
+          clearedRows,
+        },
       };
     }
 
-    if (specialPartner === 'bomb') {
-      // Converts all of targetColor to Bombs and detonates (3x3 explosions)
+    // Color Bomb + Vertical Rocket: Converts all eligible tiles of targetColor to Vertical Rockets and detonates all affected columns
+    if (specialPartner === 'rocket-vertical') {
+      const convertedCoords: { row: number; col: number }[] = [];
+      const clearedColsSet = new Set<number>();
+      clearedColsSet.add(c1);
+      clearedColsSet.add(c2);
+
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           if (board[r][c].type === targetColor) {
+            convertedCoords.push({ row: r, col: c });
+            clearedColsSet.add(c);
+          }
+        }
+      }
+
+      for (const c of clearedColsSet) {
+        for (let r = 0; r < rows; r++) {
+          cleared.add(`${r},${c}`);
+        }
+      }
+
+      const clearedCols = Array.from(clearedColsSet).sort((a, b) => a - b);
+      return {
+        clearedCoords: cleared,
+        comboType: 'color-bomb-rocket-vertical',
+        details: {
+          comboType: 'color-bomb-rocket-vertical',
+          r1,
+          c1,
+          r2,
+          c2,
+          centerRow: r2,
+          centerCol: c2,
+          rocketRow: s1 === 'rocket-vertical' ? r1 : r2,
+          rocketCol: s1 === 'rocket-vertical' ? c1 : c2,
+          colorBombRow: s1 === 'color-bomb' ? r1 : r2,
+          colorBombCol: s1 === 'color-bomb' ? c1 : c2,
+          targetColor,
+          targetSpecial: 'rocket-vertical',
+          convertedCoords,
+          clearedCols,
+        },
+      };
+    }
+
+    // Color Bomb + Explosive Bomb: Converts all eligible tiles of targetColor to Bombs and detonates (3x3 explosions + mega explosion)
+    if (specialPartner === 'bomb') {
+      const convertedCoords: { row: number; col: number }[] = [];
+
+      // Primary mega explosion: 3x3 blast centered around both swapped combination positions
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr1 = r1 + dr;
+          const nc1 = c1 + dc;
+          if (nr1 >= 0 && nr1 < rows && nc1 >= 0 && nc1 < cols) cleared.add(`${nr1},${nc1}`);
+          const nr2 = r2 + dr;
+          const nc2 = c2 + dc;
+          if (nr2 >= 0 && nr2 < rows && nc2 >= 0 && nc2 < cols) cleared.add(`${nr2},${nc2}`);
+        }
+      }
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (board[r][c].type === targetColor) {
+            convertedCoords.push({ row: r, col: c });
             for (let dr = -1; dr <= 1; dr++) {
               for (let dc = -1; dc <= 1; dc++) {
                 const nr = r + dr;
@@ -908,7 +1002,22 @@ export function resolveSpecialCombination(
       return {
         clearedCoords: cleared,
         comboType: 'color-bomb-bomb',
-        details: { comboType: 'color-bomb-bomb', r1, c1, r2, c2, centerRow: r2, centerCol: c2 },
+        details: {
+          comboType: 'color-bomb-bomb',
+          r1,
+          c1,
+          r2,
+          c2,
+          centerRow: r2,
+          centerCol: c2,
+          bombRow: s1 === 'bomb' ? r1 : r2,
+          bombCol: s1 === 'bomb' ? c1 : c2,
+          colorBombRow: s1 === 'color-bomb' ? r1 : r2,
+          colorBombCol: s1 === 'color-bomb' ? c1 : c2,
+          targetColor,
+          targetSpecial: 'bomb',
+          convertedCoords,
+        },
       };
     }
 

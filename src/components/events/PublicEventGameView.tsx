@@ -3,6 +3,7 @@ import { useRouteContext } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import { GameContainer } from '../GameContainer';
 import { getThemeGameType, normalizeGameType, resolveAuthoritativeGameType } from '../../themes';
+import { stopGameAudio } from '../../lib/gameAudio';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
@@ -295,6 +296,23 @@ export const PublicEventGameView: React.FC = () => {
     }
   };
 
+  // Authoritatively resolve canonical active game type for live public event before any conditional returns
+  const theme = eventData ? (eventData.game_theme || eventData.theme) : null;
+  const gameType = eventData
+    ? resolveAuthoritativeGameType({
+        event: eventData,
+        game: eventData.game,
+        theme,
+      })
+    : null;
+
+  // Stop event game audio when navigating away from the public event view or when effective game type changes
+  useEffect(() => {
+    return () => {
+      stopGameAudio(gameType);
+    };
+  }, [gameType]);
+
   // Loading State
   if (loading) {
     return (
@@ -538,12 +556,6 @@ export const PublicEventGameView: React.FC = () => {
   }
 
   // 6. Event is LIVE & PAID!
-  const theme = eventData.game_theme || eventData.theme;
-  const gameType = resolveAuthoritativeGameType({
-    event: eventData,
-    game: eventData.game,
-    theme,
-  });
   const showHeader = !isFullscreen;
   const localizedEventName = resolveContent(eventData.translations, eventData.name, 'title') || eventData.name;
 

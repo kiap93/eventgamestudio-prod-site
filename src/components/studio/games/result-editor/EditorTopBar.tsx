@@ -37,7 +37,7 @@ interface EditorTopBarProps {
   selectedIds: string[];
   totalElementsCount: number;
   gameType?: string;
-  onAddNewRootElement: (type: ResultScreenElementType) => void;
+  onAddNewRootElement: (type: ResultScreenElementType, subType?: string) => void;
   onCenterSelectedHorizontal: () => void;
   onCenterSelectedVertical: () => void;
   onMoveSelectedLayer: (direction: 'forward' | 'backward' | 'front' | 'back') => void;
@@ -145,10 +145,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                     </span>
                     {groupedElements.container.map((item) => (
                       <button
-                        key={item.type}
+                        key={item.subType ? `${item.type}-${item.subType}` : item.type}
                         type="button"
                         onClick={() => {
-                          onAddNewRootElement(item.type);
+                          onAddNewRootElement(item.type, item.subType);
                           setAddMenuOpen(false);
                         }}
                         className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -168,10 +168,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                     </span>
                     {groupedElements.visual.map((item) => (
                       <button
-                        key={item.type}
+                        key={item.subType ? `${item.type}-${item.subType}` : item.type}
                         type="button"
                         onClick={() => {
-                          onAddNewRootElement(item.type);
+                          onAddNewRootElement(item.type, item.subType);
                           setAddMenuOpen(false);
                         }}
                         className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -198,10 +198,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                     </div>
                     {groupedElements.stat.map((item) => (
                       <button
-                        key={item.type}
+                        key={item.subType ? `${item.type}-${item.subType}` : item.type}
                         type="button"
                         onClick={() => {
-                          onAddNewRootElement(item.type);
+                          onAddNewRootElement(item.type, item.subType);
                           setAddMenuOpen(false);
                         }}
                         className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center justify-between transition-colors"
@@ -229,10 +229,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                     </span>
                     {groupedElements.control.map((item) => (
                       <button
-                        key={item.type}
+                        key={item.subType ? `${item.type}-${item.subType}` : item.type}
                         type="button"
                         onClick={() => {
-                          onAddNewRootElement(item.type);
+                          onAddNewRootElement(item.type, item.subType);
                           setAddMenuOpen(false);
                         }}
                         className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
@@ -390,7 +390,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           </div>
         ) : (
           <div className="text-[11px] text-slate-500 font-medium">
-            {t('editor.selectElementToEdit', undefined, 'Select elements on canvas or in layers panel to inspect & edit')}
+            {t('editor.clickElementToEdit', undefined, 'Click any element on canvas to inspect & style')}
           </div>
         )}
       </div>
@@ -471,10 +471,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           {resetConfirmOpen && (
             <div className="absolute right-0 top-full mt-2 w-60 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-3 space-y-2.5">
               <span className="text-xs font-bold text-slate-200 block">
-                {t('editor.resetCanvasLayout', undefined, 'Reset Layout?')}
+                {t('editor.resetCanvasLayoutConfirm', undefined, 'Reset Canvas Layout?')}
               </span>
               <p className="text-[11px] text-slate-400 leading-tight">
-                This will restore the standard default result screen cards and stats.
+                {t('editor.resetResultScreenDesc', undefined, 'This will restore the standard default result screen cards and stats.')}
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <button
@@ -492,7 +492,7 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
                   }}
                   className="flex-1 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
                 >
-                  Reset
+                  {t('common.reset', undefined, 'Reset')}
                 </button>
               </div>
             </div>

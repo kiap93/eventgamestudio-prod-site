@@ -19,6 +19,7 @@ import {
 } from '../../themes';
 import { useResponsiveLayout } from '../../themes/responsive';
 import { GameComponentProps, CatchBrandConfig } from '../types';
+import { soundManager } from '../../game/systems/SoundManager';
 
 export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   activeTheme: initialActiveTheme,
@@ -238,6 +239,14 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
+      soundManager.stopAll();
+    };
+  }, []);
+
+  // Ensure all sound stops immediately on component unmount
+  useEffect(() => {
+    return () => {
+      soundManager.stopAll();
     };
   }, []);
 

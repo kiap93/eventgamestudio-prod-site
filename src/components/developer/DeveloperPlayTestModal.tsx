@@ -3,6 +3,7 @@ import { useLocalization } from '../../context/LocalizationContext';
 import { GameTheme, getThemeGameType, resolveAuthoritativeGameType, normalizeGameType } from '../../themes/types';
 import { PlatformGame } from '../../types/developer';
 import { GameShell } from '../shell/GameShell';
+import { stopGameAudio } from '../../lib/gameAudio';
 import { X, Play, RotateCcw, Sparkles, Monitor, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
 
 interface DeveloperPlayTestModalProps {
@@ -62,6 +63,13 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
     };
   }, []);
+
+  // Stop playtest game audio when modal unmounts or game type changes
+  useEffect(() => {
+    return () => {
+      stopGameAudio(resolvedGameType);
+    };
+  }, [resolvedGameType]);
 
   const handleToggleFullscreen = async () => {
     const isCurrentlyFs =
@@ -238,23 +246,23 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
             <span className="hidden sm:inline text-slate-600">|</span>
             {resolvedGameType === 'match-3' ? (
               <>
-                <span className="hidden sm:inline">Grid: <strong className="text-slate-200 font-mono">{(theme.game_config as any)?.rows || 8}×{(theme.game_config as any)?.cols || 8}</strong></span>
+                <span className="hidden sm:inline">{t('developer.gridLabel', undefined, 'Grid')}: <strong className="text-slate-200 font-mono">{(theme.game_config as any)?.rows || 8}×{(theme.game_config as any)?.cols || 8}</strong></span>
                 <span className="hidden sm:inline text-slate-600">|</span>
-                <span className="hidden sm:inline">Tiles: <strong className="text-emerald-400 font-mono">{(theme.game_config as any)?.tileTypesCount || 6} Colors</strong></span>
+                <span className="hidden sm:inline">{t('developer.tilesLabel', undefined, 'Tiles')}: <strong className="text-emerald-400 font-mono">{(theme.game_config as any)?.tileTypesCount || 6} {t('developer.colorsLabel', undefined, 'Colors')}</strong></span>
                 <span className="hidden sm:inline text-slate-600">|</span>
-                <span className="hidden sm:inline">Round: <strong className="text-sky-400 font-mono">{theme.physics_config?.gameDurationSeconds || (theme.game_config as any)?.gameDurationSeconds || 60}s</strong></span>
+                <span className="hidden sm:inline">{t('studio.round', undefined, 'Round')}: <strong className="text-sky-400 font-mono">{theme.physics_config?.gameDurationSeconds || (theme.game_config as any)?.gameDurationSeconds || 60}s</strong></span>
               </>
             ) : resolvedGameType === 'memory-match' ? (
               <>
-                <span className="hidden sm:inline">Pairs: <strong className="text-indigo-400 font-mono">{(theme.game_config as any)?.pairs?.length || 8} Pairs</strong></span>
+                <span className="hidden sm:inline">{t('developer.pairsLabel', undefined, 'Pairs')}: <strong className="text-indigo-400 font-mono">{(theme.game_config as any)?.pairs?.length || 8} {t('developer.pairsLabel', undefined, 'Pairs')}</strong></span>
                 <span className="hidden sm:inline text-slate-600">|</span>
-                <span className="hidden sm:inline">Duration: <strong className="text-sky-400 font-mono">{theme.physics_config?.gameDurationSeconds || 45}s</strong></span>
+                <span className="hidden sm:inline">{t('developer.durationLabel', undefined, 'Duration')}: <strong className="text-sky-400 font-mono">{theme.physics_config?.gameDurationSeconds || 45}s</strong></span>
               </>
             ) : resolvedGameType === 'reaction-tap' ? (
               <>
-                <span className="hidden sm:inline">Lights: <strong className="text-rose-400 font-mono">5 Lights</strong></span>
+                <span className="hidden sm:inline">{t('developer.lightsLabel', undefined, 'Lights')}: <strong className="text-rose-400 font-mono">5 {t('developer.lightsLabel', undefined, 'Lights')}</strong></span>
                 <span className="hidden sm:inline text-slate-600">|</span>
-                <span className="hidden sm:inline">Mode: <strong className="text-amber-400 font-mono">F1 Reflex</strong></span>
+                <span className="hidden sm:inline">{t('developer.modeLabel', undefined, 'Mode')}: <strong className="text-amber-400 font-mono">{t('developer.f1ReflexMode', undefined, 'F1 Reflex')}</strong></span>
               </>
             ) : (
               <>
@@ -266,7 +274,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-3 font-mono">
-            <span className="text-emerald-400 font-bold uppercase">{resolvedGameType} TEST PLAY</span>
+            <span className="text-emerald-400 font-bold uppercase">{resolvedGameType} {t('developer.testPlayBadge', undefined, 'TEST PLAY')}</span>
           </div>
         </div>
       </div>

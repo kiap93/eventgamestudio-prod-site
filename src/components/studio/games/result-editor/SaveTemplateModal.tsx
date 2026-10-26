@@ -105,7 +105,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             </div>
           )}
 
-          {/* Template Name */}
+          {/* {t('editor.templateNameLabel', undefined, 'Template Name')} */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
               {t('editor.templateNameLabel', undefined, 'Template Name')} <span className="text-rose-400">*</span>

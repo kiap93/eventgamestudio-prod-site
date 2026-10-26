@@ -201,7 +201,7 @@ export const LandingFooter: React.FC = () => {
                   to="/sales/apply"
                   className="hover:text-amber-400 text-amber-400/90 font-medium transition-colors block"
                 >
-                  Sales Partner Program
+                  {t('landing.salesPartnerProgram', undefined, 'Sales Partner Program')}
                 </InternalLink>
               </li>
               {currentUser?.is_developer && (

@@ -11,6 +11,7 @@ import {
 import { CATALOG_GAMES, getGameById } from './games.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import crypto from 'node:crypto';
+import { recordDbOperation } from './dbMetrics.js';
 
 export const localThemesCache = new Map<string, GameThemeRecord>();
 
@@ -736,6 +737,326 @@ export const DEFAULT_MATCH3_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
   },
 };
 
+export const DEFAULT_MATCH3_CUTE_ANIMALS_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Cute Animals',
+  slug: 'match-3-cute-animals',
+  description: 'Charming forest and arctic critters including bear, fox, bunny, penguin, panda, and chick.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'CUTE ANIMALS',
+    subtitle: 'Charming forest and arctic critters including bear, fox, bunny, penguin, panda, and chick.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/cute-animals/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#10b981',
+    secondaryColor: '#f59e0b',
+    accentColor: '#fb7185',
+    textColor: '#ffffff',
+    bgGradientFrom: '#064e3b',
+    bgGradientVia: '#065f46',
+    bgGradientTo: '#022c22',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Caramel Bear', color: '#8D5B36', bgColor: 'linear-gradient(135deg, #A76D42, #8D5B36)', borderColor: '#FCE5CD', glowColor: 'rgba(141, 91, 54, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/cute-animals/bear.png' },
+      { id: 'tile-02', name: 'Sunny Fox', color: '#FF7832', bgColor: 'linear-gradient(135deg, #FF9457, #E05615)', borderColor: '#FCEADE', glowColor: 'rgba(255, 120, 50, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/cute-animals/fox.png' },
+      { id: 'tile-03', name: 'Sweet Bunny', color: '#FF85A1', bgColor: 'linear-gradient(135deg, #FFB7B2, #FF85A1)', borderColor: '#FFE5EC', glowColor: 'rgba(255, 133, 161, 0.5)', symbol: 'Heart', imageUrl: '/assets/games/match-3/themes/cute-animals/rabbit.png' },
+      { id: 'tile-04', name: 'Chubby Penguin', color: '#1E293B', bgColor: 'linear-gradient(135deg, #334155, #0F172A)', borderColor: '#38BDF8', glowColor: 'rgba(56, 189, 248, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/cute-animals/penguin.png' },
+      { id: 'tile-05', name: 'Happy Panda', color: '#18181B', bgColor: 'linear-gradient(135deg, #27272A, #09090B)', borderColor: '#E4E4E7', glowColor: 'rgba(244, 114, 182, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/cute-animals/panda.png' },
+      { id: 'tile-06', name: 'Sunny Chick', color: '#FACC15', bgColor: 'linear-gradient(135deg, #FDE047, #EAB308)', borderColor: '#FEF08A', glowColor: 'rgba(250, 204, 21, 0.5)', symbol: 'Sun', imageUrl: '/assets/games/match-3/themes/cute-animals/chick.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_SUPER_HEROES_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Super Heroes',
+  slug: 'match-3-super-heroes',
+  description: 'Dynamic masked heroes with vibrant power suits and glowing superhero emblems.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'SUPER HEROES',
+    subtitle: 'Dynamic masked heroes with vibrant power suits and glowing superhero emblems.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/super-heroes/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#dc2626',
+    secondaryColor: '#2563eb',
+    accentColor: '#eab308',
+    textColor: '#ffffff',
+    bgGradientFrom: '#450a0a',
+    bgGradientVia: '#1e1b4b',
+    bgGradientTo: '#0f172a',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Crimson Knight', color: '#DC2626', bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)', borderColor: '#FECACA', glowColor: 'rgba(220, 38, 38, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/super-heroes/crimson-knight.png' },
+      { id: 'tile-02', name: 'Aero Blue', color: '#2563EB', bgColor: 'linear-gradient(135deg, #3B82F6, #1D4ED8)', borderColor: '#BFDBFE', glowColor: 'rgba(37, 99, 235, 0.5)', symbol: 'Zap', imageUrl: '/assets/games/match-3/themes/super-heroes/aero-blue.png' },
+      { id: 'tile-03', name: 'Shadow Ninja', color: '#7C3AED', bgColor: 'linear-gradient(135deg, #8B5CF6, #6D28D9)', borderColor: '#DDD6FE', glowColor: 'rgba(124, 58, 237, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/super-heroes/shadow-ninja.png' },
+      { id: 'tile-04', name: 'Solar Shield', color: '#EAB308', bgColor: 'linear-gradient(135deg, #FACC15, #CA8A04)', borderColor: '#FEF08A', glowColor: 'rgba(234, 179, 8, 0.5)', symbol: 'Sun', imageUrl: '/assets/games/match-3/themes/super-heroes/solar-shield.png' },
+      { id: 'tile-05', name: 'Emerald Titan', color: '#059669', bgColor: 'linear-gradient(135deg, #10B981, #047857)', borderColor: '#A7F3D0', glowColor: 'rgba(5, 150, 105, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/super-heroes/emerald-titan.png' },
+      { id: 'tile-06', name: 'Cyber Pink', color: '#DB2777', bgColor: 'linear-gradient(135deg, #EC4899, #BE185D)', borderColor: '#FBCFE8', glowColor: 'rgba(219, 39, 119, 0.5)', symbol: 'Sparkles', imageUrl: '/assets/games/match-3/themes/super-heroes/cyber-pink.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_FANTASY_CREATURES_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Fantasy Creatures',
+  slug: 'match-3-fantasy-creatures',
+  description: 'Enchanted creatures including baby dragon, pastel unicorn, bouncy slime, sparkle fairy, and mystic cat.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'FANTASY CREATURES',
+    subtitle: 'Enchanted creatures including baby dragon, pastel unicorn, bouncy slime, sparkle fairy, and mystic cat.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/fantasy-creatures/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#8b5cf6',
+    secondaryColor: '#10b981',
+    accentColor: '#f59e0b',
+    textColor: '#ffffff',
+    bgGradientFrom: '#3b0764',
+    bgGradientVia: '#581c87',
+    bgGradientTo: '#1e1b4b',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Baby Dragon', color: '#10B981', bgColor: 'linear-gradient(135deg, #34D399, #059669)', borderColor: '#A7F3D0', glowColor: 'rgba(16, 185, 129, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/fantasy-creatures/dragon.png' },
+      { id: 'tile-02', name: 'Pastel Unicorn', color: '#F472B6', bgColor: 'linear-gradient(135deg, #FBCFE8, #F472B6)', borderColor: '#FDF2F8', glowColor: 'rgba(244, 114, 182, 0.5)', symbol: 'Heart', imageUrl: '/assets/games/match-3/themes/fantasy-creatures/unicorn.png' },
+      { id: 'tile-03', name: 'Bouncy Slime', color: '#06B6D4', bgColor: 'linear-gradient(135deg, #22D3EE, #0891B2)', borderColor: '#CFFAFE', glowColor: 'rgba(6, 182, 212, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/fantasy-creatures/slime-monster.png' },
+      { id: 'tile-04', name: 'Sparkle Fairy', color: '#F59E0B', bgColor: 'linear-gradient(135deg, #FBBF24, #D97706)', borderColor: '#FEF3C7', glowColor: 'rgba(245, 158, 11, 0.5)', symbol: 'Sparkles', imageUrl: '/assets/games/match-3/themes/fantasy-creatures/fairy.png' },
+      { id: 'tile-05', name: 'Mystic Cat', color: '#6D28D9', bgColor: 'linear-gradient(135deg, #7C3AED, #5B21B6)', borderColor: '#EDE9FE', glowColor: 'rgba(109, 40, 217, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/fantasy-creatures/magical-cat.png' },
+      { id: 'tile-06', name: 'Mystic Owl', color: '#B45309', bgColor: 'linear-gradient(135deg, #D97706, #92400E)', borderColor: '#FDE68A', glowColor: 'rgba(180, 83, 9, 0.5)', symbol: 'Sun', imageUrl: '/assets/games/match-3/themes/fantasy-creatures/owl.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_SPACE_EXPLORERS_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Space Explorers',
+  slug: 'match-3-space-explorers',
+  description: 'Intergalactic adventures with Astro Kid, Zippy Alien, Rusty Rocket, Pluto Pal, and Nova Star.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'SPACE EXPLORERS',
+    subtitle: 'Intergalactic adventures with Astro Kid, Zippy Alien, Rusty Rocket, Pluto Pal, and Nova Star.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/space-explorers/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#0284c7',
+    secondaryColor: '#84cc16',
+    accentColor: '#f59e0b',
+    textColor: '#ffffff',
+    bgGradientFrom: '#020617',
+    bgGradientVia: '#0f172a',
+    bgGradientTo: '#1e1b4b',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Astro Kid', color: '#0284C7', bgColor: 'linear-gradient(135deg, #38BDF8, #0369A1)', borderColor: '#E0F2FE', glowColor: 'rgba(2, 132, 199, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/space-explorers/astronaut.png' },
+      { id: 'tile-02', name: 'Zippy Alien', color: '#84CC16', bgColor: 'linear-gradient(135deg, #A3E635, #65A30D)', borderColor: '#ECFCCB', glowColor: 'rgba(132, 204, 22, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/space-explorers/alien.png' },
+      { id: 'tile-03', name: 'Rusty Rocket', color: '#EF4444', bgColor: 'linear-gradient(135deg, #F87171, #DC2626)', borderColor: '#FEE2E2', glowColor: 'rgba(239, 68, 68, 0.5)', symbol: 'Zap', imageUrl: '/assets/games/match-3/themes/space-explorers/rocket-mascot.png' },
+      { id: 'tile-04', name: 'Pluto Pal', color: '#7C3AED', bgColor: 'linear-gradient(135deg, #A78BFA, #6D28D9)', borderColor: '#DDD6FE', glowColor: 'rgba(124, 58, 237, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/space-explorers/planet-creature.png' },
+      { id: 'tile-05', name: 'Nova Star', color: '#F59E0B', bgColor: 'linear-gradient(135deg, #FBBF24, #D97706)', borderColor: '#FEF3C7', glowColor: 'rgba(245, 158, 11, 0.5)', symbol: 'Star', imageUrl: '/assets/games/match-3/themes/space-explorers/star-character.png' },
+      { id: 'tile-06', name: 'Cosmo Drone', color: '#0D9488', bgColor: 'linear-gradient(135deg, #2DD4BF, #0F766E)', borderColor: '#CCFBF1', glowColor: 'rgba(13, 148, 136, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/space-explorers/cosmic-bot.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_FOOD_CHARACTERS_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Food Characters',
+  slug: 'match-3-food-characters',
+  description: 'Delicious snack mascots: Benny Burger, Crispy Fries, Pip Pizza, Boba Bliss, Dottie Donut, and Sami Sushi.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'FOOD CHARACTERS',
+    subtitle: 'Delicious snack mascots: Benny Burger, Crispy Fries, Pip Pizza, Boba Bliss, Dottie Donut, and Sami Sushi.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/food-characters/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#f59e0b',
+    secondaryColor: '#ef4444',
+    accentColor: '#ec4899',
+    textColor: '#ffffff',
+    bgGradientFrom: '#78350f',
+    bgGradientVia: '#9a3412',
+    bgGradientTo: '#451a03',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Benny Burger', color: '#D97706', bgColor: 'linear-gradient(135deg, #F59E0B, #B45309)', borderColor: '#FEF3C7', glowColor: 'rgba(217, 119, 6, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/food-characters/burger.png' },
+      { id: 'tile-02', name: 'Crispy Fries', color: '#DC2626', bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)', borderColor: '#FEE2E2', glowColor: 'rgba(220, 38, 38, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/food-characters/fries.png' },
+      { id: 'tile-03', name: 'Pip Pizza', color: '#EA580C', bgColor: 'linear-gradient(135deg, #F97316, #C2410C)', borderColor: '#FFEDD5', glowColor: 'rgba(234, 88, 12, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/food-characters/pizza.png' },
+      { id: 'tile-04', name: 'Boba Bliss', color: '#8B5CF6', bgColor: 'linear-gradient(135deg, #A78BFA, #7C3AED)', borderColor: '#EDE9FE', glowColor: 'rgba(139, 92, 246, 0.5)', symbol: 'Droplet', imageUrl: '/assets/games/match-3/themes/food-characters/bubble-tea.png' },
+      { id: 'tile-05', name: 'Dottie Donut', color: '#EC4899', bgColor: 'linear-gradient(135deg, #F472B6, #DB2777)', borderColor: '#FCE7F3', glowColor: 'rgba(236, 72, 153, 0.5)', symbol: 'Heart', imageUrl: '/assets/games/match-3/themes/food-characters/donut.png' },
+      { id: 'tile-06', name: 'Sami Sushi', color: '#16A34A', bgColor: 'linear-gradient(135deg, #22C55E, #15803D)', borderColor: '#DCFCE7', glowColor: 'rgba(22, 163, 74, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/food-characters/sushi.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_OCEAN_FRIENDS_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Ocean Friends',
+  slug: 'match-3-ocean-friends',
+  description: 'Aquatic marine companions: Splash Dolphin, Bubbles Whale, Inky Octopus, Shelly Turtle, Nemo, and Stell Starfish.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'OCEAN FRIENDS',
+    subtitle: 'Aquatic marine companions: Splash Dolphin, Bubbles Whale, Inky Octopus, Shelly Turtle, Nemo, and Stell Starfish.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/ocean-friends/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#0284c7',
+    secondaryColor: '#06b6d4',
+    accentColor: '#f43f5e',
+    textColor: '#ffffff',
+    bgGradientFrom: '#083344',
+    bgGradientVia: '#0e7490',
+    bgGradientTo: '#042f2e',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Splash Dolphin', color: '#0284C7', bgColor: 'linear-gradient(135deg, #38BDF8, #0369A1)', borderColor: '#E0F2FE', glowColor: 'rgba(2, 132, 199, 0.5)', symbol: 'Droplet', imageUrl: '/assets/games/match-3/themes/ocean-friends/dolphin.png' },
+      { id: 'tile-02', name: 'Bubbles Whale', color: '#1D4ED8', bgColor: 'linear-gradient(135deg, #3B82F6, #1E40AF)', borderColor: '#DBEAFE', glowColor: 'rgba(29, 78, 216, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/ocean-friends/whale.png' },
+      { id: 'tile-03', name: 'Inky Octopus', color: '#C026D3', bgColor: 'linear-gradient(135deg, #E879F9, #A21CAF)', borderColor: '#FAE8FF', glowColor: 'rgba(192, 38, 211, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/ocean-friends/octopus.png' },
+      { id: 'tile-04', name: 'Shelly Turtle', color: '#059669', bgColor: 'linear-gradient(135deg, #10B981, #047857)', borderColor: '#D1FAE5', glowColor: 'rgba(5, 150, 105, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/ocean-friends/turtle.png' },
+      { id: 'tile-05', name: 'Nemo Clownfish', color: '#EA580C', bgColor: 'linear-gradient(135deg, #F97316, #C2410C)', borderColor: '#FFEDD5', glowColor: 'rgba(234, 88, 12, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/ocean-friends/clownfish.png' },
+      { id: 'tile-06', name: 'Stell Starfish', color: '#E11D48', bgColor: 'linear-gradient(135deg, #FB7185, #BE123C)', borderColor: '#FFE4E6', glowColor: 'rgba(225, 29, 72, 0.5)', symbol: 'Star', imageUrl: '/assets/games/match-3/themes/ocean-friends/starfish.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_ROBOT_FRIENDS_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Robot Friends',
+  slug: 'match-3-robot-friends',
+  description: 'Whimsical automata: Tin Toy Retro, Sparky Bulb, Rusty Cyclops, Bleep Egg, Cog Cruncher, and CRT Gizmo.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'ROBOT FRIENDS',
+    subtitle: 'Whimsical automata: Tin Toy Retro, Sparky Bulb, Rusty Cyclops, Bleep Egg, Cog Cruncher, and CRT Gizmo.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/robot-friends/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#0ea5e9',
+    secondaryColor: '#eab308',
+    accentColor: '#a855f7',
+    textColor: '#ffffff',
+    bgGradientFrom: '#0f172a',
+    bgGradientVia: '#1e293b',
+    bgGradientTo: '#020617',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Tin Toy Retro', color: '#475569', bgColor: 'linear-gradient(135deg, #64748B, #334155)', borderColor: '#E2E8F0', glowColor: 'rgba(71, 85, 105, 0.5)', symbol: 'Hexagon', imageUrl: '/assets/games/match-3/themes/robot-friends/retro-bot.png' },
+      { id: 'tile-02', name: 'Sparky Bulb', color: '#CA8A04', bgColor: 'linear-gradient(135deg, #EAB308, #A16207)', borderColor: '#FEF9C3', glowColor: 'rgba(202, 138, 4, 0.5)', symbol: 'Zap', imageUrl: '/assets/games/match-3/themes/robot-friends/sparky.png' },
+      { id: 'tile-03', name: 'Rusty Cyclops', color: '#C2410C', bgColor: 'linear-gradient(135deg, #EA580C, #9A3412)', borderColor: '#FFEDD5', glowColor: 'rgba(194, 65, 12, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/robot-friends/rusty.png' },
+      { id: 'tile-04', name: 'Bleep Egg', color: '#0284C7', bgColor: 'linear-gradient(135deg, #38BDF8, #0369A1)', borderColor: '#E0F2FE', glowColor: 'rgba(2, 132, 199, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/robot-friends/bleep.png' },
+      { id: 'tile-05', name: 'Cog Cruncher', color: '#7E22CE', bgColor: 'linear-gradient(135deg, #9333EA, #6B21A8)', borderColor: '#F3E8FF', glowColor: 'rgba(126, 34, 206, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/robot-friends/cruncher.png' },
+      { id: 'tile-06', name: 'CRT Gizmo', color: '#0F766E', bgColor: 'linear-gradient(135deg, #14B8A6, #0D9488)', borderColor: '#CCFBF1', glowColor: 'rgba(15, 118, 110, 0.5)', symbol: 'Sun', imageUrl: '/assets/games/match-3/themes/robot-friends/gizmo.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
+export const DEFAULT_MATCH3_PRINCESS_FAIRYTALE_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Match-3 Princess Fairytale',
+  slug: 'match-3-princess-fairytale',
+  description: 'Royal storybook kingdom with Princess Rosella, Imperial Crown, Magic Castle, Royal Unicorn, and Frog Prince.',
+  status: 'active',
+  is_default: false,
+  branding: {
+    gameTitle: 'PRINCESS FAIRYTALE',
+    subtitle: 'Royal storybook kingdom with Princess Rosella, Imperial Crown, Magic Castle, Royal Unicorn, and Frog Prince.',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/match-3/themes/princess-fairytale/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: { ...DEFAULT_MATCH3_THEME.physics_config },
+  visuals_config: {
+    primaryColor: '#ec4899',
+    secondaryColor: '#f59e0b',
+    accentColor: '#a855f7',
+    textColor: '#ffffff',
+    bgGradientFrom: '#4a044e',
+    bgGradientVia: '#701a75',
+    bgGradientTo: '#1f1325',
+  },
+  game_config: {
+    ...DEFAULT_MATCH3_THEME.game_config,
+    tileDefinitions: [
+      { id: 'tile-01', name: 'Princess Rosella', color: '#E11D48', bgColor: 'linear-gradient(135deg, #FB7185, #BE123C)', borderColor: '#FFE4E6', glowColor: 'rgba(225, 29, 72, 0.5)', symbol: 'Heart', imageUrl: '/assets/games/match-3/themes/princess-fairytale/princess.png' },
+      { id: 'tile-02', name: 'Imperial Crown', color: '#D97706', bgColor: 'linear-gradient(135deg, #F59E0B, #B45309)', borderColor: '#FEF3C7', glowColor: 'rgba(217, 119, 6, 0.5)', symbol: 'Crown', imageUrl: '/assets/games/match-3/themes/princess-fairytale/royal-crown.png' },
+      { id: 'tile-03', name: 'Fairytale Castle', color: '#7E22CE', bgColor: 'linear-gradient(135deg, #A855F7, #6B21A8)', borderColor: '#F3E8FF', glowColor: 'rgba(126, 34, 206, 0.5)', symbol: 'Shield', imageUrl: '/assets/games/match-3/themes/princess-fairytale/magic-castle.png' },
+      { id: 'tile-04', name: 'Royal Unicorn', color: '#DB2777', bgColor: 'linear-gradient(135deg, #F472B6, #BE185D)', borderColor: '#FCE7F3', glowColor: 'rgba(219, 39, 119, 0.5)', symbol: 'Sparkles', imageUrl: '/assets/games/match-3/themes/princess-fairytale/royal-unicorn.png' },
+      { id: 'tile-05', name: 'Frog Prince', color: '#15803D', bgColor: 'linear-gradient(135deg, #22C55E, #166534)', borderColor: '#DCFCE7', glowColor: 'rgba(21, 128, 61, 0.5)', symbol: 'Circle', imageUrl: '/assets/games/match-3/themes/princess-fairytale/frog-prince.png' },
+      { id: 'tile-06', name: 'Magic Mirror', color: '#0284C7', bgColor: 'linear-gradient(135deg, #38BDF8, #0369A1)', borderColor: '#E0F2FE', glowColor: 'rgba(2, 132, 199, 0.5)', symbol: 'Diamond', imageUrl: '/assets/games/match-3/themes/princess-fairytale/magic-mirror.png' },
+    ],
+  },
+  sounds_config: { ...DEFAULT_MATCH3_THEME.sounds_config },
+  layout: { ...DEFAULT_MATCH3_THEME.layout },
+};
+
 export function getDefaultThemeForGameType(gameType?: string | null): Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> {
   const clean = (gameType || '').toLowerCase().trim();
   if (
@@ -767,6 +1088,14 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
   DEFAULT_MEMORY_CARNIVAL_THEME,
   DEFAULT_REACTION_THEME,
   DEFAULT_MATCH3_THEME,
+  DEFAULT_MATCH3_CUTE_ANIMALS_THEME,
+  DEFAULT_MATCH3_SUPER_HEROES_THEME,
+  DEFAULT_MATCH3_FANTASY_CREATURES_THEME,
+  DEFAULT_MATCH3_SPACE_EXPLORERS_THEME,
+  DEFAULT_MATCH3_FOOD_CHARACTERS_THEME,
+  DEFAULT_MATCH3_OCEAN_FRIENDS_THEME,
+  DEFAULT_MATCH3_ROBOT_FRIENDS_THEME,
+  DEFAULT_MATCH3_PRINCESS_FAIRYTALE_THEME,
   {
     name: 'Christmas Gift Rush',
     slug: 'christmas-rush',
@@ -1621,8 +1950,43 @@ export function normalizeServerThemeAssets(theme: any): any {
     return updated;
   }
 
-  // Match-3 system theme
-  if (slug === 'match-3' || (isSys && (name.includes('match-3') || name.includes('match 3')))) {
+  // Match-3 Cartoon Character themes
+  const m3Presets = [
+    { id: 'cute-animals', name: 'Cute Animals', theme: DEFAULT_MATCH3_CUTE_ANIMALS_THEME },
+    { id: 'super-heroes', name: 'Super Heroes', theme: DEFAULT_MATCH3_SUPER_HEROES_THEME },
+    { id: 'fantasy-creatures', name: 'Fantasy Creatures', theme: DEFAULT_MATCH3_FANTASY_CREATURES_THEME },
+    { id: 'space-explorers', name: 'Space Explorers', theme: DEFAULT_MATCH3_SPACE_EXPLORERS_THEME },
+    { id: 'food-characters', name: 'Food Characters', theme: DEFAULT_MATCH3_FOOD_CHARACTERS_THEME },
+    { id: 'ocean-friends', name: 'Ocean Friends', theme: DEFAULT_MATCH3_OCEAN_FRIENDS_THEME },
+    { id: 'robot-friends', name: 'Robot Friends', theme: DEFAULT_MATCH3_ROBOT_FRIENDS_THEME },
+    { id: 'princess-fairytale', name: 'Princess Fairytale', theme: DEFAULT_MATCH3_PRINCESS_FAIRYTALE_THEME },
+  ];
+
+  const matchedCartoon = m3Presets.find(
+    (p) =>
+      slug === p.id ||
+      slug === `match-3-${p.id}` ||
+      (isSys && name.toLowerCase().includes(p.name.toLowerCase()))
+  );
+
+  if (matchedCartoon) {
+    const updated = { ...theme };
+    updated.background_url = `/assets/games/match-3/themes/${matchedCartoon.id}/background.png`;
+    updated.basket_config = null;
+    updated.items_config = [];
+    if (!updated.game_config || !Array.isArray((updated.game_config as any).tileDefinitions) || (updated.game_config as any).tileDefinitions.length === 0) {
+      updated.game_config = {
+        ...DEFAULT_MATCH3_THEME.game_config,
+        tileDefinitions: (matchedCartoon.theme.game_config as any).tileDefinitions,
+      };
+    }
+    updated.game_type = 'match-3';
+    updated.game_slug = 'match-3';
+    return updated;
+  }
+
+  // Match-3 Classic system theme
+  if (slug === 'match-3' || slug === 'match-3-classic' || (isSys && (name === 'Match-3 Classic' || name === 'Match-3' || name.toLowerCase().includes('classic')))) {
     const updated = { ...theme };
     updated.background_url = '/assets/games/match-3/themes/default/background.png';
     updated.basket_config = null;
@@ -1632,7 +1996,49 @@ export function normalizeServerThemeAssets(theme: any): any {
     }
     updated.game_type = 'match-3';
     updated.game_slug = 'match-3';
-    return updated;
+  }
+
+  // Universal legacy Carnival asset migration across any theme
+  const hasLegacyCarnival =
+    (typeof theme.background_url === 'string' &&
+      (theme.background_url.includes('/assets/themes/carnival/') ||
+        theme.background_url.includes('/assets/games/catch-brand/themes/carnival/'))) ||
+    (typeof theme.basket_config?.imageUrl === 'string' &&
+      (theme.basket_config.imageUrl.includes('/assets/themes/carnival/') ||
+        theme.basket_config.imageUrl.includes('/assets/games/catch-brand/themes/carnival/'))) ||
+    (Array.isArray(theme.items_config) &&
+      theme.items_config.some(
+        (i: any) =>
+          typeof i?.imageUrl === 'string' &&
+          (i.imageUrl.includes('/assets/themes/carnival/') ||
+            i.imageUrl.includes('/assets/games/catch-brand/themes/carnival/'))
+      ));
+
+  if (hasLegacyCarnival) {
+    const migrated = { ...theme };
+    const migrateUrl = (url: string | null | undefined) => {
+      if (!url || typeof url !== 'string') return url;
+      return url
+        .replace(/\/assets\/themes\/carnival\//g, '/assets/games/catch-brand/themes/carnival/')
+        .replace(/\/assets\/game\/catch-brand\/themes\/carnival\//g, '/assets/games/catch-brand/themes/carnival/')
+        .replace(/\/assets\/games\/catch-the-brand\/themes\/carnival\//g, '/assets/games/catch-brand/themes/carnival/')
+        .replace(/\/assets\/game\/catch-the-brand\/themes\/carnival\//g, '/assets/games/catch-brand/themes/carnival/');
+    };
+
+    migrated.background_url = migrateUrl(migrated.background_url);
+    if (migrated.basket_config?.imageUrl) {
+      migrated.basket_config = {
+        ...migrated.basket_config,
+        imageUrl: migrateUrl(migrated.basket_config.imageUrl),
+      };
+    }
+    if (Array.isArray(migrated.items_config)) {
+      migrated.items_config = migrated.items_config.map((item: any) => ({
+        ...item,
+        imageUrl: migrateUrl(item.imageUrl),
+      }));
+    }
+    return migrated;
   }
 
   return theme;
@@ -1821,6 +2227,7 @@ export async function getThemeById(
   }
 
   console.log(`[Theme Lookup] Querying game theme by UUID: ${themeId}`);
+  recordDbOperation('theme_read', env);
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('game_themes')

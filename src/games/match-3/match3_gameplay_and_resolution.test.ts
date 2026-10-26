@@ -76,6 +76,14 @@ console.log('======================================================');
 {
   // Construct a deterministic test board with a known valid match-3 move
   const board = createInitialBoard(6, 6, 4, Math.random);
+  const types = ['tile-01', 'tile-02', 'tile-03', 'tile-04'];
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 6; c++) {
+      board[r][c].type = types[(r + 2 * c) % 4];
+      board[r][c].special = null;
+      board[r][c].hazard = null;
+    }
+  }
   
   // Set up 2 matching tiles and a 3rd nearby that can be swapped
   board[0][0].type = 'tile-01';

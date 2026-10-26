@@ -9,6 +9,7 @@ class ReactionSoundManager {
   private isMuted: boolean = false;
 
   private initCtx() {
+    if (typeof window === 'undefined') return;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -200,6 +201,12 @@ class ReactionSoundManager {
 
     osc.start(now);
     osc.stop(now + 0.06);
+  }
+
+  public stopAll() {
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
   }
 }
 

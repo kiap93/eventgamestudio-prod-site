@@ -17,6 +17,11 @@ import {
   ResultWorstReactionElement,
   ResultRoundResultsElement,
   ResultRatingElement,
+  ResultTargetScoreElement,
+  ResultStarRatingElement,
+  ResultMatchesElement,
+  ResultSpecialsElement,
+  ResultComboElement,
 } from './resultScreenTypes';
 import {
   Award,
@@ -408,7 +413,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
             </span>
           </div>
           <span className="text-[10px] text-slate-500 font-mono shrink-0 ml-2">
-            Top {maxRows}
+            {t('game.topRows', { count: maxRows }, `Top ${maxRows}`)}
           </span>
         </div>
       )}
@@ -421,17 +426,17 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
         {!isSimulation && !isEditor && loadingLeaderboard ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-            <span style={{ fontSize: statFontSize }}>{t('game.loadingRankings', undefined, 'Loading rankings...')}</span>
+            <span style={{ fontSize: statFontSize }}>{t('game.loadingLeaderboard', undefined, 'Loading leaderboard...')}</span>
           </div>
         ) : !isSimulation && !isEditor && leaderboardError ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
             <AlertCircle className="w-4 h-4 text-rose-400/80" />
-            <span style={{ fontSize: statFontSize }}>{t('game.leaderboardUnavailable', undefined, 'Leaderboard unavailable')}</span>
+            <span style={{ fontSize: statFontSize }}>{t('game.unableToLoadRankings', undefined, 'Unable to load rankings')}</span>
           </div>
         ) : displayRows.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
             <Users className="w-4 h-4 text-slate-600" />
-            <span style={{ fontSize: statFontSize }}>{t('game.noScoresRecorded', undefined, 'No scores recorded yet')}</span>
+            <span style={{ fontSize: statFontSize }}>{t('game.noScoresYetBeFirst', undefined, 'No scores yet. Be the first!')}</span>
           </div>
         ) : (
           displayRows.map((entry, idx) => {
@@ -496,10 +501,10 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                           : style.textColor || '#f8fafc',
                       }}
                     >
-                      {entry.player_name || 'Player'}
+                      {entry.player_name || t('game.player', undefined, 'Player')}
                       {isCurrentPlayer && (
                         <span className="ml-1 text-[10px] text-amber-400/90 font-mono font-normal">
-                          (You)
+                          ({t('game.you', undefined, 'You')})
                         </span>
                       )}
                     </span>
@@ -567,14 +572,14 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
           <div className="p-2 min-h-[38px] sm:min-h-[44px] rounded-lg bg-amber-500/10 border border-amber-500/30 flex flex-col justify-center gap-0.5 text-left px-2.5">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1 text-amber-400 font-bold text-xs uppercase tracking-wide">
-                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" /> PREVIEW SCORE: {stats?.score !== undefined ? stats.score.toLocaleString() : 0}
+                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" /> {t('game.previewScoreLabel', undefined, 'PREVIEW SCORE')}: {stats?.score !== undefined ? stats.score.toLocaleString() : 0}
               </span>
               <span className="text-[9px] text-amber-300/80 font-mono uppercase bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
-                Studio Preview
+                {t('game.studioPreview', undefined, 'Studio Preview')}
               </span>
             </div>
             <p className="text-[10px] text-slate-300">
-              This is a studio preview score. It will not be added to the live event leaderboard.
+              {t('game.studioPreviewDesc', undefined, 'This is a studio preview score. It will not be added to the live event leaderboard.')}
             </p>
           </div>
         ) : !isSubmitted ? (
@@ -586,9 +591,9 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
               <div className="p-1.5 rounded bg-amber-500/10 border border-amber-500/30 text-[9px] text-amber-300 flex items-center justify-between">
                 <span className="font-bold flex items-center gap-1">
                   <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
-                  PRE-EVENT TEST MODE
+                  {t('game.preEventTestMode', undefined, 'PRE-EVENT TEST MODE')}
                 </span>
-                <span className="text-slate-400 text-[8px]">{t('game.clearedOnEventStart', undefined, 'Cleared on event start')}</span>
+                <span className="text-slate-400 text-[8px]">{t('game.clearedBeforeEventLive', undefined, 'Cleared before event goes live')}</span>
               </div>
             )}
             <div className="flex items-center gap-1.5">
@@ -649,7 +654,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
             </div>
             {effectiveRank && (
               <div className="shrink-0 font-mono text-xs font-black bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300">
-                Your Rank: #{effectiveRank}
+                {t('game.yourRank', { rank: effectiveRank }, `Your Rank: #${effectiveRank}`)}
               </div>
             )}
           </div>
@@ -867,7 +872,11 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
     case 'average-reaction':
     case 'best-reaction':
     case 'worst-reaction':
-    case 'rating': {
+    case 'rating':
+    case 'target-score':
+    case 'matches':
+    case 'combo':
+    case 'specials': {
       const statEl = el as
         | ResultScoreElement
         | ResultMovesElement
@@ -877,7 +886,11 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
         | ResultAverageReactionElement
         | ResultBestReactionElement
         | ResultWorstReactionElement
-        | ResultRatingElement;
+        | ResultRatingElement
+        | ResultTargetScoreElement
+        | ResultMatchesElement
+        | ResultSpecialsElement
+        | ResultComboElement;
       const style = statEl.style;
 
       // Extract default labels & values
@@ -900,6 +913,22 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
         } else {
           valueDisplay = stats?.score !== undefined ? stats.score.toLocaleString() : '1,250';
         }
+      } else if (el.type === 'target-score') {
+        defaultLabel = 'TARGET SCORE';
+        defaultValueColor = '#a78bfa';
+        valueDisplay = stats?.targetScore !== undefined ? stats.targetScore.toLocaleString() : '5,000';
+      } else if (el.type === 'matches') {
+        defaultLabel = 'MATCHES CLEARED';
+        defaultValueColor = '#38bdf8';
+        valueDisplay = stats?.matches !== undefined ? String(stats.matches) : '24';
+      } else if (el.type === 'combo') {
+        defaultLabel = 'BEST COMBO';
+        defaultValueColor = '#fb923c';
+        valueDisplay = stats?.bestCombo !== undefined ? `x${stats.bestCombo}` : 'x5';
+      } else if (el.type === 'specials') {
+        defaultLabel = 'SPECIALS CREATED';
+        defaultValueColor = '#34d399';
+        valueDisplay = stats?.specialTilesCreated !== undefined ? String(stats.specialTilesCreated) : '6';
       } else if (el.type === 'moves') {
         const isMatch3Matches = el.id === 'stat-matches' || statEl.label?.toUpperCase() === 'MATCHES';
         defaultLabel = isMatch3Matches ? 'MATCHES' : 'MOVES';
@@ -1167,6 +1196,82 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
                     {isFalseStart ? 'JUMP' : `${r.reactionTimeMs}ms`}
                   </span>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    case 'star-rating': {
+      const starEl = el as ResultStarRatingElement;
+      const style = starEl.style;
+      const totalStars = starEl.starsCount || style?.starCount || 3;
+      let earnedStars = stats?.stars !== undefined ? stats.stars : 3;
+      if (stats?.stars === undefined && stats?.score !== undefined) {
+        const target = stats.targetScore || 5000;
+        if (stats.score >= target * 1.5) earnedStars = 3;
+        else if (stats.score >= target) earnedStars = 2;
+        else if (stats.score >= target * 0.5) earnedStars = 1;
+        else earnedStars = 0;
+      }
+      earnedStars = Math.min(totalStars, Math.max(0, earnedStars));
+
+      const starSize = style?.starSize
+        ? `clamp(12px, ${(style.starSize / parentWidth) * 100}cqi, 80px)`
+        : 'clamp(16px, 3.2cqi, 48px)';
+      const filledColor = style?.filledColor || '#fbbf24';
+      const emptyColor = style?.emptyColor || '#334155';
+      const showLabel = style?.showLabel === true;
+      const labelText = style?.label || starEl.label || 'RATING';
+
+      return (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: style?.backgroundColor || 'transparent',
+            borderColor: style?.borderColor,
+            borderWidth: typeof style?.borderWidth === 'number' ? `${(style.borderWidth / parentWidth) * 100}cqi` : undefined,
+            borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentWidth) * 100}cqi` : '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: `${style?.starSpacing ?? 8}px`,
+            padding: '4px',
+            boxSizing: 'border-box',
+          }}
+          className="select-none pointer-events-none"
+        >
+          {showLabel && (
+            <span
+              style={{
+                color: style?.labelColor || '#94a3b8',
+                fontSize: style?.fontSize ? `clamp(8px, ${(style.fontSize / parentWidth) * 100}cqi, 32px)` : 'clamp(10px, 1.4cqi, 20px)',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {labelText}
+            </span>
+          )}
+          <div className="flex items-center justify-center gap-1.5" style={{ gap: `${style?.starSpacing ?? 8}px` }}>
+            {Array.from({ length: totalStars }).map((_, i) => {
+              const isFilled = i < earnedStars;
+              return (
+                <svg
+                  key={i}
+                  viewBox="0 0 24 24"
+                  style={{ width: starSize, height: starSize }}
+                  className="transition-transform duration-300"
+                  fill={isFilled ? filledColor : emptyColor}
+                  stroke={isFilled ? filledColor : emptyColor}
+                  strokeWidth="1.5"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
               );
             })}
           </div>

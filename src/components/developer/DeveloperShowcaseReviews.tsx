@@ -542,16 +542,16 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h2 className="text-base font-black text-white tracking-wide uppercase">
-                  Showcase Reward Approval Queue
+                  {t('developer.showcaseRewardApprovalQueue', undefined, 'Showcase Reward Approval Queue')}
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                   {pendingRewardsLoading
-                    ? 'Loading...'
-                    : `${pendingRewards.length} reward${pendingRewards.length === 1 ? '' : 's'} waiting for approval`}
+                    ? t('common.loading', undefined, 'Loading...')
+                    : t('developer.rewardsWaitingCount', { count: pendingRewards.length }, `${pendingRewards.length} reward${pendingRewards.length === 1 ? '' : 's'} waiting for approval`)}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Eligible first-event showcase submissions awaiting owner promotional credit approval (RM300).
+                {t('developer.showcaseRewardApprovalQueueDesc', undefined, 'Eligible first-event showcase submissions awaiting owner promotional credit approval (RM300).')}
               </p>
             </div>
           </div>
@@ -616,7 +616,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                           {t('developer.rm300Reward', undefined, 'RM300 Reward')}
                         </span>
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                          Paid & Completed
+                          {t('developer.paidAndCompleted', undefined, 'Paid & Completed')}
                         </span>
                       </div>
 
@@ -698,10 +698,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         <div className="flex items-center justify-between gap-4 mb-3">
           <div>
             <h2 className="text-sm font-black text-slate-300 uppercase tracking-wider">
-              All Showcases Management
+              {t('developer.allShowcasesManagement', undefined, 'All Showcases Management')}
             </h2>
             <p className="text-xs text-slate-500">
-              {t('developer.visibilityHeader', undefined, 'Visibility')}, moderation, history, and status of all published and archived event showcases.
+              {t('developer.allShowcasesManagementDesc', undefined, 'Visibility, moderation, history, and status of all published and archived event showcases.')}
             </p>
           </div>
         </div>
@@ -712,14 +712,14 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         {/* Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
           {[
-            { id: 'ALL', label: 'All Submissions', count: showcases.length },
-            { id: 'REWARD_PENDING', label: 'Reward Pending', count: countRewardPending, highlight: true },
-            { id: 'REWARDED', label: 'Rewarded (RM300)', count: countRewarded },
-            { id: 'PUBLISHED', label: 'Published Live', count: countPublished },
-            { id: 'REJECTED', label: 'Reward Rejected', count: countRewardRejected },
-            { id: 'BLOCKED', label: 'Blocked', count: countBlocked, isBlocked: true },
-            { id: 'DELETED', label: 'Deleted', count: countDeleted },
-            { id: 'DRAFT', label: 'Drafts', count: countDraft },
+            { id: 'ALL', label: t('developer.filterAllSubmissions', undefined, 'All Submissions'), count: showcases.length },
+            { id: 'REWARD_PENDING', label: t('developer.rewardPending', undefined, 'Reward Pending'), count: countRewardPending, highlight: true },
+            { id: 'REWARDED', label: t('developer.filterRewarded300', undefined, 'Rewarded (RM300)'), count: countRewarded },
+            { id: 'PUBLISHED', label: t('developer.publishedLive', undefined, 'Published Live'), count: countPublished },
+            { id: 'REJECTED', label: t('developer.filterRewardRejected', undefined, 'Reward Rejected'), count: countRewardRejected },
+            { id: 'BLOCKED', label: t('developer.filterBlocked', undefined, 'Blocked'), count: countBlocked, isBlocked: true },
+            { id: 'DELETED', label: t('developer.filterDeleted', undefined, 'Deleted'), count: countDeleted },
+            { id: 'DRAFT', label: t('developer.filterDrafts', undefined, 'Drafts'), count: countDraft },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1101,7 +1101,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 disabled={actionLoading}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 type="button"
@@ -1110,7 +1110,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
-                <span>{actionLoading ? 'Approving & Rewarding...' : 'Confirm Approval (RM300)'}</span>
+                <span>{actionLoading ? t('developer.approvingAndRewarding', undefined, 'Approving & Rewarding...') : t('developer.confirmApproval300', undefined, 'Confirm Approval (RM300)')}</span>
               </button>
             </div>
           </div>
@@ -1136,12 +1136,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-300">
-              Provide feedback on why this showcase reward is being declined. Note: Declining the reward does NOT unpublish the showcase from the public gallery.
+              {t('developer.rejectFeedbackDesc', undefined, 'Provide feedback on why this showcase reward is being declined. Note: Declining the reward does NOT unpublish the showcase from the public gallery.')}
             </p>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Reason for Rejection <span className="text-rose-400">*</span>
+                {t('developer.reasonForRejection', undefined, 'Reason for Rejection')} <span className="text-rose-400">*</span>
               </label>
               <textarea
                 value={rejectionReason}
@@ -1160,7 +1160,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 disabled={actionLoading}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 type="submit"
@@ -1168,7 +1168,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
               >
                 <XCircle className="w-4 h-4" />
-                <span>{actionLoading ? 'Rejecting...' : 'Reject with Feedback'}</span>
+                <span>{actionLoading ? t('developer.rejecting', undefined, 'Rejecting...') : t('developer.rejectWithFeedback', undefined, 'Reject with Feedback')}</span>
               </button>
             </div>
           </form>
@@ -1422,7 +1422,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-all cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
+                    <span>{t('common.delete', undefined, 'Delete')}</span>
                   </button>
                 )}
               </div>
@@ -1470,7 +1470,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       }}
                       className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
                     >
-                      Reject Reward
+                      {t('developer.rejectRewardBtn', undefined, 'Reject Reward')}
                     </button>
                     <button
                       onClick={() => setApprovingShowcase(selectedShowcase)}
@@ -1485,7 +1485,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   onClick={() => setShowPreviewModal(false)}
                   className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                 >
-                  Close
+                  {t('common.close', undefined, 'Close')}
                 </button>
               </div>
             </div>
@@ -1511,7 +1511,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <form onSubmit={handleBlock} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Reason for Blocking <span className="text-amber-400">*</span>
+                  {t('developer.reasonForBlocking', undefined, 'Reason for Blocking')} <span className="text-amber-400">*</span>
                 </label>
                 <textarea
                   value={blockReason}
@@ -1530,7 +1530,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   disabled={actionLoading}
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', undefined, 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1538,7 +1538,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
                 >
                   <ShieldAlert className="w-4 h-4" />
-                  <span>{actionLoading ? 'Blocking...' : 'Confirm Block Showcase'}</span>
+                  <span>{actionLoading ? t('developer.blocking', undefined, 'Blocking...') : t('developer.confirmBlockShowcase', undefined, 'Confirm Block Showcase')}</span>
                 </button>
               </div>
             </form>
@@ -1564,7 +1564,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <form onSubmit={handleUnblock} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Optional Unblock / Resolution Note
+                  {t('developer.optionalUnblockNote', undefined, 'Optional Unblock / Resolution Note')}
                 </label>
                 <textarea
                   value={unblockReason}
@@ -1582,7 +1582,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   disabled={actionLoading}
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', undefined, 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1590,7 +1590,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>{actionLoading ? 'Unblocking...' : 'Confirm Unblock Showcase'}</span>
+                  <span>{actionLoading ? t('developer.unblocking', undefined, 'Unblocking...') : t('developer.confirmUnblockShowcase', undefined, 'Confirm Unblock Showcase')}</span>
                 </button>
               </div>
             </form>
@@ -1616,7 +1616,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <form onSubmit={handleDelete} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Reason for Deletion <span className="text-rose-400">*</span>
+                  {t('developer.reasonForDeletion', undefined, 'Reason for Deletion')} <span className="text-rose-400">*</span>
                 </label>
                 <textarea
                   value={deleteReason}
@@ -1635,7 +1635,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   disabled={actionLoading}
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', undefined, 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1643,7 +1643,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>{actionLoading ? 'Deleting...' : 'Confirm Soft Delete'}</span>
+                  <span>{actionLoading ? t('developer.deleting', undefined, 'Deleting...') : t('developer.confirmSoftDelete', undefined, 'Confirm Soft Delete')}</span>
                 </button>
               </div>
             </form>

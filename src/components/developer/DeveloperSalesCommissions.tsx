@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   SalesCommissionWithDetails,
   SalesOpportunityWithDetails,
@@ -35,6 +36,7 @@ import {
 
 export const DeveloperSalesCommissions: React.FC = () => {
   const { currentUser } = useAuth();
+  const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<'commissions' | 'opportunities' | 'payouts' | 'settings'>('commissions');
 
   // Commissions State
@@ -440,13 +442,13 @@ export const DeveloperSalesCommissions: React.FC = () => {
         <div className="space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <Coins className="w-3.5 h-3.5" />
-            <span>Phase 5 — Financial Governance</span>
+            <span>{t('dev.commissions.badge', undefined, 'Phase 5 — Financial Governance')}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Sales Commissions & Payouts
+            {t('dev.commissions.title', undefined, 'Sales Commissions & Payouts')}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Manage authoritative commission calculations, post-12-month opportunities, bank payout batches, and immutable audit trails.
+            {t('dev.commissions.subtitle', undefined, 'Manage authoritative commission calculations, post-12-month opportunities, bank payout batches, and immutable audit trails.')}
           </p>
         </div>
 
@@ -460,7 +462,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 : 'text-slate-300 hover:text-white'
             }`}
           >
-            Commissions
+            {t('dev.commissions.tabCommissions', undefined, 'Commissions')}
           </button>
           <button
             onClick={() => setActiveTab('opportunities')}
@@ -470,7 +472,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 : 'text-slate-300 hover:text-white'
             }`}
           >
-            Opportunities
+            {t('dev.commissions.tabOpportunities', undefined, 'Opportunities')}
           </button>
           <button
             onClick={() => setActiveTab('payouts')}
@@ -480,7 +482,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 : 'text-slate-300 hover:text-white'
             }`}
           >
-            Payout Batches
+            {t('dev.commissions.tabPayouts', undefined, 'Payout Batches')}
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -490,7 +492,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 : 'text-slate-300 hover:text-white'
             }`}
           >
-            Settings
+            {t('common.settings', undefined, 'Settings')}
           </button>
         </div>
       </div>
@@ -507,12 +509,12 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onChange={(e) => setCommissionStatusFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="all">All Statuses</option>
-                <option value="pending_review">Pending Review</option>
-                <option value="approved">Approved</option>
-                <option value="paid">Paid</option>
-                <option value="voided">Voided</option>
-                <option value="clawback">Clawback</option>
+                <option value="all">{t('dev.commissions.allStatuses', undefined, 'All Statuses')}</option>
+                <option value="pending_review">{t('dev.commissions.statusPendingReview', undefined, 'Pending Review')}</option>
+                <option value="approved">{t('dev.commissions.statusApproved', undefined, 'Approved')}</option>
+                <option value="paid">{t('dev.commissions.statusPaid', undefined, 'Paid')}</option>
+                <option value="voided">{t('dev.commissions.statusVoided', undefined, 'Voided')}</option>
+                <option value="clawback">{t('dev.commissions.statusClawback', undefined, 'Clawback')}</option>
               </select>
 
               {/* Order Type Filter */}
@@ -521,10 +523,10 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onChange={(e) => setCommissionOrderTypeFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="all">All Order Types</option>
-                <option value="first_order">First Order (10%)</option>
-                <option value="repeat_order">Repeat Order (5%)</option>
-                <option value="approved_opportunity">Pre-Approved Opportunity (5%)</option>
+                <option value="all">{t('dev.commissions.allOrderTypes', undefined, 'All Order Types')}</option>
+                <option value="first_order">{t('dev.commissions.typeFirstOrder', undefined, 'First Order (10%)')}</option>
+                <option value="repeat_order">{t('dev.commissions.typeRepeatOrder', undefined, 'Repeat Order (5%)')}</option>
+                <option value="approved_opportunity">{t('dev.commissions.typeApprovedOpportunity', undefined, 'Pre-Approved Opportunity (5%)')}</option>
               </select>
 
               {/* Search */}
@@ -532,7 +534,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
-                  placeholder="Search event, org, partner..."
+                  placeholder={t('dev.commissions.searchPlaceholder', undefined, 'Search event, org, partner...')}
                   value={commissionSearch}
                   onChange={(e) => setCommissionSearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && fetchCommissions()}
@@ -546,12 +548,12 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-1.5"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingCommissions ? 'animate-spin' : ''}`} />
-                <span>Filter</span>
+                <span>{t('common.filter', undefined, 'Filter')}</span>
               </button>
             </div>
 
             <div className="text-xs text-slate-400 font-medium">
-              Total: <span className="font-bold text-white">{commissionsTotal}</span> records | Sum:{' '}
+              {t('common.total', undefined, 'Total')}: <span className="font-bold text-white">{commissionsTotal}</span> {t('dev.commissions.records', undefined, 'records')} | {t('dev.commissions.sum', undefined, 'Sum')}:{' '}
               <span className="font-bold text-amber-400">RM{commissionsTotalAmount.toFixed(2)}</span>
             </div>
           </div>
@@ -561,21 +563,21 @@ export const DeveloperSalesCommissions: React.FC = () => {
             {commissions.length === 0 ? (
               <div className="p-12 text-center text-slate-400 space-y-2">
                 <FileText className="w-10 h-10 text-slate-600 mx-auto" />
-                <div className="text-sm font-semibold text-slate-300">No commissions matching filters</div>
+                <div className="text-sm font-semibold text-slate-300">{t('dev.commissions.noCommissionsFound', undefined, 'No commissions matching filters')}</div>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-300">
                   <thead className="bg-slate-950/70 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
                     <tr>
-                      <th className="px-4 py-3.5">Partner</th>
-                      <th className="px-4 py-3.5">Client & Event</th>
-                      <th className="px-4 py-3.5">Order Type</th>
-                      <th className="px-4 py-3.5 text-right">Cash Revenue</th>
-                      <th className="px-4 py-3.5 text-right">Commission</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-4 py-3.5 text-center">Delivery</th>
-                      <th className="px-4 py-3.5 text-right">Actions</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colPartner', undefined, 'Partner')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colClientEvent', undefined, 'Client & Event')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colOrderType', undefined, 'Order Type')}</th>
+                      <th className="px-4 py-3.5 text-right">{t('dev.commissions.colCashRevenue', undefined, 'Cash Revenue')}</th>
+                      <th className="px-4 py-3.5 text-right">{t('dev.commissions.colCommission', undefined, 'Commission')}</th>
+                      <th className="px-4 py-3.5 text-center">{t('common.status', undefined, 'Status')}</th>
+                      <th className="px-4 py-3.5 text-center">{t('dev.commissions.colDelivery', undefined, 'Delivery')}</th>
+                      <th className="px-4 py-3.5 text-right">{t('common.actions', undefined, 'Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -609,10 +611,10 @@ export const DeveloperSalesCommissions: React.FC = () => {
                             }`}
                           >
                             {comm.order_type === 'first_order'
-                              ? '1st Order (10%)'
+                              ? t('dev.commissions.badgeFirstOrder', undefined, '1st Order (10%)')
                               : comm.order_type === 'repeat_order'
-                              ? 'Repeat (5%)'
-                              : 'Opportunity (5%)'}
+                              ? t('dev.commissions.badgeRepeatOrder', undefined, 'Repeat (5%)')
+                              : t('dev.commissions.badgeOpportunity', undefined, 'Opportunity (5%)')}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-right font-mono text-slate-200">
@@ -651,7 +653,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                         <td className="px-4 py-3.5 text-center">
                           {comm.event?.event_status === 'COMPLETED' || comm.event?.status === 'completed' ? (
                             <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                              Delivered
+                              {t('dev.commissions.delivered', undefined, 'Delivered')}
                             </span>
                           ) : (
                             <span className="text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
@@ -664,9 +666,9 @@ export const DeveloperSalesCommissions: React.FC = () => {
                             <button
                               onClick={() => handleApproveCommission(comm)}
                               className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold cursor-pointer border border-emerald-500/30"
-                              title="Approve Commission (Requires Completed Event Delivery)"
+                              title={t('dev.commissions.approveTooltip', undefined, 'Approve Commission (Requires Completed Event Delivery)')}
                             >
-                              Approve
+                              {t('common.approve', undefined, 'Approve')}
                             </button>
                           )}
                           {comm.status !== 'paid' && comm.status !== 'voided' && (
@@ -676,24 +678,24 @@ export const DeveloperSalesCommissions: React.FC = () => {
                                 setAdjustAmount(comm.commission_amount.toString());
                               }}
                               className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs cursor-pointer border border-slate-700"
-                              title="Adjust Commission (Auditable append-only)"
+                              title={t('dev.commissions.adjustTooltip', undefined, 'Adjust Commission (Auditable append-only)')}
                             >
-                              Adjust
+                              {t('dev.commissions.adjust', undefined, 'Adjust')}
                             </button>
                           )}
                           {comm.status !== 'paid' && comm.status !== 'voided' && (
                             <button
                               onClick={() => setVoidModalCommission(comm)}
                               className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs cursor-pointer border border-rose-500/30"
-                              title="Void Commission"
+                              title={t('dev.commissions.voidTooltip', undefined, 'Void Commission')}
                             >
-                              Void
+                              {t('dev.commissions.void', undefined, 'Void')}
                             </button>
                           )}
                           <button
                             onClick={() => handleOpenAuditModal(comm)}
                             className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs cursor-pointer"
-                            title="View Audit History"
+                            title={t('dev.commissions.viewAuditHistory', undefined, 'View Audit History')}
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
@@ -718,12 +720,12 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onChange={(e) => setOpportunityStatusFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending Approval</option>
-                <option value="approved">Approved</option>
-                <option value="consumed">Consumed</option>
-                <option value="rejected">Rejected</option>
-                <option value="expired">Expired</option>
+                <option value="all">{t('dev.commissions.allStatuses', undefined, 'All Statuses')}</option>
+                <option value="pending">{t('dev.commissions.statusPendingApproval', undefined, 'Pending Approval')}</option>
+                <option value="approved">{t('dev.commissions.statusApproved', undefined, 'Approved')}</option>
+                <option value="consumed">{t('dev.commissions.statusConsumed', undefined, 'Consumed')}</option>
+                <option value="rejected">{t('dev.commissions.statusRejected', undefined, 'Rejected')}</option>
+                <option value="expired">{t('dev.commissions.statusExpired', undefined, 'Expired')}</option>
               </select>
 
               <button
@@ -732,7 +734,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-1.5"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingOpportunities ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <span>{t('common.refresh', undefined, 'Refresh')}</span>
               </button>
             </div>
           </div>
@@ -741,20 +743,20 @@ export const DeveloperSalesCommissions: React.FC = () => {
             {opportunities.length === 0 ? (
               <div className="p-12 text-center text-slate-400 space-y-2">
                 <Sparkles className="w-10 h-10 text-slate-600 mx-auto" />
-                <div className="text-sm font-semibold text-slate-300">No opportunity requests</div>
+                <div className="text-sm font-semibold text-slate-300">{t('dev.commissions.noOpportunities', undefined, 'No opportunity requests')}</div>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-300">
                   <thead className="bg-slate-950/70 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
                     <tr>
-                      <th className="px-4 py-3.5">Partner</th>
-                      <th className="px-4 py-3.5">Client Organization</th>
-                      <th className="px-4 py-3.5">Opportunity Title</th>
-                      <th className="px-4 py-3.5">Expected Date</th>
-                      <th className="px-4 py-3.5">Status</th>
-                      <th className="px-4 py-3.5">Validity</th>
-                      <th className="px-4 py-3.5 text-right">Actions</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colPartner', undefined, 'Partner')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colClientOrg', undefined, 'Client Organization')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colOppTitle', undefined, 'Opportunity Title')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colExpectedDate', undefined, 'Expected Date')}</th>
+                      <th className="px-4 py-3.5">{t('common.status', undefined, 'Status')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colValidity', undefined, 'Validity')}</th>
+                      <th className="px-4 py-3.5 text-right">{t('common.actions', undefined, 'Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -803,13 +805,13 @@ export const DeveloperSalesCommissions: React.FC = () => {
                                 onClick={() => setApproveOpportunityModal(opp)}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold cursor-pointer border border-emerald-500/30"
                               >
-                                Approve
+                                {t('common.approve', undefined, 'Approve')}
                               </button>
                               <button
                                 onClick={() => setRejectOpportunityModal(opp)}
                                 className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-semibold cursor-pointer border border-rose-500/30"
                               >
-                                Reject
+                                {t('common.reject', undefined, 'Reject')}
                               </button>
                             </>
                           )}
@@ -833,30 +835,30 @@ export const DeveloperSalesCommissions: React.FC = () => {
               <div>
                 <h2 className="text-base font-bold text-white flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Approved Commissions Ready for Payout</span>
+                  <span>{t('dev.commissions.readyForPayoutTitle', undefined, 'Approved Commissions Ready for Payout')}</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Commissions approved after verified event delivery. Group and create a batch to prepare bank transfer.
+                  {t('dev.commissions.readyForPayoutSubtitle', undefined, 'Commissions approved after verified event delivery. Group and create a batch to prepare bank transfer.')}
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-300 font-mono">
-                  Selected: <span className="text-amber-400 font-bold">{selectedCommissionIds.size}</span>
+                  {t('common.selected', undefined, 'Selected')}: <span className="text-amber-400 font-bold">{selectedCommissionIds.size}</span>
                 </span>
                 <button
                   onClick={handleCreatePayoutBatch}
                   disabled={selectedCommissionIds.size === 0 || actionLoading}
                   className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold cursor-pointer transition-colors"
                 >
-                  Create Payout Batch
+                  {t('dev.commissions.createPayoutBatch', undefined, 'Create Payout Batch')}
                 </button>
               </div>
             </div>
 
             {readyForPayoutData?.partners?.length === 0 ? (
               <div className="p-8 text-center bg-slate-950/50 rounded-xl border border-slate-800/80 text-xs text-slate-400">
-                No approved commissions awaiting payout batching.
+                {t('dev.commissions.noApprovedCommissions', undefined, 'No approved commissions awaiting payout batching.')}
               </div>
             ) : (
               <div className="space-y-3">
@@ -916,26 +918,26 @@ export const DeveloperSalesCommissions: React.FC = () => {
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <FileText className="w-4 h-4 text-amber-400" />
-                <span>Payout Batch Records</span>
+                <span>{t('dev.commissions.payoutBatchRecords', undefined, 'Payout Batch Records')}</span>
               </h3>
             </div>
 
             {payoutBatches.length === 0 ? (
               <div className="p-10 text-center text-slate-400 text-xs">
-                No payout batches created yet.
+                {t('dev.commissions.noPayoutBatches', undefined, 'No payout batches created yet.')}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-300">
                   <thead className="bg-slate-950/70 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
                     <tr>
-                      <th className="px-4 py-3.5">Batch Reference</th>
-                      <th className="px-4 py-3.5 text-right">Total Amount</th>
-                      <th className="px-4 py-3.5 text-center">Items</th>
-                      <th className="px-4 py-3.5 text-center">Partners</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-4 py-3.5">Payment Ref</th>
-                      <th className="px-4 py-3.5 text-right">Actions</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colBatchRef', undefined, 'Batch Reference')}</th>
+                      <th className="px-4 py-3.5 text-right">{t('dev.commissions.colTotalAmount', undefined, 'Total Amount')}</th>
+                      <th className="px-4 py-3.5 text-center">{t('dev.commissions.colItems', undefined, 'Items')}</th>
+                      <th className="px-4 py-3.5 text-center">{t('dev.commissions.colPartners', undefined, 'Partners')}</th>
+                      <th className="px-4 py-3.5 text-center">{t('common.status', undefined, 'Status')}</th>
+                      <th className="px-4 py-3.5">{t('dev.commissions.colPaymentRef', undefined, 'Payment Ref')}</th>
+                      <th className="px-4 py-3.5 text-right">{t('common.actions', undefined, 'Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -969,7 +971,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                               onClick={() => setSettleBatchModal(b)}
                               className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer"
                             >
-                              Mark Paid
+                              {t('dev.commissions.markPaid', undefined, 'Mark Paid')}
                             </button>
                           )}
                         </td>
@@ -989,17 +991,17 @@ export const DeveloperSalesCommissions: React.FC = () => {
           <div className="space-y-1">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Settings className="w-5 h-5 text-amber-400" />
-              <span>Platform Commission Settings</span>
+              <span>{t('dev.commissions.settingsTitle', undefined, 'Platform Commission Settings')}</span>
             </h2>
             <p className="text-xs text-slate-400">
-              Configure baseline rates, repeat commission window duration, and safety delivery requirements.
+              {t('dev.commissions.settingsSubtitle', undefined, 'Configure baseline rates, repeat commission window duration, and safety delivery requirements.')}
             </p>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                First-Order Commission Rate (Default: 0.10 for 10%)
+                {t('dev.commissions.firstOrderRateLabel', undefined, 'First-Order Commission Rate (Default: 0.10 for 10%)')}
               </label>
               <input
                 type="number"
@@ -1016,7 +1018,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                Repeat-Order Commission Rate (Default: 0.05 for 5%)
+                {t('dev.commissions.repeatOrderRateLabel', undefined, 'Repeat-Order Commission Rate (Default: 0.05 for 5%)')}
               </label>
               <input
                 type="number"
@@ -1033,7 +1035,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                Repeat Commission Window Duration (Months)
+                {t('dev.commissions.repeatWindowLabel', undefined, 'Repeat Commission Window Duration (Months)')}
               </label>
               <input
                 type="number"
@@ -1058,11 +1060,11 @@ export const DeveloperSalesCommissions: React.FC = () => {
                   className="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
                 />
                 <span className="font-semibold">
-                  Require Event Delivery Completion before commission becomes payable (Safer Policy)
+                  {t('dev.commissions.requireDeliveryLabel', undefined, 'Require Event Delivery Completion before commission becomes payable (Safer Policy)')}
                 </span>
               </label>
               <p className="text-[11px] text-slate-500 mt-1 pl-6">
-                When enabled, commissions remain pending_review until the event's lifecycle status transitions to COMPLETED.
+                {t('dev.commissions.requireDeliveryDesc', undefined, "When enabled, commissions remain pending_review until the event's lifecycle status transitions to COMPLETED.")}
               </p>
             </div>
 
@@ -1072,7 +1074,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 disabled={savingSettings}
                 className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors"
               >
-                {savingSettings ? 'Saving...' : 'Save Settings'}
+                {savingSettings ? t('common.saving', undefined, 'Saving...') : t('common.saveSettings', undefined, 'Save Settings')}
               </button>
             </div>
           </form>
@@ -1093,7 +1095,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
             <div className="space-y-1">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <History className="w-4 h-4 text-amber-400" />
-                <span>Immutable Commission Audit Trail</span>
+                <span>{t('dev.commissions.auditModalTitle', undefined, 'Immutable Commission Audit Trail')}</span>
               </h3>
               <p className="text-xs text-slate-400">
                 Commission ID: <span className="font-mono text-slate-300">{auditModalCommission.id}</span>
@@ -1101,9 +1103,9 @@ export const DeveloperSalesCommissions: React.FC = () => {
             </div>
 
             {loadingAuditLogs ? (
-              <div className="p-8 text-center text-xs text-slate-400">Loading audit history...</div>
+              <div className="p-8 text-center text-xs text-slate-400">{t('dev.commissions.loadingAuditHistory', undefined, 'Loading audit history...')}</div>
             ) : auditLogs.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500">No audit log records found</div>
+              <div className="p-6 text-center text-xs text-slate-500">{t('dev.commissions.noAuditLogsFound', undefined, 'No audit log records found')}</div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                 {auditLogs.map((log) => (
@@ -1118,7 +1120,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
                     </div>
                     {log.reason && (
                       <div className="text-slate-300 text-xs mt-1">
-                        <span className="text-slate-500">Reason:</span> {log.reason}
+                        <span className="text-slate-500">{t('common.reason', undefined, 'Reason')}:</span> {log.reason}
                       </div>
                     )}
                     {log.previous_amount !== null && log.new_amount !== null && log.previous_amount !== log.new_amount && (
@@ -1147,18 +1149,18 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Ban className="w-4 h-4 text-rose-400" />
-              <span>Void Commission</span>
+              <span>{t('dev.commissions.voidModalTitle', undefined, 'Void Commission')}</span>
             </h3>
 
             <p className="text-xs text-slate-400">
-              Voiding commission of RM{voidModalCommission.commission_amount.toFixed(2)}. An auditable reason is required.
+              {t('dev.commissions.voidModalDesc', { amount: voidModalCommission.commission_amount.toFixed(2) }, `Voiding commission of RM${voidModalCommission.commission_amount.toFixed(2)}. An auditable reason is required.`)}
             </p>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Reason *</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">{t('common.reason', undefined, 'Reason')} *</label>
               <textarea
                 rows={3}
-                placeholder="Reason for voiding..."
+                placeholder={t('dev.commissions.voidReasonPlaceholder', undefined, 'Reason for voiding...')}
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:outline-none focus:border-rose-500 resize-none"
@@ -1170,14 +1172,14 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onClick={() => setVoidModalCommission(null)}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleVoidCommission}
                 disabled={actionLoading || !voidReason.trim()}
                 className="px-4 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
               >
-                {actionLoading ? 'Voiding...' : 'Confirm Void'}
+                {actionLoading ? t('dev.commissions.voiding', undefined, 'Voiding...') : t('dev.commissions.confirmVoid', undefined, 'Confirm Void')}
               </button>
             </div>
           </div>
@@ -1197,7 +1199,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Edit2 className="w-4 h-4 text-amber-400" />
-              <span>Adjust Commission Amount</span>
+              <span>{t('dev.commissions.adjustModalTitle', undefined, 'Adjust Commission Amount')}</span>
             </h3>
 
             <p className="text-xs text-slate-400">
@@ -1206,7 +1208,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">New Amount (RM) *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">{t('dev.commissions.newAmountLabel', undefined, 'New Amount (RM)')} *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1218,10 +1220,10 @@ export const DeveloperSalesCommissions: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Reason for Adjustment *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">{t('dev.commissions.adjustReasonLabel', undefined, 'Reason for Adjustment')} *</label>
                 <textarea
                   rows={3}
-                  placeholder="Justification for adjustment..."
+                  placeholder={t('dev.commissions.adjustReasonPlaceholder', undefined, 'Justification for adjustment...')}
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
@@ -1234,14 +1236,14 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onClick={() => setAdjustModalCommission(null)}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleAdjustCommission}
                 disabled={actionLoading || !adjustReason.trim()}
                 className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer disabled:opacity-50"
               >
-                {actionLoading ? 'Saving...' : 'Save Adjustment'}
+                {actionLoading ? t('common.saving', undefined, 'Saving...') : t('dev.commissions.saveAdjustment', undefined, 'Save Adjustment')}
               </button>
             </div>
           </div>
@@ -1261,7 +1263,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>Approve Sales Opportunity</span>
+              <span>{t('dev.commissions.approveOppTitle', undefined, 'Approve Sales Opportunity')}</span>
             </h3>
 
             <p className="text-xs text-slate-400">
@@ -1270,7 +1272,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Validity Window (Days)</label>
+                <label className="block font-semibold text-slate-300 mb-1">{t('dev.commissions.validityWindowDays', undefined, 'Validity Window (Days)')}</label>
                 <input
                   type="number"
                   min="1"
@@ -1282,7 +1284,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Decision Notes</label>
+                <label className="block font-semibold text-slate-300 mb-1">{t('dev.commissions.decisionNotes', undefined, 'Decision Notes')}</label>
                 <textarea
                   rows={2}
                   placeholder="Notes..."
@@ -1298,14 +1300,14 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onClick={() => setApproveOpportunityModal(null)}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleApproveOpportunity}
                 disabled={actionLoading}
                 className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer"
               >
-                {actionLoading ? 'Approving...' : 'Approve Opportunity'}
+                {actionLoading ? t('dev.commissions.approving', undefined, 'Approving...') : t('dev.commissions.approveOpportunity', undefined, 'Approve Opportunity')}
               </button>
             </div>
           </div>
@@ -1325,11 +1327,11 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Ban className="w-4 h-4 text-rose-400" />
-              <span>Reject Sales Opportunity</span>
+              <span>{t('dev.commissions.rejectOppTitle', undefined, 'Reject Sales Opportunity')}</span>
             </h3>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Reason for Rejection *</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">{t('dev.commissions.reasonForRejection', undefined, 'Reason for Rejection')} *</label>
               <textarea
                 rows={3}
                 placeholder="Reason..."
@@ -1344,14 +1346,14 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onClick={() => setRejectOpportunityModal(null)}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleRejectOpportunity}
                 disabled={actionLoading || !oppRejectReason.trim()}
                 className="px-4 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
               >
-                {actionLoading ? 'Rejecting...' : 'Reject Opportunity'}
+                {actionLoading ? t('dev.commissions.rejecting', undefined, 'Rejecting...') : t('dev.commissions.rejectOpportunity', undefined, 'Reject Opportunity')}
               </button>
             </div>
           </div>
@@ -1371,7 +1373,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Settle Payout Batch</span>
+              <span>{t('dev.commissions.settleBatchTitle', undefined, 'Settle Payout Batch')}</span>
             </h3>
 
             <p className="text-xs text-slate-400">
@@ -1380,7 +1382,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Bank Payment Reference / Txn ID *</label>
+                <label className="block font-semibold text-slate-300 mb-1">{t('dev.commissions.bankPaymentRefLabel', undefined, 'Bank Payment Reference / Txn ID')} *</label>
                 <input
                   type="text"
                   placeholder="e.g. MAYBANK-TXN-98421482"
@@ -1392,7 +1394,7 @@ export const DeveloperSalesCommissions: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Notes</label>
+                <label className="block font-semibold text-slate-300 mb-1">{t('common.notes', undefined, 'Notes')}</label>
                 <textarea
                   rows={2}
                   placeholder="Disbursement notes..."
@@ -1408,14 +1410,14 @@ export const DeveloperSalesCommissions: React.FC = () => {
                 onClick={() => setSettleBatchModal(null)}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleSettleBatch}
                 disabled={actionLoading || !paymentReference.trim()}
                 className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer disabled:opacity-50"
               >
-                {actionLoading ? 'Settling...' : 'Confirm Settle'}
+                {actionLoading ? t('dev.commissions.settling', undefined, 'Settling...') : t('dev.commissions.confirmSettle', undefined, 'Confirm Settle')}
               </button>
             </div>
           </div>

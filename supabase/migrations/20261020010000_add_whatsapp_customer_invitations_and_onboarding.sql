@@ -162,3 +162,7 @@ BEGIN
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.record_whatsapp_invitation_initiation_atomic(UUID, UUID, UUID, TEXT, TEXT, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.record_whatsapp_invitation_initiation_atomic(UUID, UUID, UUID, TEXT, TEXT, UUID) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_whatsapp_invitation_initiation_atomic(UUID, UUID, UUID, TEXT, TEXT, UUID) TO service_role;

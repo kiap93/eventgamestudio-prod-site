@@ -8,7 +8,17 @@ import { halloweenTheme } from './halloween';
 import { mangoTheme } from './mango';
 import { memoryMatchTheme } from './memory-match';
 import { reactionTheme } from './reaction-time';
-import { match3Theme } from './match-3';
+import {
+  match3Theme,
+  match3CuteAnimalsTheme,
+  match3SuperHeroesTheme,
+  match3FantasyCreaturesTheme,
+  match3SpaceExplorersTheme,
+  match3FoodCharactersTheme,
+  match3OceanFriendsTheme,
+  match3RobotFriendsTheme,
+  match3PrincessFairytaleTheme,
+} from './match-3';
 import {
   isUUID,
   isStaleAssetUrl,
@@ -50,6 +60,22 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   'match-3-default': match3Theme,
   match3: match3Theme,
   'match-3-cascade': match3Theme,
+  'cute-animals': match3CuteAnimalsTheme,
+  'match-3-cute-animals': match3CuteAnimalsTheme,
+  'super-heroes': match3SuperHeroesTheme,
+  'match-3-super-heroes': match3SuperHeroesTheme,
+  'fantasy-creatures': match3FantasyCreaturesTheme,
+  'match-3-fantasy-creatures': match3FantasyCreaturesTheme,
+  'space-explorers': match3SpaceExplorersTheme,
+  'match-3-space-explorers': match3SpaceExplorersTheme,
+  'food-characters': match3FoodCharactersTheme,
+  'match-3-food-characters': match3FoodCharactersTheme,
+  'ocean-friends': match3OceanFriendsTheme,
+  'match-3-ocean-friends': match3OceanFriendsTheme,
+  'robot-friends': match3RobotFriendsTheme,
+  'match-3-robot-friends': match3RobotFriendsTheme,
+  'princess-fairytale': match3PrincessFairytaleTheme,
+  'match-3-princess-fairytale': match3PrincessFairytaleTheme,
   // Alias durian to default for seamless backwards-compatibility
   durian: defaultCatchBrandTheme,
 };

@@ -199,6 +199,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   useEffect(() => {
     return () => {
       clearAllTimers();
+      reactionSounds.stopAll();
     };
   }, [clearAllTimers]);
 
@@ -646,7 +647,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             <button
               onClick={onToggleMute}
               className="p-2 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-800 transition-colors"
-              title={isMuted ? 'Unmute' : 'Mute'}
+              title={isMuted ? t('common.unmute', undefined, 'Unmute') : t('common.mute', undefined, 'Mute')}
             >
               {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
@@ -656,7 +657,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             <button
               onClick={onToggleFullscreen}
               className="p-2 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-800 transition-colors"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              title={isFullscreen ? t('gamesCatalog.exitFullscreen', undefined, 'Exit Fullscreen') : t('gamesCatalog.fullscreen', undefined, 'Fullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -676,7 +677,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
               <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
             </div>
             <div className="text-[10px] font-mono tracking-widest text-slate-500 uppercase font-black">
-              FIA START SYSTEM // LIGHTS
+              {t('game.fiaStartSystem', undefined, 'FIA START SYSTEM // LIGHTS')}
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
@@ -752,19 +753,19 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
 
             {gameState === 'LIGHT_SEQUENCE' && (
               <span className="text-base font-black text-rose-400 tracking-widest uppercase font-mono">
-                GET READY...
+                {t('game.getReadyDots', undefined, 'GET READY...')}
               </span>
             )}
 
             {gameState === 'RANDOM_WAIT' && (
               <span className="text-base font-black text-amber-400 tracking-widest uppercase font-mono animate-pulse">
-                WAIT FOR LIGHTS OUT...
+                {t('game.waitForLightsOut', undefined, 'WAIT FOR LIGHTS OUT...')}
               </span>
             )}
 
             {gameState === 'GO' && (
               <span className="text-4xl font-black text-emerald-400 tracking-widest uppercase font-mono animate-bounce">
-                {reactionConfig.goText || 'GO!'}
+                {reactionConfig.goText || t('game.goExclaim', undefined, 'GO!')}
               </span>
             )}
 
@@ -778,8 +779,8 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
                 </div>
                 <span className="text-xs text-rose-300/80 font-mono">
                   {reactionConfig.falseStartRule === 'retry'
-                    ? 'Restarting round...'
-                    : '+1000ms Penalty Added'}
+                    ? t('game.restartingRound', undefined, 'Restarting round...')
+                    : t('game.penaltyAdded1000', undefined, '+1000ms Penalty Added')}
                 </span>
               </div>
             )}
@@ -793,7 +794,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
                   <span className="text-lg font-mono font-bold text-emerald-500">ms</span>
                 </div>
                 <span className="text-xs font-mono text-slate-400">
-                  {getReactionRating(lastReactionTime).tier} — Tap to continue
+                  {getReactionRating(lastReactionTime).tier} — {t('game.tapToContinue', undefined, 'Tap to continue')}
                 </span>
               </div>
             )}
@@ -971,7 +972,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
                 onClick={() => setShowLeaderboardModal(false)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold font-mono transition-colors"
               >
-                Close
+                {t('common.close', undefined, 'Close')}
               </button>
             </div>
           </div>

@@ -118,6 +118,75 @@ export function getCurrencyForCountry(code: string | null | undefined): string |
 }
 
 /**
+ * Get currency symbol prefix for an ISO currency code.
+ */
+export function getCurrencySymbol(currency: string | null | undefined): string {
+  const c = (currency || 'USD').trim().toUpperCase();
+  switch (c) {
+    case 'MYR':
+      return 'RM';
+    case 'USD':
+      return '$';
+    case 'SGD':
+      return 'S$';
+    case 'GBP':
+      return '£';
+    case 'EUR':
+      return '€';
+    case 'JPY':
+      return '¥';
+    case 'AUD':
+      return 'A$';
+    case 'CAD':
+      return 'C$';
+    default:
+      return `${c} `;
+  }
+}
+
+/**
+ * Authoritative currency formatting utility.
+ * Formats an amount with standard localized symbol prefix and optional ISO code.
+ *
+ * Expected examples:
+ * - MYR 1400 -> RM1,400 (or "RM1,400 MYR" with showCode: true)
+ * - USD 1400 -> $1,400 (or "$1,400 USD" with showCode: true)
+ * - SGD 1400 -> S$1,400 (or "S$1,400 SGD" with showCode: true)
+ *
+ * NOTE:
+ * - NEVER converts between currencies or applies exchange rates.
+ * - NEVER uses Asia/Singapore timezone as a reason to display SGD.
+ */
+export function formatCurrency(
+  amount?: number | string | null,
+  currency?: string | null,
+  options?: { showCode?: boolean; minimumFractionDigits?: number; maximumFractionDigits?: number }
+): string {
+  const num = typeof amount === 'number' ? amount : Number(amount) || 0;
+  const curr = (currency || 'USD').trim().toUpperCase();
+
+  const minDec = options?.minimumFractionDigits !== undefined
+    ? options.minimumFractionDigits
+    : num % 1 === 0 ? 0 : 2;
+  const maxDec = options?.maximumFractionDigits !== undefined
+    ? options.maximumFractionDigits
+    : num % 1 === 0 ? 0 : 2;
+
+  const formatted = num.toLocaleString('en-US', {
+    minimumFractionDigits: minDec,
+    maximumFractionDigits: maxDec,
+  });
+
+  const prefix = getCurrencySymbol(curr);
+  const main = `${prefix}${formatted}`;
+
+  if (options?.showCode) {
+    return `${main} ${curr}`;
+  }
+  return main;
+}
+
+/**
  * Get the default reference timezone for an organization's country.
  *
  * IMPORTANT:

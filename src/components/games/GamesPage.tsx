@@ -46,7 +46,7 @@ export const GamesPage: React.FC = () => {
   useEffect(() => {
     loadGames();
     fetchThemes();
-  }, [loadGames, fetchThemes]);
+  }, [loadGames, fetchThemes, currentOrganization?.id]);
 
   if (selectedGame) {
     return (

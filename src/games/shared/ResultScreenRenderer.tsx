@@ -130,6 +130,8 @@ export interface ResultScreenStats {
   matches?: number;
   bestCombo?: number;
   specialTilesCreated?: number;
+  targetScore?: number;
+  stars?: number;
 }
 
 export interface ResultScreenRendererProps {

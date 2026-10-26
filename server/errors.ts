@@ -419,12 +419,22 @@ export function isOperationalError(err: any): boolean {
     msg.includes('showcase can be created and published once the event starts') ||
     msg.includes('showcase requires a confirmed, paid event') ||
     msg.includes('cannot publish a blocked showcase') ||
-    msg.includes('event showcase already exists')
+    msg.includes('event showcase already exists') ||
+    code === 'UNRECOGNIZED_PRODUCTION_ENGINE' ||
+    code === 'GAME_ENGINE_UNAVAILABLE' ||
+    msg.includes('not a recognized production engine') ||
+    msg.includes('is currently under development and cannot be activated') ||
+    msg.includes('cannot activate game')
   ) {
     return true;
   }
 
-  if (err?.isOperational === true) {
+  if (
+    code === 'SUBREQUEST_LIMIT_EXCEEDED' ||
+    msg.includes('too many subrequests') ||
+    msg.includes('subrequest limit') ||
+    err?.isOperational === true
+  ) {
     return true;
   }
 
@@ -858,7 +868,9 @@ export function handleApiError(
         code === 'SHOWCASE_NOT_ELIGIBLE' ||
         code === 'LIFETIME_REWARD_EXHAUSTED' ||
         code === 'SUBMISSION_ALREADY_REJECTED' ||
-        code === 'OWNER_ONLY_REWARD'
+        code === 'OWNER_ONLY_REWARD' ||
+        code === 'UNRECOGNIZED_PRODUCTION_ENGINE' ||
+        code === 'GAME_ENGINE_UNAVAILABLE'
       ) {
         statusCode = 422;
       } else {
@@ -889,6 +901,23 @@ export function handleApiError(
   const default503Msg = isPricing
     ? 'Pricing service temporarily unavailable. Please try again later.'
     : 'Service temporarily unavailable. Please try again later.';
+
+  const rawMsg = String(err?.message || '');
+  const isSubrequestLimit =
+    rawMsg.toLowerCase().includes('too many subrequests') ||
+    rawMsg.toLowerCase().includes('subrequest limit');
+
+  if (isSubrequestLimit) {
+    const errorMsg = 'The service is temporarily unavailable due to capacity limits. Please try again later.';
+    console.error(`[Express Subrequest Limit Exceeded][${requestId}]:`, rawMsg, 'Endpoint:', endpoint, 'Method:', method);
+    res.status(503).json({
+      success: false,
+      error: errorMsg,
+      code: 'SUBREQUEST_LIMIT_EXCEEDED',
+      requestId,
+    });
+    return;
+  }
 
   // 1. Operational / Safe Business Error
   if ((isOperational || is503Outage) && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
@@ -970,7 +999,6 @@ export function handleApiError(
 
   // Client response: generic internal server error by default, or underlying error in debug mode
   const exposeApiErrors = shouldExposeApiErrors(options?.env);
-  const rawMsg = String(err?.message || '');
   const isLeaking = rawMsg.toLowerCase().includes('schema cache') || rawMsg.toLowerCase().includes('pgrst') || rawMsg.toLowerCase().includes('connection pool');
 
   let clientErrorMessage = exposeApiErrors
@@ -997,6 +1025,7 @@ export interface WorkerErrorOptions {
   endpoint?: string;
   method?: string;
   userId?: string;
+  requestId?: string;
   metadata?: Record<string, any>;
   parsedBody?: any;
   env?: any;
@@ -1034,7 +1063,7 @@ export async function handleWorkerApiError(
     env = options.env;
   }
 
-  const requestId = resolveCorrelationId(request);
+  const requestId = options?.requestId || resolveCorrelationId(request);
   const isOperational = isOperationalError(err);
   const url = new URL(request.url);
   const endpoint = options?.endpoint || url.pathname;
@@ -1126,7 +1155,9 @@ export async function handleWorkerApiError(
         code === 'SHOWCASE_NOT_ELIGIBLE' ||
         code === 'LIFETIME_REWARD_EXHAUSTED' ||
         code === 'SUBMISSION_ALREADY_REJECTED' ||
-        code === 'OWNER_ONLY_REWARD'
+        code === 'OWNER_ONLY_REWARD' ||
+        code === 'UNRECOGNIZED_PRODUCTION_ENGINE' ||
+        code === 'GAME_ENGINE_UNAVAILABLE'
       ) {
         statusCode = 422;
       } else {
@@ -1161,6 +1192,28 @@ export async function handleWorkerApiError(
     'x-correlation-id': requestId,
     ...cors,
   };
+
+  const rawMsg = String(err?.message || '');
+  const isSubrequestLimit =
+    rawMsg.toLowerCase().includes('too many subrequests') ||
+    rawMsg.toLowerCase().includes('subrequest limit');
+
+  if (isSubrequestLimit) {
+    const errorMsg = 'The service is temporarily unavailable due to capacity limits. Please try again later.';
+    console.error(`[Worker Subrequest Limit Exceeded][${requestId}]:`, rawMsg, 'Endpoint:', endpoint, 'Method:', method);
+    return new globalThis.Response(
+      JSON.stringify({
+        success: false,
+        error: errorMsg,
+        code: 'SUBREQUEST_LIMIT_EXCEEDED',
+        requestId,
+      }),
+      {
+        status: 503,
+        headers: responseHeaders,
+      }
+    );
+  }
 
   // 1. Operational Error
   if ((isOperational || is503Outage) && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
@@ -1255,7 +1308,6 @@ export async function handleWorkerApiError(
   }
 
   const exposeApiErrors = shouldExposeApiErrors(env);
-  const rawMsg = String(err?.message || '');
   const isLeaking = rawMsg.toLowerCase().includes('schema cache') || rawMsg.toLowerCase().includes('pgrst') || rawMsg.toLowerCase().includes('connection pool');
 
   let clientErrorMessage = exposeApiErrors

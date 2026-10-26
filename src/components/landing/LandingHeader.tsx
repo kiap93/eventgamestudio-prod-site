@@ -227,7 +227,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
             to="/sales/apply"
             className="px-3 py-2 text-sm font-semibold rounded-lg transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 cursor-pointer"
           >
-            <span>Partner Program</span>
+            <span>{t('nav.partnerProgram')}</span>
           </InternalLink>
         </nav>
 
@@ -344,7 +344,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               onClick={() => setMobileMenuOpen(false)}
               className="block px-3 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50 rounded-xl cursor-pointer font-semibold"
             >
-              Partner Program
+              {t('nav.partnerProgram')}
             </InternalLink>
           </div>
 

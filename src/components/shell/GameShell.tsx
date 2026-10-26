@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getGameDefinition, DEFAULT_GAME_TYPE } from '../../games/registry';
 import { GameTypeId } from '../../games/types';
 import { useLocalization } from '../../context/LocalizationContext';
+import { stopGameAudio } from '../../lib/gameAudio';
 
 export interface GameShellProps {
   gameType?: GameTypeId | string;
@@ -110,6 +111,13 @@ export const GameShell: React.FC<GameShellProps> = ({
       setActiveGameSettings(serverSettings);
     }
   }, [customSettings, activeGame, resolvedGameType]);
+
+  // Stop audio belonging to the exiting game when GameShell unmounts or gameType switches
+  useEffect(() => {
+    return () => {
+      stopGameAudio(resolvedGameType);
+    };
+  }, [resolvedGameType]);
 
   // Fullscreen change listener (strictly active only when GameShell is running in uncontrolled mode)
   useEffect(() => {

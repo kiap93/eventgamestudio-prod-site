@@ -596,7 +596,7 @@ export const AcceptInvitePage: React.FC = () => {
                   onClick={() => setCodeSent(true)}
                   className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
-                  Already have a code? Click here to enter
+                  {t('auth.alreadyHaveCodeClickHere', undefined, 'Already have a code? Click here to enter')}
                 </button>
               </div>
             </div>
@@ -685,11 +685,11 @@ export const AcceptInvitePage: React.FC = () => {
                         </span>
                         <span className={`flex items-center gap-1 ${hasLetter ? 'text-emerald-400' : 'text-slate-500'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${hasLetter ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                          Letter
+                          {t('auth.letterRequirement', undefined, 'Letter')}
                         </span>
                         <span className={`flex items-center gap-1 ${hasNumber ? 'text-emerald-400' : 'text-slate-500'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${hasNumber ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                          Number
+                          {t('auth.numberRequirement', undefined, 'Number')}
                         </span>
                       </div>
                     )}
@@ -799,7 +799,7 @@ export const AcceptInvitePage: React.FC = () => {
                   }}
                   className="hover:text-slate-200 transition-colors cursor-pointer"
                 >
-                  Request new code
+                  {t('auth.requestNewCode', undefined, 'Request new code')}
                 </button>
               </div>
             </form>

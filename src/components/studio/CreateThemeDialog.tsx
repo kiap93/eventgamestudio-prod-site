@@ -327,7 +327,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
               ) : (
                 <>
                   <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>{t('common.continue')}</span>
+                  <span>{t('common.continue', undefined, 'Continue')}</span>
                 </>
               )}
             </button>

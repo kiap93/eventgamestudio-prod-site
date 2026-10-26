@@ -211,10 +211,10 @@ export const PublicGamesPage: React.FC = () => {
                 className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
               >
                 <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
-                  Corporate Event Games
+                  {t('games.solutionCorporateTitle', undefined, 'Corporate Event Games')}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Annual Dinners & Galas →
+                  {t('games.solutionCorporateSub', undefined, 'Annual Dinners & Galas →')}
                 </p>
               </InternalLink>
 
@@ -223,10 +223,10 @@ export const PublicGamesPage: React.FC = () => {
                 className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
               >
                 <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
-                  Brand Activations
+                  {t('games.solutionBrandActivationsTitle', undefined, 'Brand Activations')}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Pop-Ups & Retail Tours →
+                  {t('games.solutionBrandActivationsSub', undefined, 'Pop-Ups & Retail Tours →')}
                 </p>
               </InternalLink>
 
@@ -235,10 +235,10 @@ export const PublicGamesPage: React.FC = () => {
                 className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
               >
                 <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
-                  Roadshow Games
+                  {t('games.solutionRoadshowTitle', undefined, 'Roadshow Games')}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Mall Kiosks & Touchscreens →
+                  {t('games.solutionRoadshowSub', undefined, 'Mall Kiosks & Touchscreens →')}
                 </p>
               </InternalLink>
 
@@ -247,10 +247,10 @@ export const PublicGamesPage: React.FC = () => {
                 className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/40 rounded-2xl transition-all group block"
               >
                 <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
-                  Exhibition Games
+                  {t('games.solutionExhibitionTitle', undefined, 'Exhibition Games')}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Trade Booth Crowd Magnets →
+                  {t('games.solutionExhibitionSub', undefined, 'Trade Booth Crowd Magnets →')}
                 </p>
               </InternalLink>
             </div>

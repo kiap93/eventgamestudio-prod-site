@@ -122,7 +122,12 @@ export type ResultScreenElementType =
   | 'best-reaction'
   | 'worst-reaction'
   | 'round-results'
-  | 'rating';
+  | 'rating'
+  | 'target-score'
+  | 'star-rating'
+  | 'matches'
+  | 'specials'
+  | 'combo';
 
 export interface ResultScreenBaseElement {
   id: string;
@@ -298,6 +303,55 @@ export interface ResultRatingElement extends ResultScreenBaseElement {
   };
 }
 
+export interface ResultTargetScoreElement extends ResultScreenBaseElement {
+  type: 'target-score';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultStarRatingStyle {
+  starCount?: number;
+  starSize?: number;
+  starSpacing?: number;
+  filledColor?: string;
+  emptyColor?: string;
+  showLabel?: boolean;
+  label?: string;
+  labelColor?: string;
+  fontSize?: number;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  shadow?: boolean;
+}
+
+export interface ResultStarRatingElement extends ResultScreenBaseElement {
+  type: 'star-rating';
+  label?: string;
+  starsCount?: number;
+  style?: ResultStarRatingStyle;
+}
+
+export interface ResultMatchesElement extends ResultScreenBaseElement {
+  type: 'matches';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultSpecialsElement extends ResultScreenBaseElement {
+  type: 'specials';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultComboElement extends ResultScreenBaseElement {
+  type: 'combo';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+
 export interface ResultButtonStyle {
   backgroundColor?: string;
   textColor?: string;
@@ -415,7 +469,12 @@ export type ResultScreenElement =
   | ResultBestReactionElement
   | ResultWorstReactionElement
   | ResultRoundResultsElement
-  | ResultRatingElement;
+  | ResultRatingElement
+  | ResultTargetScoreElement
+  | ResultStarRatingElement
+  | ResultMatchesElement
+  | ResultSpecialsElement
+  | ResultComboElement;
 
 export interface ResultScreenCanvasConfig {
   width: number; // default: 1000

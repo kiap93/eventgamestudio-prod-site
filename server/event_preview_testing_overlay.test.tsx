@@ -17,8 +17,8 @@ const mockEvent = {
   status: 'scheduled',
   event_status: 'SCHEDULED',
   payment_status: 'PAID',
-  start_date: '2026-10-01',
-  end_date: '2026-10-02',
+  start_date: '2026-12-01',
+  end_date: '2026-12-02',
   public_token: 'token-abc-123',
   game: {
     id: 'game-1',
@@ -51,6 +51,7 @@ assert(
   'EventPreviewGameView must prominently contain TESTING and PREVIEW ONLY'
 );
 assert(
+  previewSource.includes('previewModeBanner') ||
   previewSource.includes('This is a test preview. Scores are not live and this screen cannot be used as the live event.'),
   'EventPreviewGameView must contain the exact safety supporting text'
 );
@@ -88,7 +89,7 @@ console.log('✓ PASS: No live event action triggers (Copy Live URL, Pay & Activ
 
 // Verify navigation back to Events exists
 assert(
-  previewSource.includes('Back to Events'),
+  previewSource.includes('backToEvents') || previewSource.includes('Back to Events'),
   'EventPreviewGameView must provide "Back to Events" navigation'
 );
 console.log('✓ PASS: "Back to Events" navigation is present');

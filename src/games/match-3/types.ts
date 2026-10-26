@@ -1,4 +1,12 @@
 import { BaseGameConfig } from '../types';
+import type { StartScreenConfig } from '../shared/startScreenTypes';
+import type { ResultScreenConfig } from '../shared/resultScreenTypes';
+
+export interface Match3ScreensConfig {
+  start?: StartScreenConfig;
+  result?: ResultScreenConfig;
+  [key: string]: any;
+}
 
 export type SpecialTileType = 'rocket-horizontal' | 'rocket-vertical' | 'bomb' | 'color-bomb' | null;
 
@@ -94,6 +102,7 @@ export interface Match3GameConfig extends BaseGameConfig {
   scoring: Match3ScoringConfig;
   hazardConfig: Match3HazardConfig;
   tileDefinitions?: TileVisualDefinition[];
+  screens?: Match3ScreensConfig;
 }
 
 export const DEFAULT_MATCH3_CONFIG: Match3GameConfig = {

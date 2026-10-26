@@ -1,9 +1,11 @@
-import { GameRecord, GamePricingRecord } from './types.js';
+import { GameRecord, GamePricingRecord, GameThemeRecord } from './types.js';
 import { getAllPlatformGames } from './games.js';
 import { getActiveGamePricing, buildDefaultPricingTiers, localGamePricingCache } from './gamePricing.js';
 import { getDefaultPricingCountry } from './platformSettings.js';
 import { getCurrencyForCountry, getCountryByCode } from '../../src/lib/countryUtils.js';
 import { isLocalFallbackAllowed } from '../supabase.js';
+import { getDefaultThemeForGameType, getAllSystemThemes } from './themes.js';
+import { isStaleAssetUrl, resolveThemeDefaultBgImage } from '../../src/themes/gameAssetResolver.js';
 
 export interface SalesGameStepInstruction {
   step: string;
@@ -405,17 +407,94 @@ export async function resolveSalesPricing(
 }
 
 /**
+ * Resolves the authoritative default background image for a sales catalog game.
+ * Respects canonical default themes and valid saved system default themes,
+ * while strictly preventing cross-game theme/asset contamination, legacy background strings,
+ * and stale URLs.
+ */
+export function resolveSalesGameDefaultBackground(
+  game: GameRecord,
+  canonicalType: string,
+  savedSystemThemesForGame: GameThemeRecord[] = []
+): string {
+  // 1. Authoritative canonical default theme for this game type
+  const canonicalDefaultTheme = getDefaultThemeForGameType(canonicalType);
+  const canonicalDefaultBg =
+    canonicalDefaultTheme.background_url ||
+    `/assets/games/${canonicalType}/themes/default/background.png`;
+
+  // 2. Check for an explicitly configured, valid saved system default theme
+  const matchingThemes = (savedSystemThemesForGame || []).filter((theme) => {
+    if (!theme) return false;
+
+    // Strict game association: if game_id is present, it must match
+    if (theme.game_id && game.id && theme.game_id !== game.id) {
+      return false;
+    }
+
+    // Check game_type if defined
+    const themeGameType = (theme.game_type || '').toLowerCase();
+    if (
+      themeGameType &&
+      themeGameType !== canonicalType &&
+      themeGameType !== (game.game_type || '').toLowerCase()
+    ) {
+      return false;
+    }
+
+    // Reject stale asset URLs
+    const bg = theme.background_url;
+    if (!bg || typeof bg !== 'string') return false;
+    if (isStaleAssetUrl(bg)) return false;
+
+    // Reject cross-game asset contamination
+    if (bg.includes('/assets/games/')) {
+      const match = bg.match(/\/assets\/games\/([^/]+)\//);
+      if (match && match[1] !== canonicalType) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Prefer explicitly configured default theme (slug === 'default' or is_default, excluding legacy carnival)
+  const defaultSavedTheme =
+    matchingThemes.find(
+      (t) => t.slug === 'default' || t.name?.toLowerCase() === 'default'
+    ) || matchingThemes.find((t) => t.is_default && t.slug !== 'carnival');
+
+  if (defaultSavedTheme?.background_url) {
+    const candidateBg = resolveThemeDefaultBgImage(defaultSavedTheme, canonicalType);
+    if (candidateBg && !isStaleAssetUrl(candidateBg)) {
+      return candidateBg;
+    }
+  }
+
+  // 3. Fallback to canonical default theme background for this game type
+  return (
+    resolveThemeDefaultBgImage(canonicalDefaultTheme, canonicalType) ||
+    canonicalDefaultBg
+  );
+}
+
+/**
  * Maps a raw GameRecord into a safe, demonstration-ready SalesGameCatalogItem.
  * Excludes internal developer/admin fields.
  */
 export function mapGameToSalesItem(
   game: GameRecord,
-  pricing: SalesGamePricingSummary
+  pricing: SalesGamePricingSummary,
+  defaultBackgroundUrl?: string
 ): SalesGameCatalogItem {
   const normType = (game.game_type || game.slug || 'catch-brand').toLowerCase();
   const canonicalType = normType === 'reaction-time' ? 'reaction-tap' : normType;
   const spec = CANONICAL_SALES_SPECS[canonicalType] || CANONICAL_SALES_SPECS['catch-brand'];
   const hasPlayable = hasVerifiedPlayablePreview(game, canonicalType);
+
+  const backgroundUrl =
+    defaultBackgroundUrl ||
+    resolveSalesGameDefaultBackground(game, canonicalType);
 
   return {
     id: game.id,
@@ -426,12 +505,8 @@ export function mapGameToSalesItem(
     description: game.description || 'Interactive event mini-game for attendee engagement.',
     highlight: spec.highlight,
     icon_name: game.icon_name || 'Gamepad2',
-    cover_image_url:
-      game.background_url ||
-      `/assets/games/${canonicalType}/themes/default/background.png`,
-    background_url:
-      game.background_url ||
-      `/assets/games/${canonicalType}/themes/default/background.png`,
+    cover_image_url: backgroundUrl,
+    background_url: backgroundUrl,
     default_duration_seconds: spec.default_duration_seconds,
     supported_input_types: spec.supported_input_types,
     orientations: spec.orientations,
@@ -455,6 +530,14 @@ export async function getApprovedSalesGames(
   env?: Record<string, any>
 ): Promise<SalesGameCatalogItem[]> {
   const allPlatformGames = await getAllPlatformGames(env);
+
+  // Retrieve system themes once to resolve any explicitly configured saved default themes
+  let allSystemThemes: GameThemeRecord[] = [];
+  try {
+    allSystemThemes = await getAllSystemThemes(env);
+  } catch (err) {
+    console.warn('[getApprovedSalesGames] Could not fetch system themes, falling back to canonical defaults:', err);
+  }
 
   // Filter strictly for published, active system games in the approved engines whitelist
   const approvedGames = (allPlatformGames || []).filter((game) => {
@@ -488,11 +571,19 @@ export async function getApprovedSalesGames(
     return a.name.localeCompare(b.name);
   });
 
-  // Map each game to safe SalesGameCatalogItem with authoritative pricing
+  // Map each game to safe SalesGameCatalogItem with authoritative pricing and resolved default background
   const results: SalesGameCatalogItem[] = [];
   for (const game of approvedGames) {
+    const engineType = (game.game_type || game.slug || '').toLowerCase();
+    const canonicalType = engineType === 'reaction-time' ? 'reaction-tap' : engineType;
+
+    const gameSystemThemes = allSystemThemes.filter(
+      (t) => (t.game_id && t.game_id === game.id) || t.game_slug === canonicalType || t.game_type === canonicalType
+    );
+    const backgroundUrl = resolveSalesGameDefaultBackground(game, canonicalType, gameSystemThemes);
+
     const pricing = await resolveSalesPricing(game.id, requestedCountry, env);
-    results.push(mapGameToSalesItem(game, pricing));
+    results.push(mapGameToSalesItem(game, pricing, backgroundUrl));
   }
 
   return results;

@@ -290,41 +290,41 @@ const AppContent: React.FC = () => {
     if (!isSalesPartner) {
       return (
         <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
-          <SEO robots="noindex, follow" title="Sales Partner Access | Event Game Studio" />
+          <SEO robots="noindex, follow" title={t('auth.salesPartnerAccessTitle')} />
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-bold text-white">Sales Partner Access Required</h1>
+            <h1 className="text-xl font-bold text-white">{t('auth.salesPartnerAccessRequired')}</h1>
             <p className="text-sm text-slate-400 leading-relaxed">
               {salesPartnerStatus === 'pending'
-                ? 'Your Sales Partner application is currently under review by our administrator team.'
+                ? t('auth.salesPartnerPendingDesc')
                 : salesPartnerStatus === 'suspended'
-                ? 'Your Sales Partner access is currently suspended. Your customer workspace and organization memberships remain fully accessible.'
+                ? t('auth.salesPartnerSuspendedDesc')
                 : salesPartnerStatus === 'rejected'
-                ? 'Your Sales Partner application was not approved. Your customer workspace remains fully accessible.'
-                : 'You do not have active Sales Partner permissions to access this portal.'}
+                ? t('auth.salesPartnerRejectedDesc')
+                : t('auth.salesPartnerNoAccessDesc')}
             </p>
             <div className="pt-2 flex flex-col sm:flex-row justify-center gap-3">
               <button
                 onClick={() => navigateTo('/events')}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
               >
-                Return to Workspace
+                {t('auth.returnToWorkspace')}
               </button>
               {salesPartnerStatus === null ? (
                 <button
                   onClick={() => navigateTo('/sales/apply')}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
                 >
-                  Apply to Become Partner
+                  {t('auth.applyToBecomePartner')}
                 </button>
               ) : (
                 <button
                   onClick={() => navigateTo('/sales/apply')}
                   className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                 >
-                  View Application Status
+                  {t('auth.viewApplicationStatus')}
                 </button>
               )}
             </div>

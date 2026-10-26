@@ -671,7 +671,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             <div className="game-over-container max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl relative my-auto flex flex-col max-h-[92%] overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="game-over-title text-xl sm:text-2xl font-black text-rose-500 tracking-wider">
-                  GAME OVER
+                  {t('game.gameOver', undefined, 'GAME OVER')}
                 </h2>
 
                 {/* Sub Tab Switcher */}
@@ -684,7 +684,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Summary
+                    {t('game.summary', undefined, 'Summary')}
                   </button>
                   <button
                     onClick={() => setGameOverTab('leaderboard')}
@@ -694,7 +694,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <Trophy className="w-3 h-3" /> Board
+                    <Trophy className="w-3 h-3" /> {t('game.board', undefined, 'Board')}
                   </button>
                 </div>
               </div>
@@ -705,20 +705,20 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   <div>
                     {stats.score >= stats.highScore && stats.score > 0 ? (
                       <div className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/60 text-amber-300 text-xs px-3 py-0.5 rounded-full font-extrabold mb-2 animate-bounce">
-                        <Trophy className="w-3.5 h-3.5 text-amber-400" /> NEW RECORD!
+                        <Trophy className="w-3.5 h-3.5 text-amber-400" /> {t('game.newRecord', undefined, 'NEW RECORD!')}
                       </div>
                     ) : (
-                      <p className="text-[11px] text-slate-400 mb-2">{settings.gameDurationSeconds ?? 20} Seconds Elapsed!</p>
+                      <p className="text-[11px] text-slate-400 mb-2">{t('game.secondsElapsed', { count: settings.gameDurationSeconds ?? 20 }, `${settings.gameDurationSeconds ?? 20} Seconds Elapsed!`)}</p>
                     )}
 
                     <div className="game-over-score-box bg-slate-950 border border-slate-800 rounded-xl p-2.5 sm:p-3 mb-2.5">
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-slate-400 text-[10px] font-bold block uppercase">
-                          {isEventPreview ? 'TEST SCORE' : 'FINAL SCORE'}
+                          {isEventPreview ? t('game.testScore', undefined, 'TEST SCORE') : t('game.finalScore', undefined, 'FINAL SCORE')}
                         </span>
                         {isEventPreview && (
                           <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">
-                            Preview Test Play
+                            {t('game.previewTestPlay', undefined, 'Preview Test Play')}
                           </span>
                         )}
                       </div>
@@ -899,7 +899,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                               </span>
                               {isCurrentSubmission && (
                                 <span className="bg-amber-500 text-slate-950 text-[9px] px-1 py-0.2 rounded font-black">
-                                  YOU
+                                  {t('game.youCaps', undefined, 'YOU')}
                                 </span>
                               )}
                             </div>
@@ -917,13 +917,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                       onClick={() => setGameOverTab('summary')}
                       className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all"
                     >
-                      ← Back
+                      ← {t('common.back', undefined, 'Back')}
                     </button>
                     <button
                       onClick={handlePlayAgain}
                       className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-2 border-amber-300 shadow transition-all flex items-center justify-center gap-1.5"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 stroke-[3]" /> PLAY AGAIN
+                      <RotateCcw className="w-3.5 h-3.5 stroke-[3]" /> {t('game.playAgain', undefined, 'PLAY AGAIN')}
                     </button>
                   </div>
                 </div>

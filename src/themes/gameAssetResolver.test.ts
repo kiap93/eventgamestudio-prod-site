@@ -252,8 +252,8 @@ const filesToCheck = [
   'assets/games/catch-brand/themes/mango/item_normal_01.png',
   'assets/games/catch-brand/themes/mango/item_hazard_01.png',
   'assets/games/catch-brand/themes/mango/item_bonus_01.png',
-  'assets/games/catch-brand/themes/carnival/background.png',
-  'assets/games/catch-brand/themes/carnival/basket.png',
+  'assets/game/catch-the-brand/themes/carnival/background.png',
+  'assets/game/catch-the-brand/themes/carnival/basket.png',
   'assets/games/catch-brand/themes/default/background.png',
   'assets/games/catch-brand/themes/default/basket.png',
 ];

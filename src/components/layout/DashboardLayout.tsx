@@ -321,57 +321,6 @@ export const DashboardLayout: React.FC = () => {
 
           {/* Right: Workspace & Account (Organization ▼ | Wallet Balance | User ▼ | Logout) */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {/* Developer Admin Link (if developer) */}
-            {currentUser?.is_developer && (
-              <button
-                onClick={() => navigateTo('/developer')}
-                title={t('nav.developer')}
-                className="hidden xl:flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>{t('developer.admin', undefined, 'Dev Admin')}</span>
-              </button>
-            )}
-
-            {/* Sales Partner Link (Dynamic based on partner status) */}
-            {isSalesPartner ? (
-              <button
-                onClick={() => navigateTo('/sales/games')}
-                title="Sales Partner Game Catalogue"
-                className="hidden xl:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
-              >
-                <Gamepad2 className="w-3.5 h-3.5" />
-                <span>Sales Catalogue</span>
-              </button>
-            ) : salesPartnerStatus === 'pending' ? (
-              <button
-                onClick={() => navigateTo('/sales/apply')}
-                title="Sales Partner Application Under Review"
-                className="hidden xl:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
-              >
-                <Clock className="w-3.5 h-3.5 animate-pulse" />
-                <span>Partner Pending</span>
-              </button>
-            ) : salesPartnerStatus === 'suspended' || salesPartnerStatus === 'rejected' ? (
-              <button
-                onClick={() => navigateTo('/sales/apply')}
-                title="View Sales Partner Status"
-                className="hidden xl:flex items-center gap-1.5 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
-              >
-                <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                <span>Partner Status</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => navigateTo('/sales/apply')}
-                title="Become an Event Game Studio Sales Partner (Earn 10% on first qualifying order & 5% repeat within 12 months, subject to eligibility)"
-                className="hidden xl:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
-              >
-                <Briefcase className="w-3.5 h-3.5" />
-                <span>Become a Partner</span>
-              </button>
-            )}
-
             {/* 1. Organization Selector */}
             <div className="relative hidden lg:block">
               <button
@@ -605,7 +554,7 @@ export const DashboardLayout: React.FC = () => {
                         className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
                       >
                         <Gamepad2 className="w-4 h-4" />
-                        <span>Sales Game Catalogue</span>
+                        <span>{t('nav.salesGameCatalogue')}</span>
                       </button>
                       <button
                         onClick={() => {
@@ -615,7 +564,7 @@ export const DashboardLayout: React.FC = () => {
                         className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
                       >
                         <Briefcase className="w-4 h-4" />
-                        <span>Sales Partner Portal</span>
+                        <span>{t('nav.salesPartnerPortal')}</span>
                       </button>
                     </>
                   ) : salesPartnerStatus === 'pending' ? (
@@ -628,10 +577,10 @@ export const DashboardLayout: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
-                        <span>Partner Application</span>
+                        <span>{t('nav.partnerApplication')}</span>
                       </div>
                       <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
-                        Pending
+                        {t('event.pending', undefined, 'Pending')}
                       </span>
                     </button>
                   ) : salesPartnerStatus === 'suspended' ? (
@@ -644,10 +593,10 @@ export const DashboardLayout: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-rose-400" />
-                        <span>Partner Access</span>
+                        <span>{t('nav.partnerAccess')}</span>
                       </div>
                       <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">
-                        Suspended
+                        {t('nav.partnerSuspended')}
                       </span>
                     </button>
                   ) : salesPartnerStatus === 'rejected' ? (
@@ -660,10 +609,10 @@ export const DashboardLayout: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <XCircle className="w-4 h-4 text-slate-400" />
-                        <span>Partner Status</span>
+                        <span>{t('nav.partnerStatus')}</span>
                       </div>
                       <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
-                        Not Approved
+                        {t('nav.partnerNotApproved')}
                       </span>
                     </button>
                   ) : (
@@ -676,7 +625,7 @@ export const DashboardLayout: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <Briefcase className="w-4 h-4" />
-                        <span>Become a Sales Partner</span>
+                        <span>{t('nav.becomeSalesPartner')}</span>
                       </div>
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                         10% / 5%
@@ -800,7 +749,7 @@ export const DashboardLayout: React.FC = () => {
                     className="flex items-center gap-1.5 text-amber-400 font-semibold p-1 cursor-pointer"
                   >
                     <Gamepad2 className="w-4 h-4" />
-                    <span>Sales</span>
+                    <span>{t('nav.sales')}</span>
                   </button>
                 ) : salesPartnerStatus === 'pending' ? (
                   <button
@@ -811,7 +760,7 @@ export const DashboardLayout: React.FC = () => {
                     className="flex items-center gap-1.5 text-amber-400 font-semibold p-1 cursor-pointer"
                   >
                     <Clock className="w-4 h-4 animate-pulse" />
-                    <span>Partner Pending</span>
+                    <span>{t('nav.partnerPending')}</span>
                   </button>
                 ) : salesPartnerStatus === 'suspended' || salesPartnerStatus === 'rejected' ? (
                   <button
@@ -822,7 +771,7 @@ export const DashboardLayout: React.FC = () => {
                     className="flex items-center gap-1.5 text-slate-300 font-semibold p-1 cursor-pointer"
                   >
                     <Briefcase className="w-4 h-4 text-slate-400" />
-                    <span>Partner Status</span>
+                    <span>{t('nav.partnerStatus')}</span>
                   </button>
                 ) : (
                   <button
@@ -833,7 +782,7 @@ export const DashboardLayout: React.FC = () => {
                     className="flex items-center gap-1.5 text-amber-400 font-semibold p-1 cursor-pointer"
                   >
                     <Briefcase className="w-4 h-4" />
-                    <span>Become a Partner</span>
+                    <span>{t('nav.becomePartner')}</span>
                   </button>
                 )}
               </div>

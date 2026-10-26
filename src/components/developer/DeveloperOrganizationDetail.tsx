@@ -228,7 +228,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-4">
           <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">{t('developer.loadingOrgDetails', undefined, 'Loading organization details and ledger...')}</p>
+          <p className="text-xs text-slate-400">{t('developer.loadingOrganizationDetails', undefined, 'Loading organization details...')}</p>
         </div>
       </div>
     );
@@ -603,14 +603,14 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-cyan-400" />
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Recent Events ({events.length})
+                  {t('developer.recentEventsTitle', { count: events.length }, `Recent Events (${events.length})`)}
                 </h3>
               </div>
               <button
                 onClick={() => setActiveTab('events')}
                 className="text-xs text-cyan-400 hover:underline font-medium"
               >
-                View all
+                {t('common.viewAll', undefined, 'View all')}
               </button>
             </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GameShell } from '../shell/GameShell';
+import { stopGameAudio } from '../../lib/gameAudio';
 import { THEME_REGISTRY, DEFAULT_ACTIVE_THEME_ID, getDefaultThemeForGameType } from '../../themes/registry';
 import { GameTheme, getThemeGameType } from '../../themes/types';
 import {
@@ -63,6 +64,19 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
       document.body.style.overflow = originalOverflow;
     };
   }, [isOpen]);
+
+  // Stop demo audio when modal is closed, unmounted, or game engine switches
+  useEffect(() => {
+    if (!isOpen) {
+      stopGameAudio(selectedGameId);
+    }
+  }, [isOpen, selectedGameId]);
+
+  useEffect(() => {
+    return () => {
+      stopGameAudio(selectedGameId);
+    };
+  }, [selectedGameId]);
 
   // Escape key handler to close modal
   useEffect(() => {

@@ -266,12 +266,93 @@ export const REACTION_GAME_START_ELEMENTS: StartElementRegistryItem[] = [
   },
 ];
 
+export const MATCH3_START_ELEMENTS: StartElementRegistryItem[] = [
+  // Containers
+  {
+    type: 'card',
+    label: 'Card Container',
+    category: 'container',
+    description: 'Background container with border, blur, shadow, and nested child elements',
+    icon: Square,
+  },
+  {
+    type: 'group',
+    label: 'Group',
+    category: 'container',
+    description: 'Logical grouping of elements for synchronized movement and scaling',
+    icon: Layers,
+  },
+
+  // Visuals
+  {
+    type: 'icon',
+    label: 'Cascade Emblem',
+    category: 'visual',
+    description: 'Stylized glowing Match-3 icon or gem badge',
+    icon: Sparkles,
+  },
+  {
+    type: 'image',
+    label: 'Brand Logo',
+    category: 'visual',
+    description: 'Event or sponsor brand graphic',
+    icon: ImageIcon,
+  },
+
+  // Info & Typography
+  {
+    type: 'title',
+    label: 'Game Title',
+    category: 'info',
+    description: 'Match-3 puzzle title heading',
+    icon: Heading,
+  },
+  {
+    type: 'description',
+    label: 'Instructions',
+    category: 'info',
+    description: 'Swap matching tiles and combo instructions',
+    icon: AlignLeft,
+  },
+  {
+    type: 'badge',
+    label: 'Grid & Timer Badge',
+    category: 'info',
+    description: 'Pill showing board dimension (8×8) or timer duration',
+    icon: Grid3X3,
+  },
+  {
+    type: 'leaderboard',
+    label: 'Leaderboard Preview',
+    category: 'info',
+    description: 'Highest match-3 scores leaderboard',
+    icon: Trophy,
+  },
+  {
+    type: 'text',
+    label: 'Custom Text',
+    category: 'info',
+    description: 'Custom notes or instructions',
+    icon: Type,
+  },
+  {
+    type: 'button',
+    label: 'Action Button',
+    category: 'control',
+    description: 'Start Match Game button',
+    icon: Play,
+  },
+];
+
 export const getAvailableStartElements = (gameType: string): StartElementRegistryItem[] => {
   if (gameType === 'reaction-tap' || gameType === 'reaction-time') {
     return REACTION_GAME_START_ELEMENTS;
   }
   if (gameType === 'catch-brand') {
     return CATCH_BRAND_START_ELEMENTS;
+  }
+  if (gameType === 'match-3' || gameType === 'match3') {
+    return MATCH3_START_ELEMENTS;
   }
   return MEMORY_MATCH_START_ELEMENTS;
 };

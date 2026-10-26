@@ -50,6 +50,11 @@ export function isTransientDatabaseError(err: any): boolean {
   const code = String(err.code || err.postgresCode || '').toUpperCase();
   const rawMsg = String(err.message || err.details || err.hint || '').toLowerCase();
 
+  // Fail-fast on subrequest limit errors - retries in the same invocation can never succeed
+  if (rawMsg.includes('too many subrequests') || rawMsg.includes('subrequest limit')) {
+    return false;
+  }
+
   // 1. HTTP Status code checks
   if (status === 503 || status === 502 || status === 504 || status === 429) {
     return true;

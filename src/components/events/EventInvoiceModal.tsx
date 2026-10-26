@@ -13,7 +13,9 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
+import { downloadInvoicePdf } from '../../lib/invoiceDownload';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface EventInvoiceModalProps {
   isOpen: boolean;
@@ -29,10 +31,15 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
   onInvoiceUpdated,
 }) => {
   const { currentUser } = useAuth();
+  const { t } = useLocalization();
   const [invoice, setInvoice] = useState<any | null>(null);
   const [creditNotes, setCreditNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // PDF Download State
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
+  const [downloadPdfError, setDownloadPdfError] = useState<string | null>(null);
 
   // Eligibility & Developer Retry State
   const [eligible, setEligible] = useState<boolean>(false);
@@ -48,6 +55,7 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
     setError(null);
     setRetryError(null);
     setRetrySuccess(null);
+    setDownloadPdfError(null);
     try {
       const res = await apiFetch(`/api/events/${event.id}/invoice`);
       if (!res.ok) {
@@ -138,9 +146,20 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
     return `${curr} ${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const handleDownloadPdf = () => {
-    if (!invoice?.id) return;
-    window.open(`/api/invoices/${invoice.id}/pdf`, '_blank');
+  const handleDownloadPdf = async () => {
+    if (!invoice?.id || isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    setDownloadPdfError(null);
+    try {
+      const result = await downloadInvoicePdf(invoice.id, invoice.invoice_number);
+      if (!result.success) {
+        setDownloadPdfError(result.error || 'Failed to download official invoice PDF');
+      }
+    } catch (err: any) {
+      setDownloadPdfError(err?.message || 'Failed to download official invoice PDF');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   return (
@@ -150,7 +169,7 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-white">Official Tax Invoice</h3>
+            <h3 className="text-base font-bold text-white">{t('invoices.officialTaxInvoice', undefined, 'Official Tax Invoice')}</h3>
           </div>
           <button
             onClick={onClose}
@@ -162,6 +181,25 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
+          {/* Download Error Notification Banner */}
+          {downloadPdfError && (
+            <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs space-y-2 animate-fade-in">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span className="font-bold">{t('invoices.pdfDownloadFailed', undefined, 'PDF Download Failed')}</span>
+                </div>
+                <button
+                  onClick={() => setDownloadPdfError(null)}
+                  className="text-rose-400 hover:text-rose-200 text-xs font-mono cursor-pointer"
+                >
+                  {t('common.dismiss', undefined, 'Dismiss')}
+                </button>
+              </div>
+              <p className="text-rose-300 text-[11px] leading-relaxed pl-6">{downloadPdfError}</p>
+            </div>
+          )}
+
           {/* Retry Success Notification Banner */}
           {retrySuccess && (
             <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center justify-between gap-3 animate-fade-in">
@@ -173,7 +211,7 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
                 onClick={() => setRetrySuccess(null)}
                 className="text-emerald-400 hover:text-emerald-200 text-xs font-mono shrink-0 cursor-pointer"
               >
-                Dismiss
+                {t('common.dismiss', undefined, 'Dismiss')}
               </button>
             </div>
           )}
@@ -184,13 +222,13 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                  <span className="font-bold">Invoice Retry Failed</span>
+                  <span className="font-bold">{t('invoices.retryFailed', undefined, 'Invoice Retry Failed')}</span>
                 </div>
                 <button
                   onClick={() => setRetryError(null)}
                   className="text-rose-400 hover:text-rose-200 text-xs font-mono cursor-pointer"
                 >
-                  Dismiss
+                  {t('common.dismiss', undefined, 'Dismiss')}
                 </button>
               </div>
               <p className="text-rose-300 text-[11px] leading-relaxed pl-6">{retryError}</p>
@@ -200,7 +238,7 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
           {loading ? (
             <div className="py-12 text-center text-slate-400 space-y-2">
               <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-400" />
-              <p className="text-xs">Retrieving authoritative invoice record...</p>
+              <p className="text-xs">{t('invoices.retrievingRecord', undefined, 'Retrieving authoritative invoice record...')}</p>
             </div>
           ) : error ? (
             <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
@@ -219,14 +257,14 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
 
               {canRetry ? (
                 <div className="space-y-3 max-w-md mx-auto">
-                  <h4 className="text-sm font-bold text-amber-400">Invoice Missing or Generation Incomplete</h4>
+                  <h4 className="text-sm font-bold text-amber-400">{t('invoices.missingOrIncomplete', undefined, 'Invoice Missing or Generation Incomplete')}</h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    This event is completed and fully paid, but the authoritative tax invoice has not yet been finalized. As a Developer Admin, you can manually trigger canonical invoice generation now.
+                    {t('invoices.missingOrIncompleteDesc', undefined, 'This event is completed and fully paid, but the authoritative tax invoice has not yet been finalized. As a Developer Admin, you can manually trigger canonical invoice generation now.')}
                   </p>
                   <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-left space-y-1 text-[11px] text-slate-400 font-mono">
-                    <div><span className="text-slate-500">Event ID:</span> {event.id}</div>
-                    <div><span className="text-slate-500">Payment Status:</span> {event.payment_status || 'PAID'}</div>
-                    <div><span className="text-slate-500">Eligibility:</span> {eligibilityReason || 'Eligible for invoice generation'}</div>
+                    <div><span className="text-slate-500">{t('invoices.eventId', undefined, 'Event ID:')}</span> {event.id}</div>
+                    <div><span className="text-slate-500">{t('event.paymentStatus', undefined, 'Payment Status:')}</span> {event.payment_status || 'PAID'}</div>
+                    <div><span className="text-slate-500">{t('invoices.eligibility', undefined, 'Eligibility:')}</span> {eligibilityReason || 'Eligible for invoice generation'}</div>
                   </div>
 
                   <div className="pt-2">
@@ -236,22 +274,22 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
                       className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl inline-flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:cursor-not-allowed"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
-                      <span>{isRetrying ? 'Generating Invoice...' : 'Retry Invoice Generation'}</span>
+                      <span>{isRetrying ? t('invoices.generatingInvoice', undefined, 'Generating Invoice...') : t('invoices.retryInvoiceGeneration', undefined, 'Retry Invoice Generation')}</span>
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <h4 className="text-sm font-bold text-slate-200">Invoice Scheduled on Event Conclusion</h4>
+                  <h4 className="text-sm font-bold text-slate-200">{t('invoices.scheduledOnConclusion', undefined, 'Invoice Scheduled on Event Conclusion')}</h4>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                    Official tax invoices are finalized automatically upon event completion according to your event dates and business timezone.
+                    {t('invoices.scheduledOnConclusionDesc', undefined, 'Official tax invoices are finalized automatically upon event completion according to your event dates and business timezone.')}
                   </p>
                   <div className="pt-2 text-[11px] text-slate-500 font-mono">
-                    Scheduled End Date: {event.end_date || '—'}
+                    {t('invoices.scheduledEndDate', { date: event.end_date || '—' }, 'Scheduled End Date: {{date}}')}
                   </div>
                   {eligibilityReason && (
                     <div className="text-[11px] text-slate-500">
-                      Reason: {eligibilityReason}
+                      {t('invoices.reasonLabel', { reason: eligibilityReason }, 'Reason: {{reason}}')}
                     </div>
                   )}
                 </div>
@@ -264,7 +302,7 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>Durable PDF generation failed. The invoice record exists, but PDF rendering needs retry.</span>
+                    <span>{t('invoices.pdfNeedsRetryDesc', undefined, 'Durable PDF generation failed. The invoice record exists, but PDF rendering needs retry.')}</span>
                   </div>
                   {canRetry && (
                     <button
@@ -273,135 +311,221 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
                       className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] rounded-lg shrink-0 flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className={`w-3 h-3 ${isRetrying ? 'animate-spin' : ''}`} />
-                      <span>Retry</span>
+                      <span>{t('common.retry', undefined, 'Retry')}</span>
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Invoice Meta Bar */}
-              <div className="flex items-center justify-between bg-slate-950 p-3.5 rounded-xl border border-slate-800">
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Invoice Number</span>
-                  <div className="font-mono text-sm font-bold text-emerald-400">{invoice.invoice_number}</div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Issue Date</span>
-                  <div className="font-mono text-xs text-slate-300">{(invoice.issue_date || '').slice(0, 10)}</div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Status</span>
-                  <div>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                      invoice.status === 'paid'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                        : invoice.status === 'partially_paid'
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}>
-                      {invoice.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-                      {invoice.status}
-                    </span>
+              {/* Official White Paper Document Sheet */}
+              <div className="bg-white text-slate-800 rounded-2xl p-6 sm:p-8 border border-[#CBD5E1] shadow-2xl space-y-6">
+                {/* 1. Header Section — Company Details & Invoice Information */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-[#CBD5E1]">
+                  {/* Left Side: Company Information */}
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-black text-[#172B4D] tracking-tight">EVENTGAMESTUDIO</h2>
+                    {invoice.seller_details?.company_name && invoice.seller_details.company_name !== 'EVENTGAMESTUDIO' && (
+                      <div className="text-xs font-semibold text-[#334155]">{invoice.seller_details.company_name}</div>
+                    )}
+                    {invoice.seller_details?.registration_number && (
+                      <div className="text-xs text-[#64748B] font-mono">{t('invoices.regNo', { regNo: invoice.seller_details.registration_number }, 'Reg No: {{regNo}}')}</div>
+                    )}
+                    {invoice.seller_details?.tax_number && (
+                      <div className="text-xs text-[#64748B] font-mono">{t('invoices.taxId', { taxId: invoice.seller_details.tax_number }, 'Tax ID: {{taxId}}')}</div>
+                    )}
+                    {invoice.seller_details?.address && (
+                      <div className="text-xs text-[#64748B] leading-relaxed max-w-sm">{invoice.seller_details.address}</div>
+                    )}
                   </div>
-                </div>
-              </div>
 
-              {/* Seller & Customer Snapshot */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Issued By</span>
-                  <div className="font-bold text-slate-200">{invoice.seller_details?.company_name}</div>
-                  {invoice.seller_details?.registration_number && (
-                    <div className="text-slate-400 font-mono text-[11px]">{invoice.seller_details.registration_number}</div>
-                  )}
-                  {invoice.seller_details?.tax_number && (
-                    <div className="text-slate-500 font-mono text-[11px]">Tax ID: {invoice.seller_details.tax_number}</div>
-                  )}
-                </div>
+                  {/* Right Side: Invoice Information */}
+                  <div className="text-left sm:text-right space-y-1.5">
+                    <h1 className="text-2xl font-black text-[#172B4D] tracking-tight">{t('invoices.invoiceTitle', undefined, 'INVOICE')}</h1>
+                    <div className="text-xs text-[#64748B]">
+                      <span>{t('invoices.invoiceNo', undefined, 'Invoice No.')} </span>
+                      <span className="font-mono font-bold text-[#172B4D]">{invoice.invoice_number}</span>
+                    </div>
 
-                <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Billed To</span>
-                  <div className="font-bold text-slate-200">{invoice.customer_details?.organization_name}</div>
-                  <div className="text-slate-400 truncate">{invoice.customer_details?.contact_email}</div>
-                  <div className="text-slate-500">Country: {invoice.customer_details?.country_code || 'MY'}</div>
-                </div>
-              </div>
-
-              {/* Line Items */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden text-xs">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] uppercase text-slate-500">
-                      <th className="py-2 px-3 text-left">Description</th>
-                      <th className="py-2 px-3 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/40">
-                    {invoice.line_items?.map((item: any, i: number) => (
-                      <tr key={i}>
-                        <td className="py-2.5 px-3 text-slate-300">{item.description}</td>
-                        <td className={`py-2.5 px-3 text-right font-mono tabular-nums ${
-                          item.total_price < 0 ? 'text-amber-400 font-bold' : 'text-slate-200 font-semibold'
-                        }`}>
-                          {formatCurrency(item.total_price, invoice.currency)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Totals Breakdown */}
-              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-400">
-                  <span>Subtotal:</span>
-                  <span className="font-mono tabular-nums text-slate-200">{formatCurrency(invoice.subtotal, invoice.currency)}</span>
-                </div>
-                {invoice.discount_amount > 0 && (
-                  <div className="flex justify-between text-amber-400">
-                    <span>Applied Credits & Promotional Bonus:</span>
-                    <span className="font-mono tabular-nums font-bold">-{formatCurrency(invoice.discount_amount, invoice.currency)}</span>
-                  </div>
-                )}
-                {invoice.tax_amount > 0 && (
-                  <div className="flex justify-between text-slate-400">
-                    <span>Tax ({(invoice.tax_rate * 100).toFixed(1)}%):</span>
-                    <span className="font-mono tabular-nums text-slate-200">{formatCurrency(invoice.tax_amount, invoice.currency)}</span>
-                  </div>
-                )}
-                <div className="border-t border-slate-800 pt-2 flex justify-between text-sm font-bold text-white">
-                  <span>Total Amount:</span>
-                  <span className="font-mono tabular-nums text-emerald-400">{formatCurrency(invoice.total_amount, invoice.currency)}</span>
-                </div>
-                <div className="flex justify-between text-slate-400 text-xs">
-                  <span>Amount Paid:</span>
-                  <span className="font-mono tabular-nums text-emerald-400 font-semibold">{formatCurrency(invoice.amount_paid, invoice.currency)}</span>
-                </div>
-                <div className="flex justify-between text-slate-400 text-xs">
-                  <span>Outstanding Balance:</span>
-                  <span className={`font-mono tabular-nums font-bold ${invoice.outstanding_balance > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
-                    {formatCurrency(invoice.outstanding_balance, invoice.currency)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Credit notes if any */}
-              {creditNotes.length > 0 && (
-                <div className="space-y-1 text-xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Credit Notes</span>
-                  {creditNotes.map((cn: any) => (
-                    <div key={cn.id} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
-                      <div>
-                        <span className="font-mono font-bold text-amber-400">{cn.credit_note_number}</span>
-                        <p className="text-[11px] text-slate-400">{cn.reason}</p>
-                      </div>
-                      <span className="font-mono tabular-nums text-rose-400 font-bold">
-                        -{formatCurrency(cn.amount, cn.currency)}
+                    {/* Dynamic Invoice Payment Status Badge */}
+                    <div className="sm:flex sm:justify-end">
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase px-2.5 py-0.5 rounded-md border ${
+                        invoice.status === 'paid'
+                          ? 'bg-[#DCFCE7] text-[#166534] border-[#BBF7D0]'
+                          : invoice.status === 'partially_paid'
+                          ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+                          : 'bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]'
+                      }`}>
+                        {invoice.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                        {invoice.status}
                       </span>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
+
+                {/* 2. Bill To and Invoice Dates Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-start pb-5 border-b border-[#CBD5E1]">
+                  {/* Left Side: Bill To in #F8FAFC Panel */}
+                  <div className="sm:col-span-7 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-1.5 text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">{t('invoices.billTo', undefined, 'BILL TO')}</span>
+                    <div className="font-bold text-sm text-[#172B4D]">{invoice.customer_details?.organization_name || 'Customer Organization'}</div>
+                    {invoice.customer_details?.contact_name && (
+                      <div className="text-[#334155]">{t('invoices.attn', { name: invoice.customer_details.contact_name }, 'Attn: {{name}}')}</div>
+                    )}
+                    {invoice.customer_details?.contact_email && (
+                      <div className="text-[#334155]">{invoice.customer_details.contact_email}</div>
+                    )}
+                    {invoice.customer_details?.country_code && (
+                      <div className="text-[#334155]">{t('invoices.country', { code: invoice.customer_details.country_code }, 'Country: {{code}}')}</div>
+                    )}
+                    {invoice.customer_details?.billing_address && (
+                      <div className="text-[#334155] leading-relaxed max-w-sm">{invoice.customer_details.billing_address}</div>
+                    )}
+                  </div>
+
+                  {/* Right Side: Invoice Dates */}
+                  <div className="sm:col-span-5 text-left sm:text-right space-y-3 pt-1">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">{t('invoices.issueDate', undefined, 'ISSUE DATE')}</span>
+                      <span className="font-mono text-sm font-bold text-[#172B4D]">
+                        {(invoice.issue_date || '').slice(0, 10) || '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">{t('invoices.dueDate', undefined, 'DUE DATE')}</span>
+                      <span className="font-mono text-sm font-bold text-[#172B4D]">
+                        {(invoice.due_date || '').slice(0, 10) || '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Description of Services */}
+                <div className="space-y-3 pb-5 border-b border-[#CBD5E1]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#172B4D]">{t('invoices.descriptionOfServices', undefined, 'DESCRIPTION OF SERVICES')}</h3>
+
+                  <div className="border border-[#E2E8F0] rounded-xl overflow-hidden text-xs">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-bold uppercase text-[#172B4D]">
+                          <th className="py-2.5 px-3.5 text-left">{t('invoices.serviceItem', undefined, 'Service / Item')}</th>
+                          <th className="py-2.5 px-3.5 text-right w-16">{t('invoices.qty', undefined, 'Qty')}</th>
+                          <th className="py-2.5 px-3.5 text-right w-28">{t('invoices.unitPrice', undefined, 'Unit Price')}</th>
+                          <th className="py-2.5 px-3.5 text-right w-28">{t('invoices.amount', undefined, 'Amount')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E2E8F0] bg-white">
+                        {invoice.line_items?.map((item: any, i: number) => {
+                          const isCredit = item.total_price < 0;
+                          return (
+                            <tr key={i}>
+                              <td className="py-3 px-3.5 text-[#334155]">
+                                <div className={`font-semibold ${isCredit ? 'text-[#166534]' : 'text-[#172B4D]'}`}>{item.description}</div>
+                                {i === 0 && invoice.event_details?.event_name && (
+                                  <div className="text-[11px] text-[#64748B] mt-0.5">
+                                    {t('invoices.eventDetailsSubtext', { name: invoice.event_details.event_name, days: invoice.event_details.duration_days || 1 }, 'Event: "{{name}}" · Duration: {{days}} Day(s)')}
+                                    {invoice.event_details.start_date && invoice.event_details.end_date && (
+                                      <span> ({invoice.event_details.start_date} – {invoice.event_details.end_date})</span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-3.5 text-right font-mono text-[#334155]">{item.quantity || 1}</td>
+                              <td className="py-3 px-3.5 text-right font-mono text-[#334155]">
+                                {formatCurrency(item.unit_price, invoice.currency)}
+                              </td>
+                              <td className={`py-3 px-3.5 text-right font-mono tabular-nums ${
+                                isCredit ? 'text-[#166534] font-bold' : 'text-[#172B4D] font-bold'
+                              }`}>
+                                {formatCurrency(item.total_price, invoice.currency)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 4. Invoice Totals and Payment Summary */}
+                <div className="flex flex-col sm:flex-row sm:justify-end pb-5 border-b border-[#CBD5E1]">
+                  <div className="w-full sm:w-80 space-y-2 text-xs">
+                    {invoice.subtotal && invoice.subtotal !== invoice.total_amount && (
+                      <div className="flex justify-between text-[#64748B]">
+                        <span>{t('invoices.subtotal', undefined, 'Subtotal:')}</span>
+                        <span className="font-mono tabular-nums text-[#334155]">{formatCurrency(invoice.subtotal, invoice.currency)}</span>
+                      </div>
+                    )}
+                    {invoice.discount_amount > 0 && (
+                      <div className="flex justify-between text-[#166534]">
+                        <span>{t('invoices.appliedCreditsDiscount', undefined, 'Applied Credits / Discount:')}</span>
+                        <span className="font-mono tabular-nums font-bold">-{formatCurrency(invoice.discount_amount, invoice.currency)}</span>
+                      </div>
+                    )}
+                    {invoice.tax_amount > 0 && (
+                      <div className="flex justify-between text-[#64748B]">
+                        <span>{t('invoices.tax', { rate: (invoice.tax_rate * 100).toFixed(1) }, 'Tax ({{rate}}%):')}</span>
+                        <span className="font-mono tabular-nums text-[#334155]">{formatCurrency(invoice.tax_amount, invoice.currency)}</span>
+                      </div>
+                    )}
+
+                    {/* Row 1: Total Amount */}
+                    <div className="flex justify-between text-sm font-bold text-[#172B4D] pt-1">
+                      <span>{t('invoices.totalAmount', undefined, 'Total Amount')}</span>
+                      <span className="font-mono tabular-nums">{formatCurrency(invoice.total_amount, invoice.currency)}</span>
+                    </div>
+
+                    {/* Row 2: Payments Received */}
+                    <div className="flex justify-between text-xs text-[#64748B]">
+                      <span>{t('invoices.paymentsReceived', undefined, 'Payments Received')}</span>
+                      <span className="font-mono tabular-nums text-[#334155] font-semibold">{formatCurrency(invoice.amount_paid, invoice.currency)}</span>
+                    </div>
+
+                    {/* Row 3: Balance Due */}
+                    <div className="flex justify-between text-sm pt-1">
+                      <span className="font-bold text-[#172B4D]">{t('invoices.balanceDue', undefined, 'Balance Due')}</span>
+                      <span className={`font-mono tabular-nums font-bold ${
+                        invoice.outstanding_balance <= 0 ? 'text-[#166534]' : 'text-[#92400E]'
+                      }`}>
+                        {formatCurrency(invoice.outstanding_balance, invoice.currency)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Credit notes if any */}
+                {creditNotes.length > 0 && (
+                  <div className="space-y-2 pb-5 border-b border-[#CBD5E1]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">{t('invoices.creditNotes', undefined, 'Credit Notes')}</span>
+                    {creditNotes.map((cn: any) => (
+                      <div key={cn.id} className="bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0] flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-mono font-bold text-[#92400E]">{cn.credit_note_number}</span>
+                          <p className="text-[11px] text-[#64748B]">{cn.reason}</p>
+                        </div>
+                        <span className="font-mono tabular-nums text-[#991B1B] font-bold">
+                          -{formatCurrency(cn.amount, cn.currency)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 5. Footer — Exact Latest Format */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs">
+                  {/* Left Footer Section */}
+                  <div className="text-left space-y-1 text-[#64748B]">
+                    <p>{t('invoices.paymentVerifiedSettled', undefined, 'Payment verified and settled via platform wallet.')}</p>
+                    <p>{t('invoices.thankYouChoosing', undefined, 'Thank you for choosing EventGameStudio.')}</p>
+                  </div>
+
+                  {/* Right Footer Section */}
+                  <div className="text-left sm:text-right space-y-1">
+                    <p className="font-semibold text-[#172B4D]">{t('invoices.interactiveSolutions', undefined, 'Interactive Event Gaming Solutions')}</p>
+                    <p className="text-[#64748B]">{t('invoices.websiteLabel', undefined, 'Website: eventgamestudio.com')}</p>
+                    <p className="text-[#64748B]">{t('invoices.emailLabel', undefined, 'Email: eventgamestudio@gmail.com')}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -412,12 +536,12 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
             {invoice?.pdf_status === 'generated' ? (
               <span className="text-emerald-400 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Durable PDF Ready
+                {t('invoices.durablePdfReady', undefined, 'Durable PDF Ready')}
               </span>
             ) : invoice?.pdf_status === 'failed' ? (
-              <span className="text-amber-400">PDF Rendering Incomplete</span>
+              <span className="text-amber-400">{t('invoices.pdfRenderingIncomplete', undefined, 'PDF Rendering Incomplete')}</span>
             ) : canRetry ? (
-              <span className="text-amber-400">Retry Available</span>
+              <span className="text-amber-400">{t('invoices.retryAvailable', undefined, 'Retry Available')}</span>
             ) : null}
           </div>
           <div className="flex items-center gap-2">
@@ -425,7 +549,7 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
             >
-              Close
+              {t('common.close', undefined, 'Close')}
             </button>
 
             {canRetry && (
@@ -433,20 +557,31 @@ export const EventInvoiceModal: React.FC<EventInvoiceModalProps> = ({
                 onClick={handleRetryInvoice}
                 disabled={isRetrying}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer disabled:cursor-not-allowed"
-                title="Retry canonical invoice generation for this event"
+                title={t('invoices.retryInvoiceTooltip', undefined, 'Retry canonical invoice generation for this event')}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
-                <span>{isRetrying ? 'Retrying...' : 'Retry Invoice'}</span>
+                <span>{isRetrying ? t('invoices.retrying', undefined, 'Retrying...') : t('invoices.retryInvoice', undefined, 'Retry Invoice')}</span>
               </button>
             )}
 
             {invoice && invoice.pdf_status !== 'failed' && (
               <button
                 onClick={handleDownloadPdf}
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+                disabled={isDownloadingPdf}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all cursor-pointer disabled:cursor-not-allowed"
+                title={t('invoices.downloadPdfTooltip', undefined, 'Download official PDF using authenticated session')}
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Official PDF</span>
+                {isDownloadingPdf ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{t('invoices.downloadingPdf', undefined, 'Downloading PDF...')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('invoices.downloadOfficialPdf', undefined, 'Download Official PDF')}</span>
+                  </>
+                )}
               </button>
             )}
           </div>

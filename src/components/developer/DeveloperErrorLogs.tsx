@@ -353,7 +353,7 @@ export const DeveloperErrorLogs: React.FC = () => {
               onClick={handleClearFilters}
               className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
             >
-              {t('developer.resetFilters', undefined, 'Reset Filters')}
+              {t('developer.clearAllFilters', undefined, 'Clear all filters')}
             </button>
           </div>
         )}
@@ -386,13 +386,13 @@ export const DeveloperErrorLogs: React.FC = () => {
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-400 mb-2" />
-                    {t('developer.loadingApiErrorLogs', undefined, 'Loading API error audit logs...')}
+                    {t('developer.loadingErrorLogs', undefined, 'Loading error logs...')}
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-500">
-                    No error logs found matching your filter criteria.
+                    {t('developer.noErrorLogsFound', undefined, 'No error logs found matching your filter criteria.')}
                   </td>
                 </tr>
               ) : (
@@ -560,7 +560,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    Diagnostic Inspection
+                    {t('developer.diagnosticInspectionTitle', undefined, 'Diagnostic Inspection')}
                     {getStatusBadge(selectedLog.status_code)}
                   </h2>
                   <span className="text-[11px] font-mono text-slate-400 block">
@@ -582,7 +582,7 @@ export const DeveloperErrorLogs: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                   <span className="text-slate-500 text-[10px] uppercase font-bold block mb-1">
-                    Request ID
+                    {t('developer.requestIdLabel', undefined, 'Request ID')}
                   </span>
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-emerald-400 select-all truncate text-[11px]">
@@ -603,7 +603,7 @@ export const DeveloperErrorLogs: React.FC = () => {
 
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                   <span className="text-slate-500 text-[10px] uppercase font-bold block mb-1">
-                    Method & Path
+                    {t('developer.methodAndPathLabel', undefined, 'Method & Path')}
                   </span>
                   <div className="flex items-center space-x-2 truncate">
                     {getMethodBadge(selectedLog.method)}
@@ -613,17 +613,17 @@ export const DeveloperErrorLogs: React.FC = () => {
 
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                   <span className="text-slate-500 text-[10px] uppercase font-bold block mb-1">
-                    Service Origin
+                    {t('developer.serviceOriginLabel', undefined, 'Service Origin')}
                   </span>
                   <div>{getServiceBadge(selectedLog.service)}</div>
                 </div>
 
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                   <span className="text-slate-500 text-[10px] uppercase font-bold block mb-1">
-                    User Session
+                    {t('developer.userSessionLabel', undefined, 'User Session')}
                   </span>
                   <span className="font-mono text-slate-300 truncate block">
-                    {selectedLog.user_id ? selectedLog.user_id : 'Anonymous / Public'}
+                    {selectedLog.user_id ? selectedLog.user_id : t('developer.anonymousPublic', undefined, 'Anonymous / Public')}
                   </span>
                 </div>
               </div>
@@ -631,14 +631,14 @@ export const DeveloperErrorLogs: React.FC = () => {
               {/* Error Details */}
               <div className="space-y-2">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  Error Classification & Message
+                  {t('developer.errorClassificationLabel', undefined, 'Error Classification & Message')}
                 </span>
                 <div className="bg-slate-950 p-4 rounded-xl border border-rose-500/20 text-rose-300 font-mono text-xs leading-relaxed select-all">
                   <div className="font-bold text-rose-400 mb-1">
                     {selectedLog.error_type || 'Error'}{' '}
                     {selectedLog.error_code && `(${selectedLog.error_code})`}
                   </div>
-                  <div>{selectedLog.error_message || 'Unknown internal error'}</div>
+                  <div>{selectedLog.error_message || t('developer.unknownInternalError', undefined, 'Unknown internal error')}</div>
                 </div>
               </div>
 
@@ -647,7 +647,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                      Sanitized Stack Trace
+                      {t('developer.sanitizedStackTraceLabel', undefined, 'Sanitized Stack Trace')}
                     </span>
                     <button
                       onClick={() => handleCopy(selectedLog.stack_trace!, 'stack-trace')}
@@ -672,7 +672,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                      Sanitized Request Metadata (Headers, Body & Query)
+                      {t('developer.sanitizedRequestMetadataLabel', undefined, 'Sanitized Request Metadata (Headers, Body & Query)')}
                     </span>
                     <button
                       onClick={() =>
@@ -702,7 +702,7 @@ export const DeveloperErrorLogs: React.FC = () => {
                 onClick={() => setSelectedLog(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs transition-colors cursor-pointer"
               >
-                Close Inspector
+                {t('developer.closeInspector', undefined, 'Close Inspector')}
               </button>
             </div>
           </div>

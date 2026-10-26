@@ -181,11 +181,70 @@ interface DoubleRocketAttackState {
   centerCol: number;
 }
 
+interface ColorBombRocketHWindUpState {
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+  targetColor: string;
+  convertedCoords: Array<{ row: number; col: number }>;
+}
+
+interface ColorBombRocketHAttackState {
+  id: string;
+  clearedRows: number[];
+  convertedCoords: Array<{ row: number; col: number }>;
+  centerRow: number;
+  centerCol: number;
+}
+
+interface ColorBombRocketVWindUpState {
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+  targetColor: string;
+  convertedCoords: Array<{ row: number; col: number }>;
+}
+
+interface ColorBombRocketVAttackState {
+  id: string;
+  clearedCols: number[];
+  convertedCoords: Array<{ row: number; col: number }>;
+  centerRow: number;
+  centerCol: number;
+}
+
+interface ColorBombBombWindUpState {
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+  centerRow: number;
+  centerCol: number;
+  targetColor: string;
+  convertedCoords: Array<{ row: number; col: number }>;
+}
+
+interface ColorBombBombAttackState {
+  id: string;
+  centerRow: number;
+  centerCol: number;
+  convertedCoords: Array<{ row: number; col: number }>;
+  clearedCoords: Array<{ row: number; col: number }>;
+}
+
+interface ConvertedTilesOverlayState {
+  coords: Array<{ row: number; col: number }>;
+  special: 'rocket-horizontal' | 'rocket-vertical' | 'bomb';
+  targetColor: string;
+}
+
 interface ComboBannerState {
   id: string;
   title: string;
   subtitle: string;
-  type?: 'rocket-bomb' | 'double-bomb' | 'double-rocket';
+  type?: 'rocket-bomb' | 'double-bomb' | 'double-rocket' | 'color-bomb-rocket-h' | 'color-bomb-rocket-v' | 'color-bomb-bomb';
 }
 
 export const Match3Game: React.FC<Match3GameProps> = ({
@@ -216,6 +275,29 @@ export const Match3Game: React.FC<Match3GameProps> = ({
   const match3Config: Match3GameConfig = useMemo(() => {
     const rawConfig = (activeTheme?.game_config as Match3GameConfig) || config;
     const soundsConfig = activeTheme?.sounds_config;
+    const rawObjective = rawConfig?.objective || DEFAULT_MATCH3_CONFIG.objective;
+    let resolvedHazardConfig = rawConfig?.hazardConfig || DEFAULT_MATCH3_CONFIG.hazardConfig;
+
+    // Ensure objective-specific obstacle settings are applied only when appropriate:
+    // 1. Clear Obstacles mode ('remove') requires obstacles to be active on the grid.
+    // 2. Target Score mode ('score') and Item Collection mode ('collect') must not retain
+    //    obstacles that are exclusive to Clear Obstacles mode.
+    if (rawObjective.type === 'remove') {
+      if (!resolvedHazardConfig.enabled) {
+        resolvedHazardConfig = {
+          ...resolvedHazardConfig,
+          enabled: true,
+        };
+      }
+    } else if (rawObjective.type === 'score' || rawObjective.type === 'collect') {
+      if (resolvedHazardConfig.enabled) {
+        resolvedHazardConfig = {
+          ...resolvedHazardConfig,
+          enabled: false,
+        };
+      }
+    }
+
     return {
       ...DEFAULT_MATCH3_CONFIG,
       ...rawConfig,
@@ -228,9 +310,9 @@ export const Match3Game: React.FC<Match3GameProps> = ({
       specialTilesEnabled: rawConfig?.specialTilesEnabled !== undefined ? Boolean(rawConfig.specialTilesEnabled) : DEFAULT_MATCH3_CONFIG.specialTilesEnabled,
       cascadeEnabled: rawConfig?.cascadeEnabled !== undefined ? Boolean(rawConfig.cascadeEnabled) : DEFAULT_MATCH3_CONFIG.cascadeEnabled,
       shuffleWhenNoMoves: rawConfig?.shuffleWhenNoMoves !== undefined ? Boolean(rawConfig.shuffleWhenNoMoves) : DEFAULT_MATCH3_CONFIG.shuffleWhenNoMoves,
-      objective: rawConfig?.objective || DEFAULT_MATCH3_CONFIG.objective,
+      objective: rawObjective,
       scoring: rawConfig?.scoring || DEFAULT_MATCH3_CONFIG.scoring,
-      hazardConfig: rawConfig?.hazardConfig || DEFAULT_MATCH3_CONFIG.hazardConfig,
+      hazardConfig: resolvedHazardConfig,
       soundEnabled: soundsConfig?.soundEnabled !== undefined ? Boolean(soundsConfig.soundEnabled) : (rawConfig?.soundEnabled ?? DEFAULT_MATCH3_CONFIG.soundEnabled),
       soundVolume: soundsConfig?.soundVolume !== undefined ? Number(soundsConfig.soundVolume) : (rawConfig?.soundVolume ?? DEFAULT_MATCH3_CONFIG.soundVolume),
       bgmEnabled: soundsConfig?.bgmEnabled !== undefined ? Boolean(soundsConfig.bgmEnabled) : (rawConfig?.bgmEnabled ?? DEFAULT_MATCH3_CONFIG.bgmEnabled),
@@ -268,8 +350,56 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     })
   );
 
-  // Synchronize board when dimensions, tile count, or hazards change while in ready/editor preview mode
+  // Synchronize board when dimensions, tile count, hazards, or objective change while in ready/editor preview mode
+  const prevObjectiveTypeRef = useRef<string | undefined>(match3Config.objective?.type);
+  const prevHazardEnabledRef = useRef<boolean | undefined>(match3Config.hazardConfig?.enabled);
+
   useEffect(() => {
+    const objectiveChanged = prevObjectiveTypeRef.current !== match3Config.objective?.type;
+    const hazardEnabledChanged = prevHazardEnabledRef.current !== match3Config.hazardConfig?.enabled;
+
+    prevObjectiveTypeRef.current = match3Config.objective?.type;
+    prevHazardEnabledRef.current = match3Config.hazardConfig?.enabled;
+
+    // If the objective or hazard activation state changed, reset the game state and rebuild a fresh board
+    if (objectiveChanged || hazardEnabledChanged) {
+      swapTokenRef.current++;
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (gameOverTimeoutRef.current) clearTimeout(gameOverTimeoutRef.current);
+
+      setStatus('ready');
+      setScore(0);
+      scoreRef.current = 0;
+      setCombo(0);
+      setBestCombo(0);
+      setMatchesCount(0);
+      setSpecialsCreatedCount(0);
+      setCollectedTilesCount(0);
+      collectedTilesCountRef.current = 0;
+      setHazardsClearedCount(0);
+      hazardsClearedCountRef.current = 0;
+      setIsVictory(false);
+      setSelectedCoord(null);
+      setClearingCoords(new Set());
+      setDroppingCoords(new Set());
+      setActiveSwapAnim(null);
+      setIsSwapAnimating(false);
+      isSwapAnimatingRef.current = false;
+      dragStateRef.current = null;
+      setDragState(null);
+      setRemainingTime(match3Config.gameDurationSeconds);
+      remainingTimeRef.current = match3Config.gameDurationSeconds;
+
+      setBoard(
+        createInitialBoard(match3Config.rows, match3Config.cols, match3Config.tileTypesCount, Math.random, {
+          minimumMatch: match3Config.minimumMatch,
+          specialTilesEnabled: match3Config.specialTilesEnabled,
+          hazardConfig: match3Config.hazardConfig,
+        })
+      );
+      return;
+    }
+
     if (status === 'ready') {
       setBoard(
         createInitialBoard(match3Config.rows, match3Config.cols, match3Config.tileTypesCount, Math.random, {
@@ -279,6 +409,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
         })
       );
       setRemainingTime(match3Config.gameDurationSeconds);
+      remainingTimeRef.current = match3Config.gameDurationSeconds;
     }
   }, [
     status,
@@ -287,6 +418,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     match3Config.tileTypesCount,
     match3Config.minimumMatch,
     match3Config.specialTilesEnabled,
+    match3Config.objective?.type,
     match3Config.hazardConfig?.enabled,
     match3Config.hazardConfig?.initialCount,
     match3Config.hazardConfig?.type,
@@ -335,8 +467,16 @@ export const Match3Game: React.FC<Match3GameProps> = ({
   const [doubleBombAttack, setDoubleBombAttack] = useState<DoubleBombAttackState | null>(null);
   const [doubleRocketWindUp, setDoubleRocketWindUp] = useState<DoubleRocketWindUpState | null>(null);
   const [doubleRocketAttack, setDoubleRocketAttack] = useState<DoubleRocketAttackState | null>(null);
+  const [colorBombRocketHWindUp, setColorBombRocketHWindUp] = useState<ColorBombRocketHWindUpState | null>(null);
+  const [colorBombRocketHAttack, setColorBombRocketHAttack] = useState<ColorBombRocketHAttackState | null>(null);
+  const [colorBombRocketVWindUp, setColorBombRocketVWindUp] = useState<ColorBombRocketVWindUpState | null>(null);
+  const [colorBombRocketVAttack, setColorBombRocketVAttack] = useState<ColorBombRocketVAttackState | null>(null);
+  const [colorBombBombWindUp, setColorBombBombWindUp] = useState<ColorBombBombWindUpState | null>(null);
+  const [colorBombBombAttack, setColorBombBombAttack] = useState<ColorBombBombAttackState | null>(null);
+  const [convertedTilesOverlay, setConvertedTilesOverlay] = useState<ConvertedTilesOverlayState | null>(null);
   const [comboBanner, setComboBanner] = useState<ComboBannerState | null>(null);
   const [isComboShaking, setIsComboShaking] = useState<boolean>(false);
+  const [comboShakeType, setComboShakeType] = useState<'standard' | 'horizontal' | 'vertical' | 'heavy'>('standard');
 
   // Synchronous refs for 0-latency pointer event handling
   const dragStateRef = useRef<DragState | null>(null);
@@ -358,6 +498,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
   const [boardSize, setBoardSize] = useState<number>(0);
 
   // Responsive layout calculation
@@ -432,6 +573,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      match3Sounds.stopAll();
       if (timerRef.current) clearInterval(timerRef.current);
       if (gameOverTimeoutRef.current) clearTimeout(gameOverTimeoutRef.current);
       setRocketBombWindUp(null);
@@ -440,6 +582,13 @@ export const Match3Game: React.FC<Match3GameProps> = ({
       setDoubleBombAttack(null);
       setDoubleRocketWindUp(null);
       setDoubleRocketAttack(null);
+      setColorBombRocketHWindUp(null);
+      setColorBombRocketHAttack(null);
+      setColorBombRocketVWindUp(null);
+      setColorBombRocketVAttack(null);
+      setColorBombBombWindUp(null);
+      setColorBombBombAttack(null);
+      setConvertedTilesOverlay(null);
       setComboBanner(null);
       setIsComboShaking(false);
     };
@@ -564,6 +713,17 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     setBombShockwaves([]);
     setRocketBombWindUp(null);
     setRocketBombAttack(null);
+    setDoubleBombWindUp(null);
+    setDoubleBombAttack(null);
+    setDoubleRocketWindUp(null);
+    setDoubleRocketAttack(null);
+    setColorBombRocketHWindUp(null);
+    setColorBombRocketHAttack(null);
+    setColorBombRocketVWindUp(null);
+    setColorBombRocketVAttack(null);
+    setColorBombBombWindUp(null);
+    setColorBombBombAttack(null);
+    setConvertedTilesOverlay(null);
     setComboBanner(null);
     setIsComboShaking(false);
     setPopups([]);
@@ -757,7 +917,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
 
     for (let i = 0; i < 28; i++) {
       const angle = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
-      const dist = 38 + Math.random() * 55;
+      const dist = 22 + Math.random() * 38;
       const dx = `${Math.cos(angle) * dist}px`;
       const dy = `${Math.sin(angle) * dist}px`;
       const color = colors[Math.floor(Math.random() * colors.length)];
@@ -823,6 +983,170 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     }
   };
 
+  // Spawns rainbow horizontal chain-reaction particles and sparkling row trails
+  const spawnColorBombRocketHParticles = (
+    clearedRows: number[],
+    convertedCoords: Array<{ row: number; col: number }>
+  ) => {
+    const newParticles: MatchParticle[] = [];
+    const rainbowColors = ['#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#a855f7', '#ffffff'];
+
+    convertedCoords.forEach((coord, cIdx) => {
+      const cx = ((coord.col + 0.5) / match3Config.cols) * 100;
+      const cy = ((coord.row + 0.5) / match3Config.rows) * 100;
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const dist = 24 + Math.random() * 32;
+        newParticles.push({
+          id: `p_cbrh_c_${cIdx}_${i}_${Date.now()}_${Math.random()}`,
+          xPct: cx,
+          yPct: cy,
+          dx: `${Math.cos(angle) * dist}px`,
+          dy: `${Math.sin(angle) * dist}px`,
+          color: rainbowColors[(cIdx + i) % rainbowColors.length],
+          size: 13 + Math.random() * 8,
+          char: ['✨', '✦', '★', '⚡'][i % 4],
+        });
+      }
+    });
+
+    clearedRows.forEach((rIdx, rowListIdx) => {
+      const ry = ((rIdx + 0.5) / match3Config.rows) * 100;
+      for (let i = 0; i < 14; i++) {
+        const xPos = (i / 14) * 100;
+        const speed = (Math.random() - 0.5) * 60;
+        newParticles.push({
+          id: `p_cbrh_r_${rowListIdx}_${i}_${Date.now()}_${Math.random()}`,
+          xPct: xPos,
+          yPct: ry + (Math.random() - 0.5) * 4,
+          dx: `${speed}px`,
+          dy: `${(Math.random() - 0.5) * 18}px`,
+          color: rainbowColors[Math.floor(Math.random() * rainbowColors.length)],
+          size: 11 + Math.random() * 7,
+          char: ['✦', '✨', '━', '★'][i % 4],
+        });
+      }
+    });
+
+    if (newParticles.length > 0) {
+      setParticles((prev) => [...prev.slice(-35), ...newParticles]);
+      setTimeout(() => {
+        const idsToRemove = new Set(newParticles.map((p) => p.id));
+        setParticles((prev) => prev.filter((p) => !idsToRemove.has(p.id)));
+      }, 580);
+    }
+  };
+
+  // Spawns electric vertical laser-storm particles and ion sparkles
+  const spawnColorBombRocketVParticles = (
+    clearedCols: number[],
+    convertedCoords: Array<{ row: number; col: number }>
+  ) => {
+    const newParticles: MatchParticle[] = [];
+    const electricColors = ['#38bdf8', '#06b6d4', '#60a5fa', '#818cf8', '#c084fc', '#ffffff'];
+
+    convertedCoords.forEach((coord, cIdx) => {
+      const cx = ((coord.col + 0.5) / match3Config.cols) * 100;
+      const cy = ((coord.row + 0.5) / match3Config.rows) * 100;
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const dist = 24 + Math.random() * 32;
+        newParticles.push({
+          id: `p_cbrv_c_${cIdx}_${i}_${Date.now()}_${Math.random()}`,
+          xPct: cx,
+          yPct: cy,
+          dx: `${Math.cos(angle) * dist}px`,
+          dy: `${Math.sin(angle) * dist}px`,
+          color: electricColors[(cIdx + i) % electricColors.length],
+          size: 13 + Math.random() * 8,
+          char: ['⚡', '✦', '✨', '★'][i % 4],
+        });
+      }
+    });
+
+    clearedCols.forEach((cIdx, colListIdx) => {
+      const cx = ((cIdx + 0.5) / match3Config.cols) * 100;
+      for (let i = 0; i < 14; i++) {
+        const yPos = (i / 14) * 100;
+        const speed = (Math.random() - 0.5) * 60;
+        newParticles.push({
+          id: `p_cbrv_col_${colListIdx}_${i}_${Date.now()}_${Math.random()}`,
+          xPct: cx + (Math.random() - 0.5) * 4,
+          yPct: yPos,
+          dx: `${(Math.random() - 0.5) * 18}px`,
+          dy: `${speed}px`,
+          color: electricColors[Math.floor(Math.random() * electricColors.length)],
+          size: 11 + Math.random() * 7,
+          char: ['⚡', '✦', '┃', '✨'][i % 4],
+        });
+      }
+    });
+
+    if (newParticles.length > 0) {
+      setParticles((prev) => [...prev.slice(-35), ...newParticles]);
+      setTimeout(() => {
+        const idsToRemove = new Set(newParticles.map((p) => p.id));
+        setParticles((prev) => prev.filter((p) => !idsToRemove.has(p.id)));
+      }, 580);
+    }
+  };
+
+  // Spawns giant rainbow mega-explosion particles and radial shockwave embers
+  const spawnColorBombBombParticles = (
+    centerRow: number,
+    centerCol: number,
+    convertedCoords: Array<{ row: number; col: number }>
+  ) => {
+    const newParticles: MatchParticle[] = [];
+    const prismaticColors = ['#f43f5e', '#ec4899', '#f59e0b', '#fbbf24', '#a855f7', '#38bdf8', '#ffffff'];
+    const centerXPct = ((centerCol + 0.5) / match3Config.cols) * 100;
+    const centerYPct = ((centerRow + 0.5) / match3Config.rows) * 100;
+
+    for (let i = 0; i < 36; i++) {
+      const angle = (i / 36) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
+      const dist = 45 + Math.random() * 75;
+      const dx = `${Math.cos(angle) * dist}px`;
+      const dy = `${Math.sin(angle) * dist}px`;
+      newParticles.push({
+        id: `p_cbb_center_${Date.now()}_${i}_${Math.random()}`,
+        xPct: centerXPct,
+        yPct: centerYPct,
+        dx,
+        dy,
+        color: prismaticColors[Math.floor(Math.random() * prismaticColors.length)],
+        size: 15 + Math.random() * 12,
+        char: ['💥', '🔥', '✦', '★', '✨', '⚡'][i % 6],
+      });
+    }
+
+    convertedCoords.forEach((coord, cIdx) => {
+      const bx = ((coord.col + 0.5) / match3Config.cols) * 100;
+      const by = ((coord.row + 0.5) / match3Config.rows) * 100;
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const dist = 22 + Math.random() * 28;
+        newParticles.push({
+          id: `p_cbb_bomb_${cIdx}_${i}_${Date.now()}_${Math.random()}`,
+          xPct: bx,
+          yPct: by,
+          dx: `${Math.cos(angle) * dist}px`,
+          dy: `${Math.sin(angle) * dist}px`,
+          color: prismaticColors[(cIdx + i) % prismaticColors.length],
+          size: 12 + Math.random() * 8,
+          char: ['🔥', '💥', '✨'][i % 3],
+        });
+      }
+    });
+
+    if (newParticles.length > 0) {
+      setParticles((prev) => [...prev.slice(-40), ...newParticles]);
+      setTimeout(() => {
+        const idsToRemove = new Set(newParticles.map((p) => p.id));
+        setParticles((prev) => prev.filter((p) => !idsToRemove.has(p.id)));
+      }, 650);
+    }
+  };
+
   // Perform swap execution & step animations
   const executeSwap = useCallback(async (r1: number, c1: number, r2: number, c2: number) => {
     if (statusRef.current !== 'playing' || remainingTimeRef.current <= 0) return;
@@ -881,6 +1205,20 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     const isDoubleRocket = Boolean(
       resolution.isSpecialCombo &&
       resolution.specialComboType === 'double-rocket'
+    );
+    const isColorBombRocketH = Boolean(
+      resolution.isSpecialCombo &&
+      (resolution.specialComboType === 'color-bomb-rocket-horizontal' ||
+        (resolution.specialComboType === 'color-bomb-rocket' && resolution.specialComboDetails?.targetSpecial === 'rocket-horizontal'))
+    );
+    const isColorBombRocketV = Boolean(
+      resolution.isSpecialCombo &&
+      (resolution.specialComboType === 'color-bomb-rocket-vertical' ||
+        (resolution.specialComboType === 'color-bomb-rocket' && resolution.specialComboDetails?.targetSpecial === 'rocket-vertical'))
+    );
+    const isColorBombBomb = Boolean(
+      resolution.isSpecialCombo &&
+      resolution.specialComboType === 'color-bomb-bomb'
     );
 
     if (isRocketBomb) {
@@ -944,8 +1282,9 @@ export const Match3Game: React.FC<Match3GameProps> = ({
       if (swapTokenRef.current !== thisSwapToken) return;
       setDoubleBombWindUp(null);
 
-      // Phase 2: Detonation audio, heavy screen shake, and DOUBLE BOMB combo banner
+      // Phase 2: Detonation audio, board-local heavy screen shake, and DOUBLE BOMB combo banner
       match3Sounds.playDoubleBombDetonation();
+      setComboShakeType('heavy');
       setIsComboShaking(true);
       setTimeout(() => setIsComboShaking(false), 420);
 
@@ -1011,6 +1350,159 @@ export const Match3Game: React.FC<Match3GameProps> = ({
       setTimeout(() => {
         setDoubleRocketAttack((prev) => (prev?.id === attackId ? null : prev));
       }, 550);
+    } else if (isColorBombRocketH) {
+      const details = resolution.specialComboDetails;
+      const targetColor = details?.targetColor || (swappedInit[r1][c1].special === 'color-bomb' ? swappedInit[r2][c2].type : swappedInit[r1][c1].type);
+      const convertedCoords = details?.convertedCoords || [];
+      const clearedRows = details?.clearedRows || [r1, r2];
+      const centerRow = details?.centerRow ?? r2;
+      const centerCol = details?.centerCol ?? c2;
+
+      // Phase 1: Rainbow Activation & Energy Connection (300ms)
+      match3Sounds.playColorBombCharge();
+      setColorBombRocketHWindUp({ r1, c1, r2, c2, targetColor, convertedCoords });
+      await new Promise((res) => setTimeout(res, 300));
+      if (swapTokenRef.current !== thisSwapToken) return;
+
+      // Phase 2: Transmutation of all matching color tiles to Horizontal Rockets (300ms)
+      match3Sounds.playColorBombTransform();
+      setConvertedTilesOverlay({ coords: convertedCoords, special: 'rocket-horizontal', targetColor });
+      const bannerId = `banner_${Date.now()}`;
+      setComboBanner({
+        id: bannerId,
+        title: 'COLOR BOMB + ROCKET!',
+        subtitle: 'RAINBOW ROW STRIKE!',
+        type: 'color-bomb-rocket-h',
+      });
+      setTimeout(() => {
+        setComboBanner((prev) => (prev?.id === bannerId ? null : prev));
+      }, 1250);
+      await new Promise((res) => setTimeout(res, 300));
+      if (swapTokenRef.current !== thisSwapToken) return;
+      setColorBombRocketHWindUp(null);
+
+      // Phase 3: Coordinated Rainbow Chain Reaction & Row Beams (600ms)
+      match3Sounds.playRainbowRocketDetonation();
+      setComboShakeType('horizontal');
+      setIsComboShaking(true);
+      setTimeout(() => setIsComboShaking(false), 420);
+
+      const attackId = `attack_${Date.now()}`;
+      setColorBombRocketHAttack({
+        id: attackId,
+        clearedRows,
+        convertedCoords,
+        centerRow,
+        centerCol,
+      });
+      spawnColorBombRocketHParticles(clearedRows, convertedCoords);
+      setConvertedTilesOverlay(null);
+      setTimeout(() => {
+        setColorBombRocketHAttack((prev) => (prev?.id === attackId ? null : prev));
+      }, 600);
+    } else if (isColorBombRocketV) {
+      const details = resolution.specialComboDetails;
+      const targetColor = details?.targetColor || (swappedInit[r1][c1].special === 'color-bomb' ? swappedInit[r2][c2].type : swappedInit[r1][c1].type);
+      const convertedCoords = details?.convertedCoords || [];
+      const clearedCols = details?.clearedCols || [c1, c2];
+      const centerRow = details?.centerRow ?? r2;
+      const centerCol = details?.centerCol ?? c2;
+
+      // Phase 1: Cyan-Rainbow Activation & Energy Discharge (300ms)
+      match3Sounds.playColorBombCharge();
+      setColorBombRocketVWindUp({ r1, c1, r2, c2, targetColor, convertedCoords });
+      await new Promise((res) => setTimeout(res, 300));
+      if (swapTokenRef.current !== thisSwapToken) return;
+
+      // Phase 2: Transmutation of all matching color tiles to Vertical Rockets (300ms)
+      match3Sounds.playColorBombTransform();
+      setConvertedTilesOverlay({ coords: convertedCoords, special: 'rocket-vertical', targetColor });
+      const bannerId = `banner_${Date.now()}`;
+      setComboBanner({
+        id: bannerId,
+        title: 'COLOR BOMB + ROCKET!',
+        subtitle: 'VERTICAL LASER STORM!',
+        type: 'color-bomb-rocket-v',
+      });
+      setTimeout(() => {
+        setComboBanner((prev) => (prev?.id === bannerId ? null : prev));
+      }, 1250);
+      await new Promise((res) => setTimeout(res, 300));
+      if (swapTokenRef.current !== thisSwapToken) return;
+      setColorBombRocketVWindUp(null);
+
+      // Phase 3: Staggered Laser-Storm Detonation & Column Beams (620ms)
+      match3Sounds.playVerticalLaserStorm();
+      setComboShakeType('vertical');
+      setIsComboShaking(true);
+      setTimeout(() => setIsComboShaking(false), 440);
+
+      const attackId = `attack_${Date.now()}`;
+      setColorBombRocketVAttack({
+        id: attackId,
+        clearedCols,
+        convertedCoords,
+        centerRow,
+        centerCol,
+      });
+      spawnColorBombRocketVParticles(clearedCols, convertedCoords);
+      setConvertedTilesOverlay(null);
+      setTimeout(() => {
+        setColorBombRocketVAttack((prev) => (prev?.id === attackId ? null : prev));
+      }, 620);
+    } else if (isColorBombBomb) {
+      const details = resolution.specialComboDetails;
+      const targetColor = details?.targetColor || (swappedInit[r1][c1].special === 'color-bomb' ? swappedInit[r2][c2].type : swappedInit[r1][c1].type);
+      const convertedCoords = details?.convertedCoords || [];
+      const centerRow = details?.centerRow ?? r2;
+      const centerCol = details?.centerCol ?? c2;
+      const clearedCoords = (resolution.steps[0]?.clearedCoords || []).map((c) => ({
+        row: c.row,
+        col: c.col,
+      }));
+
+      // Phase 1: Gravitational Prismatic Buildup (320ms)
+      match3Sounds.playMegaBombWindUp();
+      setColorBombBombWindUp({ r1, c1, r2, c2, centerRow, centerCol, targetColor, convertedCoords });
+      await new Promise((res) => setTimeout(res, 320));
+      if (swapTokenRef.current !== thisSwapToken) return;
+
+      // Phase 2: Transmutation of all matching color tiles to Explosive Bombs (300ms)
+      match3Sounds.playColorBombTransform();
+      setConvertedTilesOverlay({ coords: convertedCoords, special: 'bomb', targetColor });
+      const bannerId = `banner_${Date.now()}`;
+      setComboBanner({
+        id: bannerId,
+        title: 'COLOR BOMB + BOMB!',
+        subtitle: 'RAINBOW MEGA BLAST!',
+        type: 'color-bomb-bomb',
+      });
+      setTimeout(() => {
+        setComboBanner((prev) => (prev?.id === bannerId ? null : prev));
+      }, 1250);
+      await new Promise((res) => setTimeout(res, 300));
+      if (swapTokenRef.current !== thisSwapToken) return;
+      setColorBombBombWindUp(null);
+
+      // Phase 3: Massive Radial Shockwaves & Mega Blast Detonation (650ms)
+      match3Sounds.playMegaBombDetonation();
+      setComboShakeType('heavy');
+      setIsComboShaking(true);
+      setTimeout(() => setIsComboShaking(false), 520);
+
+      const attackId = `attack_${Date.now()}`;
+      setColorBombBombAttack({
+        id: attackId,
+        centerRow,
+        centerCol,
+        convertedCoords,
+        clearedCoords,
+      });
+      spawnColorBombBombParticles(centerRow, centerCol, convertedCoords);
+      setConvertedTilesOverlay(null);
+      setTimeout(() => {
+        setColorBombBombAttack((prev) => (prev?.id === attackId ? null : prev));
+      }, 650);
     } else {
       await new Promise((res) => setTimeout(res, 120));
       if (swapTokenRef.current !== thisSwapToken) return;
@@ -1032,7 +1524,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
       setClearingCoords(stepClearing);
 
       // Audio and special FX based on step contents
-      if (i === 0 && (isRocketBomb || isDoubleBomb || isDoubleRocket)) {
+      if (i === 0 && (isRocketBomb || isDoubleBomb || isDoubleRocket || isColorBombRocketH || isColorBombRocketV || isColorBombBomb)) {
         // Handled by our dedicated high-impact combo attack visuals and sound
       } else {
         const hasRocket = step.clearedCoords.some((c) => c.special?.includes('rocket'));
@@ -1511,6 +2003,22 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     };
   }, [activeTheme]);
 
+  // Preload active theme tile images for instant rendering without flash
+  useEffect(() => {
+    const customDefs: TileVisualDefinition[] | undefined =
+      (activeTheme?.game_config as any)?.tileDefinitions ||
+      (config as any)?.tileDefinitions ||
+      match3Config?.tileDefinitions;
+    if (Array.isArray(customDefs)) {
+      customDefs.forEach((def) => {
+        if (def?.imageUrl && typeof def.imageUrl === 'string' && def.imageUrl.trim() !== '') {
+          const img = new Image();
+          img.src = def.imageUrl;
+        }
+      });
+    }
+  }, [activeTheme, config, match3Config]);
+
   // Visual tile lookup helper
   const getVisualTile = (tileType: string): TileVisualDefinition => {
     const customDefs: TileVisualDefinition[] | undefined =
@@ -1626,8 +2134,8 @@ export const Match3Game: React.FC<Match3GameProps> = ({
     );
   };
 
-  // 1. START SCREEN
-  if (status === 'ready') {
+  // 1. START SCREEN (Render start screen in ready state unless in layout-editing mode where the HUD elements must be interactive)
+  if (status === 'ready' && !editableLayout) {
     return (
       <div
         ref={containerRef}
@@ -1749,7 +2257,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
       <header className="w-full max-w-4xl px-3 sm:px-4 h-14 sm:h-16 shrink-0 flex items-center justify-between flex-nowrap z-20">
         {/* Left: Client Logo & Score */}
         <div className="flex items-center gap-2.5">
-          {activeTheme?.layout?.clientLogo?.visible !== false && (
+          {activeTheme?.layout?.clientLogo?.visible !== false ? (
             (activeTheme?.branding?.clientLogoUrl || activeTheme?.branding?.logoUrl) ? (
               <img
                 src={activeTheme.branding.clientLogoUrl || activeTheme.branding.logoUrl || ''}
@@ -1770,9 +2278,10 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                   }
                 }}
                 onPointerDown={(e) => {
-                  if (editableLayout && onElementPointerDown) {
+                  if (editableLayout) {
                     e.stopPropagation();
-                    onElementPointerDown('clientLogo', false, e);
+                    onSelectElementKey?.('clientLogo');
+                    onElementPointerDown?.('clientLogo', false, e);
                   }
                 }}
               />
@@ -1786,18 +2295,34 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                   onSelectElementKey?.('clientLogo');
                 }}
                 onPointerDown={(e) => {
-                  if (onElementPointerDown) {
-                    e.stopPropagation();
-                    onElementPointerDown('clientLogo', false, e);
-                  }
+                  e.stopPropagation();
+                  onSelectElementKey?.('clientLogo');
+                  onElementPointerDown?.('clientLogo', false, e);
                 }}
               >
-                <span>Logo</span>
+                <span>{t('studio.logo', undefined, 'Logo')}</span>
               </div>
             ) : null
-          )}
+          ) : editableLayout ? (
+            <div
+              className={`h-8 sm:h-10 px-2 rounded-lg border border-dashed border-slate-700 flex items-center gap-1 text-[10px] text-slate-500 font-bold cursor-pointer pointer-events-auto ${
+                selectedElementKey === 'clientLogo' ? 'ring-2 ring-amber-400 text-amber-400' : ''
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectElementKey?.('clientLogo');
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onSelectElementKey?.('clientLogo');
+                onElementPointerDown?.('clientLogo', false, e);
+              }}
+            >
+              <span>{t('studio.logoHidden', undefined, 'Logo (Hidden)')}</span>
+            </div>
+          ) : null}
 
-          {activeTheme?.layout?.scoreHud?.visible !== false && (
+          {activeTheme?.layout?.scoreHud?.visible !== false ? (
             <div
               className={`flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl shadow-lg min-w-[7.5rem] sm:min-w-[9.5rem] shrink-0 transition-all ${
                 editableLayout
@@ -1815,9 +2340,10 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 }
               }}
               onPointerDown={(e) => {
-                if (editableLayout && onElementPointerDown) {
+                if (editableLayout) {
                   e.stopPropagation();
-                  onElementPointerDown('scoreHud', false, e);
+                  onSelectElementKey?.('scoreHud');
+                  onElementPointerDown?.('scoreHud', false, e);
                 }
               }}
             >
@@ -1833,12 +2359,30 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 </span>
                 {objective.type === 'score' && (
                   <span className="text-[9px] font-mono text-slate-400 block text-right tabular-nums whitespace-nowrap">
-                    Goal: {(objective.targetScore || 10000).toLocaleString()}
+                    {t('match3.goal', undefined, 'Goal:')} {(objective.targetScore || 10000).toLocaleString()}
                   </span>
                 )}
               </div>
             </div>
-          )}
+          ) : editableLayout ? (
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-dashed border-slate-700 text-slate-500 cursor-pointer pointer-events-auto ${
+                selectedElementKey === 'scoreHud' ? 'ring-2 ring-amber-400 text-amber-400' : ''
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectElementKey?.('scoreHud');
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onSelectElementKey?.('scoreHud');
+                onElementPointerDown?.('scoreHud', false, e);
+              }}
+            >
+              <Trophy className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold">{t('studio.scoreHidden', undefined, 'Score (Hidden)')}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Center: Title / Combo Multiplier Indicator */}
@@ -1859,32 +2403,39 @@ export const Match3Game: React.FC<Match3GameProps> = ({
             }
           }}
           onPointerDown={(e) => {
-            if (editableLayout && onElementPointerDown) {
+            if (editableLayout) {
               e.stopPropagation();
-              onElementPointerDown('gameTitle', false, e);
+              onSelectElementKey?.('gameTitle');
+              onElementPointerDown?.('gameTitle', false, e);
             }
           }}
         >
-          {activeTheme?.layout?.gameTitle?.visible !== false && activeTheme?.branding?.gameTitle && (
-            <span className="text-[11px] sm:text-xs font-black tracking-wider uppercase text-amber-300 drop-shadow mb-0.5 truncate max-w-[140px] sm:max-w-[200px]">
-              {activeTheme.branding.gameTitle}
-            </span>
-          )}
+          {activeTheme?.layout?.gameTitle?.visible !== false ? (
+            activeTheme?.branding?.gameTitle ? (
+              <span className="text-[11px] sm:text-xs font-black tracking-wider uppercase text-amber-300 drop-shadow mb-0.5 truncate max-w-[140px] sm:max-w-[200px]">
+                {activeTheme.branding.gameTitle}
+              </span>
+            ) : editableLayout ? (
+              <span className="text-[10px] text-slate-400 italic">{t('studio.gameTitle', undefined, 'Game Title')}</span>
+            ) : null
+          ) : editableLayout ? (
+            <span className="text-[10px] text-slate-500 border border-dashed border-slate-700 rounded px-1.5 py-0.5">{t('studio.titleHidden', undefined, 'Title (Hidden)')}</span>
+          ) : null}
           {combo > 1 ? (
             <div className="animate-match3-combo bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 font-black px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm tracking-wide shadow-xl border border-amber-300 flex items-center gap-1.5 whitespace-nowrap">
               <Flame className="w-4 h-4 animate-spin shrink-0" />
-              <span>COMBO ×{combo}</span>
+              <span>{t('match3.comboLabel', { count: combo }, `COMBO ×${combo}`)}</span>
             </div>
           ) : (
             <div className="invisible pointer-events-none px-3 sm:px-3.5 py-0.5 text-xs font-black whitespace-nowrap" aria-hidden="true">
-              COMBO ×1
+              {t('match3.comboLabel', { count: 1 }, 'COMBO ×1')}
             </div>
           )}
         </div>
 
         {/* Right: Timer & Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          {activeTheme?.layout?.timer?.visible !== false && (
+          {activeTheme?.layout?.timer?.visible !== false ? (
             <div
               className={`flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl shadow-lg min-w-[5.5rem] sm:min-w-[7.5rem] shrink-0 transition-all ${
                 editableLayout
@@ -1902,9 +2453,10 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 }
               }}
               onPointerDown={(e) => {
-                if (editableLayout && onElementPointerDown) {
+                if (editableLayout) {
                   e.stopPropagation();
-                  onElementPointerDown('timer', false, e);
+                  onSelectElementKey?.('timer');
+                  onElementPointerDown?.('timer', false, e);
                 }
               }}
             >
@@ -1920,14 +2472,32 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 </span>
               </div>
             </div>
-          )}
+          ) : editableLayout ? (
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-dashed border-slate-700 text-slate-500 cursor-pointer pointer-events-auto ${
+                selectedElementKey === 'timer' ? 'ring-2 ring-amber-400 text-amber-400' : ''
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectElementKey?.('timer');
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onSelectElementKey?.('timer');
+                onElementPointerDown?.('timer', false, e);
+              }}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold">{t('studio.timerHidden', undefined, 'Timer (Hidden)')}</span>
+            </div>
+          ) : null}
 
           {onToggleMute && (
             <button
               type="button"
               onClick={onToggleMute}
               className="p-2 sm:p-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
-              title={isMuted ? 'Unmute' : 'Mute'}
+              title={isMuted ? t('common.unmute', undefined, 'Unmute') : t('common.mute', undefined, 'Mute')}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
             </button>
@@ -1938,7 +2508,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
               type="button"
               onClick={onToggleFullscreen}
               className="p-2 sm:p-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              title={isFullscreen ? t('gamesCatalog.exitFullscreen', undefined, 'Exit Fullscreen') : t('gamesCatalog.fullscreen', undefined, 'Fullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4 text-amber-400" /> : <Maximize2 className="w-4 h-4 text-slate-300" />}
             </button>
@@ -1962,7 +2532,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 text-amber-300">
                     <Target className="w-3.5 h-3.5" />
-                    <span>Target:</span>
+                    <span>{t('match3.target', undefined, 'Target:')}</span>
                   </div>
                   {(() => {
                     const hasTargetCustomSprite = Boolean(
@@ -1985,6 +2555,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                           <img
                             src={targetTileVisual.imageUrl!}
                             alt={targetTileVisual.name}
+                            referrerPolicy="no-referrer"
                             className="w-full h-full object-cover pointer-events-none select-none"
                             onError={() => {
                               setFailedImages((prev) => ({ ...prev, [targetTileVisual.imageUrl!]: true }));
@@ -2010,7 +2581,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
               return (
                 <div className="flex items-center gap-2">
                   <Shield className="w-3.5 h-3.5 text-rose-400" />
-                  <span className="text-slate-300">Clear Obstacles:</span>
+                  <span className="text-slate-300">{t('match3.clearObstacles', undefined, 'Clear Obstacles:')}</span>
                   <span className={`font-mono font-bold ${isDone ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {hazardsClearedCount} / {targetCount}
                   </span>
@@ -2019,10 +2590,11 @@ export const Match3Game: React.FC<Match3GameProps> = ({
             })()}
           </div>
         )}
+
+        {/* Outer board frame - stable, anchored in page layout with strict clipping */}
         <div
-          className={`relative bg-slate-950/90 backdrop-blur-xl border-4 border-slate-800/80 rounded-2xl sm:rounded-3xl p-2.5 sm:p-3.5 shadow-2xl overflow-hidden touch-none select-none shrink-0 ${
-            isComboShaking ? 'animate-match3-screen-shake' : ''
-          }`}
+          ref={boardRef}
+          className="relative bg-slate-950/90 backdrop-blur-xl border-4 border-slate-800/80 rounded-2xl sm:rounded-3xl p-2.5 sm:p-3.5 shadow-2xl overflow-hidden touch-none select-none shrink-0 isolate"
           style={{
             width: `${activeBoardSize}px`,
             height: `${activeBoardSize}px`,
@@ -2033,14 +2605,33 @@ export const Match3Game: React.FC<Match3GameProps> = ({
             touchAction: 'none',
             userSelect: 'none',
             WebkitUserSelect: 'none',
+            contain: 'paint',
           }}
         >
+          {/* Inner board contents & effects layer - strictly clipped to board boundary with board-local screen shake */}
+          <div
+            className={`relative w-full h-full rounded-xl overflow-hidden ${
+              isComboShaking
+                ? comboShakeType === 'horizontal'
+                  ? 'animate-match3-screen-shake-h'
+                  : comboShakeType === 'vertical'
+                  ? 'animate-match3-screen-shake-v'
+                  : comboShakeType === 'heavy'
+                  ? 'animate-match3-screen-shake-heavy'
+                  : 'animate-match3-screen-shake'
+                : ''
+            }`}
+            style={{
+              contain: 'paint',
+              clipPath: 'inset(0 round 0.75rem)',
+            }}
+          >
           {/* Shuffling Board Banner */}
           {isShufflingNotice && (
             <div className="absolute inset-0 z-40 bg-slate-950/85 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center space-y-2 animate-in fade-in duration-200 pointer-events-none">
               <Shuffle className="w-10 h-10 text-amber-400 animate-spin" />
               <span className="text-base font-black text-slate-100 uppercase tracking-widest">
-                No Moves Left • Shuffling Board!
+                {t('match3.noMovesShuffling', undefined, 'No Moves Left • Shuffling Board!')}
               </span>
             </div>
           )}
@@ -2148,7 +2739,34 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                   )
                 );
 
-                const isWindUpTile = isRocketBombWindUpTile || isDoubleBombWindUpTile || isDoubleRocketWindUpTile;
+                const isColorBombRocketHWindUpTile = Boolean(
+                  colorBombRocketHWindUp && (
+                    (colorBombRocketHWindUp.r1 === r && colorBombRocketHWindUp.c1 === c) ||
+                    (colorBombRocketHWindUp.r2 === r && colorBombRocketHWindUp.c2 === c)
+                  )
+                );
+
+                const isColorBombRocketVWindUpTile = Boolean(
+                  colorBombRocketVWindUp && (
+                    (colorBombRocketVWindUp.r1 === r && colorBombRocketVWindUp.c1 === c) ||
+                    (colorBombRocketVWindUp.r2 === r && colorBombRocketVWindUp.c2 === c)
+                  )
+                );
+
+                const isColorBombBombWindUpTile = Boolean(
+                  colorBombBombWindUp && (
+                    (colorBombBombWindUp.r1 === r && colorBombBombWindUp.c1 === c) ||
+                    (colorBombBombWindUp.r2 === r && colorBombBombWindUp.c2 === c)
+                  )
+                );
+
+                const isConvertedOverlayTile = Boolean(
+                  convertedTilesOverlay &&
+                  convertedTilesOverlay.coords.some((coord) => coord.row === r && coord.col === c)
+                );
+
+                const isWindUpTile = isRocketBombWindUpTile || isDoubleBombWindUpTile || isDoubleRocketWindUpTile ||
+                  isColorBombRocketHWindUpTile || isColorBombRocketVWindUpTile || isColorBombBombWindUpTile || isConvertedOverlayTile;
 
                 // Z-index hierarchy
                 const zIndexClass = isWindUpTile
@@ -2177,6 +2795,14 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                         ? 'ring-4 ring-sky-300 shadow-[0_0_32px_rgba(56,189,248,0.95)] animate-match3-rocket-windup'
                         : isRocketBombWindUpTile
                         ? 'ring-4 ring-amber-300 shadow-[0_0_30px_rgba(251,191,36,0.95)] animate-match3-windup'
+                        : isColorBombRocketHWindUpTile
+                        ? 'ring-4 ring-pink-400 shadow-[0_0_36px_rgba(236,72,153,0.95)] animate-match3-windup'
+                        : isColorBombRocketVWindUpTile
+                        ? 'ring-4 ring-cyan-400 shadow-[0_0_36px_rgba(6,182,212,0.95)] animate-match3-windup'
+                        : isColorBombBombWindUpTile
+                        ? 'ring-4 ring-amber-400 shadow-[0_0_40px_rgba(245,158,11,0.95)] animate-match3-bomb-windup'
+                        : isConvertedOverlayTile
+                        ? 'ring-4 ring-white shadow-[0_0_30px_rgba(255,255,255,0.9)] animate-match3-tile-transform'
                         : isSelected
                         ? 'ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.7)]'
                         : isBeingDragged
@@ -2200,6 +2826,14 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                         ? '#7dd3fc'
                         : isRocketBombWindUpTile
                         ? '#fde047'
+                        : isColorBombRocketHWindUpTile
+                        ? '#f472b6'
+                        : isColorBombRocketVWindUpTile
+                        ? '#38bdf8'
+                        : isColorBombBombWindUpTile
+                        ? '#fbbf24'
+                        : isConvertedOverlayTile
+                        ? '#ffffff'
                         : hasCustomSprite
                         ? 'transparent'
                         : visual.borderColor,
@@ -2211,6 +2845,14 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                         ? '0 0 32px rgba(56,189,248,0.95), 0 0 16px rgba(2,132,199,0.9), inset 0 2px 6px rgba(255,255,255,0.85)'
                         : isRocketBombWindUpTile
                         ? '0 0 32px rgba(251,191,36,0.95), 0 0 16px rgba(245,158,11,0.9), inset 0 2px 6px rgba(255,255,255,0.8)'
+                        : isColorBombRocketHWindUpTile
+                        ? '0 0 36px rgba(236,72,153,0.95), 0 0 18px rgba(244,63,94,0.9), inset 0 2px 6px rgba(255,255,255,0.85)'
+                        : isColorBombRocketVWindUpTile
+                        ? '0 0 36px rgba(6,182,212,0.95), 0 0 18px rgba(59,130,246,0.9), inset 0 2px 6px rgba(255,255,255,0.85)'
+                        : isColorBombBombWindUpTile
+                        ? '0 0 40px rgba(245,158,11,0.95), 0 0 20px rgba(244,63,94,0.9), inset 0 2px 6px rgba(255,255,255,0.85)'
+                        : isConvertedOverlayTile
+                        ? '0 0 30px rgba(255,255,255,0.95), inset 0 2px 6px rgba(255,255,255,0.85)'
                         : isBeingDragged
                         ? hasCustomSprite
                           ? '0 8px 24px rgba(0,0,0,0.5), 0 0 16px rgba(251, 191, 36, 0.6)'
@@ -2255,13 +2897,13 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                         {tile.hazard === 'stone' && (
                           <div className="text-slate-300 flex flex-col items-center">
                             <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 drop-shadow" />
-                            <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-tighter">STONE</span>
+                            <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-tighter">{t('match3.hazardStone', undefined, 'STONE')}</span>
                           </div>
                         )}
                         {tile.hazard === 'ice' && (
                           <div className="text-white flex flex-col items-center animate-pulse">
                             <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200 drop-shadow" />
-                            <span className="text-[9px] font-mono font-bold text-white uppercase tracking-tighter">ICE</span>
+                            <span className="text-[9px] font-mono font-bold text-white uppercase tracking-tighter">{t('match3.hazardIce', undefined, 'ICE')}</span>
                           </div>
                         )}
                         {tile.hazard === 'bubble' && (
@@ -2278,44 +2920,86 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                         <img
                           src={visual.imageUrl!}
                           alt={visual.name}
+                          referrerPolicy="no-referrer"
                           className="w-full h-full object-cover pointer-events-none select-none"
                           onError={() => {
                             setFailedImages((prev) => ({ ...prev, [visual.imageUrl!]: true }));
                           }}
                         />
                         {/* Special Tile Overlay Badges on top of custom artwork */}
-                        {tile.special === 'rocket-horizontal' && (
-                          <div className="absolute inset-0 flex items-center justify-center z-20">
-                            <div className="flex items-center gap-0.5 bg-black/60 backdrop-blur-xs p-1.5 rounded-full border border-amber-300 shadow-lg">
-                              <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 transform -rotate-90 animate-pulse" />
-                            </div>
+                        {isConvertedOverlayTile && (
+                          <div className="absolute inset-0 flex items-center justify-center z-30 animate-match3-tile-transform">
+                            {convertedTilesOverlay?.special === 'rocket-horizontal' && (
+                              <div className="flex items-center gap-0.5 bg-pink-950/90 p-1.5 rounded-full border-2 border-pink-300 shadow-[0_0_24px_#ec4899]">
+                                <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-pink-200 transform -rotate-90 animate-pulse" />
+                              </div>
+                            )}
+                            {convertedTilesOverlay?.special === 'rocket-vertical' && (
+                              <div className="flex items-center gap-0.5 bg-cyan-950/90 p-1.5 rounded-full border-2 border-cyan-300 shadow-[0_0_24px_#06b6d4]">
+                                <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200 animate-pulse" />
+                              </div>
+                            )}
+                            {convertedTilesOverlay?.special === 'bomb' && (
+                              <div className="bg-rose-950/90 p-1.5 rounded-full border-2 border-amber-300 shadow-[0_0_24px_#f43f5e]">
+                                <Bomb className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 animate-pulse" />
+                              </div>
+                            )}
                           </div>
                         )}
-                        {tile.special === 'rocket-vertical' && (
-                          <div className="absolute inset-0 flex items-center justify-center z-20">
-                            <div className="flex items-center gap-0.5 bg-black/60 backdrop-blur-xs p-1.5 rounded-full border border-amber-300 shadow-lg">
-                              <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 animate-pulse" />
-                            </div>
-                          </div>
-                        )}
-                        {tile.special === 'bomb' && (
-                          <div className="absolute inset-0 flex items-center justify-center z-20">
-                            <div className="bg-black/60 backdrop-blur-xs p-1.5 rounded-full border border-rose-400 shadow-lg animate-pulse">
-                              <Bomb className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
-                            </div>
-                          </div>
-                        )}
-                        {tile.special === 'color-bomb' && (
-                          <div className="absolute inset-0 flex items-center justify-center z-20">
-                            <div className="bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500 p-1.5 rounded-full shadow-lg border border-white animate-spin">
-                              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                            </div>
-                          </div>
+                        {!isConvertedOverlayTile && (
+                          <>
+                            {tile.special === 'rocket-horizontal' && (
+                              <div className="absolute inset-0 flex items-center justify-center z-20">
+                                <div className="flex items-center gap-0.5 bg-black/60 backdrop-blur-xs p-1.5 rounded-full border border-amber-300 shadow-lg">
+                                  <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 transform -rotate-90 animate-pulse" />
+                                </div>
+                              </div>
+                            )}
+                            {tile.special === 'rocket-vertical' && (
+                              <div className="absolute inset-0 flex items-center justify-center z-20">
+                                <div className="flex items-center gap-0.5 bg-black/60 backdrop-blur-xs p-1.5 rounded-full border border-amber-300 shadow-lg">
+                                  <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 animate-pulse" />
+                                </div>
+                              </div>
+                            )}
+                            {tile.special === 'bomb' && (
+                              <div className="absolute inset-0 flex items-center justify-center z-20">
+                                <div className="bg-black/60 backdrop-blur-xs p-1.5 rounded-full border border-rose-400 shadow-lg animate-pulse">
+                                  <Bomb className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
+                                </div>
+                              </div>
+                            )}
+                            {tile.special === 'color-bomb' && (
+                              <div className="absolute inset-0 flex items-center justify-center z-20">
+                                <div className="bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500 p-1.5 rounded-full shadow-lg border border-white animate-spin">
+                                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     ) : (
                       <div className="relative text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] z-10 flex items-center justify-center pointer-events-none">
-                        {tile.special === 'rocket-horizontal' ? (
+                        {isConvertedOverlayTile ? (
+                          <div className="flex items-center justify-center animate-match3-tile-transform">
+                            {convertedTilesOverlay?.special === 'rocket-horizontal' && (
+                              <div className="flex items-center gap-0.5 bg-pink-950/90 p-1.5 rounded-full border-2 border-pink-300 shadow-[0_0_24px_#ec4899]">
+                                <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-pink-200 transform -rotate-90 animate-pulse" />
+                              </div>
+                            )}
+                            {convertedTilesOverlay?.special === 'rocket-vertical' && (
+                              <div className="flex items-center gap-0.5 bg-cyan-950/90 p-1.5 rounded-full border-2 border-cyan-300 shadow-[0_0_24px_#06b6d4]">
+                                <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200 animate-pulse" />
+                              </div>
+                            )}
+                            {convertedTilesOverlay?.special === 'bomb' && (
+                              <div className="bg-rose-950/90 p-1.5 rounded-full border-2 border-amber-300 shadow-[0_0_24px_#f43f5e]">
+                                <Bomb className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 animate-pulse" />
+                              </div>
+                            )}
+                          </div>
+                        ) : tile.special === 'rocket-horizontal' ? (
                           <div className="flex items-center gap-0.5 bg-black/40 p-1.5 rounded-full border border-amber-300">
                             <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300 transform -rotate-90 animate-pulse" />
                           </div>
@@ -2385,13 +3069,13 @@ export const Match3Game: React.FC<Match3GameProps> = ({
           {/* Double Bomb Wind-Up Energy Connection */}
           {doubleBombWindUp && (
             <svg
-              className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible"
+              className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-hidden"
               aria-hidden="true"
             >
               <defs>
-                <filter id="bb-fire-glow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1" />
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur2" />
+                <filter id="bb-fire-glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur1" />
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur2" />
                   <feMerge>
                     <feMergeNode in="blur2" />
                     <feMergeNode in="blur1" />
@@ -2459,6 +3143,190 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 strokeWidth="3"
                 strokeLinecap="round"
               />
+            </svg>
+          )}
+
+          {/* Color Bomb + Horizontal Rocket Wind-Up Energy Connection & Rainbow Arcs */}
+          {colorBombRocketHWindUp && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="cbrh-rainbow-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ec4899" />
+                  <stop offset="25%" stopColor="#f59e0b" />
+                  <stop offset="50%" stopColor="#10b981" />
+                  <stop offset="75%" stopColor="#06b6d4" />
+                  <stop offset="100%" stopColor="#8b5cf6" />
+                </linearGradient>
+                <filter id="cbrh-rainbow-glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1" />
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur2" />
+                  <feMerge>
+                    <feMergeNode in="blur2" />
+                    <feMergeNode in="blur1" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <line
+                x1={`${((colorBombRocketHWindUp.c1 + 0.5) / match3Config.cols) * 100}%`}
+                y1={`${((colorBombRocketHWindUp.r1 + 0.5) / match3Config.rows) * 100}%`}
+                x2={`${((colorBombRocketHWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                y2={`${((colorBombRocketHWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                stroke="url(#cbrh-rainbow-grad)"
+                strokeWidth="9"
+                strokeLinecap="round"
+                filter="url(#cbrh-rainbow-glow)"
+                className="animate-match3-rainbow-link-pulse"
+              />
+              <line
+                x1={`${((colorBombRocketHWindUp.c1 + 0.5) / match3Config.cols) * 100}%`}
+                y1={`${((colorBombRocketHWindUp.r1 + 0.5) / match3Config.rows) * 100}%`}
+                x2={`${((colorBombRocketHWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                y2={`${((colorBombRocketHWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                stroke="#ffffff"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+              {colorBombRocketHWindUp.convertedCoords.map((coord, idx) => (
+                <line
+                  key={`cbrh_arc_${idx}`}
+                  x1={`${((colorBombRocketHWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                  y1={`${((colorBombRocketHWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                  x2={`${((coord.col + 0.5) / match3Config.cols) * 100}%`}
+                  y2={`${((coord.row + 0.5) / match3Config.rows) * 100}%`}
+                  stroke="url(#cbrh-rainbow-grad)"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeDasharray="6,4"
+                  filter="url(#cbrh-rainbow-glow)"
+                  className="animate-match3-rainbow-link-pulse"
+                />
+              ))}
+            </svg>
+          )}
+
+          {/* Color Bomb + Vertical Rocket Wind-Up Energy Connection & Cyan Arcs */}
+          {colorBombRocketVWindUp && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="cbrv-cyan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#38bdf8" />
+                  <stop offset="30%" stopColor="#06b6d4" />
+                  <stop offset="70%" stopColor="#6366f1" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </linearGradient>
+                <filter id="cbrv-cyan-glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1" />
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur2" />
+                  <feMerge>
+                    <feMergeNode in="blur2" />
+                    <feMergeNode in="blur1" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <line
+                x1={`${((colorBombRocketVWindUp.c1 + 0.5) / match3Config.cols) * 100}%`}
+                y1={`${((colorBombRocketVWindUp.r1 + 0.5) / match3Config.rows) * 100}%`}
+                x2={`${((colorBombRocketVWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                y2={`${((colorBombRocketVWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                stroke="url(#cbrv-cyan-grad)"
+                strokeWidth="9"
+                strokeLinecap="round"
+                filter="url(#cbrv-cyan-glow)"
+                className="animate-match3-rainbow-link-pulse"
+              />
+              <line
+                x1={`${((colorBombRocketVWindUp.c1 + 0.5) / match3Config.cols) * 100}%`}
+                y1={`${((colorBombRocketVWindUp.r1 + 0.5) / match3Config.rows) * 100}%`}
+                x2={`${((colorBombRocketVWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                y2={`${((colorBombRocketVWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                stroke="#ffffff"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+              {colorBombRocketVWindUp.convertedCoords.map((coord, idx) => (
+                <line
+                  key={`cbrv_arc_${idx}`}
+                  x1={`${((colorBombRocketVWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                  y1={`${((colorBombRocketVWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                  x2={`${((coord.col + 0.5) / match3Config.cols) * 100}%`}
+                  y2={`${((coord.row + 0.5) / match3Config.rows) * 100}%`}
+                  stroke="url(#cbrv-cyan-grad)"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeDasharray="6,4"
+                  filter="url(#cbrv-cyan-glow)"
+                  className="animate-match3-rainbow-link-pulse"
+                />
+              ))}
+            </svg>
+          )}
+
+          {/* Color Bomb + Bomb Gravitational Buildup & Prismatic Tendrils */}
+          {colorBombBombWindUp && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="cbb-fiery-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#f43f5e" />
+                  <stop offset="35%" stopColor="#fbbf24" />
+                  <stop offset="70%" stopColor="#ec4899" />
+                  <stop offset="100%" stopColor="#7c3aed" />
+                </linearGradient>
+                <filter id="cbb-fiery-glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1" />
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur2" />
+                  <feMerge>
+                    <feMergeNode in="blur2" />
+                    <feMergeNode in="blur1" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <line
+                x1={`${((colorBombBombWindUp.c1 + 0.5) / match3Config.cols) * 100}%`}
+                y1={`${((colorBombBombWindUp.r1 + 0.5) / match3Config.rows) * 100}%`}
+                x2={`${((colorBombBombWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                y2={`${((colorBombBombWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                stroke="url(#cbb-fiery-grad)"
+                strokeWidth="10"
+                strokeLinecap="round"
+                filter="url(#cbb-fiery-glow)"
+                className="animate-match3-rainbow-link-pulse"
+              />
+              <line
+                x1={`${((colorBombBombWindUp.c1 + 0.5) / match3Config.cols) * 100}%`}
+                y1={`${((colorBombBombWindUp.r1 + 0.5) / match3Config.rows) * 100}%`}
+                x2={`${((colorBombBombWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                y2={`${((colorBombBombWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                stroke="#ffffff"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+              {colorBombBombWindUp.convertedCoords.map((coord, idx) => (
+                <line
+                  key={`cbb_arc_${idx}`}
+                  x1={`${((colorBombBombWindUp.c2 + 0.5) / match3Config.cols) * 100}%`}
+                  y1={`${((colorBombBombWindUp.r2 + 0.5) / match3Config.rows) * 100}%`}
+                  x2={`${((coord.col + 0.5) / match3Config.cols) * 100}%`}
+                  y2={`${((coord.row + 0.5) / match3Config.rows) * 100}%`}
+                  stroke="url(#cbb-fiery-grad)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray="6,4"
+                  filter="url(#cbb-fiery-glow)"
+                  className="animate-match3-rainbow-link-pulse"
+                />
+              ))}
             </svg>
           )}
 
@@ -2605,30 +3473,30 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                 style={{
                   left: `${((doubleBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
                   top: `${((doubleBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
-                  width: '140px',
-                  height: '140px',
+                  width: '96px',
+                  height: '96px',
                 }}
               />
 
               {/* Expanding shockwave ring 1 (Orange/Gold) */}
               <div
-                className="absolute pointer-events-none rounded-full border-4 border-amber-400 shadow-[0_0_40px_#f59e0b] z-40 animate-match3-double-bomb-ring-1"
+                className="absolute pointer-events-none rounded-full border-4 border-amber-400 shadow-[0_0_24px_#f59e0b] z-40 animate-match3-double-bomb-ring-1"
                 style={{
                   left: `${((doubleBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
                   top: `${((doubleBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
-                  width: '160px',
-                  height: '160px',
+                  width: '106px',
+                  height: '106px',
                 }}
               />
 
               {/* Expanding shockwave ring 2 (Hot Rose/Red) */}
               <div
-                className="absolute pointer-events-none rounded-full border-4 border-rose-500 shadow-[0_0_45px_#f43f5e] z-40 animate-match3-double-bomb-ring-2"
+                className="absolute pointer-events-none rounded-full border-4 border-rose-500 shadow-[0_0_28px_#f43f5e] z-40 animate-match3-double-bomb-ring-2"
                 style={{
                   left: `${((doubleBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
                   top: `${((doubleBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
-                  width: '180px',
-                  height: '180px',
+                  width: '116px',
+                  height: '116px',
                 }}
               />
             </>
@@ -2704,6 +3572,142 @@ export const Match3Game: React.FC<Match3GameProps> = ({
             </>
           )}
 
+          {/* Color Bomb + Horizontal Rocket Attack Visuals (Rainbow Chain Reaction) */}
+          {colorBombRocketHAttack && (
+            <>
+              {colorBombRocketHAttack.clearedRows.map((rIdx) => {
+                const topPct = ((rIdx + 0.5) / match3Config.rows) * 100;
+                return (
+                  <div
+                    key={`cbrh_beam_${rIdx}`}
+                    className="absolute left-0 right-0 pointer-events-none z-40 overflow-visible"
+                    style={{ top: `${topPct}%`, transform: 'translateY(-50%)' }}
+                  >
+                    {/* Rainbow horizontal energy laser beam */}
+                    <div className="w-full h-5 sm:h-6 bg-gradient-to-r from-pink-500 via-amber-300 via-cyan-400 to-pink-500 shadow-[0_0_35px_#ec4899] animate-match3-rainbow-beam-h" />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 animate-match3-rocket-shoot-left"
+                      style={{ ['--start-x' as any]: '50%' }}
+                    >
+                      <div className="flex items-center -rotate-90 text-pink-200 filter drop-shadow-[0_0_14px_#ec4899]">
+                        <Rocket className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                    </div>
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 animate-match3-rocket-shoot-right"
+                      style={{ ['--start-x' as any]: '50%' }}
+                    >
+                      <div className="flex items-center rotate-90 text-cyan-200 filter drop-shadow-[0_0_14px_#06b6d4]">
+                        <Rocket className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Color Bomb + Vertical Rocket Attack Visuals (Vertical Laser Storm) */}
+          {colorBombRocketVAttack && (
+            <>
+              {colorBombRocketVAttack.clearedCols.map((cIdx) => {
+                const leftPct = ((cIdx + 0.5) / match3Config.cols) * 100;
+                return (
+                  <div
+                    key={`cbrv_beam_${cIdx}`}
+                    className="absolute top-0 bottom-0 pointer-events-none z-40 overflow-visible"
+                    style={{ left: `${leftPct}%`, transform: 'translateX(-50%)' }}
+                  >
+                    {/* Vertical laser storm beam */}
+                    <div className="h-full w-5 sm:w-6 bg-gradient-to-b from-cyan-400 via-white via-sky-300 to-indigo-500 shadow-[0_0_35px_#06b6d4] animate-match3-laser-storm-beam-v" />
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 animate-match3-rocket-shoot-up"
+                      style={{ ['--start-y' as any]: '50%' }}
+                    >
+                      <div className="flex items-center text-cyan-200 filter drop-shadow-[0_0_14px_#38bdf8]">
+                        <Rocket className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                    </div>
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 animate-match3-rocket-shoot-down"
+                      style={{ ['--start-y' as any]: '50%' }}
+                    >
+                      <div className="flex items-center rotate-180 text-indigo-200 filter drop-shadow-[0_0_14px_#6366f1]">
+                        <Rocket className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Color Bomb + Bomb Attack Visuals (Rainbow Mega Explosion) */}
+          {colorBombBombAttack && (
+            <>
+              {/* Full screen flash */}
+              <div className="absolute inset-0 pointer-events-none z-50 animate-match3-mega-flash" />
+
+              {/* Secondary bursts at each converted bomb */}
+              {colorBombBombAttack.convertedCoords.map((coord, idx) => (
+                <div
+                  key={`cbb_sub_${idx}`}
+                  className="absolute pointer-events-none rounded-full bg-gradient-to-r from-amber-300 via-rose-500 to-purple-600 z-40 animate-match3-mega-burst"
+                  style={{
+                    left: `${((coord.col + 0.5) / match3Config.cols) * 100}%`,
+                    top: `${((coord.row + 0.5) / match3Config.rows) * 100}%`,
+                    width: '110px',
+                    height: '110px',
+                  }}
+                />
+              ))}
+
+              {/* Central mega explosion core - visibly larger (220px+) */}
+              <div
+                className="absolute pointer-events-none rounded-full bg-gradient-to-tr from-rose-500 via-amber-300 via-cyan-300 to-white z-40 animate-match3-rainbow-mega-burst"
+                style={{
+                  left: `${((colorBombBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
+                  top: `${((colorBombBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
+                  width: '220px',
+                  height: '220px',
+                }}
+              />
+
+              {/* Expanding shockwave ring 1 (Prismatic Gold) */}
+              <div
+                className="absolute pointer-events-none rounded-full border-4 border-amber-300 shadow-[0_0_50px_#f59e0b] z-40 animate-match3-mega-ring-1"
+                style={{
+                  left: `${((colorBombBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
+                  top: `${((colorBombBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
+                  width: '240px',
+                  height: '240px',
+                }}
+              />
+
+              {/* Expanding shockwave ring 2 (Hot Magenta) */}
+              <div
+                className="absolute pointer-events-none rounded-full border-4 border-rose-500 shadow-[0_0_55px_#ec4899] z-40 animate-match3-mega-ring-2"
+                style={{
+                  left: `${((colorBombBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
+                  top: `${((colorBombBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
+                  width: '270px',
+                  height: '270px',
+                }}
+              />
+
+              {/* Expanding shockwave ring 3 (Electric Cyan) */}
+              <div
+                className="absolute pointer-events-none rounded-full border-4 border-cyan-400 shadow-[0_0_60px_#06b6d4] z-40 animate-match3-mega-ring-3"
+                style={{
+                  left: `${((colorBombBombAttack.centerCol + 0.5) / match3Config.cols) * 100}%`,
+                  top: `${((colorBombBombAttack.centerRow + 0.5) / match3Config.rows) * 100}%`,
+                  width: '300px',
+                  height: '300px',
+                }}
+              />
+            </>
+          )}
+
           {/* Arcade Combo Banner Popup */}
           {comboBanner && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none flex flex-col items-center justify-center animate-match3-combo-banner select-none">
@@ -2713,6 +3717,12 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                     ? 'bg-gradient-to-r from-rose-600 via-orange-600 to-amber-500 shadow-[0_0_40px_rgba(244,63,94,0.95)] border-rose-300'
                     : comboBanner.type === 'double-rocket'
                     ? 'bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 shadow-[0_0_40px_rgba(56,189,248,0.95)] border-sky-300'
+                    : comboBanner.type === 'color-bomb-rocket-h'
+                    ? 'bg-gradient-to-r from-pink-600 via-amber-500 to-cyan-500 shadow-[0_0_45px_rgba(236,72,153,0.95)] border-pink-300'
+                    : comboBanner.type === 'color-bomb-rocket-v'
+                    ? 'bg-gradient-to-r from-cyan-600 via-sky-500 to-indigo-600 shadow-[0_0_45px_rgba(6,182,212,0.95)] border-cyan-300'
+                    : comboBanner.type === 'color-bomb-bomb'
+                    ? 'bg-gradient-to-r from-rose-600 via-amber-500 to-purple-600 shadow-[0_0_45px_rgba(244,63,94,0.95)] border-amber-300'
                     : 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 shadow-[0_0_35px_rgba(245,158,11,0.9)] border-amber-300'
                 }`}
               >
@@ -2728,6 +3738,24 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                     <span>{comboBanner.title}</span>
                     <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-sky-200 rotate-45 shrink-0" />
                   </>
+                ) : comboBanner.type === 'color-bomb-rocket-h' ? (
+                  <>
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-pink-200 shrink-0 animate-spin" />
+                    <span>{comboBanner.title}</span>
+                    <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200 rotate-45 shrink-0" />
+                  </>
+                ) : comboBanner.type === 'color-bomb-rocket-v' ? (
+                  <>
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200 shrink-0 animate-spin" />
+                    <span>{comboBanner.title}</span>
+                    <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-sky-200 -rotate-45 shrink-0" />
+                  </>
+                ) : comboBanner.type === 'color-bomb-bomb' ? (
+                  <>
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-amber-200 shrink-0 animate-spin" />
+                    <span>{comboBanner.title}</span>
+                    <Bomb className="w-5 h-5 sm:w-6 sm:h-6 text-rose-200 shrink-0" />
+                  </>
                 ) : (
                   <>
                     <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-amber-200 -rotate-45 shrink-0" />
@@ -2742,6 +3770,12 @@ export const Match3Game: React.FC<Match3GameProps> = ({
                     ? 'text-rose-300 border-rose-400/40'
                     : comboBanner.type === 'double-rocket'
                     ? 'text-sky-300 border-sky-400/40'
+                    : comboBanner.type === 'color-bomb-rocket-h'
+                    ? 'text-pink-300 border-pink-400/40'
+                    : comboBanner.type === 'color-bomb-rocket-v'
+                    ? 'text-cyan-300 border-cyan-400/40'
+                    : comboBanner.type === 'color-bomb-bomb'
+                    ? 'text-amber-300 border-amber-400/40'
                     : 'text-amber-300 border-amber-400/40'
                 }`}
               >
@@ -2823,22 +3857,65 @@ export const Match3Game: React.FC<Match3GameProps> = ({
               </div>
             );
           })}
+          </div>
         </div>
       </main>
 
       {/* Footer Instructions / Progress */}
       <footer className="w-full max-w-4xl px-3 sm:px-4 h-9 sm:h-10 shrink-0 flex items-center justify-between text-xs text-slate-400 z-20 overflow-hidden select-none">
-        <div className="flex items-center gap-2 truncate">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-          <span className="truncate">
-            {activeTheme?.layout?.footerSponsor?.visible !== false && activeTheme?.branding?.subtitle
-              ? activeTheme.branding.subtitle
-              : t('studio.match3Tip', undefined, 'Swap adjacent tiles to create 3+ matches!')}
-          </span>
-        </div>
+        {activeTheme?.layout?.footerSponsor?.visible !== false ? (
+          <div
+            className={`flex items-center gap-2 truncate transition-all ${
+              editableLayout
+                ? `cursor-pointer pointer-events-auto ${
+                    selectedElementKey === 'footerSponsor'
+                      ? 'ring-2 ring-amber-400 rounded-lg px-2 py-0.5'
+                      : 'hover:ring-1 hover:ring-slate-400/60 rounded-lg px-2 py-0.5'
+                  }`
+                : ''
+            }`}
+            onClick={(e) => {
+              if (editableLayout) {
+                e.stopPropagation();
+                onSelectElementKey?.('footerSponsor');
+              }
+            }}
+            onPointerDown={(e) => {
+              if (editableLayout) {
+                e.stopPropagation();
+                onSelectElementKey?.('footerSponsor');
+                onElementPointerDown?.('footerSponsor', false, e);
+              }
+            }}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <span className="truncate">
+              {activeTheme?.branding?.subtitle || t('studio.match3Tip', undefined, 'Swap adjacent tiles to create 3+ matches!')}
+            </span>
+          </div>
+        ) : editableLayout ? (
+          <div
+            className={`flex items-center gap-2 truncate px-2 py-0.5 rounded-lg border border-dashed border-slate-700 text-slate-500 cursor-pointer pointer-events-auto ${
+              selectedElementKey === 'footerSponsor' ? 'ring-2 ring-amber-400 text-amber-400' : ''
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectElementKey?.('footerSponsor');
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onSelectElementKey?.('footerSponsor');
+              onElementPointerDown?.('footerSponsor', false, e);
+            }}
+          >
+            <span className="text-[10px]">{t('studio.footerSponsorHidden', undefined, 'Footer Sponsor (Hidden)')}</span>
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
         <div className="flex items-center gap-3 font-mono shrink-0">
-          <span className="tabular-nums">Matches: <strong className="text-slate-200">{matchesCount}</strong></span>
-          <span className="tabular-nums">Specials: <strong className="text-amber-400">{specialsCreatedCount}</strong></span>
+          <span className="tabular-nums">{t('match3.matches', undefined, 'Matches:')} <strong className="text-slate-200">{matchesCount}</strong></span>
+          <span className="tabular-nums">{t('match3.specials', undefined, 'Specials:')} <strong className="text-amber-400">{specialsCreatedCount}</strong></span>
         </div>
       </footer>
 
@@ -2861,7 +3938,7 @@ export const Match3Game: React.FC<Match3GameProps> = ({
             {t('common.timeUp', undefined, 'GAME COMPLETE')}
           </h2>
           <p className="text-xl font-bold font-mono text-slate-100">
-            Final Score: {score.toLocaleString()}
+            {t('game.finalScoreLabel', undefined, 'Final Score:')} {score.toLocaleString()}
           </p>
         </div>
       )}

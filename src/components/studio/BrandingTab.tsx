@@ -15,9 +15,11 @@ import {
 
 interface BrandingTabProps {
   theme: GameTheme;
-  onChange: (updated: GameTheme) => void;
-  onUploadAsset: (file: File, fieldKey: string) => Promise<string>;
-  uploadingAsset: string | null;
+  onChange?: (updated: GameTheme) => void;
+  onFieldChange?: (field: keyof GameTheme, value: any) => void;
+  onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
+  uploadingAsset?: string | null;
+  isViewer?: boolean;
 }
 
 const PARTICLE_PRESETS = [
@@ -30,10 +32,30 @@ const PARTICLE_PRESETS = [
 export const BrandingTab: React.FC<BrandingTabProps> = ({
   theme,
   onChange,
+  onFieldChange,
   onUploadAsset,
   uploadingAsset,
+  isViewer = false,
 }) => {
   const { t } = useLocalization();
+
+  // Authoritative theme change dispatcher: supports onChange and adapts onFieldChange
+  const handleThemeChange = (updated: GameTheme) => {
+    if (typeof onChange === 'function') {
+      onChange(updated);
+    } else if (typeof onFieldChange === 'function') {
+      if (updated.branding !== theme.branding) {
+        onFieldChange('branding', updated.branding);
+      }
+      if (updated.visuals_config !== theme.visuals_config) {
+        onFieldChange('visuals_config', updated.visuals_config);
+      }
+      if (updated.layout !== theme.layout) {
+        onFieldChange('layout', updated.layout);
+      }
+    }
+  };
+
   const branding = theme.branding || {
     gameTitle: theme.name || 'Custom Theme',
     subtitle: 'Catch items, avoid hazards!',
@@ -58,7 +80,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
   };
 
   const handleUpdateBranding = (updates: Partial<typeof branding>) => {
-    onChange({
+    handleThemeChange({
       ...theme,
       gameTitle: updates.gameTitle ?? theme.gameTitle,
       subtitle: updates.subtitle ?? theme.subtitle,
@@ -70,7 +92,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
   };
 
   const handleUpdateVisuals = (updates: Partial<typeof visuals>) => {
-    onChange({
+    handleThemeChange({
       ...theme,
       visuals_config: {
         ...visuals,
@@ -81,14 +103,10 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || typeof onUploadAsset !== 'function') return;
     try {
       const url = await onUploadAsset(file, key);
-      handleUpdateBranding({
-        clientLogoUrl: url,
-        logoUrl: url,
-      });
-      onChange({
+      handleThemeChange({
         ...theme,
         logo: url,
         clientLogo: url,

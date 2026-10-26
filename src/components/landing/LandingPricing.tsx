@@ -258,7 +258,7 @@ export const LandingPricing: React.FC = () => {
                   {t('landing.pricingGameSelectLabel')}
                 </label>
                 <span className="text-xs font-semibold text-slate-400">
-                  {games.length} {games.length === 1 ? 'Game' : 'Games'}
+                  {games.length} {games.length === 1 ? t('common.game', undefined, 'Game') : t('common.games', undefined, 'Games')}
                 </span>
               </div>
 

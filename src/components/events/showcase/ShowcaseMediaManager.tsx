@@ -412,7 +412,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
             onClick={() => setError(null)}
             className="text-[11px] text-red-400 hover:text-red-200 underline cursor-pointer"
           >
-            Dismiss
+            {t('common.dismiss', undefined, 'Dismiss')}
           </button>
         </div>
       )}
@@ -444,21 +444,21 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
 
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-slate-100">
-                Drag & Drop Photos and Videos, or <span className="text-amber-400 underline">{t('common.browseFiles')}</span>
+                {t('showcase.dragDropPhotosVideos', undefined, 'Drag & Drop Photos and Videos, or')} <span className="text-amber-400 underline">{t('common.browseFiles')}</span>
               </h4>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Upload campaign photography, live activation clips, and attendee highlights for the event showcase.
+                {t('showcase.uploadCampaignPhotosDesc', undefined, 'Upload campaign photography, live activation clips, and attendee highlights for the event showcase.')}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-[11px] text-slate-400">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800">
                 <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
-                Images: JPG, PNG, WEBP (Max 25MB)
+                {t('showcase.imagesFormatLimit', undefined, 'Images: JPG, PNG, WEBP (Max 25MB)')}
               </span>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800">
                 <Film className="w-3.5 h-3.5 text-purple-400" />
-                Videos: MP4, WEBM, MOV (Max 200MB)
+                {t('showcase.videosFormatLimit', undefined, 'Videos: MP4, WEBM, MOV (Max 200MB)')}
               </span>
             </div>
           </div>
@@ -487,7 +487,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>All Media ({mediaList.length})</span>
+            <span>{t('showcase.allMediaFilter', undefined, 'All Media')} ({mediaList.length})</span>
           </button>
 
           <button
@@ -500,7 +500,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
             }`}
           >
             <ImageIcon className="w-3.5 h-3.5" />
-            <span>Photos ({photoCount})</span>
+            <span>{t('showcase.photosFilter', undefined, 'Photos')} ({photoCount})</span>
           </button>
 
           <button
@@ -513,7 +513,7 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
             }`}
           >
             <Film className="w-3.5 h-3.5" />
-            <span>Videos ({videoCount})</span>
+            <span>{t('showcase.videosFilter', undefined, 'Videos')} ({videoCount})</span>
           </button>
         </div>
 

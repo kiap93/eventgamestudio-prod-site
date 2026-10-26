@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import { LandingDemoModal } from '../landing/LandingDemoModal';
+import { SalesPartnerTranslationModal } from './SalesPartnerTranslationModal';
 import { SEO } from '../common/SEO';
 import {
   Gamepad2,
@@ -31,6 +32,29 @@ import {
   Zap,
 } from 'lucide-react';
 import { COUNTRIES, getCountryByCode, POPULAR_COUNTRY_CODES } from '../../lib/countryUtils';
+import { getDefaultThemeForGameType } from '../../themes/registry';
+import { isStaleAssetUrl, normalizeGameType } from '../../themes/gameAssetResolver';
+
+export function getSalesGameDisplayCover(game: SalesGameCatalogItem): string {
+  const canonicalType = normalizeGameType(game.game_type || game.slug);
+  const defaultBg =
+    getDefaultThemeForGameType(canonicalType).background_url ||
+    `/assets/games/${canonicalType}/themes/default/background.png`;
+
+  if (!game.cover_image_url || isStaleAssetUrl(game.cover_image_url)) {
+    return defaultBg;
+  }
+
+  // Cross-game check: ensure cover_image_url doesn't point to another game's assets
+  if (game.cover_image_url.includes('/assets/games/')) {
+    const match = game.cover_image_url.match(/\/assets\/games\/([^/]+)\//);
+    if (match && match[1] !== canonicalType) {
+      return defaultBg;
+    }
+  }
+
+  return game.cover_image_url;
+}
 
 interface SalesGameDetailPageProps {
   gameId: string;
@@ -49,6 +73,9 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
 
   // Playable Demo Modal state
   const [demoModalOpen, setDemoModalOpen] = useState<boolean>(false);
+
+  // AI Pitch Kit Translation Modal state
+  const [showTranslateModal, setShowTranslateModal] = useState<boolean>(false);
 
   const loadGameDetail = useCallback(async () => {
     if (!gameId) return;
@@ -96,11 +123,25 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
     return getCountryByCode(selectedCountry);
   }, [selectedCountry]);
 
+  const pitchKitText = useMemo(() => {
+    if (!game) return '';
+    const steps = (game.gameplay_instructions || [])
+      .map((s) => `${s.step}. ${s.title}: ${s.desc}`)
+      .join('\n');
+    const events = (game.suitable_event_types || [])
+      .map((e) => `• ${e.name}: ${e.why}`)
+      .join('\n');
+    const branding = (game.customization_capabilities || [])
+      .map((c) => `• ${c.title}: ${c.description}`)
+      .join('\n');
+    return `Game: ${game.name}\nHighlight: ${game.highlight}\n\nDescription:\n${game.description}\n\nGameplay Flow:\n${steps}\n\nBrand Customization:\n${branding}\n\nIdeal Activations:\n${events}`;
+  }, [game]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       <SEO
         robots="noindex, follow"
-        title={`${game?.name || 'Game Details'} | Sales Catalogue | Event Game Studio`}
+        title={`${game?.name || t('sales.games.title')} | ${t('sales.nav.brandTitle')}`}
       />
 
       <SalesNavbar activeSection="games" />
@@ -115,11 +156,11 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               className="inline-flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Game Catalogue</span>
+              <span>{t('sales.games.backToCatalogue')}</span>
             </button>
             <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
             <span className="text-amber-400 font-semibold truncate max-w-xs">
-              {game?.name || 'Game Specifications'}
+              {game?.name || t('sales.games.title')}
             </span>
           </div>
 
@@ -127,7 +168,7 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <label htmlFor="detail-country-select" className="text-xs text-slate-400 flex items-center gap-1">
               <Globe className="w-3.5 h-3.5 text-amber-400" />
-              <span>Quote Country:</span>
+              <span>{t('sales.games.pricingCountry')}</span>
             </label>
             <select
               id="detail-country-select"
@@ -175,42 +216,45 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               <AlertCircle className="w-7 h-7" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">
-                {is404 ? 'Game Not Available' : 'Unable to Load Game'}
-              </h2>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed">{errorMessage}</p>
+              <h3 className="text-lg font-bold text-white">
+                {is404 ? 'Game Not Found' : t('sales.aiTranslator.errorTitle')}
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">{errorMessage}</p>
             </div>
-            <div className="pt-2 flex justify-center gap-3">
+            <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 onClick={() => navigateTo('/sales/games')}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
-                Return to Catalogue
+                {t('sales.games.backToCatalogue')}
               </button>
-              {!is404 && (
-                <button
-                  onClick={() => loadGameDetail()}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                >
-                  Retry
-                </button>
-              )}
+              <button
+                onClick={() => loadGameDetail()}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                {t('sales.aiTranslator.retry')}
+              </button>
             </div>
           </div>
         )}
 
-        {/* Loaded Game Detail View */}
+        {/* Loaded Game Details */}
         {!isLoading && !errorMessage && game && (
-          <div className="space-y-10">
-            {/* Game Hero Banner */}
+          <div className="space-y-8">
+            {/* Hero Cover Card */}
             <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
-              <div className="relative h-72 sm:h-80 md:h-96 w-full overflow-hidden">
+              <div className="relative aspect-video sm:aspect-[21/9] w-full bg-slate-950 overflow-hidden">
                 <img
-                  src={game.cover_image_url}
+                  src={getSalesGameDisplayCover(game)}
                   alt={game.name}
                   className="w-full h-full object-cover object-center"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/assets/background.png';
+                    const target = e.currentTarget as HTMLImageElement;
+                    const canonicalGameType = normalizeGameType(game.game_type || game.slug);
+                    const fallbackSrc = `/assets/games/${canonicalGameType}/themes/default/background.png`;
+                    if (target.src !== fallbackSrc && !target.src.endsWith(fallbackSrc)) {
+                      target.src = fallbackSrc;
+                    }
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/20" />
@@ -224,11 +268,11 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                     {game.has_playable_preview ? (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-md">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Interactive Demo Available</span>
+                        <span>{t('sales.games.previewPlayable')}</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-900/80 text-slate-400 border border-slate-700 backdrop-blur-md">
-                        <span>Preview Unavailable</span>
+                        <span>{t('sales.games.previewUnavailable')}</span>
                       </span>
                     )}
                   </div>
@@ -248,13 +292,24 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                         className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition-all cursor-pointer transform hover:scale-[1.02]"
                       >
                         <Play className="w-4 h-4 fill-current" />
-                        <span>Launch Live Demo Playtest</span>
+                        <span>{t('sales.games.playDemo')}</span>
                       </button>
                     )}
 
+                    {/* AI Translate Pitch Kit Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTranslateModal(true)}
+                      className="inline-flex items-center gap-2 px-5 py-3 bg-slate-900/90 hover:bg-slate-800 text-amber-400 hover:text-amber-300 border border-amber-500/30 font-bold text-xs rounded-2xl transition-all cursor-pointer shadow-lg"
+                      title={t('sales.games.aiTranslatePitchDesc')}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>{t('sales.games.aiTranslatePitch')}</span>
+                    </button>
+
                     <div className="inline-flex items-center gap-2 px-4 py-3 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl text-xs text-slate-300">
                       <Clock className="w-4 h-4 text-amber-400" />
-                      <span>Standard duration: {game.default_duration_seconds} seconds</span>
+                      <span>{game.default_duration_seconds}s</span>
                     </div>
                   </div>
                 </div>
@@ -266,33 +321,33 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-1.5">
                 <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-amber-400" />
-                  <span>Session Pace</span>
+                  <span>{t('sales.games.sessionPace')}</span>
                 </div>
                 <div className="text-base font-bold text-white">
-                  {game.default_duration_seconds}s Fast Round
+                  {t('sales.games.fastRound', { seconds: game.default_duration_seconds })}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Customizable from 10s to 120s per session
+                  {t('sales.games.paceDesc')}
                 </p>
               </div>
 
               <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-1.5">
                 <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-amber-400" />
-                  <span>Throughput</span>
+                  <span>{t('sales.games.throughput')}</span>
                 </div>
                 <div className="text-base font-bold text-white">
-                  60–100+ Players / Hr
+                  {t('sales.games.throughputValue')}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  High queue velocity prevents booth congestion
+                  {t('sales.games.throughputDesc')}
                 </p>
               </div>
 
               <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-1.5">
                 <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
                   <Smartphone className="w-4 h-4 text-amber-400" />
-                  <span>Input Methods</span>
+                  <span>{t('sales.games.inputMethods')}</span>
                 </div>
                 <div className="text-base font-bold text-white truncate">
                   {game.supported_input_types[0] || 'Touch & Keyboard'}
@@ -305,13 +360,13 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-1.5">
                 <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
                   <Layers className="w-4 h-4 text-amber-400" />
-                  <span>Orientations</span>
+                  <span>{t('sales.games.orientations')}</span>
                 </div>
                 <div className="text-base font-bold text-white">
-                  Portrait &amp; Landscape
+                  {t('sales.games.portraitLandscape')}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Kiosks, mobile, tablets, &amp; stage LED screens
+                  {t('sales.games.orientationsDesc')}
                 </p>
               </div>
             </div>
@@ -320,13 +375,13 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
               <div className="space-y-1">
                 <div className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                  Attendee Experience
+                  {t('sales.games.attendeeExperience')}
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black text-white">
-                  Step-by-Step Gameplay Flow
+                  {t('sales.games.gameplayFlow')}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400">
-                  Walk prospective clients through how their attendees will interact with the game on site.
+                  {t('sales.games.walkProspectiveClients')}
                 </p>
               </div>
 
@@ -354,13 +409,13 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
                 <div className="space-y-1">
                   <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                    White-Label Customization
+                    {t('sales.games.whiteLabelCustomization')}
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
-                    Brandable Asset Slots
+                    {t('sales.games.brandCustomization')}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-400">
-                    What can the client personalize to match their branding and campaign visuals?
+                    {t('sales.games.whatClientPersonalize')}
                   </p>
                 </div>
 
@@ -388,13 +443,13 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
                 <div className="space-y-1">
                   <div className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                    Use Cases &amp; Venues
+                    {t('sales.games.useCases')}
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
-                    Ideal Event Activations
+                    {t('sales.games.idealActivations')}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-400">
-                    Recommend the best event scenarios to client marketing teams and event managers.
+                    {t('sales.games.recommendBestScenarios')}
                   </p>
                 </div>
 
@@ -422,13 +477,13 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
                 <div className="space-y-1">
                   <div className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                    License &amp; Duration Tiers
+                    {t('sales.games.durationTiers')}
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
-                    Event Duration Pricing Table
+                    {t('sales.games.standardPricing')}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-400">
-                    Authoritative duration tiers for {currentCountryInfo?.name || selectedCountry}. Includes free Setup Day access.
+                    {t('sales.games.setupDayIncluded')}
                   </p>
                 </div>
 
@@ -456,7 +511,7 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                     onClick={() => navigateTo('/contact')}
                     className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5"
                   >
-                    <span>Contact Enterprise Activation Team</span>
+                    <span>{t('sales.games.contactEnterpriseTeam')}</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -466,13 +521,13 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                     <table className="w-full text-left text-xs text-slate-300 border-collapse">
                       <thead>
                         <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
-                          <th className="py-3 px-4 font-bold">Event Duration</th>
-                          <th className="py-3 px-4 font-bold">License Window</th>
-                          <th className="py-3 px-4 font-bold">Setup Day Included</th>
-                          <th className="py-3 px-4 font-bold text-right">License Price</th>
+                          <th className="py-3 px-4 font-bold">{t('sales.games.calendarDays')}</th>
+                          <th className="py-3 px-4 font-bold">{t('sales.customers.windowCol')}</th>
+                          <th className="py-3 px-4 font-bold">{t('sales.games.setupDayIncluded')}</th>
+                          <th className="py-3 px-4 font-bold text-right">{t('sales.games.price')}</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-850">
+                      <tbody className="divide-y divide-slate-855">
                         {game.pricing.tiers.map((tier) => (
                           <tr
                             key={tier.id}
@@ -484,17 +539,17 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                               <span>{tier.duration_label}</span>
                               {tier.is_base && (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                  Base Tier
+                                  {t('sales.games.baseTier')}
                                 </span>
                               )}
                             </td>
                             <td className="py-3.5 px-4 text-slate-400">
                               {tier.min_days === tier.max_days
-                                ? `${tier.min_days} calendar day`
-                                : `${tier.min_days} to ${tier.max_days || 'unlimited'} calendar days`}
+                                ? t('sales.games.calendarDayCount', { count: tier.min_days })
+                                : t('sales.games.calendarDayRange', { min: tier.min_days, max: tier.max_days || 'unlimited' })}
                             </td>
                             <td className="py-3.5 px-4 text-emerald-400">
-                              Included (1 day prior to live date)
+                              {t('sales.games.setupDayDesc')}
                             </td>
                             <td className="py-3.5 px-4 text-right font-mono font-bold text-white text-sm">
                               {tier.currency}{' '}
@@ -510,8 +565,8 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                   </div>
 
                   <div className="text-[11px] text-slate-500 flex items-center justify-between pt-2">
-                    <span>* All event licenses include unlimited attendee plays during the booked calendar window.</span>
-                    <span>No per-play or per-attendee overage charges.</span>
+                    <span>{t('sales.games.unlimitedAttendeePlaysNotice')}</span>
+                    <span>{t('sales.games.noOverageCharges')}</span>
                   </div>
                 </div>
               )}
@@ -529,7 +584,7 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
                 onClick={() => navigateTo('/events')}
                 className="text-amber-400 hover:underline font-semibold cursor-pointer shrink-0 ml-4"
               >
-                Go to Workspace
+                {t('sales.nav.customerWorkspace')}
               </button>
             </div>
           </div>
@@ -543,6 +598,17 @@ export const SalesGameDetailPage: React.FC<SalesGameDetailPageProps> = ({ gameId
           onClose={() => setDemoModalOpen(false)}
           initialGameId={game.game_type || game.slug}
           gameTitle={game.name}
+        />
+      )}
+
+      {/* AI Translate Pitch Kit Modal */}
+      {showTranslateModal && game && (
+        <SalesPartnerTranslationModal
+          isOpen={showTranslateModal}
+          onClose={() => setShowTranslateModal(false)}
+          initialText={pitchKitText}
+          context="sales_game_pitch_kit"
+          title={`${t('sales.games.aiTranslatePitch')}: ${game.name}`}
         />
       )}
     </div>

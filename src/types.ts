@@ -130,6 +130,10 @@ export type EventCreditOption = 'NONE' | 'FULL_PAID' | 'WELCOME_CREDIT' | 'SHOWC
 
 export interface EventPaymentCalculation {
   eventPrice: number;
+  currency?: string;
+  pricingCountry?: string | null;
+  isFallback?: boolean;
+  durationDays?: number;
   paymentMode: PaymentMode;
   paidAmount: number;
   welcomeCreditUsed: number;

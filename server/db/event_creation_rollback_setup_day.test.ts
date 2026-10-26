@@ -232,59 +232,59 @@ async function runRegressionTests() {
   // --------------------------------------------------------------------------
   // TEST SCENARIO 2: Public Deletion Protection Still Strictly Blocks Setup Day
   // --------------------------------------------------------------------------
-  console.log('\n--- Test Scenario 2: Public Deletion Protection Remains Enforced on Setup Day ---');
+  console.log('\n--- Test Scenario 2: Paid Event Deletion Protection Remains Enforced on Setup Day ---');
 
-  // Create a regular event that starts tomorrow (today = Setup Day)
-  const setupDayEvent = await createEvent({
+  // Create a paid event that starts tomorrow (today = Setup Day)
+  const setupDayPaidEvent = await createEvent({
     organization_id: orgId,
     game_theme_id: theme,
-    name: 'Existing Setup Day Event',
+    name: 'Existing Setup Day Paid Event',
     start_date: startDate,
     end_date: endDate,
     starts_at: `${startDate}T00:00:00.000Z`,
     expires_at: `${endDate}T23:59:59.999Z`,
-    status: 'draft',
-    event_status: 'DRAFT',
-    payment_status: 'UNPAID',
-    paid_amount: 0,
+    status: 'scheduled',
+    event_status: 'SCHEDULED',
+    payment_status: 'PAID',
+    paid_amount: 1900,
   });
 
-  // Verify canDeleteEvent reports false on Setup Day
-  const eligibility = canDeleteEvent(setupDayEvent, now);
+  // Verify canDeleteEvent reports false for paid event on Setup Day
+  const eligibility = canDeleteEvent(setupDayPaidEvent, now);
   assertCondition(
     eligibility.canDelete === false,
-    'canDeleteEvent strictly returns false on Setup Day',
+    'canDeleteEvent strictly returns false for paid event on Setup Day',
     false,
     eligibility.canDelete
   );
   assertCondition(
-    eligibility.code === 'SETUP_DAY_STARTED',
-    'canDeleteEvent code is SETUP_DAY_STARTED',
-    'SETUP_DAY_STARTED',
+    eligibility.code === 'EVENT_PAID',
+    'canDeleteEvent code is EVENT_PAID',
+    'EVENT_PAID',
     eligibility.code
   );
 
   // Verify normal deleteEvent rejects this deletion
   let deleteRejected = false;
   try {
-    await deleteEvent(setupDayEvent.id, { now });
+    await deleteEvent(setupDayPaidEvent.id, { now });
   } catch (delErr: any) {
     deleteRejected = true;
     assertCondition(
-      delErr.message.includes('Setup Day has started') || delErr.code === 'SETUP_DAY_STARTED',
+      delErr.message.includes('This paid event cannot be deleted') || delErr.code === 'EVENT_PAID',
       `deleteEvent rejected with message: "${delErr.message}"`
     );
   }
   assertCondition(
     deleteRejected,
-    'Normal deleteEvent strictly rejected deletion on Setup Day'
+    'Normal deleteEvent strictly rejected deletion of paid event on Setup Day'
   );
 
   // Verify event is STILL in the database (was not deleted)
-  const stillExists = await getEventById(setupDayEvent.id);
+  const stillExists = await getEventById(setupDayPaidEvent.id);
   assertCondition(
     stillExists !== null && stillExists !== undefined,
-    'Existing event was protected and remains in database'
+    'Existing paid event was protected and remains in database'
   );
 
   // --------------------------------------------------------------------------

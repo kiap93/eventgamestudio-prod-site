@@ -163,6 +163,10 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
     return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
   }, [isOpen, event?.id, event?.organization_id]);
 
+  // Double-click protection refs for immediate synchronous lockout (must be called before any early return)
+  const submittingPaymentRef = useRef(false);
+  const isSubmittingTopUpRef = useRef(false);
+
   if (!isOpen || !event) return null;
 
   // Pricing & Balances - Authoritative from server calculation / event record
@@ -194,10 +198,6 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const amountRequired = Math.max(0, eventPrice - totalDiscount);
   const shortfall = Math.max(0, amountRequired - availablePaidBalance);
   const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && shortfall > 0;
-
-  // Double-click protection refs for immediate synchronous lockout
-  const submittingPaymentRef = useRef(false);
-  const isSubmittingTopUpRef = useRef(false);
 
   const handleConfirmPay = async () => {
     if (submittingPayment || submittingPaymentRef.current) return;

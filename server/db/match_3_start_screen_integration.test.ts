@@ -26,9 +26,8 @@ describe('Match-3 Start Screen & Engine Integration Tests', () => {
     expect(baselineTypes.has('reaction-tap')).toBe(true);
     expect(baselineTypes.has('memory-match')).toBe(true);
 
-    // match-3 and speed-quiz are NOT pre-registered in BASELINE_PLATFORM_GAMES
-    // so they appear as "Available" until explicitly registered by an admin in Developer Admin Panel
-    expect(baselineTypes.has('match-3')).toBe(false);
+    // match-3 is now a baseline registered engine, speed-quiz remains in catalog
+    expect(baselineTypes.has('match-3')).toBe(true);
     expect(baselineTypes.has('speed-quiz')).toBe(false);
 
     // match-3 is defined in CATALOG_GAMES
@@ -40,7 +39,7 @@ describe('Match-3 Start Screen & Engine Integration Tests', () => {
 
     const registeredSet = baselineTypes;
     const match3Registered = registeredSet.has('match-3');
-    expect(match3Registered).toBe(false); // Suffix is t('developer.engineAvailableSuffix') -> "Available"
+    expect(match3Registered).toBe(true);
 
     const catchBrandRegistered = registeredSet.has('catch-brand');
     expect(catchBrandRegistered).toBe(true); // Suffix is t('developer.engineRegisteredSuffix') -> "Registered"

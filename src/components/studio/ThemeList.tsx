@@ -7,6 +7,7 @@ import { GameCatalogModal } from './GameCatalogModal';
 import { GameShell } from '../shell/GameShell';
 import { GameTheme, getThemeGameType } from '../../themes';
 import { useLocalization } from '../../context/LocalizationContext';
+import { shouldShowGameHeader } from '../../lib/headerVisibility';
 import {
   Palette,
   Plus,
@@ -45,6 +46,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
     deleteTheme,
     currentOrganization,
     activeGame,
+    fetchActiveGame,
     fetchThemes,
     fetchSystemThemes,
     cloneSystemTheme,
@@ -71,6 +73,12 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const [systemThemes, setSystemThemes] = useState<GameTheme[]>([]);
   const [isLoadingSystem, setIsLoadingSystem] = useState<boolean>(false);
   const [systemThemeError, setSystemThemeError] = useState<string | null>(null);
+
+  // Workspace initialization: load games and themes for active organization on mount
+  useEffect(() => {
+    fetchActiveGame();
+    fetchThemes();
+  }, [currentOrganization?.id, fetchActiveGame, fetchThemes]);
 
   // Load system themes for active game
   const loadSystemThemes = useCallback(async () => {

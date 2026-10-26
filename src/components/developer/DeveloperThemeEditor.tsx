@@ -149,14 +149,14 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
 
 
   // Asset upload via API
-  const handleUploadAsset = async (file: File): Promise<string> => {
+  const handleUploadAsset = async (file: File, fieldKey?: string): Promise<string> => {
     const token = localStorage.getItem('app_token');
     const formData = new FormData();
     formData.append('file', file);
     if (theme?.organization_id) {
       formData.append('organizationId', theme.organization_id);
     }
-    formData.append('category', 'items');
+    formData.append('category', fieldKey || 'items');
 
     const res = await apiFetch('/api/upload', {
       method: 'POST',
@@ -173,6 +173,12 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
 
     const data = await res.json();
     return data.url;
+  };
+
+  // Full theme change handler: updates theme state and marks editor dirty
+  const handleThemeChange = (updatedTheme: GameTheme) => {
+    setTheme(updatedTheme);
+    setSavedSuccess(false);
   };
 
   // Field change handler
@@ -353,6 +359,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
           {/* Tabs Header */}
           <div className="flex items-center space-x-1 p-2 bg-slate-950/60 border-b border-slate-800 overflow-x-auto">
             <button
+              type="button"
               onClick={() => setActiveTab('visuals')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'visuals' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
@@ -363,6 +370,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('items')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'items' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
@@ -373,6 +381,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('gameplay')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'gameplay' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
@@ -383,6 +392,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('audio')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'audio' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
@@ -393,6 +403,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('branding')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'branding' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
@@ -403,6 +414,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('layout')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'layout' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
@@ -419,6 +431,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
               <VisualsTab
                 theme={theme}
                 isViewer={false}
+                onChange={handleThemeChange}
                 onFieldChange={handleFieldChange}
                 onUploadAsset={handleUploadAsset}
               />
@@ -428,6 +441,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
               <ItemsTab
                 theme={theme}
                 isViewer={false}
+                onChange={handleThemeChange}
                 onFieldChange={handleFieldChange}
                 onUploadAsset={handleUploadAsset}
               />
@@ -437,6 +451,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
               <GameplayTab
                 theme={theme}
                 isViewer={false}
+                onChange={handleThemeChange}
                 onFieldChange={handleFieldChange}
               />
             )}
@@ -445,6 +460,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
               <AudioTab
                 theme={theme}
                 isViewer={false}
+                onChange={handleThemeChange}
                 onFieldChange={handleFieldChange}
                 onUploadAsset={handleUploadAsset}
               />
@@ -454,6 +470,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
               <BrandingTab
                 theme={theme}
                 isViewer={false}
+                onChange={handleThemeChange}
                 onFieldChange={handleFieldChange}
                 onUploadAsset={handleUploadAsset}
               />
@@ -462,10 +479,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             {activeTab === 'layout' && (
               <LayoutTab
                 theme={theme}
-                onChange={(updatedTheme) => {
-                  setTheme(updatedTheme);
-                  setSavedSuccess(false);
-                }}
+                onChange={handleThemeChange}
                 selectedElementKey={selectedLayoutElement}
                 onSelectElementKey={setSelectedLayoutElement}
                 activeOrientation={layoutOrientation}

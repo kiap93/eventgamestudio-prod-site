@@ -1612,7 +1612,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
         </div>
       </div>
 
-      {/* 2. {t('customizers.cardDimensionsShapeRotation', undefined, 'Card Dimensions, Shape & Rotation')} Section */}
+      {/* 2. Card Shape & Dimensions Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1620,9 +1620,9 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               <Layers className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">{t('customizers.cardDimensionsShapeRotation', undefined, 'Card Dimensions, Shape & Rotation')}</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.cardShapeDimensions', undefined, 'Card Shape & Dimensions')}</h3>
               <p className="text-xs text-slate-400">
-                Configure card width, height, corner roundness, and individual card rotation
+                {t('customizers.cardShapeDimensionsDesc', undefined, 'Configure card width, height, corner roundness, and individual card rotation')}
               </p>
             </div>
           </div>
@@ -2127,7 +2127,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
             />
           </div>
 
-          {/* {t('customizers.comboStreakBonus', undefined, 'Combo Streak Bonus')} */}
+          {/* Combo Streak Bonus */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">{t('customizers.comboStreakBonus', undefined, 'Combo Streak Bonus')}</span>
@@ -2156,9 +2156,9 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               <Award className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">{t('customizers.leaderboardSocialDisplay', undefined, 'Leaderboard & Social Display')}</h3>
+              <h3 className="text-sm font-bold text-slate-100">{t('customizers.leaderboardEndScreenSettings', undefined, 'Leaderboard & End Screen Settings')}</h3>
               <p className="text-xs text-slate-400">
-                Control whether the arcade high-score board and player submission prompt appear
+                {t('customizers.leaderboardEndScreenSettingsDesc', undefined, 'Control whether the arcade high-score board and player submission prompt appear')}
               </p>
             </div>
           </div>
@@ -2437,7 +2437,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                 />
               </div>
               <span className="text-[11px] text-slate-500 mt-2 font-mono">
-                {t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}
+                {t('customizers.liveScaledStartPreview', undefined, 'Live Scaled 1024×576 Start Screen Preview')}
               </span>
             </div>
           </div>
@@ -2576,7 +2576,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-500 font-mono">
-                <span>{t('customizers.interactiveScaledCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}</span>
+                <span>{t('customizers.canvasCoordinateSpace', undefined, 'Canvas: 1024 × 576')}</span>
                 <span className="text-slate-600">•</span>
                 <span className="text-amber-400 font-semibold">
                   Scale: {resultScaleInfo.scale.toFixed(3)}
@@ -2616,9 +2616,9 @@ export const MemoryMatchAudioTester: React.FC = () => {
           <Volume2 className="w-4 h-4" />
         </span>
         <div>
-          <h3 className="text-sm font-bold text-slate-100">{t('customizers.memorySoundFxPreviews', undefined, 'Memory Sound FX Previews')}</h3>
+          <h3 className="text-sm font-bold text-slate-100">{t('customizers.memoryMatchSoundEffects', undefined, 'Memory Match Sound Effects')}</h3>
           <p className="text-xs text-slate-400">
-            Synthesized zero-latency Web Audio sound effects crafted for card matching
+            {t('customizers.memoryMatchSoundEffectsDesc', undefined, 'Synthesized zero-latency Web Audio sound effects crafted for card matching')}
           </p>
         </div>
       </div>

@@ -46,9 +46,7 @@ export const NotificationCenterModal: React.FC = () => {
   const [unreadOnly, setUnreadOnly] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  if (!isOpenCenter) return null;
-
-  // Filtered notifications
+  // Filtered notifications (must be called unconditionally before early returns)
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
       // 1. Unread filter
@@ -69,6 +67,8 @@ export const NotificationCenterModal: React.FC = () => {
       return true;
     });
   }, [notifications, unreadOnly, activeCategory, searchQuery]);
+
+  if (!isOpenCenter) return null;
 
   const handleActionClick = async (notif: NotificationRecord) => {
     if (!notif.is_read) {

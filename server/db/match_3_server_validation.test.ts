@@ -74,7 +74,10 @@ test('Match-3 event creation and game type resolution', async () => {
     game_type: 'match-3',
     status: 'active',
   });
-  localGamePricingCache.set(game.id, buildDefaultPricingTiers(game.id, 'match-3'));
+  localGamePricingCache.set(game.id, [
+    ...buildDefaultPricingTiers(game.id, 'match-3', 'MY', 'MYR'),
+    ...buildDefaultPricingTiers(game.id, 'match-3', 'US', 'USD'),
+  ]);
 
   const theme = await createTheme({
     organization_id: org.id,
@@ -87,7 +90,7 @@ test('Match-3 event creation and game type resolution', async () => {
   });
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const nextWeekStr = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  const nextWeekStr = new Date(Date.now() + 6 * 86400000).toISOString().split('T')[0];
 
   const event = await createEvent({
     organization_id: org.id,
@@ -120,7 +123,10 @@ test('Match-3 high score submission, metadata validation, and leaderboard sortin
     game_type: 'match-3',
     status: 'active',
   });
-  localGamePricingCache.set(game.id, buildDefaultPricingTiers(game.id, 'match-3'));
+  localGamePricingCache.set(game.id, [
+    ...buildDefaultPricingTiers(game.id, 'match-3', 'MY', 'MYR'),
+    ...buildDefaultPricingTiers(game.id, 'match-3', 'US', 'USD'),
+  ]);
 
   const theme = await createTheme({
     organization_id: org.id,
@@ -133,7 +139,7 @@ test('Match-3 high score submission, metadata validation, and leaderboard sortin
   });
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const nextWeekStr = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  const nextWeekStr = new Date(Date.now() + 6 * 86400000).toISOString().split('T')[0];
 
   const event = await createEvent({
     organization_id: org.id,

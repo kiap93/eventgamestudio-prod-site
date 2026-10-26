@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SalesNavbar } from './SalesNavbar';
 import { SEO } from '../common/SEO';
 import { apiFetch } from '../../lib/api';
+import { useLocalization } from '../../context/LocalizationContext';
 import { CustomerAttribution, SalesReferralInfo } from '../../types/sales';
 import {
   Share2,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 
 export const SalesReferralsPage: React.FC = () => {
+  const { t } = useLocalization();
   const [referralInfo, setReferralInfo] = useState<SalesReferralInfo | null>(null);
   const [attributions, setAttributions] = useState<CustomerAttribution[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -106,28 +108,28 @@ export const SalesReferralsPage: React.FC = () => {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3 h-3" />
-            Approved
+            {t('sales.commissions.statusApproved')}
           </span>
         );
       case 'pending':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
             <Clock className="w-3 h-3" />
-            Pending Org
+            {t('sales.commissions.statusPending')}
           </span>
         );
       case 'needs_review':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30">
             <AlertTriangle className="w-3 h-3" />
-            Under Review
+            {t('sales.commissions.pendingReview')}
           </span>
         );
       case 'rejected':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
             <XCircle className="w-3 h-3" />
-            Rejected
+            {t('sales.developer.reject')}
           </span>
         );
       default:
@@ -142,7 +144,7 @@ export const SalesReferralsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
-      <SEO robots="noindex, follow" title="Customer Referrals & Attribution | Sales Partner" />
+      <SEO robots="noindex, follow" title={`${t('sales.referrals.title')} | ${t('sales.nav.brandTitle')}`} />
       <SalesNavbar activeSection="referrals" />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -152,14 +154,14 @@ export const SalesReferralsPage: React.FC = () => {
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
                 <Share2 className="w-3.5 h-3.5" />
-                Sales Partner Program
+                {t('sales.nav.portalSubtitle')}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Customer Referrals & Attribution
+              {t('sales.referrals.title')}
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-              Track customer organizations introduced via your unique partner referral code. Once a referred client creates an account and launches their organization, authoritative attribution is established.
+              {t('sales.referrals.subtitle')}
             </p>
           </div>
 
@@ -172,7 +174,7 @@ export const SalesReferralsPage: React.FC = () => {
             className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <span>{refreshing ? t('sales.dashboard.refreshing') : t('sales.dashboard.refresh')}</span>
           </button>
         </div>
 
@@ -190,7 +192,7 @@ export const SalesReferralsPage: React.FC = () => {
               }}
               className="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold cursor-pointer shrink-0 transition-colors"
             >
-              Retry
+              {t('sales.aiTranslator.retry')}
             </button>
           </div>
         )}
@@ -203,11 +205,11 @@ export const SalesReferralsPage: React.FC = () => {
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 mb-2">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Active Sales Partner Code
+                {t('sales.dashboard.activeStatus')} {t('sales.referrals.yourReferralCode')}
               </div>
-              <h2 className="text-lg font-bold text-white">Your Shareable Referral Code & Link</h2>
+              <h2 className="text-lg font-bold text-white">{t('sales.referrals.title')}</h2>
               <p className="text-xs text-slate-400 max-w-xl mt-0.5">
-                Prospective clients who visit EventGameStudio via your link or enter your referral code during registration are recorded for verified customer attribution.
+                {t('sales.referrals.subtitle')}
               </p>
             </div>
           </div>
@@ -216,7 +218,7 @@ export const SalesReferralsPage: React.FC = () => {
             {/* Referral Code Box */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Partner Referral Code
+                {t('sales.referrals.yourReferralCode')}
               </span>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xl sm:text-2xl font-mono font-black text-amber-400 tracking-wider">
@@ -228,7 +230,7 @@ export const SalesReferralsPage: React.FC = () => {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer"
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode ? 'Copied' : 'Copy Code'}</span>
+                  <span>{copiedCode ? t('sales.referrals.codeCopied') : t('sales.referrals.copyCode')}</span>
                 </button>
               </div>
             </div>
@@ -236,7 +238,7 @@ export const SalesReferralsPage: React.FC = () => {
             {/* Referral URL Box */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Direct Registration Link
+                {t('sales.referrals.yourReferralUrl')}
               </span>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-mono text-slate-300 truncate max-w-[260px] sm:max-w-[320px]">
@@ -248,9 +250,31 @@ export const SalesReferralsPage: React.FC = () => {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer shrink-0"
                 >
                   {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedLink ? 'Copied' : 'Copy Link'}</span>
+                  <span>{copiedLink ? t('sales.referrals.linkCopied') : t('sales.referrals.copyLink')}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 12-Month Attribution Explanation Steps */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-400" />
+            <span>{t('sales.referrals.attributionHowItWorks')}</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
+              <h4 className="font-bold text-amber-400">{t('sales.referrals.step1Title')}</h4>
+              <p className="text-slate-400 leading-relaxed">{t('sales.referrals.step1Desc')}</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
+              <h4 className="font-bold text-amber-400">{t('sales.referrals.step2Title')}</h4>
+              <p className="text-slate-400 leading-relaxed">{t('sales.referrals.step2Desc')}</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
+              <h4 className="font-bold text-amber-400">{t('sales.referrals.step3Title')}</h4>
+              <p className="text-slate-400 leading-relaxed">{t('sales.referrals.step3Desc')}</p>
             </div>
           </div>
         </div>
@@ -258,19 +282,19 @@ export const SalesReferralsPage: React.FC = () => {
         {/* Metric Counter Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-            <span className="text-xs text-slate-400 font-medium">Total Introductions</span>
+            <span className="text-xs text-slate-400 font-medium">{t('sales.customers.totalActivations')}</span>
             <div className="text-2xl font-black text-white">{totalCount}</div>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-            <span className="text-xs text-emerald-400 font-medium">Approved Attribution</span>
+            <span className="text-xs text-emerald-400 font-medium">{t('sales.commissions.statusApproved')}</span>
             <div className="text-2xl font-black text-emerald-400">{approvedCount}</div>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-            <span className="text-xs text-amber-400 font-medium">Pending Organization</span>
+            <span className="text-xs text-amber-400 font-medium">{t('sales.commissions.statusPending')}</span>
             <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-            <span className="text-xs text-purple-400 font-medium">Under Review</span>
+            <span className="text-xs text-purple-400 font-medium">{t('sales.commissions.pendingReview')}</span>
             <div className="text-2xl font-black text-purple-400">{needsReviewCount}</div>
           </div>
         </div>
@@ -279,11 +303,11 @@ export const SalesReferralsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
             {[
-              { id: 'all', label: `All (${totalCount})` },
-              { id: 'approved', label: `Approved (${approvedCount})` },
-              { id: 'pending', label: `Pending (${pendingCount})` },
-              { id: 'needs_review', label: `Review (${needsReviewCount})` },
-              { id: 'rejected', label: 'Rejected' },
+              { id: 'all', label: `${t('sales.customers.filterAll')} (${totalCount})` },
+              { id: 'approved', label: `${t('sales.commissions.statusApproved')} (${approvedCount})` },
+              { id: 'pending', label: `${t('sales.commissions.statusPending')} (${pendingCount})` },
+              { id: 'needs_review', label: `${t('sales.commissions.pendingReview')} (${needsReviewCount})` },
+              { id: 'rejected', label: t('sales.developer.reject') },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -305,7 +329,7 @@ export const SalesReferralsPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search code, email, org..."
+              placeholder={t('sales.customers.searchPlaceholder')}
               className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-500"
             />
           </div>
@@ -315,18 +339,16 @@ export const SalesReferralsPage: React.FC = () => {
         {loading ? (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
             <RefreshCw className="w-6 h-6 text-amber-400 animate-spin mx-auto" />
-            <p className="text-xs text-slate-400">Loading referral records...</p>
+            <p className="text-xs text-slate-400">{t('sales.dashboard.refreshing')}</p>
           </div>
         ) : filteredAttributions.length === 0 ? (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
             <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 mx-auto">
               <Share2 className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-white">No Referrals Found</h3>
+            <h3 className="text-base font-bold text-white">{t('sales.referrals.noAttributions')}</h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              {searchQuery || statusFilter !== 'all'
-                ? 'No customer attributions match your current search or filter criteria.'
-                : 'Share your unique referral code or link with prospective event organizers to begin tracking verified customer attributions.'}
+              {t('sales.referrals.attributionNote')}
             </p>
           </div>
         ) : (
@@ -335,11 +357,11 @@ export const SalesReferralsPage: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="py-3 px-4">Referred Customer</th>
-                    <th className="py-3 px-4">Customer Organization</th>
-                    <th className="py-3 px-4">Referral Code / Method</th>
-                    <th className="py-3 px-4">Captured Date</th>
-                    <th className="py-3 px-4">Attribution Status</th>
+                    <th className="py-3 px-4">{t('sales.customers.clientCol')}</th>
+                    <th className="py-3 px-4">{t('sales.customers.registeredOn')}</th>
+                    <th className="py-3 px-4">{t('sales.referrals.yourReferralCode')}</th>
+                    <th className="py-3 px-4">{t('sales.commissions.dateCol')}</th>
+                    <th className="py-3 px-4">{t('sales.customers.statusCol')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
@@ -348,66 +370,41 @@ export const SalesReferralsPage: React.FC = () => {
                       {/* Referred Customer */}
                       <td className="py-3 px-4">
                         <div className="space-y-0.5">
-                          <div className="font-semibold text-slate-200">
-                            {item.referred_user?.name || item.prospect_email || 'Prospective Client'}
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>{item.referred_user?.name || item.prospect_email || 'New Registration'}</span>
                           </div>
-                          <div className="text-[11px] text-slate-400 font-mono">
-                            {item.referred_user?.email || item.prospect_email || '—'}
-                          </div>
+                          {item.prospect_email && (
+                            <div className="text-[11px] text-slate-400">{item.prospect_email}</div>
+                          )}
                         </div>
                       </td>
 
-                      {/* Customer Organization */}
+                      {/* Organization */}
                       <td className="py-3 px-4">
                         {item.organization ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-[10px]">
-                              <Building2 className="w-3.5 h-3.5" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-200">{item.organization.name}</div>
-                              <div className="text-[10px] text-slate-500 font-mono">/{item.organization.slug}</div>
-                            </div>
+                          <div className="flex items-center gap-1.5 font-medium text-slate-200">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{item.organization.name}</span>
                           </div>
                         ) : (
-                          <span className="text-slate-500 italic">Pending Org Creation</span>
+                          <span className="text-slate-500 italic">{t('sales.referrals.pendingOrgSetup')}</span>
                         )}
                       </td>
 
-                      {/* Referral Code / Method */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          <span className="font-mono text-amber-400 font-bold">{item.referral_code}</span>
-                          <div className="text-[10px] text-slate-500 uppercase tracking-wider">
-                            via {item.referral_method}
-                          </div>
-                        </div>
+                      {/* Code */}
+                      <td className="py-3 px-4 font-mono font-semibold text-amber-400">
+                        {item.referral_code}
                       </td>
 
-                      {/* Captured Date */}
-                      <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
-                        {new Date(item.created_at).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                      {/* Date */}
+                      <td className="py-3 px-4 text-slate-400">
+                        {new Date(item.created_at).toLocaleDateString()}
                       </td>
 
-                      {/* Status */}
+                      {/* Status Badge */}
                       <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <div>{getStatusBadge(item.status)}</div>
-                          {item.review_reason && (
-                            <div className="text-[10px] text-slate-400 max-w-[200px] truncate" title={item.review_reason}>
-                              {item.review_reason}
-                            </div>
-                          )}
-                          {item.decision_reason && (
-                            <div className="text-[10px] text-emerald-400/80 max-w-[200px] truncate" title={item.decision_reason}>
-                              {item.decision_reason}
-                            </div>
-                          )}
-                        </div>
+                        {getStatusBadge(item.status)}
                       </td>
                     </tr>
                   ))}

@@ -16,7 +16,7 @@ import {
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
 } from '../../../../games/memory-match/types';
-import { GameTheme } from '../../../../themes/types';
+import { GameTheme, normalizeGameType, getThemeGameType } from '../../../../themes/types';
 import {
   createDefaultElement,
   findElementAndParent,
@@ -41,6 +41,7 @@ import {
   generateDefaultResultScreenElements,
   generateDefaultCatchBrandResultScreenElements,
   generateDefaultReactionResultScreenElements,
+  generateDefaultMatch3ResultScreenElements,
 } from '../../../../games/shared/resultScreenTypes';
 
 export interface ResultScreenVisualEditorModalProps {
@@ -65,8 +66,13 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   historyController,
 }) => {
   const { t } = useLocalization();
-  const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
-  const isCatch = gameType === 'catch-brand';
+  const resolvedGameType = useMemo(() => {
+    return normalizeGameType(gameType || (theme ? getThemeGameType(theme) : '')) || 'catch-brand';
+  }, [gameType, theme]);
+
+  const isReaction = resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time';
+  const isCatch = resolvedGameType === 'catch-brand';
+  const isMatch3 = resolvedGameType === 'match-3';
 
   const elements = useMemo(() => {
     if (Array.isArray(resultConfig.elements) && resultConfig.elements.length > 0) {
@@ -75,11 +81,14 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
     if (isReaction) {
       return generateDefaultReactionResultScreenElements(resultConfig);
     }
+    if (isMatch3) {
+      return generateDefaultMatch3ResultScreenElements(resultConfig);
+    }
     if (isCatch) {
       return generateDefaultCatchBrandResultScreenElements(resultConfig);
     }
     return generateDefaultResultScreenElements(resultConfig);
-  }, [resultConfig.elements, isReaction, isCatch]);
+  }, [resultConfig.elements, isReaction, isCatch, isMatch3]);
 
   useEffect(() => {
     if (isOpen && (!resultConfig.elements || resultConfig.elements.length === 0)) {

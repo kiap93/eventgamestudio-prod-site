@@ -891,6 +891,36 @@ CREATE TRIGGER trg_prevent_game_unauthorized_client_mutations
   FOR EACH ROW
   EXECUTE FUNCTION public.prevent_game_unauthorized_client_mutations();
 
+-- GAME ENGINE PRODUCTION AVAILABILITY TRIGGER
+CREATE OR REPLACE FUNCTION public.check_game_engine_availability()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Strict whitelist check for active platform games:
+  -- Only fully implemented game engines are allowed to have status = 'active'
+  IF NEW.status = 'active' THEN
+    IF LOWER(COALESCE(NEW.game_type, '')) IN ('speed-quiz', 'quiz-rush', 'trivia-quiz', 'event-trivia-speed-quiz')
+       OR LOWER(COALESCE(NEW.slug, '')) IN ('speed-quiz', 'quiz-rush', 'trivia-quiz', 'event-trivia-speed-quiz') THEN
+      RAISE EXCEPTION 'Cannot activate game: Game engine "%" is currently under development and cannot be activated.', NEW.game_type
+        USING ERRCODE = 'check_violation';
+    END IF;
+
+    -- Positive whitelist verification including canonical 'match-3' engine
+    IF LOWER(COALESCE(NEW.game_type, '')) NOT IN ('catch-brand', 'memory-match', 'reaction-tap', 'reaction-time', 'match-3') THEN
+      RAISE EXCEPTION 'Cannot activate game: Game engine "%" is not a recognized production engine.', NEW.game_type
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_check_game_engine_availability ON public.games;
+CREATE TRIGGER trg_check_game_engine_availability
+BEFORE INSERT OR UPDATE OF status, game_type, slug ON public.games
+FOR EACH ROW
+EXECUTE FUNCTION public.check_game_engine_availability();
+
 -- GAME THEMES POLICIES (BACKEND-WRITE-ONLY)
 -- Normal authenticated organization members can SELECT themes subject to tenant membership or system availability.
 -- Direct client INSERT, UPDATE, and DELETE are strictly disallowed.
@@ -5680,6 +5710,25 @@ REVOKE EXECUTE ON FUNCTION public.approve_first_event_showcase_reward_atomic(UUI
 -- ------------------------------------------------------------------------------
 -- ATOMIC DISTRIBUTED EVENT CREATION RPC WITH EXCLUSIVE ORGANIZATION LOCK
 -- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN (
+    SELECT p.oid, pg_get_function_identity_arguments(p.oid) AS args
+    FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public' AND p.proname = 'create_event_atomic'
+  ) LOOP
+    EXECUTE 'DROP FUNCTION public.create_event_atomic(' || r.args || ')';
+  END LOOP;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.create_event_atomic(
+  UUID, UUID, VARCHAR, VARCHAR, VARCHAR, TIMESTAMPTZ, TIMESTAMPTZ, UUID, VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, NUMERIC, VARCHAR, NUMERIC, NUMERIC, VARCHAR, VARCHAR, UUID, UUID, INTEGER, BOOLEAN, VARCHAR, UUID, INTEGER
+);
+
 DROP FUNCTION IF EXISTS public.create_event_atomic(
   UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT
 );
@@ -5765,7 +5814,12 @@ BEGIN
     );
   END IF;
 
-  v_org_country := UPPER(COALESCE(v_org.country_code, 'US'));
+  -- Country code normalization: preserve NULL when unconfigured to allow USD -> MYR fallback
+  IF v_org.country_code IS NOT NULL AND TRIM(v_org.country_code) <> '' THEN
+    v_org_country := UPPER(TRIM(v_org.country_code));
+  ELSE
+    v_org_country := NULL;
+  END IF;
 
   -- Resolve authoritative event timezone
   v_event_timezone := COALESCE(NULLIF(TRIM(p_event_timezone), ''), 'Asia/Singapore');
@@ -7157,9 +7211,6 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_is_paid boolean;
-  v_setup_day date;
-  v_today date;
-  v_tz text;
   v_rollback_id text;
 BEGIN
   -- Internal creation rollback check:
@@ -7191,28 +7242,30 @@ BEGIN
     RAISE EXCEPTION 'Cancelled or refunded events cannot be deleted. Financial and event history must be preserved.';
   END IF;
 
-  -- 3. Resolve timezone and calculate current date in event timezone
-  v_tz := COALESCE(OLD.event_timezone, 'Asia/Singapore');
-  BEGIN
-    v_today := (timezone(v_tz, now()))::date;
-  EXCEPTION WHEN OTHERS THEN
-    v_today := (timezone('Asia/Singapore', now()))::date;
-  END;
-
-  -- 4. Calculate Setup Day (startDate - 1 calendar day)
-  IF OLD.start_date IS NOT NULL AND OLD.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN
-    v_setup_day := (OLD.start_date::date - 1);
-  ELSIF OLD.starts_at IS NOT NULL THEN
-    v_setup_day := ((timezone(v_tz, OLD.starts_at))::date - 1);
-  ELSE
-    v_setup_day := NULL;
+  -- 3. Financial Retention Safeguard: Invoices and credit notes must be preserved for tax/audit records
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_invoices') THEN
+    IF EXISTS (SELECT 1 FROM public.event_invoices WHERE event_id = OLD.id) THEN
+      RAISE EXCEPTION 'Cannot delete event with existing invoice records. Financial records must be retained.';
+    END IF;
   END IF;
 
-  -- 5. If Setup Day has started, deletion is permanently locked
-  IF v_setup_day IS NOT NULL AND v_today >= v_setup_day THEN
-    RAISE EXCEPTION 'This event can no longer be deleted because Setup Day has started.';
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_credit_notes') THEN
+    IF EXISTS (SELECT 1 FROM public.event_credit_notes WHERE event_id = OLD.id) THEN
+      RAISE EXCEPTION 'Cannot delete event with existing credit note records. Financial records must be retained.';
+    END IF;
   END IF;
 
+  -- 4. Financial Safeguard: Completed payment transactions must be preserved
+  IF EXISTS (
+    SELECT 1 FROM public.wallet_transactions
+    WHERE event_id = OLD.id
+      AND transaction_type IN ('EVENT_PAYMENT', 'CREDIT_USAGE')
+      AND status = 'COMPLETED'
+  ) THEN
+    RAISE EXCEPTION 'Cannot delete event with completed financial transactions.';
+  END IF;
+
+  -- 5. Unpaid events (newly created, on Setup Day, or past event date / expired) can be deleted
   RETURN OLD;
 END;
 $$;
@@ -7813,6 +7866,175 @@ $$;
 REVOKE ALL ON FUNCTION public.record_customer_invitation_dispatch_atomic(UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, UUID) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.record_customer_invitation_dispatch_atomic(UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, UUID) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.record_customer_invitation_dispatch_atomic(UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, UUID) TO service_role;
+
+-- ==============================================================================
+-- Migration: 20261020010000_add_whatsapp_customer_invitations_and_onboarding.sql
+-- Description: Adds WhatsApp invitation support, contact phone numbers,
+--              organization linking, and onboarding funnel tracking for
+--              customer invitations.
+-- ==============================================================================
+
+-- 1. Extend customer_companies with organization link and lead status
+ALTER TABLE public.customer_companies
+  ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS phone TEXT,
+  ADD COLUMN IF NOT EXISTS lead_status TEXT NOT NULL DEFAULT 'lead'
+    CHECK (lead_status IN ('lead', 'invited', 'onboarding', 'active', 'dormant'));
+
+CREATE INDEX IF NOT EXISTS idx_customer_companies_org_id ON public.customer_companies(organization_id);
+CREATE INDEX IF NOT EXISTS idx_customer_companies_lead_status ON public.customer_companies(lead_status);
+
+-- 2. Extend customer_company_recipients with phone, channel, WhatsApp tracking, and notes
+ALTER TABLE public.customer_company_recipients
+  ADD COLUMN IF NOT EXISTS phone TEXT,
+  ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'both'
+    CHECK (channel IN ('email', 'whatsapp', 'both')),
+  ADD COLUMN IF NOT EXISTS invitation_id UUID REFERENCES public.organization_invitations(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS whatsapp_status TEXT NOT NULL DEFAULT 'never_sent'
+    CHECK (whatsapp_status IN ('never_sent', 'initiated', 'delivered', 'read', 'failed')),
+  ADD COLUMN IF NOT EXISTS whatsapp_initiated_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS whatsapp_message_text TEXT,
+  ADD COLUMN IF NOT EXISTS whatsapp_error TEXT,
+  ADD COLUMN IF NOT EXISTS accepted_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_customer_recipients_phone ON public.customer_company_recipients(phone);
+CREATE INDEX IF NOT EXISTS idx_customer_recipients_channel ON public.customer_company_recipients(channel);
+CREATE INDEX IF NOT EXISTS idx_customer_recipients_invitation_id ON public.customer_company_recipients(invitation_id);
+CREATE INDEX IF NOT EXISTS idx_customer_recipients_whatsapp_status ON public.customer_company_recipients(whatsapp_status);
+
+-- 3. Extend organization_invitations with phone, channel, WhatsApp status, and company references
+ALTER TABLE public.organization_invitations
+  ADD COLUMN IF NOT EXISTS phone TEXT,
+  ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'email'
+    CHECK (channel IN ('email', 'whatsapp', 'both')),
+  ADD COLUMN IF NOT EXISTS invitation_status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (invitation_status IN ('pending', 'accepted', 'expired', 'revoked')),
+  ADD COLUMN IF NOT EXISTS whatsapp_status TEXT NOT NULL DEFAULT 'never_sent'
+    CHECK (whatsapp_status IN ('never_sent', 'initiated', 'delivered', 'read', 'failed')),
+  ADD COLUMN IF NOT EXISTS whatsapp_initiated_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS accepted_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS customer_company_id UUID REFERENCES public.customer_companies(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS customer_recipient_id UUID REFERENCES public.customer_company_recipients(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_org_invitations_phone ON public.organization_invitations(phone);
+CREATE INDEX IF NOT EXISTS idx_org_invitations_status ON public.organization_invitations(invitation_status);
+CREATE INDEX IF NOT EXISTS idx_org_invitations_company_id ON public.organization_invitations(customer_company_id);
+CREATE INDEX IF NOT EXISTS idx_org_invitations_recipient_id ON public.organization_invitations(customer_recipient_id);
+
+-- 4. Extend customer_invitation_logs to record channel
+ALTER TABLE public.customer_invitation_logs
+  ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'email'
+    CHECK (channel IN ('email', 'whatsapp'));
+
+CREATE INDEX IF NOT EXISTS idx_customer_invitation_logs_channel ON public.customer_invitation_logs(channel);
+
+-- 5. Atomic function: Record WhatsApp invitation initiation
+CREATE OR REPLACE FUNCTION public.record_whatsapp_invitation_initiation_atomic(
+  p_company_id UUID,
+  p_recipient_id UUID,
+  p_invitation_id UUID,
+  p_phone TEXT,
+  p_message_text TEXT,
+  p_sent_by_user_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_rec public.customer_company_recipients%ROWTYPE;
+  v_log_id UUID := gen_random_uuid();
+BEGIN
+  -- 1. Verify recipient exists
+  SELECT * INTO v_rec
+  FROM public.customer_company_recipients
+  WHERE id = p_recipient_id AND company_id = p_company_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Recipient not found in company';
+  END IF;
+
+  -- 2. Update recipient status to initiated (NOT delivered/read)
+  UPDATE public.customer_company_recipients
+  SET
+    phone = COALESCE(NULLIF(TRIM(p_phone), ''), phone),
+    invitation_id = p_invitation_id,
+    whatsapp_status = 'initiated',
+    whatsapp_initiated_at = v_now,
+    whatsapp_message_text = p_message_text,
+    invitation_count = invitation_count + 1,
+    last_invited_at = v_now,
+    last_invitation_status = 'sent',
+    last_invitation_error = NULL,
+    updated_at = v_now
+  WHERE id = p_recipient_id;
+
+  -- 3. Update organization invitation if present
+  IF p_invitation_id IS NOT NULL THEN
+    UPDATE public.organization_invitations
+    SET
+      phone = COALESCE(NULLIF(TRIM(p_phone), ''), phone),
+      whatsapp_status = 'initiated',
+      whatsapp_initiated_at = v_now,
+      customer_company_id = p_company_id,
+      customer_recipient_id = p_recipient_id
+    WHERE id = p_invitation_id;
+  END IF;
+
+  -- 4. Record audit log
+  INSERT INTO public.customer_invitation_logs (
+    id,
+    company_id,
+    recipient_id,
+    email,
+    subject,
+    provider,
+    provider_message_id,
+    status,
+    error_message,
+    sent_by_user_id,
+    channel,
+    created_at
+  ) VALUES (
+    v_log_id,
+    p_company_id,
+    p_recipient_id,
+    v_rec.email,
+    'WhatsApp Invitation (Initiated)',
+    'whatsapp_web',
+    NULL,
+    'sent',
+    NULL,
+    p_sent_by_user_id,
+    'whatsapp',
+    v_now
+  );
+
+  -- 5. Update company lead status to 'invited'
+  UPDATE public.customer_companies
+  SET
+    lead_status = CASE WHEN lead_status = 'lead' THEN 'invited' ELSE lead_status END,
+    updated_at = v_now
+  WHERE id = p_company_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'recipient_id', p_recipient_id,
+    'invitation_id', p_invitation_id,
+    'initiated_at', v_now
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_whatsapp_invitation_initiation_atomic(UUID, UUID, UUID, TEXT, TEXT, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.record_whatsapp_invitation_initiation_atomic(UUID, UUID, UUID, TEXT, TEXT, UUID) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_whatsapp_invitation_initiation_atomic(UUID, UUID, UUID, TEXT, TEXT, UUID) TO service_role;
 
 
 

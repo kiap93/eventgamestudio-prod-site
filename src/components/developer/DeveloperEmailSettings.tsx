@@ -480,11 +480,11 @@ export const DeveloperEmailSettings: React.FC = () => {
                 {testResult.success && (
                   <div className="font-mono text-[11px] bg-slate-950 p-2.5 rounded-lg border border-emerald-500/20 text-slate-300 space-y-1">
                     <div>
-                      <span className="text-slate-500">Gmail Message ID:</span>{' '}
+                      <span className="text-slate-500">{t('developer.gmailMessageIdLabel', undefined, 'Gmail Message ID:')}</span>{' '}
                       <span className="text-emerald-400 font-bold">{testResult.messageId}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500">From Account:</span> {testResult.senderEmail}
+                      <span className="text-slate-500">{t('developer.fromAccountLabel', undefined, 'From Account:')}</span> {testResult.senderEmail}
                     </div>
                   </div>
                 )}
@@ -534,11 +534,11 @@ export const DeveloperEmailSettings: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3 text-xs">
             <h3 className="text-sm font-bold text-white flex items-center space-x-2">
               <Key className="w-4 h-4 text-amber-400" />
-              <span>Environment Variables</span>
+              <span>{t('developer.environmentVariablesTitle', undefined, 'Environment Variables')}</span>
             </h3>
 
             <p className="text-slate-400 text-[11px] leading-relaxed">
-              Ensure the following keys are set in your environment / Cloudflare Worker secrets:
+              {t('developer.environmentVariablesDesc', undefined, 'Ensure the following keys are set in your environment / Cloudflare Worker secrets:')}
             </p>
 
             <div className="font-mono text-[10px] bg-slate-950 p-3 rounded-xl border border-slate-800 text-slate-300 space-y-1.5 overflow-x-auto">

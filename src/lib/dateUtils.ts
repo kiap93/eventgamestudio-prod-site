@@ -1632,14 +1632,15 @@ export function getDetailedEventLifecycle(
  * | Lifecycle        | Payment | Delete    |
  * | ---------------- | ------- | --------- |
  * | BEFORE_SETUP_DAY | UNPAID  | ALLOWED   |
- * | BEFORE_SETUP_DAY | PAID    | FORBIDDEN |
- * | SETUP_DAY        | UNPAID  | FORBIDDEN |
+ * | BEFORE_SETUP_DAY | PAID    | FORBIDDEN (Must use Cancel & Refund) |
+ * | SETUP_DAY        | UNPAID  | ALLOWED   |
  * | SETUP_DAY        | PAID    | FORBIDDEN |
+ * | LIVE             | UNPAID  | ALLOWED (Unpaid never goes live) |
  * | LIVE             | PAID    | FORBIDDEN |
  * | COMPLETED        | PAID    | FORBIDDEN |
- * | EXPIRED          | UNPAID  | FORBIDDEN |
+ * | EXPIRED          | UNPAID  | ALLOWED   |
  * | EXPIRED          | PAID    | FORBIDDEN |
- * | CANCELLED        | —       | FORBIDDEN |
+ * | CANCELLED        | —       | FORBIDDEN (Preserves audit history) |
  */
 export function canDeleteEvent(
   event: any,
@@ -1671,73 +1672,67 @@ export function canDeleteEvent(
     eventStatus === 'CANCELLED' ||
     payStatus === 'REFUNDED';
 
-  // 1. CANCELLED -> FORBIDDEN
+  // 1. CANCELLED or REFUNDED -> FORBIDDEN (preserves financial/audit history)
   if (isCancelled) {
     return {
       canDelete: false,
       code: 'ALREADY_CANCELLED',
-      reason: 'Cancelled events cannot be deleted.',
+      reason: 'Cancelled or refunded events cannot be deleted to preserve audit history.',
       lifecycle: 'CANCELLED',
       paymentStatus: payStatus,
       isPaid,
     };
   }
 
-  // 2. AFTER EVENT END (COMPLETED or EXPIRED) -> FORBIDDEN
-  if (dates.endDate && curDate > dates.endDate) {
-    const lifecycle = isPaid ? 'COMPLETED' : 'EXPIRED';
-    return {
-      canDelete: false,
-      code: 'EVENT_ENDED',
-      reason: 'This event has ended and cannot be deleted, cancelled, or refunded.',
-      lifecycle,
-      paymentStatus: payStatus,
-      isPaid,
-    };
-  }
-
-  // 3. LIVE EVENT WINDOW -> FORBIDDEN
-  if (dates.startDate && curDate >= dates.startDate && (!dates.endDate || curDate <= dates.endDate)) {
-    return {
-      canDelete: false,
-      code: 'EVENT_LIVE',
-      reason: 'This live event cannot be deleted or cancelled.',
-      lifecycle: 'LIVE',
-      paymentStatus: payStatus,
-      isPaid,
-    };
-  }
-
-  // 4. ON SETUP DAY -> FORBIDDEN
-  if (dates.liveOpenDate && curDate >= dates.liveOpenDate) {
-    return {
-      canDelete: false,
-      code: 'SETUP_DAY_STARTED',
-      reason: 'This event can no longer be deleted because Setup Day has started.',
-      lifecycle: 'SETUP_DAY',
-      paymentStatus: payStatus,
-      isPaid,
-    };
-  }
-
-  // 5. BEFORE SETUP DAY + PAID -> FORBIDDEN (Must use Cancel & Refund)
+  // 2. PAID EVENT -> FORBIDDEN (Must use Cancel & Refund workflow before Setup Day)
   if (isPaid) {
+    if (dates.endDate && curDate > dates.endDate) {
+      return {
+        canDelete: false,
+        code: 'EVENT_ENDED',
+        reason: 'This completed event has ended and cannot be deleted, cancelled, or refunded.',
+        lifecycle: 'COMPLETED',
+        paymentStatus: payStatus,
+        isPaid: true,
+      };
+    }
+
+    if (dates.startDate && curDate >= dates.startDate && (!dates.endDate || curDate <= dates.endDate)) {
+      return {
+        canDelete: false,
+        code: 'EVENT_LIVE',
+        reason: 'This live event cannot be deleted or cancelled.',
+        lifecycle: 'LIVE',
+        paymentStatus: payStatus,
+        isPaid: true,
+      };
+    }
+
     return {
       canDelete: false,
       code: 'EVENT_PAID',
       reason: 'This paid event cannot be deleted. Use Cancel & Refund before Setup Day.',
-      lifecycle: 'BEFORE_SETUP_DAY',
+      lifecycle: dates.liveOpenDate && curDate >= dates.liveOpenDate ? 'SETUP_DAY' : 'BEFORE_SETUP_DAY',
       paymentStatus: payStatus,
       isPaid: true,
     };
   }
 
-  // 6. BEFORE SETUP DAY + UNPAID -> ALLOWED
+  // 3. UNPAID EVENTS -> ALLOWED
+  // Deletion is available for unpaid events when created, during setup, and even after event date has passed (expired),
+  // provided it remains unpaid with no financial transactions.
+  let lifecycle: EventDetailedLifecycle = 'BEFORE_SETUP_DAY';
+  if (dates.endDate && curDate > dates.endDate) {
+    lifecycle = 'EXPIRED';
+  } else if (dates.liveOpenDate && curDate >= dates.liveOpenDate) {
+    lifecycle = 'SETUP_DAY';
+  }
+
   return {
     canDelete: true,
     code: 'ELIGIBLE_FOR_DELETION',
-    reason: 'This unpaid event can be permanently deleted before Setup Day.',
-    lifecycle: 'BEFORE_SETUP_DAY',
+    reason: 'This unpaid event can be permanently deleted.',
+    lifecycle,
     paymentStatus: payStatus,
     isPaid: false,
   };

@@ -311,12 +311,13 @@ export async function getInvoiceById(
   const supabase = getSupabaseServerClient(env);
 
   try {
+    const isInvoiceNum = invoiceId.startsWith('INV-');
     const res = await executeWithResilience(
       async () => {
         return await supabase
           .from('invoices')
           .select('*')
-          .eq('id', invoiceId)
+          .eq(isInvoiceNum ? 'invoice_number' : 'id', invoiceId)
           .maybeSingle();
       },
       {
@@ -336,7 +337,16 @@ export async function getInvoiceById(
     }
   }
 
-  return localInvoicesCache.get(invoiceId) || null;
+  const fromCache = localInvoicesCache.get(invoiceId);
+  if (fromCache) return fromCache;
+
+  for (const inv of localInvoicesCache.values()) {
+    if (inv.invoice_number === invoiceId) {
+      return inv;
+    }
+  }
+
+  return null;
 }
 
 /**

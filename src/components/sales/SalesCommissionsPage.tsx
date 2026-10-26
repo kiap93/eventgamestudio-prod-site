@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { SalesNavbar } from './SalesNavbar';
 import { SEO } from '../common/SEO';
+import { SalesPartnerTranslationModal } from './SalesPartnerTranslationModal';
 import {
   SalesCommission,
   PartnerCommissionSummary,
@@ -32,6 +34,7 @@ import {
 
 export const SalesCommissionsPage: React.FC = () => {
   const { currentUser, isSalesPartner, isLoading, isAuthenticated } = useAuth();
+  const { t } = useLocalization();
   const [commissions, setCommissions] = useState<SalesCommission[]>([]);
   const [summary, setSummary] = useState<PartnerCommissionSummary | null>(null);
   const [attributionWindows, setAttributionWindows] = useState<any[]>([]);
@@ -41,6 +44,7 @@ export const SalesCommissionsPage: React.FC = () => {
 
   // New Opportunity Modal State
   const [showOpportunityModal, setShowOpportunityModal] = useState<boolean>(false);
+  const [showTranslatorModal, setShowTranslatorModal] = useState<boolean>(false);
   const [submittingOpportunity, setSubmittingOpportunity] = useState<boolean>(false);
   const [opportunityForm, setOpportunityForm] = useState({
     organizationId: '',
@@ -133,31 +137,31 @@ export const SalesCommissionsPage: React.FC = () => {
       case 'paid':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3 h-3" /> Paid Out
+            <CheckCircle2 className="w-3 h-3" /> {t('sales.commissions.statusPaid')}
           </span>
         );
       case 'approved':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <CheckCircle2 className="w-3 h-3" /> Ready for Payout
+            <CheckCircle2 className="w-3 h-3" /> {t('sales.commissions.statusApproved')}
           </span>
         );
       case 'pending_review':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
-            <Clock className="w-3 h-3" /> Pending Review
+            <Clock className="w-3 h-3" /> {t('sales.commissions.statusPending')}
           </span>
         );
       case 'clawback':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-            <AlertCircle className="w-3 h-3" /> Clawback (Refunded)
+            <AlertCircle className="w-3 h-3" /> Clawback
           </span>
         );
       case 'voided':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-            <AlertCircle className="w-3 h-3" /> Voided
+            <AlertCircle className="w-3 h-3" /> {t('sales.commissions.statusCancelled')}
           </span>
         );
       default:
@@ -174,19 +178,19 @@ export const SalesCommissionsPage: React.FC = () => {
       case 'first_order':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-            1st Order (10%)
+            {t('sales.customers.firstOrderRate')}
           </span>
         );
       case 'repeat_order':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-            Repeat (5%)
+            {t('sales.customers.repeatOrderRate')}
           </span>
         );
       case 'approved_opportunity':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-            Pre-Approved Opportunity (5%)
+            Opportunity
           </span>
         );
       default:
@@ -196,7 +200,7 @@ export const SalesCommissionsPage: React.FC = () => {
 
   return (
     <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
-      <SEO robots="noindex, follow" title="Commissions & Payouts | Sales Partner Portal" />
+      <SEO robots="noindex, follow" title={`${t('sales.commissions.title')} | ${t('sales.nav.brandTitle')}`} />
       <SalesNavbar activeSection="commissions" />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -205,11 +209,11 @@ export const SalesCommissionsPage: React.FC = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Authoritative Financial Ledger</span>
+              <span>{t('sales.commissions.ledgerTitle')}</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Commissions & Payouts</h1>
+            <h1 className="text-3xl font-black text-white tracking-tight">{t('sales.commissions.title')}</h1>
             <p className="text-sm text-slate-400">
-              Track earned commissions, 12-month repeat windows, and request post-window sales opportunities.
+              {t('sales.commissions.subtitle')}
             </p>
           </div>
 
@@ -220,14 +224,14 @@ export const SalesCommissionsPage: React.FC = () => {
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Ledger</span>
+              <span>{loading ? t('sales.dashboard.refreshing') : t('sales.dashboard.refresh')}</span>
             </button>
             <button
               onClick={() => setShowOpportunityModal(true)}
               className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-md shadow-amber-500/10"
             >
               <Plus className="w-4 h-4" />
-              <span>Request Opportunity</span>
+              <span>{t('sales.commissions.requestOpportunity')}</span>
             </button>
           </div>
         </div>
@@ -244,174 +248,80 @@ export const SalesCommissionsPage: React.FC = () => {
           {/* Card 1: Total Earned */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
             <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-              <span>Total Earned</span>
+              <span>{t('sales.commissions.totalCommission')}</span>
               <Coins className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-2xl font-black text-white tracking-tight">
               RM{(summary?.total_earned || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[11px] text-slate-400">
-              Includes paid out and ready commissions
+              {t('sales.dashboard.metrics.totalEarnedDesc')}
             </div>
           </div>
 
           {/* Card 2: Ready for Payout */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
             <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-              <span>Ready for Payout</span>
+              <span>{t('sales.commissions.approvedUnpaid')}</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl font-black text-emerald-400 tracking-tight">
               RM{(summary?.ready_for_payout || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[11px] text-slate-400">
-              Approved after event completion
+              {t('sales.dashboard.metrics.readyForPayoutDesc')}
             </div>
           </div>
 
           {/* Card 3: Pending Review */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
             <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-              <span>Pending Review</span>
+              <span>{t('sales.commissions.pendingReview')}</span>
               <Clock className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-2xl font-black text-blue-400 tracking-tight">
               RM{(summary?.pending_review || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[11px] text-slate-400">
-              Becomes payable upon event completion
+              {t('sales.referrals.step3Desc')}
             </div>
           </div>
 
           {/* Card 4: Total Paid Out */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
             <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-              <span>Total Paid Out</span>
+              <span>{t('sales.commissions.paidOut')}</span>
               <TrendingUp className="w-4 h-4 text-slate-400" />
             </div>
             <div className="text-2xl font-black text-white tracking-tight">
               RM{(summary?.total_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[11px] text-slate-400">
-              Successfully disbursed via bank batches
+              {t('sales.commissions.payoutThresholdNotice')}
             </div>
           </div>
         </div>
 
-        {/* 2. 12-Month Customer Attribution Tracker */}
+        {/* 2. Commissions Ledger Table */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-amber-400" />
-                <span>12-Month Repeat Commission Windows</span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                You earn 5% repeat commissions on orders placed within 12 months of a customer's first qualifying order.
-              </p>
-            </div>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Coins className="w-4 h-4 text-amber-400" />
+              <span>{t('sales.commissions.ledgerTitle')}</span>
+            </h2>
           </div>
 
-          {attributionWindows.length === 0 ? (
-            <div className="p-8 text-center bg-slate-950/50 rounded-xl border border-slate-800/80 space-y-2">
-              <Info className="w-8 h-8 text-slate-600 mx-auto" />
-              <div className="text-sm font-semibold text-slate-300">No active attribution windows</div>
-              <div className="text-xs text-slate-500 max-w-md mx-auto">
-                Attribution windows begin automatically once an attributed customer places their first paid qualifying event order.
-              </div>
+          {loading ? (
+            <div className="p-12 text-center text-slate-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
+              <span>{t('sales.dashboard.refreshing')}</span>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {attributionWindows.map((win) => (
-                <div
-                  key={win.organization_id}
-                  className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-sm text-white flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-slate-400" />
-                      <span>{win.organization_name}</span>
-                    </div>
-                    {win.is_window_expired ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                        Window Expired
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                        {win.days_remaining} Days Left
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="text-xs space-y-1.5 text-slate-400">
-                    <div className="flex justify-between">
-                      <span>First Order:</span>
-                      <span className="text-slate-200">
-                        {win.first_qualifying_date ? new Date(win.first_qualifying_date).toLocaleDateString() : '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Window Deadline:</span>
-                      <span className="text-slate-200">
-                        {win.window_end_date ? new Date(win.window_end_date).toLocaleDateString() : '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Commissions Earned:</span>
-                      <span className="text-amber-400 font-bold">
-                        RM{win.total_commissions_earned.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {win.is_window_expired && (
-                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-[11px] text-slate-500">
-                        {win.active_opportunity_exists ? 'Opportunity pre-approved' : 'Requires opportunity request'}
-                      </span>
-                      {!win.active_opportunity_exists && (
-                        <button
-                          onClick={() => {
-                            setOpportunityForm((prev) => ({ ...prev, organizationId: win.organization_id }));
-                            setShowOpportunityModal(true);
-                          }}
-                          className="text-amber-400 hover:text-amber-300 font-bold cursor-pointer text-xs flex items-center gap-1"
-                        >
-                          <span>Request</span>
-                          <span>→</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 3. Authoritative Commission Ledger */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-400" />
-                <span>Commission Ledger</span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                Detailed transaction records with cash revenue basis and calculated commission.
-              </p>
-            </div>
-            <span className="text-xs text-slate-500 font-mono">
-              {commissions.length} {commissions.length === 1 ? 'entry' : 'entries'}
-            </span>
-          </div>
-
-          {commissions.length === 0 ? (
+          ) : commissions.length === 0 ? (
             <div className="p-12 text-center text-slate-400 space-y-2">
-              <Coins className="w-10 h-10 text-slate-600 mx-auto" />
-              <div className="text-sm font-semibold text-slate-300">No commissions recorded yet</div>
+              <Coins className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="font-semibold">{t('sales.commissions.emptyLedger')}</div>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Once your referred clients purchase event packages with cash, your commissions will appear here automatically.
+                {t('sales.dashboard.noRecentActivity')}
               </p>
             </div>
           ) : (
@@ -419,54 +329,43 @@ export const SalesCommissionsPage: React.FC = () => {
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
                   <tr>
-                    <th className="px-4 py-3.5">Client & Event</th>
-                    <th className="px-4 py-3.5">Order Type</th>
-                    <th className="px-4 py-3.5 text-right">Cash Revenue</th>
-                    <th className="px-4 py-3.5 text-right">Rate</th>
-                    <th className="px-4 py-3.5 text-right">Commission</th>
-                    <th className="px-4 py-3.5 text-center">Status</th>
-                    <th className="px-4 py-3.5">Eligibility Date</th>
+                    <th className="px-4 py-3">{t('sales.commissions.eventCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.clientCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.rateCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.grossCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.netCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.statusCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.dateCol')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/80 font-normal">
+                <tbody className="divide-y divide-slate-800/80">
                   {commissions.map((comm) => (
                     <tr key={comm.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <div className="font-semibold text-white">
-                          {comm.event?.name || `Event #${comm.event_id.slice(0, 8)}`}
-                        </div>
-                        <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                          <Building2 className="w-3 h-3 text-slate-500" />
-                          <span>{comm.organization?.name || 'Client'}</span>
+                      <td className="px-4 py-3 font-semibold text-white">
+                        {comm.event?.name || 'Event Activation'}
+                        <div className="text-[10px] text-slate-500 font-normal">
+                          Order #{comm.order_id ? comm.order_id.slice(0, 8) : comm.id.slice(0, 8)}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-200">
+                          {comm.organization?.name || 'Organization'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
                         {getOrderTypeBadge(comm.order_type)}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono text-slate-200">
-                        RM{comm.cash_collected_amount.toFixed(2)}
-                        {comm.promo_discount_amount > 0 && (
-                          <div className="text-[10px] text-slate-500">
-                            (RM{comm.promo_discount_amount.toFixed(2)} promo excluded)
-                          </div>
-                        )}
+                      <td className="px-4 py-3 font-mono text-slate-300">
+                        RM{Number(comm.cash_collected_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-medium text-slate-200">
-                        {(comm.commission_rate * 100).toFixed(0)}%
+                      <td className="px-4 py-3 font-mono font-bold text-amber-400">
+                        RM{Number(comm.commission_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold text-amber-400">
-                        RM{comm.commission_amount.toFixed(2)}
-                        {comm.original_commission_amount && comm.original_commission_amount !== comm.commission_amount && (
-                          <div className="text-[10px] text-slate-500 line-through">
-                            RM{comm.original_commission_amount.toFixed(2)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-4 py-3">
                         {getStatusBadge(comm.status)}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-400 whitespace-nowrap">
-                        {new Date(comm.eligibility_date).toLocaleDateString()}
+                      <td className="px-4 py-3 text-slate-400">
+                        {new Date(comm.created_at).toLocaleDateString()}
                       </td>
                     </tr>
                   ))}
@@ -476,31 +375,31 @@ export const SalesCommissionsPage: React.FC = () => {
           )}
         </div>
 
-        {/* 4. Sales Opportunities (Post-12-Month Requests) */}
+        {/* 3. Opportunities Section */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-purple-400" />
-                <span>Sales Opportunities (Post-12-Month Extension Requests)</span>
+                <span>{t('sales.commissions.opportunityModalTitle')}</span>
               </h2>
               <p className="text-xs text-slate-400">
-                Pre-approved opportunities allow earning a 5% commission on clients whose 12-month window has elapsed. Must be approved prior to order placement.
+                {t('sales.commissions.requestOpportunityDesc')}
               </p>
             </div>
             <button
               onClick={() => setShowOpportunityModal(true)}
               className="px-3 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-semibold cursor-pointer transition-colors"
             >
-              + New Request
+              + {t('sales.commissions.requestOpportunity')}
             </button>
           </div>
 
           {opportunities.length === 0 ? (
             <div className="p-8 text-center bg-slate-950/50 rounded-xl border border-slate-800/80 space-y-1">
-              <div className="text-xs font-medium text-slate-400">No opportunity requests submitted</div>
+              <div className="text-xs font-medium text-slate-400">{t('sales.commissions.emptyLedger')}</div>
               <div className="text-[11px] text-slate-500">
-                If a past client is planning a new event after their 12-month window, request an opportunity here before they place their order.
+                {t('sales.commissions.requestOpportunityDesc')}
               </div>
             </div>
           ) : (
@@ -508,11 +407,11 @@ export const SalesCommissionsPage: React.FC = () => {
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
                   <tr>
-                    <th className="px-4 py-3">Opportunity Title</th>
-                    <th className="px-4 py-3">Client</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Validity Window</th>
-                    <th className="px-4 py-3">Decision Notes</th>
+                    <th className="px-4 py-3">{t('sales.commissions.opportunityTitleLabel')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.clientCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.statusCol')}</th>
+                    <th className="px-4 py-3">{t('sales.customers.windowCol')}</th>
+                    <th className="px-4 py-3">{t('sales.commissions.opportunityDescLabel')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
@@ -579,17 +478,17 @@ export const SalesCommissionsPage: React.FC = () => {
             <div className="space-y-1">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-400" />
-                <span>Request Sales Opportunity Credit</span>
+                <span>{t('sales.commissions.opportunityModalTitle')}</span>
               </h3>
               <p className="text-xs text-slate-400">
-                Submit an opportunity request for an attributed client whose 12-month window has elapsed. Must be reviewed and approved by an Admin BEFORE the client places their order.
+                {t('sales.commissions.requestOpportunityDesc')}
               </p>
             </div>
 
             <form onSubmit={handleCreateOpportunity} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Client Organization *
+                  {t('sales.commissions.opportunityOrgLabel')} *
                 </label>
                 <select
                   value={opportunityForm.organizationId}
@@ -597,7 +496,7 @@ export const SalesCommissionsPage: React.FC = () => {
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
                 >
-                  <option value="">Select an attributed organization...</option>
+                  <option value="">{t('sales.commissions.selectOrgPlaceholder')}</option>
                   {attributionWindows.map((win) => (
                     <option key={win.organization_id} value={win.organization_id}>
                       {win.organization_name} {win.is_window_expired ? '(Window Expired)' : `(${win.days_remaining}d remaining)`}
@@ -608,11 +507,11 @@ export const SalesCommissionsPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Opportunity Title *
+                  {t('sales.commissions.opportunityTitleLabel')} *
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Annual Gala Dinner Activation 2026"
+                  placeholder={t('sales.commissions.opportunityEventPlaceholder')}
                   value={opportunityForm.title}
                   onChange={(e) => setOpportunityForm({ ...opportunityForm, title: e.target.value })}
                   required
@@ -622,7 +521,7 @@ export const SalesCommissionsPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Expected Event Date (Optional)
+                  {t('sales.commissions.opportunityDateLabel')}
                 </label>
                 <input
                   type="date"
@@ -633,12 +532,22 @@ export const SalesCommissionsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Description / Justification
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    {t('sales.commissions.opportunityDescLabel')}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowTranslatorModal(true)}
+                    className="text-xs font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{t('sales.commissions.translateNotes')}</span>
+                  </button>
+                </div>
                 <textarea
                   rows={3}
-                  placeholder="Describe your active re-engagement with this client..."
+                  placeholder={t('sales.commissions.opportunityNotesPlaceholder')}
                   value={opportunityForm.description}
                   onChange={(e) => setOpportunityForm({ ...opportunityForm, description: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-amber-500 resize-none"
@@ -651,20 +560,28 @@ export const SalesCommissionsPage: React.FC = () => {
                   onClick={() => setShowOpportunityModal(false)}
                   className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer"
                 >
-                  Cancel
+                  {t('sales.commissions.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submittingOpportunity}
                   className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold cursor-pointer transition-colors shadow-md shadow-amber-500/10"
                 >
-                  {submittingOpportunity ? 'Submitting...' : 'Submit Request'}
+                  {submittingOpportunity ? t('sales.commissions.submitting') : t('sales.commissions.submitOpportunity')}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* AI Translator for Opportunity Notes */}
+      <SalesPartnerTranslationModal
+        isOpen={showTranslatorModal}
+        onClose={() => setShowTranslatorModal(false)}
+        initialText={opportunityForm.description}
+        context="sales_opportunity_notes"
+      />
     </div>
   );
 };

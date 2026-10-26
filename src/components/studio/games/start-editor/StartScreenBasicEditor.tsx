@@ -201,7 +201,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
   // Determine which visibility controls to show based on game type
   const isMemory = gameType === 'memory-match';
   const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
-  const isCatch = !isMemory && !isReaction;
+  const isMatch3 = gameType === 'match-3' || gameType === 'match3';
+  const isCatch = !isMemory && !isReaction && !isMatch3;
 
   return (
     <div className="space-y-6">
@@ -215,7 +216,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
             <div>
               <h4 className="text-sm font-bold text-slate-100">{t('editor.startScreenBg', undefined, 'Start Screen Background')}</h4>
               <p className="text-xs text-slate-400">
-                Choose between theme background, solid color, or custom uploaded image
+                {t('editor.startScreenBgDesc', undefined, 'Choose between theme background, solid color, or custom uploaded image')}
               </p>
             </div>
           </div>
@@ -244,8 +245,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
           >
             <Layers className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">{t('editor.activeThemeBg', undefined, 'Active Theme BG')}</span>
-              <span className="text-[10px] text-slate-500 block truncate">{t('editor.activeThemeBgDesc', undefined, 'Uses theme wallpaper')}</span>
+              <span className="text-xs block">{t('editor.themeDefaultBg', undefined, 'Theme Default')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.themeDefaultBgDesc', undefined, 'Uses game wallpaper')}</span>
             </div>
             {currentBgType === 'theme' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -261,8 +262,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
           >
             <Palette className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">{t('editor.solidColor', undefined, 'Solid Color')}</span>
-              <span className="text-[10px] text-slate-500 block truncate">{t('editor.solidColorDesc', undefined, 'Custom backdrop color')}</span>
+              <span className="text-xs block">{t('editor.solidColorBg', undefined, 'Solid Color')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.solidColorBgDesc', undefined, 'Clean studio backdrop')}</span>
             </div>
             {currentBgType === 'color' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -278,8 +279,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
           >
             <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">{t('editor.customImage', undefined, 'Custom Image')}</span>
-              <span className="text-[10px] text-slate-500 block truncate">{t('editor.customImageDesc', undefined, 'Independent artwork upload')}</span>
+              <span className="text-xs block">{t('editor.customImageBg', undefined, 'Custom Image')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.customImageBgDesc', undefined, 'Dedicated artwork')}</span>
             </div>
             {currentBgType === 'image' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -297,7 +298,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                   className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
                 />
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block">{t('editor.customColor', undefined, 'Custom Color')}</label>
+                  <label className="text-xs font-semibold text-slate-300 block">{t('editor.backdropHexColor', undefined, 'Backdrop Hex Color')}</label>
                   <input
                     type="text"
                     value={currentBgColor}
@@ -354,8 +355,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 </div>
 
                 <div className="space-y-2 flex-1 w-full text-center sm:text-left">
-                  <p className="text-xs font-semibold text-slate-200">{t('editor.customStartBgLoaded', undefined, 'Custom Start Screen Background Loaded')}</p>
-                  <p className="text-[11px] text-slate-400">{t('editor.aspectRatio16_9', undefined, '16:9 recommended aspect ratio (1024×576px or higher)')}</p>
+                  <p className="text-xs font-semibold text-slate-200">{t('editor.customStartBg', undefined, 'Custom Start Screen Background')}</p>
+                  <p className="text-[11px] text-slate-400">{t('editor.activeAndReady', undefined, 'Active & Ready')}</p>
 
                   <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
                     <button
@@ -365,7 +366,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{t('editor.replaceImage', undefined, 'Replace Image')}</span>
+                      <span>{t('common.change', undefined, 'Change')}</span>
                     </button>
 
                     <button
@@ -405,9 +406,9 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                   <Upload className="w-5 h-5" />
                 </div>
                 <p className="text-xs font-bold text-slate-200">
-                  Drag & Drop Start Screen Image here or click to browse
+                  {t('editor.dragDropStartScreenImg', undefined, 'Drag & Drop Start Screen Image here or click to browse')}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">{t('editor.supportsPngJpgWebp', undefined, 'Supports PNG, JPG, WebP (Max 10MB)')}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{t('editor.recommendedBgDimensions', undefined, 'Recommended 1920×1080 or 1024×576 PNG / WebP (Max 10MB)')}</p>
               </div>
             )}
 
@@ -424,7 +425,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
         <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-semibold text-slate-300 block">{t('editor.darkBackdropOverlay', undefined, 'Dark Backdrop Overlay')}</span>
+              <span className="text-xs font-semibold text-slate-300 block">{t('editor.bgOverlayDimming', undefined, 'Background Overlay Dimming')}</span>
               <span className="text-[10px] text-slate-500">
                 Darkens background to ensure maximum legibility for text and elements
               </span>
@@ -495,9 +496,9 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
             <Eye className="w-4 h-4" />
           </span>
           <div>
-            <h4 className="text-sm font-bold text-slate-100">{t('editor.startElementVisibility', undefined, 'Start Screen Element Visibility')}</h4>
+            <h4 className="text-sm font-bold text-slate-100">{t('editor.startScreenElementsVisibility', undefined, 'Start Screen Elements & Visibility')}</h4>
             <p className="text-xs text-slate-400">
-              Toggle headers, gameplay information pills, rules cards, and action buttons
+              {t('editor.startScreenElementsVisibilityDesc', undefined, 'Toggle headers, gameplay information pills, rules cards, and action buttons')}
             </p>
           </div>
         </div>
@@ -523,8 +524,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Sparkles className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{t('editor.headerLogoEyebrow', undefined, 'Header Eyebrow / Logo')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.headerLogoEyebrowDesc', undefined, 'Top arcade badge or brand logo')}</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.eyebrowLogoHeader', undefined, 'Eyebrow / Brand Logo')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.eyebrowLogoHeaderDesc', undefined, 'Top brand badge or eyebrow label')}</span>
                       </div>
                     </div>
 
@@ -560,8 +561,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Sliders className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{t('editor.rulesCollectiblesCards', undefined, 'Rules & Collectibles Cards')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.rulesCollectiblesCardsDesc', undefined, 'Shows target (+10) and hazard (-10)')}</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.rulesCards', undefined, 'Rules Cards')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.rulesCardsDesc', undefined, 'Good & hazard item scoring cards')}</span>
                       </div>
                     </div>
 
@@ -597,8 +598,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Keyboard className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{t('editor.keyboardHintsPill', undefined, 'Keyboard Hints Pill')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.keyboardHintsPillDesc', undefined, 'Shows Arrow & A/D controls')}</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.keyboardHints', undefined, 'Keyboard Hints')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.keyboardHintsDesc', undefined, 'Arrow / touch control instructions')}</span>
                       </div>
                     </div>
 
@@ -621,7 +622,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 );
               })()}
 
-              {/* {t('editor.leaderboardBtn', undefined, 'Leaderboard Button')} */}
+              {/* Leaderboard Button */}
               {(() => {
                 const isVisible =
                   findStartScreenElementVisibility(elements, 'leaderboard-btn') ??
@@ -635,7 +636,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                       </div>
                       <div>
                         <span className="text-xs font-bold text-slate-200 block">{t('editor.leaderboardBtn', undefined, 'Leaderboard Button')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.leaderboardBtnDesc', undefined, 'Shortcut button to scores')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.leaderboardBtnDesc', undefined, 'Top rankings modal trigger')}</span>
                       </div>
                     </div>
 
@@ -671,8 +672,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <HelpCircle className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{t('editor.howToPlayBtn', undefined, 'How-To-Play Guide Button')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.howToPlayBtnDesc', undefined, 'Help modal button in footer')}</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.guideBtn', undefined, 'How to Play Guide')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.guideBtnDesc', undefined, 'Instructions modal button')}</span>
                       </div>
                     </div>
 
@@ -713,8 +714,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Sparkles className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{t('editor.gameHeaderIcon', undefined, 'Game Header Icon')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.gameHeaderIconDesc', undefined, 'Grid symbol badge at the top')}</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.topIconBadge', undefined, 'Top Icon Badge')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.topIconBadgeDesc', undefined, 'Decorative header emblem')}</span>
                       </div>
                     </div>
 
@@ -737,7 +738,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 );
               })()}
 
-              {/* {t('editor.gridDimensionsPill', undefined, 'Grid Dimensions Pill')} */}
+              {/* Grid Dimensions Pill */}
               {(() => {
                 const isVisible =
                   findStartScreenElementVisibility(elements, 'badge-grid') ??
@@ -779,7 +780,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 );
               })()}
 
-              {/* {t('editor.pairsCountPill', undefined, 'Pairs Count Pill')} */}
+              {/* Pairs Count Pill */}
               {(() => {
                 const isVisible =
                   findStartScreenElementVisibility(elements, 'badge-pairs') ??
@@ -819,7 +820,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 );
               })()}
 
-              {/* {t('editor.timerDurationPill', undefined, 'Timer Duration Pill')} */}
+              {/* Timer Duration Pill */}
               {(() => {
                 const isVisible =
                   findStartScreenElementVisibility(elements, 'badge-timer') ??
@@ -830,6 +831,168 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                   <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.timerDurationPill', undefined, 'Timer Duration Pill')}</span>
+                        <span className="text-[10px] text-slate-400">Shows "{duration}s Timer"</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVisible}
+                      onClick={() => handleToggleElementVisibility('badge-timer', isVisible)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVisible ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVisible ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Leaderboard Button */}
+              {(() => {
+                const isVisible =
+                  findStartScreenElementVisibility(elements, 'leaderboard-btn') ??
+                  startConfig.showLeaderboard !== false;
+
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                        <Trophy className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.leaderboardBtn', undefined, 'Leaderboard Button')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.leaderboardBtnDesc', undefined, 'Shortcut button to scores')}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVisible}
+                      onClick={() => handleToggleElementVisibility('leaderboard-btn', isVisible)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVisible ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVisible ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+
+          {/* MATCH-3 SPECIFIC VISIBILITY CONTROLS */}
+          {isMatch3 && (
+            <>
+              {/* Header Eyebrow / Logo */}
+              {(() => {
+                const targetId =
+                  findStartScreenElementVisibility(elements, 'client-logo') !== undefined
+                    ? 'client-logo'
+                    : 'eyebrow-text';
+                const isVisible =
+                  findStartScreenElementVisibility(elements, targetId) ??
+                  startConfig.showIcon !== false;
+
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.headerLogoEyebrow', undefined, 'Header Eyebrow / Logo')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.headerLogoEyebrowDesc', undefined, 'Top arcade badge or brand logo')}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVisible}
+                      onClick={() => handleToggleElementVisibility(targetId, isVisible)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVisible ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVisible ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Board Dimension Pill */}
+              {(() => {
+                const isVisible =
+                  findStartScreenElementVisibility(elements, 'badge-grid') ??
+                  startConfig.showGridInfo !== false;
+                const rows = gameMeta?.rows ?? 8;
+                const cols = gameMeta?.cols ?? 8;
+
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                        <Grid3X3 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.gridDimensionsPill', undefined, 'Board Dimensions Pill')}</span>
+                        <span className="text-[10px] text-slate-400">
+                          Shows "{rows}×{cols} Board"
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVisible}
+                      onClick={() => handleToggleElementVisibility('badge-grid', isVisible)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVisible ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVisible ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Timer Duration Pill */}
+              {(() => {
+                const isVisible =
+                  findStartScreenElementVisibility(elements, 'badge-timer') ??
+                  startConfig.showTimerInfo !== false;
+                const duration = gameMeta?.duration ?? 60;
+
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-cyan-400">
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
@@ -912,8 +1075,8 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                         <Zap className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{t('editor.startingGantryIcon', undefined, 'Starting Gantry Icon')}</span>
-                        <span className="text-[10px] text-slate-400">{t('editor.startingGantryIconDesc', undefined, 'Top reaction zap symbol')}</span>
+                        <span className="text-xs font-bold text-slate-200 block">{t('editor.topIconBadge', undefined, 'Top Zap Icon')}</span>
+                        <span className="text-[10px] text-slate-400">{t('editor.topIconBadgeDesc', undefined, 'Decorative header emblem')}</span>
                       </div>
                     </div>
 
@@ -936,7 +1099,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 );
               })()}
 
-              {/* {t('editor.roundsCountPill', undefined, 'Rounds Count Pill')} */}
+              {/* Rounds Count Pill */}
               {(() => {
                 const isVisible =
                   findStartScreenElementVisibility(elements, 'badge-rounds') ??
@@ -974,7 +1137,7 @@ export const StartScreenBasicEditor: React.FC<StartScreenBasicEditorProps> = ({
                 );
               })()}
 
-              {/* {t('editor.gantryLightsPill', undefined, 'Gantry Lights Pill')} */}
+              {/* Gantry Lights Pill */}
               {(() => {
                 const isVisible =
                   findStartScreenElementVisibility(elements, 'badge-lights') ??

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { GameTheme } from '../../../themes';
 import { useLocalization } from '../../../context/LocalizationContext';
 import {
@@ -44,7 +44,22 @@ import {
   ChevronUp,
   AlertCircle,
   HelpCircle,
+  Maximize2,
+  Tv,
+  Palette,
 } from 'lucide-react';
+import { ResultScreenVisualEditorModal, ResultScreenBasicEditor } from './result-editor';
+import { ResultScreenRenderer } from '../../../games/shared/ResultScreenRenderer';
+import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
+import { StartScreenRenderer } from '../../../games/shared/StartScreenRenderer';
+import { StartScreenBasicEditor } from './start-editor/StartScreenBasicEditor';
+import { getStartScreenConfig, saveStartScreenConfig } from '../../../games/shared/startScreenResolver';
+import { StartScreenConfig } from '../../../games/shared/startScreenTypes';
+import {
+  ResultScreenConfig,
+  generateDefaultMatch3ResultScreenElements,
+  DEFAULT_RESULT_SCREEN_CONFIG,
+} from '../../../games/shared/resultScreenTypes';
 
 interface Match3CustomizerProps {
   theme: GameTheme;
@@ -120,13 +135,26 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
       ...updates,
     };
 
-    // If switching to remove objective and hazards are currently disabled, enable them
+    // Objective-specific hazard synchronization:
+    // If switching to 'remove' (Clear Obstacles), hazards are required and automatically enabled.
+    // If switching to 'score' (Target Score) or 'collect' (Item Collection),
+    // obstacles exclusive to Clear Obstacles mode must not be retained.
     let nextHazardConfig = currentConfig.hazardConfig;
-    if (updates.type === 'remove' && (!nextHazardConfig || !nextHazardConfig.enabled)) {
-      nextHazardConfig = {
-        ...(nextHazardConfig || DEFAULT_MATCH3_CONFIG.hazardConfig),
-        enabled: true,
-      };
+    const targetType = updates.type || nextObjective.type;
+    if (targetType === 'remove') {
+      if (!nextHazardConfig || !nextHazardConfig.enabled) {
+        nextHazardConfig = {
+          ...(nextHazardConfig || DEFAULT_MATCH3_CONFIG.hazardConfig),
+          enabled: true,
+        };
+      }
+    } else {
+      if (nextHazardConfig?.enabled) {
+        nextHazardConfig = {
+          ...nextHazardConfig,
+          enabled: false,
+        };
+      }
     }
 
     updateConfig({
@@ -184,9 +212,9 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
               className="w-full accent-amber-500"
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>30s Fast</span>
-              <span>60s Standard</span>
-              <span>120s Extended</span>
+              <span>{t('match3.presetFast', undefined, '30s Fast')}</span>
+              <span>{t('match3.presetStandard', undefined, '60s Standard')}</span>
+              <span>{t('match3.presetExtended', undefined, '120s Extended')}</span>
             </div>
           </div>
 
@@ -209,10 +237,10 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
               }}
               className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400"
             >
-              <option value="6x6">6 × 6 (Quick / Compact)</option>
-              <option value="7x7">7 × 7 (Balanced)</option>
-              <option value="8x8">8 × 8 (Classic Standard)</option>
-              <option value="9x9">9 × 9 (Expert Wide)</option>
+              <option value="6x6">{t('match3.grid6x6', undefined, '6 × 6 (Quick / Compact)')}</option>
+              <option value="7x7">{t('match3.grid7x7', undefined, '7 × 7 (Balanced)')}</option>
+              <option value="8x8">{t('match3.grid8x8', undefined, '8 × 8 (Classic Standard)')}</option>
+              <option value="9x9">{t('match3.grid9x9', undefined, '9 × 9 (Expert Wide)')}</option>
             </select>
             <p className="text-[10px] text-slate-500">
               8×8 is the universal tournament standard.
@@ -240,9 +268,9 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
               className="w-full accent-purple-500"
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>4 (Easy combos)</span>
-              <span>6 (Default)</span>
-              <span>8 (Challenging)</span>
+              <span>{t('match3.tileTypesEasy', undefined, '4 (Easy combos)')}</span>
+              <span>{t('match3.tileTypesDefault', undefined, '6 (Default)')}</span>
+              <span>{t('match3.tileTypesChallenging', undefined, '8 (Challenging)')}</span>
             </div>
           </div>
 
@@ -262,9 +290,9 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
               onChange={(e) => updateConfig({ minimumMatch: parseInt(e.target.value, 10) || 3 })}
               className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-emerald-400"
             >
-              <option value={3}>3 in a row (Classic standard)</option>
-              <option value={4}>4 in a row (Challenging)</option>
-              <option value={5}>5 in a row (Hardcore line-clear)</option>
+              <option value={3}>{t('match3.minMatch3Classic', undefined, '3 in a row (Classic standard)')}</option>
+              <option value={4}>{t('match3.minMatch4Challenging', undefined, '4 in a row (Challenging)')}</option>
+              <option value={5}>{t('match3.minMatch5Hardcore', undefined, '5 in a row (Hardcore line-clear)')}</option>
             </select>
             <p className="text-[10px] text-slate-500">
               Minimum adjacent tiles required to clear.
@@ -484,9 +512,9 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
                 className="w-full accent-purple-500"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>15 Casual</span>
-                <span>30 Standard</span>
-                <span>60 Challenge</span>
+                <span>{t('match3.targetCasual', undefined, '15 Casual')}</span>
+                <span>{t('match3.targetStandard', undefined, '30 Standard')}</span>
+                <span>{t('match3.targetChallenge', undefined, '60 Challenge')}</span>
               </div>
             </div>
           </div>
@@ -525,8 +553,8 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
                 className="w-full accent-rose-500"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>1 Quick</span>
-                <span>3 Balanced</span>
+                <span>{t('match3.hazardQuick', undefined, '1 Quick')}</span>
+                <span>{t('match3.hazardBalanced', undefined, '3 Balanced')}</span>
                 <span>{currentConfig.hazardConfig?.initialCount || 8} Full Clear</span>
               </div>
             </div>
@@ -554,7 +582,7 @@ export const Match3GameplayCustomizer: React.FC<Match3CustomizerProps> = ({
           {/* Cascades / Gravity */}
           <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl">
             <div className="space-y-0.5">
-              <span className="text-xs font-bold text-slate-200 block">Cascading Gravity</span>
+              <span className="text-xs font-bold text-slate-200 block">{t('match3.cascadingGravity', undefined, 'Cascading Gravity')}</span>
               <p className="text-[11px] text-slate-400">
                 New tiles drop automatically to fill cleared gaps and chain matches
               </p>
@@ -886,10 +914,10 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
           </div>
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-100">
-              Match-3 Tile Palette & Artwork
+              Match-3 Tile Palette
             </h3>
             <p className="text-xs text-slate-400">
-              Customize colors, symbols, or upload custom branded icons/product sprites for each tile type
+              Customize colors, symbols, and upload custom sprites for active tiles
             </p>
           </div>
         </div>
@@ -901,8 +929,22 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
         </div>
       </div>
 
-      {/* Tiles Carousel / Selector */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+      {/* ============================================================ */}
+      {/* INDIVIDUAL TILE CUSTOMIZER & INSPECTOR                        */}
+      {/* ============================================================ */}
+      <div>
+        <div className="mb-4">
+          <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-amber-400" />
+            <span>{t('match3.fineTuneTiles', undefined, 'Fine-Tune Individual Tiles')}</span>
+          </h4>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Click any active tile to modify display name, change color, replace sprite, or revert to geometric symbols.
+          </p>
+        </div>
+
+        {/* Tiles Carousel / Selector */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
         {activeTileDefs.map((tile, idx) => {
           const isSelected = idx === selectedTileIndex;
           return (
@@ -1021,7 +1063,7 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
                   type="text"
                   value={selectedTile.name}
                   onChange={(e) => updateTile(selectedTileIndex, { name: e.target.value })}
-                  placeholder="e.g. Ruby Gem, Brand Soda, Golden Sneaker"
+                  placeholder={t('match3.tilePlaceholder', undefined, 'e.g. Ruby Gem, Brand Soda, Golden Sneaker')}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none focus:border-amber-400 font-medium"
                 />
               </div>
@@ -1184,7 +1226,7 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
         <div className="flex items-center gap-2 text-slate-200">
           <Zap className="w-4 h-4 text-amber-400" />
-          <h4 className="text-sm font-bold">Special Tiles Visual Guide</h4>
+          <h4 className="text-sm font-bold">{t('match3.specialTilesVisualGuide', undefined, 'Special Tiles Visual Guide')}</h4>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5">
@@ -1194,7 +1236,7 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
               </div>
               <span className="text-xs font-bold text-slate-200">Horizontal Rocket</span>
             </div>
-            <p className="text-[11px] text-slate-400">Created from 4 horizontal tiles. Clears entire row.</p>
+            <p className="text-[11px] text-slate-400">{t('match3.horizontalRocketDesc', undefined, 'Created from 4 horizontal tiles. Clears entire row.')}</p>
           </div>
 
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5">
@@ -1204,7 +1246,7 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
               </div>
               <span className="text-xs font-bold text-slate-200">Vertical Rocket</span>
             </div>
-            <p className="text-[11px] text-slate-400">Created from 4 vertical tiles. Clears entire column.</p>
+            <p className="text-[11px] text-slate-400">{t('match3.verticalRocketDesc', undefined, 'Created from 4 vertical tiles. Clears entire column.')}</p>
           </div>
 
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5">
@@ -1214,7 +1256,7 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
               </div>
               <span className="text-xs font-bold text-slate-200">Explosive Bomb</span>
             </div>
-            <p className="text-[11px] text-slate-400">Created from T or L matches. Clears 3×3 perimeter.</p>
+            <p className="text-[11px] text-slate-400">{t('match3.explosiveBombDesc', undefined, 'Created from T or L matches. Clears 3×3 perimeter.')}</p>
           </div>
 
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5">
@@ -1224,12 +1266,13 @@ export const Match3TilesCustomizer: React.FC<Match3CustomizerProps> = ({
               </div>
               <span className="text-xs font-bold text-slate-200">Color Bomb</span>
             </div>
-            <p className="text-[11px] text-slate-400">Created from 5 in a row. Clears all tiles of matching type.</p>
+            <p className="text-[11px] text-slate-400">{t('match3.colorBombDesc', undefined, 'Created from 5 in a row. Clears all tiles of matching type.')}</p>
           </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 /**
@@ -1239,6 +1282,7 @@ export const Match3HazardsCustomizer: React.FC<Match3CustomizerProps> = ({
   theme,
   onChange,
 }) => {
+  const { t } = useLocalization();
   const currentConfig: Match3GameConfig = {
     ...DEFAULT_MATCH3_CONFIG,
     ...((theme.game_config as Match3GameConfig) || {}),
@@ -1272,16 +1316,16 @@ export const Match3HazardsCustomizer: React.FC<Match3CustomizerProps> = ({
           </div>
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-100">
-              Board Obstacles & Hazards
+              {t('match3.boardObstaclesHazards', undefined, 'Board Obstacles & Hazards')}
             </h3>
             <p className="text-xs text-slate-400">
-              Configure impassable obstacle tiles (Stone, Ice, Bubble) cleared by adjacent matches or direct line matches
+              {t('match3.boardObstaclesHazardsDesc', undefined, 'Configure impassable obstacle tiles (Stone, Ice, Bubble) cleared by adjacent matches or direct line matches')}
             </p>
           </div>
         </div>
 
         <label className="flex items-center gap-2 cursor-pointer bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800">
-          <span className="text-xs font-bold text-slate-300">Enable Hazards</span>
+          <span className="text-xs font-bold text-slate-300">{t('match3.enableHazards', undefined, 'Enable Hazards')}</span>
           <input
             type="checkbox"
             checked={hazardConfig.enabled}
@@ -1296,27 +1340,27 @@ export const Match3HazardsCustomizer: React.FC<Match3CustomizerProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Hazard Type */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <span className="text-xs font-semibold text-slate-300 block">Hazard Type</span>
+              <span className="text-xs font-semibold text-slate-300 block">{t('match3.hazardType', undefined, 'Hazard Type')}</span>
               <select
                 value={hazardConfig.type}
                 onChange={(e) => updateHazardConfig({ type: e.target.value as any })}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-rose-400"
               >
-                <option value="stone">Stone Block (Solid Gray Obstacle)</option>
-                <option value="ice">Ice Frost (Cyan Frost Shield)</option>
-                <option value="bubble">Bubble Shield (Translucent Emerald)</option>
+                <option value="stone">{t('match3.stoneBlock', undefined, 'Stone Block (Solid Gray Obstacle)')}</option>
+                <option value="ice">{t('match3.iceFrost', undefined, 'Ice Frost (Cyan Frost Shield)')}</option>
+                <option value="bubble">{t('match3.bubbleShield', undefined, 'Bubble Shield (Translucent Emerald)')}</option>
               </select>
               <p className="text-[10px] text-slate-500">
-                Visual appearance and obstacle theme on the grid.
+                {t('match3.hazardTypeDesc', undefined, 'Visual appearance and obstacle theme on the grid.')}
               </p>
             </div>
 
             {/* Initial Count */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300">Initial Obstacles</span>
+                <span className="text-xs font-semibold text-slate-300">{t('match3.initialObstacles', undefined, 'Initial Obstacles')}</span>
                 <span className="text-rose-400 font-bold font-mono text-sm">
-                  {hazardConfig.initialCount} Tiles
+                  {hazardConfig.initialCount} {t('developer.tilesLabel', undefined, 'Tiles')}
                 </span>
               </div>
               <input
@@ -1329,34 +1373,34 @@ export const Match3HazardsCustomizer: React.FC<Match3CustomizerProps> = ({
                 className="w-full accent-rose-500"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>1 Light</span>
-                <span>3 Balanced</span>
-                <span>8 Heavy</span>
+                <span>{t('match3.obstaclesLight', undefined, '1 Light')}</span>
+                <span>{t('match3.hazardBalanced', undefined, '3 Balanced')}</span>
+                <span>{t('match3.obstaclesHeavy', undefined, '8 Heavy')}</span>
               </div>
             </div>
 
             {/* Clear Condition Selector */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <span className="text-xs font-semibold text-slate-300 block">Clear Mechanic</span>
+              <span className="text-xs font-semibold text-slate-300 block">{t('match3.clearMechanic', undefined, 'Clear Mechanic')}</span>
               <select
                 value={hazardConfig.clearCondition || 'adjacent_match'}
                 onChange={(e) => updateHazardConfig({ clearCondition: e.target.value as any })}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-rose-400"
               >
-                <option value="adjacent_match">Adjacent Match Blast (Immovable)</option>
-                <option value="direct_match">Direct Line Match (Swappable)</option>
+                <option value="adjacent_match">{t('match3.adjacentMatchBlast', undefined, 'Adjacent Match Blast (Immovable)')}</option>
+                <option value="direct_match">{t('match3.directLineMatch', undefined, 'Direct Line Match (Swappable)')}</option>
               </select>
               <p className="text-[10px] text-slate-500">
                 {hazardConfig.clearCondition === 'direct_match'
-                  ? 'Hazard tile can be swapped and is cleared by 3+ match.'
-                  : 'Obstacle blocks swapping; cleared by adjacent matches.'}
+                  ? t('match3.clearDirectMatchDesc', undefined, 'Hazard tile can be swapped and is cleared by 3+ match.')
+                  : t('match3.clearAdjacentMatchDesc', undefined, 'Obstacle blocks swapping; cleared by adjacent matches.')}
               </p>
             </div>
 
             {/* Points Penalty */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300">Points Penalty</span>
+                <span className="text-xs font-semibold text-slate-300">{t('match3.pointsPenalty', undefined, 'Points Penalty')}</span>
                 <span className="text-rose-400 font-bold font-mono text-sm">
                   {hazardConfig.pointsPenalty ? `-${hazardConfig.pointsPenalty} pts` : '0 pts'}
                 </span>
@@ -1465,6 +1509,12 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
     }
   };
 
+  useEffect(() => {
+    return () => {
+      match3Sounds.stopBgm();
+    };
+  }, []);
+
   const handleUploadAudio = async (file: File, soundKey: string) => {
     if (typeof onUploadAsset !== 'function') return;
     setAudioUploadError(null);
@@ -1533,10 +1583,10 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
 
         {/* Volume Sliders Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Master Volume */}
+          {/* {t('studio.masterVolume', undefined, 'Master Volume')} */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-slate-300">Master Volume</span>
+              <span className="font-semibold text-slate-300">{t('studio.masterVolume', undefined, 'Master Volume')}</span>
               <span className="text-amber-400 font-bold font-mono">
                 {Math.round((sounds.soundVolume ?? 0.8) * 100)}%
               </span>
@@ -1554,13 +1604,13 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
               }
               className="w-full accent-amber-500 cursor-pointer"
             />
-            <p className="text-[10px] text-slate-500">Overall master output level.</p>
+            <p className="text-[10px] text-slate-500">{t('studio.masterVolumeDesc', undefined, 'Overall master output level.')}</p>
           </div>
 
-          {/* Sound FX Volume */}
+          {/* {t('studio.sfxVolume', undefined, 'Sound FX Volume')} */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-slate-300">Sound FX Volume</span>
+              <span className="font-semibold text-slate-300">{t('studio.sfxVolume', undefined, 'Sound FX Volume')}</span>
               <span className="text-purple-400 font-bold font-mono">
                 {Math.round((sounds.sfxVolume ?? 1.0) * 100)}%
               </span>
@@ -1578,7 +1628,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
               }
               className="w-full accent-purple-500 cursor-pointer"
             />
-            <p className="text-[10px] text-slate-500">Swaps, chimes, bombs, and cascades.</p>
+            <p className="text-[10px] text-slate-500">{t('studio.sfxVolumeDesc', undefined, 'Swaps, chimes, bombs, and cascades.')}</p>
           </div>
 
           {/* Background Music Volume */}
@@ -1627,7 +1677,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
               }
               className="w-full accent-cyan-500 cursor-pointer"
             />
-            <p className="text-[10px] text-slate-500">Procedural pentatonic chiptune music.</p>
+            <p className="text-[10px] text-slate-500">{t('studio.chiptuneMusicDesc', undefined, 'Procedural pentatonic chiptune music.')}</p>
           </div>
         </div>
       </div>
@@ -1639,7 +1689,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             <Zap className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-100">Interactive Sound Event Previews</h3>
+            <h3 className="text-sm sm:text-base font-bold text-slate-100">{t('studio.interactiveSoundPreviews', undefined, 'Interactive Sound Event Previews')}</h3>
             <p className="text-xs text-slate-400">
               Test zero-latency Web Audio synthesizers and custom uploaded sound assets
             </p>
@@ -1653,7 +1703,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-amber-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>Tile Swap</span>
+            <span>{t('match3.tileSwap', undefined, 'Tile Swap')}</span>
           </button>
 
           <button
@@ -1662,7 +1712,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-emerald-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Trophy className="w-4 h-4 text-emerald-400" />
-            <span>Match Chime</span>
+            <span>{t('match3.matchChime', undefined, 'Match Chime')}</span>
           </button>
 
           <button
@@ -1671,7 +1721,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-sky-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Rocket className="w-4 h-4 text-sky-400" />
-            <span>Rocket Fire</span>
+            <span>{t('match3.rocketFire', undefined, 'Rocket Fire')}</span>
           </button>
 
           <button
@@ -1680,7 +1730,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-rose-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Bomb className="w-4 h-4 text-rose-400" />
-            <span>Bomb Detonate</span>
+            <span>{t('match3.scoreBombDetonate', undefined, 'Bomb Detonate')}</span>
           </button>
 
           <button
@@ -1689,7 +1739,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-purple-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-purple-400" />
-            <span>Color Bomb</span>
+            <span>{t('match3.scoreColorBomb', undefined, 'Color Bomb')}</span>
           </button>
 
           <button
@@ -1698,7 +1748,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-rose-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Bomb className="w-4 h-4 text-rose-400" />
-            <span>Mega Bomb</span>
+            <span>{t('match3.megaBomb', undefined, 'Mega Bomb')}</span>
           </button>
 
           <button
@@ -1707,7 +1757,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-cyan-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Rocket className="w-4 h-4 text-cyan-400" />
-            <span>Crossfire Rocket</span>
+            <span>{t('match3.crossfireRocket', undefined, 'Crossfire Rocket')}</span>
           </button>
 
           <button
@@ -1716,7 +1766,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-blue-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Shuffle className="w-4 h-4 text-blue-400" />
-            <span>Board Shuffle</span>
+            <span>{t('match3.boardShuffle', undefined, 'Board Shuffle')}</span>
           </button>
 
           <button
@@ -1725,7 +1775,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-emerald-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Shield className="w-4 h-4 text-emerald-400" />
-            <span>Obstacle Clear</span>
+            <span>{t('match3.obstacleClear', undefined, 'Obstacle Clear')}</span>
           </button>
 
           <button
@@ -1734,7 +1784,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
             className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-orange-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
           >
             <Clock className="w-4 h-4 text-orange-400" />
-            <span>Game Over</span>
+            <span>{t('match3.gameOverSound', undefined, 'Game Over')}</span>
           </button>
         </div>
       </div>
@@ -1748,7 +1798,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
         >
           <div className="flex items-center gap-2.5">
             <Music className="w-4 h-4 text-amber-400" />
-            <span className="text-sm">Custom Audio Assets & Music Tracks (Optional)</span>
+            <span className="text-sm">{t('studio.customAudioOptional', undefined, 'Custom Audio Assets & Music Tracks (Optional)')}</span>
           </div>
           <div className="flex items-center gap-1.5 text-slate-400">
             <span className="text-xs font-normal">
@@ -2016,6 +2066,7 @@ export const Match3AudioEditor: React.FC<Match3CustomizerProps> = ({
  * Backward-compatible Match3AudioTester export
  */
 export const Match3AudioTester: React.FC = () => {
+  const { t } = useLocalization();
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
       <div className="flex items-center gap-2">
@@ -2023,9 +2074,9 @@ export const Match3AudioTester: React.FC = () => {
           <Volume2 className="w-4 h-4" />
         </span>
         <div>
-          <h3 className="text-sm font-bold text-slate-100">Match-3 Sound FX Previews</h3>
+          <h3 className="text-sm font-bold text-slate-100">{t('match3.soundFxPreviews', undefined, 'Match-3 Sound FX Previews')}</h3>
           <p className="text-xs text-slate-400">
-            Synthesized zero-latency Web Audio sound effects crafted for cascade matching
+            {t('match3.soundFxPreviewsDesc', undefined, 'Synthesized zero-latency Web Audio sound effects crafted for cascade matching')}
           </p>
         </div>
       </div>
@@ -2037,7 +2088,7 @@ export const Match3AudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-amber-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
         >
           <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Tile Swap</span>
+          <span>{t('match3.tileSwap', undefined, 'Tile Swap')}</span>
         </button>
 
         <button
@@ -2046,7 +2097,7 @@ export const Match3AudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-emerald-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
         >
           <Trophy className="w-4 h-4 text-emerald-400" />
-          <span>Match Chime</span>
+          <span>{t('match3.matchChime', undefined, 'Match Chime')}</span>
         </button>
 
         <button
@@ -2055,7 +2106,7 @@ export const Match3AudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-rose-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
         >
           <Bomb className="w-4 h-4 text-rose-400" />
-          <span>Mega Bomb Blast</span>
+          <span>{t('match3.megaBombBlast', undefined, 'Mega Bomb Blast')}</span>
         </button>
 
         <button
@@ -2064,9 +2115,383 @@ export const Match3AudioTester: React.FC = () => {
           className="p-3 bg-slate-950 hover:bg-slate-800 active:scale-95 border border-slate-800 hover:border-sky-500/40 rounded-2xl flex flex-col items-center gap-1.5 text-center transition-all text-xs font-bold text-slate-200 cursor-pointer"
         >
           <Rocket className="w-4 h-4 text-sky-400" />
-          <span>Crossfire Rocket</span>
+          <span>{t('match3.crossfireRocket', undefined, 'Crossfire Rocket')}</span>
         </button>
       </div>
     </div>
   );
 };
+
+/* ==========================================================================
+ * MATCH-3 - SCREENS CUSTOMIZER (START SCREEN & RESULT SCREEN)
+ * ========================================================================== */
+export const Match3ScreensCustomizer: React.FC<Match3CustomizerProps> = ({
+  theme,
+  onChange,
+  onUploadAsset,
+  uploadingAsset,
+}) => {
+  const { t } = useLocalization();
+  const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
+  const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
+  const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
+  const [resultViewportPreset, setResultViewportPreset] = useState<'fit' | '1024x576' | '800x450' | '600x400' | '400x300'>('fit');
+  const [resultScaleInfo, setResultScaleInfo] = useState<{ scale: number; width: number; height: number }>({ scale: 1, width: 0, height: 0 });
+
+  const match3Config: Match3GameConfig = {
+    ...DEFAULT_MATCH3_CONFIG,
+    ...((theme.game_config as Match3GameConfig) || {}),
+  };
+
+  const rawScreens = (match3Config as any).screens || (theme as any).screens || {};
+  const duration = match3Config.gameDurationSeconds ?? 60;
+  const rows = match3Config.rows ?? 8;
+  const cols = match3Config.cols ?? 8;
+
+  const match3GameMeta = useMemo(() => ({
+    rows,
+    cols,
+    duration,
+    gameTitle: theme.branding?.gameTitle || theme.name || 'Match-3 Cascade',
+    gameSubtitle: theme.branding?.subtitle || 'Swap tiles, create combos, and clear the board!',
+    logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+  }), [rows, cols, duration, theme.branding, theme.name, theme.clientLogo, theme.logo]);
+
+  const startConfig = getStartScreenConfig(theme, 'match-3', match3GameMeta, { width: 1024, height: 576 });
+
+  const resultConfig: ResultScreenConfig = useMemo(() => {
+    const existingResult = rawScreens.result || (theme as any).screens?.result || {};
+    const merged: ResultScreenConfig = {
+      ...DEFAULT_RESULT_SCREEN_CONFIG,
+      screenTitle: existingResult.screenTitle || existingResult.title || "TIME'S UP!",
+      showScore: existingResult.showScore !== false,
+      showMoves: existingResult.showMoves !== false,
+      backgroundType: existingResult.backgroundType || 'theme',
+      backgroundColor: existingResult.backgroundColor || '#0f172a',
+      backgroundOverlayOpacity: existingResult.backgroundOverlayOpacity ?? 0.4,
+      backgroundImageUrl: existingResult.backgroundImageUrl ?? null,
+      ...existingResult,
+    };
+    if (!merged.elements || merged.elements.length === 0) {
+      merged.elements = generateDefaultMatch3ResultScreenElements(merged);
+    }
+    return merged;
+  }, [rawScreens.result, (theme as any).screens?.result]);
+
+  const handleUpdateStartScreen = (updates: Partial<StartScreenConfig>) => {
+    const nextStart: StartScreenConfig = {
+      ...startConfig,
+      ...updates,
+      canvas: updates.canvas || startConfig.canvas || { width: 1024, height: 576, coordinateSpace: 'landscape-1024x576', version: 2 },
+    };
+    const updatedTheme = saveStartScreenConfig(theme, nextStart, 'match-3');
+    onChange(updatedTheme);
+  };
+
+  const handleUpdateResultScreen = (updates: Partial<ResultScreenConfig>) => {
+    const nextResult: ResultScreenConfig = {
+      ...resultConfig,
+      ...updates,
+    };
+    nextResult.background = {
+      type: nextResult.backgroundType || 'theme',
+      imageUrl: nextResult.backgroundImageUrl ?? null,
+      color: nextResult.backgroundColor || '#0f172a',
+      overlayOpacity: nextResult.backgroundOverlayOpacity ?? 0.4,
+    };
+    if (
+      updates.elements === undefined &&
+      (updates.showScore !== undefined ||
+        updates.showMoves !== undefined ||
+        (updates as any).showMatches !== undefined ||
+        (updates as any).showBestCombo !== undefined ||
+        (updates as any).showSpecials !== undefined ||
+        (updates as any).showLeaderboard !== undefined ||
+        (updates as any).showPlayAgain !== undefined ||
+        !nextResult.elements ||
+        nextResult.elements.length === 0)
+    ) {
+      nextResult.elements = generateDefaultMatch3ResultScreenElements(nextResult);
+    }
+    const currentScreens = (match3Config as any).screens || (theme as any).screens || {};
+    const nextScreens = {
+      ...currentScreens,
+      result: nextResult,
+    };
+    const nextMatch3Config: Match3GameConfig = {
+      ...match3Config,
+      screens: nextScreens,
+    };
+    onChange({
+      ...theme,
+      game_config: nextMatch3Config as any,
+      screens: {
+        ...((theme as any).screens || {}),
+        result: nextResult as any,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 1. Header Banner & Subtab Switcher */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 shrink-0">
+            <Tv className="w-5 h-5" />
+          </span>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+              <span>{t('customizers.gameScreensCustomization', undefined, 'Game Screens Customization')}</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Customize Start Screen and Results / Game Over screens with brand colors, stats, and live visual preview
+            </p>
+          </div>
+        </div>
+
+        {/* Sub-Navigation Switcher */}
+        <div className="flex items-center bg-slate-950 border border-slate-800 p-1 rounded-2xl shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('start')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'start'
+                ? 'bg-amber-500 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>{t('customizers.startScreen', undefined, 'Start Screen')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('result')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'result'
+                ? 'bg-amber-500 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>{t('customizers.resultScreen', undefined, 'Result Screen')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. START SCREEN SUB-SECTION */}
+      {activeSubTab === 'start' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 1. BASIC EDITOR */}
+          <StartScreenBasicEditor
+            startConfig={startConfig}
+            theme={theme}
+            gameType="match-3"
+            gameMeta={match3GameMeta}
+            onChange={handleUpdateStartScreen}
+            onUploadAsset={onUploadAsset as any}
+            uploadingAsset={uploadingAsset}
+          />
+
+          {/* 2. ADVANCED VISUAL CANVAS EDITOR */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-amber-400" />
+                  <span>{t('customizers.startScreenVisualCanvasEditor', undefined, 'Start Screen Visual Canvas Editor')}</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Design layout, badges, buttons, and graphics using the 1024×576 visual canvas editor.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStartEditorModalOpen(true)}
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>{t('customizers.openStartScreenEditor', undefined, 'Open Start Screen Editor')}</span>
+              </button>
+            </div>
+
+            {/* Live Scaled Preview Frame */}
+            <div className="flex flex-col items-center justify-center p-3 sm:p-4 bg-slate-950/70 rounded-2xl border border-slate-800/80">
+              <div className="w-full max-w-[540px] aspect-video rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
+                <StartScreenRenderer
+                  config={startConfig}
+                  theme={theme}
+                  gameType="match-3"
+                  gameMeta={match3GameMeta}
+                  onStartGame={() => {}}
+                  isSimulation={true}
+                />
+              </div>
+              <span className="text-[11px] text-slate-500 mt-2 font-mono">
+                {t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}
+              </span>
+            </div>
+          </div>
+
+          <StartScreenVisualEditorModal
+            isOpen={isStartEditorModalOpen}
+            onClose={() => setIsStartEditorModalOpen(false)}
+            startConfig={startConfig}
+            theme={theme}
+            gameType="match-3"
+            gameMeta={match3GameMeta}
+            onChange={handleUpdateStartScreen}
+            onUploadAsset={onUploadAsset as any}
+          />
+        </div>
+      )}
+
+      {/* 3. RESULT / GAME OVER SCREEN SUB-SECTION */}
+      {activeSubTab === 'result' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 1. BASIC EDITOR */}
+          <ResultScreenBasicEditor
+            resultConfig={resultConfig as any}
+            theme={theme}
+            gameType="match-3"
+            onChange={handleUpdateResultScreen}
+            onUploadAsset={onUploadAsset as any}
+            uploadingAsset={uploadingAsset}
+          />
+
+          {/* 2. ADVANCED VISUAL CANVAS EDITOR */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-amber-400" />
+                  <span>{t('customizers.resultScreenVisualCanvasEditor', undefined, 'Result Screen Visual Canvas Editor')}</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  Design layout, badges, score metrics, leaderboard layout, and buttons directly on the canvas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResultEditorModalOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>{t('customizers.openResultScreenEditor', undefined, 'Open Result Screen Editor')}</span>
+              </button>
+            </div>
+
+            {/* Live Scaled Preview Frame */}
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 gap-3">
+              {/* Viewport Dimension Presets */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] font-mono">
+                <span className="text-slate-400 px-2 font-medium">{t('customizers.viewport', undefined, 'Viewport:')}</span>
+                {(
+                  [
+                    { id: 'fit', label: 'Fit (Auto)' },
+                    { id: '1024x576', label: '1024 × 576 (1.0x)' },
+                    { id: '800x450', label: '800 × 450 (0.781x)' },
+                    { id: '600x400', label: '600 × 400 (0.586x)' },
+                    { id: '400x300', label: '400 × 300 (0.391x)' },
+                  ] as const
+                ).map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setResultViewportPreset(preset.id)}
+                    className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                      resultViewportPreset === preset.id
+                        ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Viewport Frame */}
+              <div
+                className="w-full flex items-center justify-center overflow-auto p-2"
+                style={{ maxHeight: '600px' }}
+              >
+                <div
+                  className="rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative transition-all duration-200"
+                  style={{
+                    width:
+                      resultViewportPreset === '1024x576'
+                        ? '1024px'
+                        : resultViewportPreset === '800x450'
+                        ? '800px'
+                        : resultViewportPreset === '600x400'
+                        ? '600px'
+                        : resultViewportPreset === '400x300'
+                        ? '400px'
+                        : '100%',
+                    maxWidth: '100%',
+                    height:
+                      resultViewportPreset === '1024x576'
+                        ? '576px'
+                        : resultViewportPreset === '800x450'
+                        ? '450px'
+                        : resultViewportPreset === '600x400'
+                        ? '400px'
+                        : resultViewportPreset === '400x300'
+                        ? '300px'
+                        : undefined,
+                    aspectRatio: resultViewportPreset === 'fit' ? '16 / 9' : undefined,
+                  }}
+                >
+                  <ResultScreenRenderer
+                    resultConfig={resultConfig as any}
+                    theme={theme}
+                    layout={theme.layout}
+                    gameType="match-3"
+                    stats={{
+                      score: 8450,
+                      matches: 24,
+                      bestCombo: 5,
+                      specialTilesCreated: 6,
+                      moves: 24,
+                      timeElapsedSeconds: duration,
+                      isVictory: true,
+                      gameType: 'match-3',
+                    }}
+                    isSimulation={true}
+                    onScaleChange={(scale, w, h) => {
+                      setResultScaleInfo({ scale, width: Math.round(w), height: Math.round(h) });
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-500 font-mono">
+                <span>{t('customizers.interactiveCanvasPreview', undefined, 'Interactive Scaled Canvas Preview (1024 × 576)')}</span>
+                <span className="text-slate-600">•</span>
+                <span className="text-amber-400 font-semibold">
+                  {t('customizers.scale', undefined, 'Scale:')} {resultScaleInfo.scale.toFixed(3)}
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="text-slate-400">
+                  {t('customizers.viewport', undefined, 'Viewport:')} {resultScaleInfo.width} × {resultScaleInfo.height}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <ResultScreenVisualEditorModal
+            isOpen={isResultEditorModalOpen}
+            onClose={() => setIsResultEditorModalOpen(false)}
+            resultConfig={resultConfig as any}
+            theme={theme}
+            gameType="match-3"
+            onChange={handleUpdateResultScreen}
+            onUploadAsset={onUploadAsset as any}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+

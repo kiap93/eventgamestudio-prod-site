@@ -3,6 +3,7 @@
  *
  * Dedicated transactional mailer sent to customer organization owners upon
  * automatic invoice generation following event completion.
+ * Styled in the official pure white B2B corporate palette (#FFFFFF, #172B4D, #334155).
  */
 
 export interface InvoiceEmailParams {
@@ -36,8 +37,9 @@ function escapeHtml(str: string): string {
 }
 
 function formatMoney(amount: number, currency: string): string {
-  const symbol = currency === 'MYR' ? 'RM' : currency === 'USD' ? '$' : currency === 'SGD' ? 'S$' : `${currency} `;
-  return `${symbol}${amount.toFixed(2)}`;
+  const symbol = currency === 'MYR' ? 'RM ' : currency === 'USD' ? '$' : currency === 'SGD' ? 'S$' : `${currency} `;
+  const num = Number(amount) || 0;
+  return `${symbol}${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function generateInvoiceEmail(params: InvoiceEmailParams): GeneratedInvoiceEmail {
@@ -57,15 +59,19 @@ export function generateInvoiceEmail(params: InvoiceEmailParams): GeneratedInvoi
   } = params;
 
   const isPaid = status === 'paid' || outstandingBalance <= 0;
+  const isPartiallyPaid = status === 'partially_paid' || (amountPaid > 0 && outstandingBalance > 0);
+
   const statusBadge = isPaid
     ? 'PAID'
-    : status === 'partially_paid'
+    : isPartiallyPaid
     ? 'PARTIALLY PAID'
     : status === 'overdue'
     ? 'OVERDUE'
-    : 'PAYMENT DUE';
+    : 'UNPAID';
 
-  const statusColor = isPaid ? '#10b981' : status === 'partially_paid' ? '#f59e0b' : '#ef4444';
+  const badgeBg = isPaid ? '#DCFCE7' : isPartiallyPaid ? '#FEF3C7' : '#FEE2E2';
+  const badgeBorder = isPaid ? '#BBF7D0' : isPartiallyPaid ? '#FDE68A' : '#FECACA';
+  const badgeText = isPaid ? '#166534' : isPartiallyPaid ? '#92400E' : '#991B1B';
 
   const subject = isPaid
     ? `Invoice Paid: ${invoiceNumber} - ${eventName} | Event Game Studio`
@@ -75,7 +81,7 @@ export function generateInvoiceEmail(params: InvoiceEmailParams): GeneratedInvoi
 
   const text = `${recipientGreeting}
 
-An invoice has been generated for your event "${eventName}" with Event Game Studio.
+An official tax invoice has been generated for your event "${eventName}" with Event Game Studio.
 
 Invoice Details:
 - Invoice Number: ${invoiceNumber}
@@ -90,8 +96,8 @@ Invoice Details:
 
 ${
   isPaid
-    ? 'Thank you for your payment! This invoice is fully settled.'
-    : `Please settle the outstanding balance of ${formatMoney(outstandingBalance, currency)} by ${dueDate}.`
+    ? 'Thank you for choosing EventGameStudio. This invoice has been settled in full.'
+    : `Please remit the outstanding balance of ${formatMoney(outstandingBalance, currency)} by ${dueDate}.`
 }
 
 View and download your official invoice PDF securely here:
@@ -99,7 +105,7 @@ ${viewUrl}
 
 If you have any questions regarding this invoice, please contact our support team at eventgamestudio@gmail.com.
 
-Best regards,
+Thank you for choosing EventGameStudio.
 Event Game Studio Billing Team
 https://eventgamestudio.com
 `;
@@ -111,31 +117,26 @@ https://eventgamestudio.com
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(subject)}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #0b1329; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f1f5f9;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0b1329; padding: 32px 16px;">
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #334155;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 32px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-          <!-- Top Accent Bar -->
-          <tr>
-            <td style="background: linear-gradient(90deg, #f59e0b, #d97706); height: 4px; line-height: 4px; font-size: 1px;">&nbsp;</td>
-          </tr>
-
+        <table role="presentation" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
           <!-- Header -->
           <tr>
-            <td style="padding: 32px 32px 24px; border-bottom: 1px solid #1e293b;">
+            <td style="padding: 32px 32px 24px; border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
-                    <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #fbbf24; letter-spacing: -0.5px;">
-                      EVENT GAME STUDIO
+                    <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #172b4d; letter-spacing: -0.3px;">
+                      EVENTGAMESTUDIO
                     </h1>
-                    <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8; font-weight: 500;">
-                      Interactive Event Mini-Games &amp; Activations
+                    <p style="margin: 4px 0 0; font-size: 12px; color: #64748b; font-weight: 500;">
+                      Interactive Event Gaming Solutions
                     </p>
                   </td>
                   <td align="right" valign="top">
-                    <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; background-color: ${statusColor}20; color: ${statusColor}; border: 1px solid ${statusColor}40;">
+                    <span style="display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; background-color: ${badgeBg}; color: ${badgeText}; border: 1px solid ${badgeBorder}; text-transform: uppercase;">
                       ${statusBadge}
                     </span>
                   </td>
@@ -146,56 +147,64 @@ https://eventgamestudio.com
 
           <!-- Content Body -->
           <tr>
-            <td style="padding: 32px;">
-              <p style="margin: 0 0 16px; font-size: 15px; color: #f8fafc; font-weight: 600;">
+            <td style="padding: 32px; background-color: #ffffff;">
+              <p style="margin: 0 0 16px; font-size: 14px; color: #172b4d; font-weight: 600;">
                 ${escapeHtml(recipientGreeting)}
               </p>
-              <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #cbd5e1;">
-                Your event <strong style="color: #ffffff;">"${escapeHtml(eventName)}"</strong> has concluded, and your official invoice <strong style="color: #fbbf24;">${escapeHtml(invoiceNumber)}</strong> is now available.
+              <p style="margin: 0 0 24px; font-size: 13px; line-height: 1.6; color: #334155;">
+                Your event <strong style="color: #172b4d;">"${escapeHtml(eventName)}"</strong> has concluded, and your official tax invoice <strong style="color: #172b4d;">${escapeHtml(invoiceNumber)}</strong> is now ready.
               </p>
 
-              <!-- Invoice Summary Card -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #070e1e; border: 1px solid #1e293b; border-radius: 12px; margin-bottom: 24px;">
+              <!-- 4-Column Metadata Info Card -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px;">
                 <tr>
-                  <td style="padding: 20px;">
+                  <td style="padding: 16px;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr>
-                        <td style="padding-bottom: 12px; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                        <td style="padding-bottom: 10px; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">
                           Invoice Number
                         </td>
-                        <td align="right" style="padding-bottom: 12px; font-size: 13px; font-weight: 700; color: #f8fafc; font-family: monospace;">
+                        <td align="right" style="padding-bottom: 10px; font-size: 12px; font-weight: 700; color: #172b4d; font-family: monospace;">
                           ${escapeHtml(invoiceNumber)}
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding-bottom: 12px; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                        <td style="padding-bottom: 10px; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">
                           Issue Date
                         </td>
-                        <td align="right" style="padding-bottom: 12px; font-size: 13px; color: #94a3b8;">
+                        <td align="right" style="padding-bottom: 10px; font-size: 12px; color: #334155;">
                           ${escapeHtml(issueDate)}
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding-bottom: 12px; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                        <td style="padding-bottom: 10px; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">
+                          Due Date
+                        </td>
+                        <td align="right" style="padding-bottom: 10px; font-size: 12px; color: #334155;">
+                          ${escapeHtml(dueDate)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 10px; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">
                           Total Amount
                         </td>
-                        <td align="right" style="padding-bottom: 12px; font-size: 13px; font-weight: 600; color: #f8fafc;">
+                        <td align="right" style="padding-bottom: 10px; font-size: 12px; font-weight: 600; color: #172b4d;">
                           ${formatMoney(totalAmount, currency)}
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding-bottom: 12px; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                        <td style="padding-bottom: 10px; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">
                           Payments Received
                         </td>
-                        <td align="right" style="padding-bottom: 12px; font-size: 13px; font-weight: 600; color: #10b981;">
+                        <td align="right" style="padding-bottom: 10px; font-size: 12px; font-weight: 600; color: #065f46;">
                           ${formatMoney(amountPaid, currency)}
                         </td>
                       </tr>
-                      <tr style="border-top: 1px solid #1e293b;">
-                        <td style="padding-top: 12px; font-size: 13px; font-weight: 800; color: #fbbf24;">
+                      <tr style="border-top: 1px solid #e2e8f0;">
+                        <td style="padding-top: 10px; font-size: 12px; font-weight: 800; color: #172b4d;">
                           Balance Due
                         </td>
-                        <td align="right" style="padding-top: 12px; font-size: 16px; font-weight: 900; color: ${isPaid ? '#10b981' : '#f59e0b'};">
+                        <td align="right" style="padding-top: 10px; font-size: 14px; font-weight: 900; color: ${isPaid ? '#172b4d' : '#92400e'};">
                           ${formatMoney(outstandingBalance, currency)}
                         </td>
                       </tr>
@@ -208,7 +217,7 @@ https://eventgamestudio.com
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
                 <tr>
                   <td align="center">
-                    <a href="${escapeHtml(viewUrl)}" style="display: inline-block; padding: 14px 28px; background-color: #f59e0b; color: #020617; font-size: 13px; font-weight: 800; text-decoration: none; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                    <a href="${escapeHtml(viewUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #172b4d; color: #ffffff; font-size: 12px; font-weight: 700; text-decoration: none; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
                       View &amp; Download Invoice PDF
                     </a>
                   </td>
@@ -218,7 +227,7 @@ https://eventgamestudio.com
               <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #64748b; text-align: center;">
                 ${
                   isPaid
-                    ? 'Thank you for choosing Event Game Studio for your interactive activation!'
+                    ? 'Thank you for choosing EventGameStudio for your interactive activation!'
                     : `Please ensure the remaining balance is settled by ${escapeHtml(dueDate)}.`
                 }
               </p>
@@ -227,12 +236,15 @@ https://eventgamestudio.com
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 24px 32px; background-color: #070e1e; border-top: 1px solid #1e293b; text-align: center;">
-              <p style="margin: 0 0 6px; font-size: 11px; color: #64748b;">
-                Event Game Studio &bull; Kuala Lumpur, Malaysia &bull; eventgamestudio@gmail.com
+            <td style="padding: 24px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+              <p style="margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #172b4d;">
+                Interactive Event Gaming Solutions
               </p>
-              <p style="margin: 0; font-size: 11px; color: #475569;">
-                This is an automated transactional invoice notification. Sensitive documents are protected by secure authentication.
+              <p style="margin: 0 0 4px; font-size: 11px; color: #64748b;">
+                Website: eventgamestudio.com &bull; Email: eventgamestudio@gmail.com
+              </p>
+              <p style="margin: 8px 0 0; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+                Payment verified and settled via platform wallet. Thank you for choosing EventGameStudio.
               </p>
             </td>
           </tr>

@@ -516,6 +516,201 @@ class Match3SoundManager {
     });
   }
 
+  public playColorBombCharge() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx || !this.masterGain) return;
+
+    const effVol = this.volume * this.sfxVolume;
+    const now = this.ctx.currentTime;
+
+    const rainbowFreqs = [261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5];
+    rainbowFreqs.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.03);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.8, now + idx * 0.03 + 0.22);
+
+      gain.gain.setValueAtTime(0.08 * effVol, now + idx * 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.03 + 0.22);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now + idx * 0.03);
+      osc.stop(now + idx * 0.03 + 0.22);
+    });
+  }
+
+  public playColorBombTransform() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx || !this.masterGain) return;
+
+    const effVol = this.volume * this.sfxVolume;
+    const now = this.ctx.currentTime;
+
+    const chord = [880.0, 1108.73, 1318.51, 1760.0];
+    chord.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.02);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.1, now + idx * 0.02 + 0.24);
+
+      gain.gain.setValueAtTime(0.12 * effVol, now + idx * 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.02 + 0.24);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now + idx * 0.02);
+      osc.stop(now + idx * 0.02 + 0.24);
+    });
+  }
+
+  public playRainbowRocketDetonation() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx || !this.masterGain) return;
+
+    const effVol = this.volume * this.sfxVolume;
+    const now = this.ctx.currentTime;
+
+    [220, 280, 340, 420].forEach((baseFreq, idx) => {
+      const delay = idx * 0.06;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(baseFreq, now + delay);
+      osc.frequency.exponentialRampToValueAtTime(1600, now + delay + 0.3);
+
+      gain.gain.setValueAtTime(0.22 * effVol, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.3);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.3);
+    });
+
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(180, now);
+    subOsc.frequency.exponentialRampToValueAtTime(45, now + 0.35);
+    subGain.gain.setValueAtTime(0.4 * effVol, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.35);
+  }
+
+  public playVerticalLaserStorm() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx || !this.masterGain) return;
+
+    const effVol = this.volume * this.sfxVolume;
+    const now = this.ctx.currentTime;
+
+    [600, 750, 900, 1100].forEach((freq, idx) => {
+      const delay = idx * 0.05;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now + delay);
+      osc.frequency.exponentialRampToValueAtTime(80, now + delay + 0.28);
+
+      gain.gain.setValueAtTime(0.25 * effVol, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.28);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.28);
+    });
+
+    const rumbleOsc = this.ctx.createOscillator();
+    const rumbleGain = this.ctx.createGain();
+    rumbleOsc.type = 'triangle';
+    rumbleOsc.frequency.setValueAtTime(160, now);
+    rumbleOsc.frequency.exponentialRampToValueAtTime(30, now + 0.45);
+    rumbleGain.gain.setValueAtTime(0.45 * effVol, now);
+    rumbleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    rumbleOsc.connect(rumbleGain);
+    rumbleGain.connect(this.masterGain);
+    rumbleOsc.start(now);
+    rumbleOsc.stop(now + 0.45);
+  }
+
+  public playMegaBombWindUp() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx || !this.masterGain) return;
+
+    const effVol = this.volume * this.sfxVolume;
+    const now = this.ctx.currentTime;
+
+    // Prismatic gravitational buildup sweep
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(120, now);
+    osc.frequency.exponentialRampToValueAtTime(780, now + 0.32);
+
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.35 * effVol, now + 0.28);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.32);
+  }
+
+  public playMegaBombDetonation() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx || !this.masterGain) return;
+
+    const effVol = this.volume * this.sfxVolume;
+    const now = this.ctx.currentTime;
+
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(260, now);
+    subOsc.frequency.exponentialRampToValueAtTime(20, now + 0.65);
+    subGain.gain.setValueAtTime(0.75 * effVol, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.65);
+
+    [520, 380, 240].forEach((startFreq, idx) => {
+      const delay = idx * 0.04;
+      const crackOsc = this.ctx!.createOscillator();
+      const crackGain = this.ctx!.createGain();
+
+      crackOsc.type = 'sawtooth';
+      crackOsc.frequency.setValueAtTime(startFreq, now + delay);
+      crackOsc.frequency.exponentialRampToValueAtTime(40, now + delay + 0.35);
+
+      crackGain.gain.setValueAtTime(0.35 * effVol, now + delay);
+      crackGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.35);
+
+      crackOsc.connect(crackGain);
+      crackGain.connect(this.masterGain!);
+      crackOsc.start(now + delay);
+      crackOsc.stop(now + delay + 0.35);
+    });
+  }
+
   public playShuffle() {
     if (this.isMuted) return;
     this.initCtx();
@@ -563,14 +758,20 @@ class Match3SoundManager {
           this.currentCustomBgm.loop = true;
         }
         this.currentCustomBgm.volume = Math.max(0, Math.min(1, this.volume * this.bgmVolume));
-        this.currentCustomBgm.currentTime = 0;
-        this.currentCustomBgm.play().catch(() => {
-          // Fallback to synthesized BGM if autoplay fails
-          this.startSynthesizedBgm();
-        });
+        const playPromise = this.currentCustomBgm.play();
+        if (playPromise) {
+          playPromise.catch(() => {
+            // Fallback to synthesized BGM if autoplay fails, ONLY if bgm is still supposed to be playing
+            if (this.isBgmPlaying) {
+              this.startSynthesizedBgm();
+            }
+          });
+        }
         return;
       } catch {
-        // Fallback to synthesis
+        if (this.isBgmPlaying) {
+          this.startSynthesizedBgm();
+        }
       }
     } else if (this.currentCustomBgm) {
       try {
@@ -629,6 +830,32 @@ class Match3SoundManager {
     if (this.bgmInterval) {
       clearInterval(this.bgmInterval);
       this.bgmInterval = undefined;
+    }
+    if (this.bgmGain) {
+      try {
+        this.bgmGain.disconnect();
+      } catch {}
+      this.bgmGain = null;
+    }
+  }
+
+  public stopAll() {
+    this.stopBgm();
+    if (this.currentCustomBgm) {
+      try {
+        this.currentCustomBgm.pause();
+        this.currentCustomBgm.currentTime = 0;
+      } catch {}
+      this.currentCustomBgm = null;
+    }
+    this.customAudioCache.forEach((audio) => {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch {}
+    });
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
     }
   }
 

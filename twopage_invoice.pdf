@@ -1,0 +1,428 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 6489 >>
+stream
+1.000 1.000 1.000 rg
+0.00 0.00 595.28 841.89 re f
+0.090 0.169 0.302 rg
+BT /F2 17 Tf 40.00 785.89 Td (EVENTGAMESTUDIO) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 40.00 771.89 Td (Event Game Studio Sdn. Bhd.) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 760.89 Td (Reg No: 202601009876 \(1509876-V\)) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 749.89 Td (Tax ID: W10-2601-98765432) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 738.89 Td (Level 28, The Exchange 106, Lingkaran TRX,) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 727.89 Td (55188 Kuala Lumpur, Malaysia) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 20 Tf 482.48 785.89 Td (INVOICE) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 509.52 771.89 Td (Invoice No.) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 10 Tf 482.48 759.89 Td (INV-2026-00099) Tj ET
+0.863 0.988 0.906 rg
+0.733 0.969 0.816 RG
+1.00 w
+487.28 736.89 68.00 15.00 re B
+0.086 0.396 0.204 rg
+BT /F2 7.5 Tf 494.28 740.89 Td (PAID) Tj ET
+0.796 0.835 0.882 RG
+1.00 w
+40.00 704.89 m 555.28 704.89 l S
+0.973 0.980 0.988 rg
+0.886 0.910 0.941 RG
+1.00 w
+40.00 594.89 310.00 96.00 re B
+0.392 0.455 0.545 rg
+BT /F2 7.5 Tf 50.00 672.89 Td (BILL TO) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 9.5 Tf 50.00 659.89 Td (Multi-Tenant MegaCorp International) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8 Tf 50.00 647.89 Td (Attn: David Wong) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8 Tf 50.00 636.89 Td (david@megacorp.com) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8 Tf 50.00 625.89 Td (Country: MY) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8 Tf 50.00 614.89 Td (Level 50, Tower 1, KLCC, Kuala Lumpur) Tj ET
+0.392 0.455 0.545 rg
+BT /F2 7.5 Tf 516.28 676.89 Td (ISSUE DATE) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 9.5 Tf 505.88 663.89 Td (2026-10-20) Tj ET
+0.392 0.455 0.545 rg
+BT /F2 7.5 Tf 524.08 645.89 Td (DUE DATE) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 9.5 Tf 505.88 632.89 Td (2026-11-03) Tj ET
+0.796 0.835 0.882 RG
+1.00 w
+40.00 582.89 m 555.28 582.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 40.00 561.89 Td (DESCRIPTION OF SERVICES) Tj ET
+0.886 0.910 0.941 RG
+1.00 w
+40.00 547.89 m 555.28 547.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 44.00 535.89 Td (SERVICE / ITEM) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 347.52 535.89 Td (QTY) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 408.40 535.89 Td (UNIT PRICE) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 526.32 535.89 Td (AMOUNT) Tj ET
+40.00 529.89 m 555.28 529.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 510.89 Td (Enterprise Module #1: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 510.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 510.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 510.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 499.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 488.89 Td (Integration & Leaderboard) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 44.00 476.89 Td (Event: "Annual Tech Festival" - Duration: 3 Day\(s\)) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 44.00 466.89 Td (\(2026-11-01 - 2026-11-03\)) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 456.89 m 555.28 456.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 441.89 Td (Enterprise Module #2: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 441.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 441.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 441.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 430.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 419.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 409.89 m 555.28 409.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 394.89 Td (Enterprise Module #3: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 394.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 394.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 394.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 383.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 372.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 362.89 m 555.28 362.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 347.89 Td (Enterprise Module #4: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 347.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 347.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 347.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 336.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 325.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 315.89 m 555.28 315.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 300.89 Td (Enterprise Module #5: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 300.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 300.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 300.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 289.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 278.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 268.89 m 555.28 268.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 253.89 Td (Enterprise Module #6: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 253.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 253.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 253.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 242.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 231.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 221.89 m 555.28 221.89 l S
+0.796 0.835 0.882 RG
+1.00 w
+40.00 56.00 m 555.28 56.00 l S
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 42.00 Td (Payment verified and settled via platform wallet.) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 31.00 Td (Thank you for choosing EventGameStudio.) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 413.84 42.00 Td (Interactive Event Gaming Solutions) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 446.08 32.00 Td (Website: eventgamestudio.com) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 430.48 22.00 Td (Email: eventgamestudio@gmail.com) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 277.64 22.00 Td (Page 1 of 2) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 7455 >>
+stream
+1.000 1.000 1.000 rg
+0.00 0.00 595.28 841.89 re f
+0.090 0.169 0.302 rg
+BT /F2 12 Tf 40.00 789.89 Td (EVENTGAMESTUDIO) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 9 Tf 396.16 789.89 Td (Invoice INV-2026-00099 \(Continued\)) Tj ET
+0.886 0.910 0.941 RG
+1.00 w
+40.00 771.89 m 555.28 771.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 44.00 759.89 Td (SERVICE / ITEM) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 347.52 759.89 Td (QTY) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 408.40 759.89 Td (UNIT PRICE) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 526.32 759.89 Td (AMOUNT) Tj ET
+40.00 753.89 m 555.28 753.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 734.89 Td (Enterprise Module #7: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 734.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 734.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 734.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 723.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 712.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 702.89 m 555.28 702.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 687.89 Td (Enterprise Module #8: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 687.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 687.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 687.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 676.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 665.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 655.89 m 555.28 655.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 640.89 Td (Enterprise Module #9: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 640.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 640.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 640.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 629.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 618.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 608.89 m 555.28 608.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 593.89 Td (Enterprise Module #10: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 593.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 593.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 593.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 582.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 571.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 561.89 m 555.28 561.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 546.89 Td (Enterprise Module #11: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 546.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 546.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 546.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 535.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 524.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 514.89 m 555.28 514.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 499.89 Td (Enterprise Module #12: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 499.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 499.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 499.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 488.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 477.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 467.89 m 555.28 467.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 452.89 Td (Enterprise Module #13: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 452.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 452.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 452.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 441.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 430.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 420.89 m 555.28 420.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 405.89 Td (Enterprise Module #14: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 405.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 405.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 405.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 394.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 383.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 373.89 m 555.28 373.89 l S
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 358.89 Td (Enterprise Module #15: Interactive Multiplayer) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 358.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 410.22 358.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 511.50 358.89 Td (RM 650.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 347.89 Td (Touchscreen Display Station with Custom Sensor) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8.5 Tf 44.00 336.89 Td (Integration & Leaderboard) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 326.89 m 555.28 326.89 l S
+0.086 0.396 0.204 rg
+BT /F2 8.5 Tf 44.00 311.89 Td (Applied Promotional Welcome Credit \(One-time) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 355.58 311.89 Td (1) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 405.80 311.89 Td (RM -800.00) Tj ET
+0.086 0.396 0.204 rg
+BT /F2 8.5 Tf 507.08 311.89 Td (RM -800.00) Tj ET
+0.086 0.396 0.204 rg
+BT /F2 8.5 Tf 44.00 300.89 Td (Owner Bonus\)) Tj ET
+0.886 0.910 0.941 RG
+0.50 w
+40.00 290.89 m 555.28 290.89 l S
+0.796 0.835 0.882 RG
+1.00 w
+40.00 280.89 m 555.28 280.89 l S
+0.392 0.455 0.545 rg
+BT /F1 8.5 Tf 315.28 266.89 Td (Subtotal:) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 8.5 Tf 502.66 266.89 Td (RM 9,750.00) Tj ET
+0.086 0.396 0.204 rg
+BT /F1 8.5 Tf 315.28 251.89 Td (Applied Credits / Discount:) Tj ET
+0.086 0.396 0.204 rg
+BT /F2 8.5 Tf 507.08 251.89 Td (-RM 800.00) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 10.5 Tf 315.28 236.89 Td (Total Amount) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 11 Tf 488.36 236.89 Td (RM 8,950.00) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 9 Tf 315.28 219.89 Td (Payments Received) Tj ET
+0.200 0.255 0.333 rg
+BT /F1 9 Tf 499.80 219.89 Td (RM 8,950.00) Tj ET
+0.086 0.396 0.204 rg
+BT /F2 10 Tf 315.28 203.89 Td (Balance Due) Tj ET
+0.086 0.396 0.204 rg
+BT /F2 11 Tf 511.24 203.89 Td (RM 0.00) Tj ET
+0.796 0.835 0.882 RG
+1.00 w
+40.00 56.00 m 555.28 56.00 l S
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 42.00 Td (Payment verified and settled via platform wallet.) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 8 Tf 40.00 31.00 Td (Thank you for choosing EventGameStudio.) Tj ET
+0.090 0.169 0.302 rg
+BT /F2 8 Tf 413.84 42.00 Td (Interactive Event Gaming Solutions) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 446.08 32.00 Td (Website: eventgamestudio.com) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 430.48 22.00 Td (Email: eventgamestudio@gmail.com) Tj ET
+0.392 0.455 0.545 rg
+BT /F1 7.5 Tf 277.64 22.00 Td (Page 2 of 2) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000462 00000 n 
+0000007003 00000 n 
+0000007145 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+14652
+%%EOF

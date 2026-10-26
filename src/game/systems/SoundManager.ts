@@ -8,12 +8,14 @@ class SoundManager {
   private isBgmPlaying: boolean = false;
   private bgmInterval?: number;
   private volume: number = 1.0;
+  private activeAudios: Set<HTMLAudioElement> = new Set();
 
   constructor() {
     // Lazy AudioContext initialization on first user interaction
   }
 
   private initCtx() {
+    if (typeof window === 'undefined') return;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -24,7 +26,7 @@ class SoundManager {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
   }
 
@@ -224,7 +226,8 @@ class SoundManager {
     const bassLine = [130.81, 130.81, 164.81, 146.83, 130.81, 164.81, 196.0, 174.61]; // C3 E3 D3 C3 E3 G3 F3
     let noteIdx = 0;
 
-    this.bgmInterval = window.setInterval(() => {
+    const setIntervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval;
+    this.bgmInterval = setIntervalFn(() => {
       if (!this.ctx || !this.bgmGain || !this.isBgmPlaying) return;
 
       const now = this.ctx.currentTime;
@@ -244,7 +247,7 @@ class SoundManager {
       osc.stop(now + 0.18);
 
       noteIdx++;
-    }, 220);
+    }, 220) as any;
   }
 
   public stopBgm() {
@@ -253,15 +256,47 @@ class SoundManager {
       clearInterval(this.bgmInterval);
       this.bgmInterval = undefined;
     }
+    if (this.bgmGain) {
+      try {
+        this.bgmGain.disconnect();
+      } catch {}
+      this.bgmGain = null;
+    }
+  }
+
+  public stopAll() {
+    this.stopBgm();
+
+    this.activeAudios.forEach((audio) => {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch {}
+    });
+    this.activeAudios.clear();
+
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
   }
 
   private playAudioFile(url: string) {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
     try {
       const audio = new Audio(url);
       audio.volume = this.volume;
-      audio.play().catch(() => {
-        // Audio playback error / fallback
-      });
+      this.activeAudios.add(audio);
+      const cleanup = () => {
+        this.activeAudios.delete(audio);
+      };
+      audio.onended = cleanup;
+      audio.onerror = cleanup;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          this.activeAudios.delete(audio);
+        });
+      }
     } catch {
       // Audio error
     }

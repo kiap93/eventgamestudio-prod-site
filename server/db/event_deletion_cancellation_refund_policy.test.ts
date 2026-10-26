@@ -136,19 +136,17 @@ async function runAllTests() {
   );
   console.log('  ✓ 2. paid + before Setup Day → DELETE REJECTED');
 
-  // Test 3: unpaid + Setup Day -> DELETE REJECTED
+  // Test 3: unpaid + Setup Day -> DELETE ALLOWED
   const ev3 = createTestEvent({
     payment_status: 'UNPAID',
     paid_amount: 0,
   });
   const del3 = canDeleteEvent(ev3, dateOnSetup);
-  assert.strictEqual(del3.canDelete, false, 'Test 3: Unpaid on Setup Day cannot be deleted');
-  assert.strictEqual(del3.code, 'SETUP_DAY_STARTED');
-  await assert.rejects(
-    async () => deleteEvent(ev3.id, { now: dateOnSetup }, env),
-    /Setup Day has started/
-  );
-  console.log('  ✓ 3. unpaid + Setup Day → DELETE REJECTED');
+  assert.strictEqual(del3.canDelete, true, 'Test 3: Unpaid on Setup Day must be deletable');
+  assert.strictEqual(del3.code, 'ELIGIBLE_FOR_DELETION');
+  await deleteEvent(ev3.id, { now: dateOnSetup }, env);
+  assert.strictEqual(localEventsCache.has(ev3.id), false, 'Test 3: Event must be deleted from storage');
+  console.log('  ✓ 3. unpaid + Setup Day → SUCCESS');
 
   // Test 4: paid + Setup Day -> DELETE REJECTED
   const ev4 = createTestEvent({
@@ -157,10 +155,10 @@ async function runAllTests() {
   });
   const del4 = canDeleteEvent(ev4, dateOnSetup);
   assert.strictEqual(del4.canDelete, false, 'Test 4: Paid on Setup Day cannot be deleted');
-  assert.strictEqual(del4.code, 'SETUP_DAY_STARTED');
+  assert.strictEqual(del4.code, 'EVENT_PAID');
   await assert.rejects(
     async () => deleteEvent(ev4.id, { now: dateOnSetup }, env),
-    /Setup Day has started/
+    /This paid event cannot be deleted/
   );
   console.log('  ✓ 4. paid + Setup Day → DELETE REJECTED');
 
@@ -196,7 +194,7 @@ async function runAllTests() {
   );
   console.log('  ✓ 6. paid + COMPLETED → DELETE REJECTED');
 
-  // Test 7: unpaid + EXPIRED -> DELETE REJECTED
+  // Test 7: unpaid + EXPIRED -> DELETE ALLOWED
   const ev7 = createTestEvent({
     payment_status: 'UNPAID',
     paid_amount: 0,
@@ -204,13 +202,11 @@ async function runAllTests() {
     event_status: 'EXPIRED',
   });
   const del7 = canDeleteEvent(ev7, dateAfterEnd);
-  assert.strictEqual(del7.canDelete, false, 'Test 7: Expired unpaid event cannot be deleted');
-  assert.strictEqual(del7.code, 'EVENT_ENDED');
-  await assert.rejects(
-    async () => deleteEvent(ev7.id, { now: dateAfterEnd }, env),
-    /event has ended and cannot be deleted/
-  );
-  console.log('  ✓ 7. unpaid + EXPIRED → DELETE REJECTED');
+  assert.strictEqual(del7.canDelete, true, 'Test 7: Expired unpaid event must be deletable');
+  assert.strictEqual(del7.code, 'ELIGIBLE_FOR_DELETION');
+  await deleteEvent(ev7.id, { now: dateAfterEnd }, env);
+  assert.strictEqual(localEventsCache.has(ev7.id), false, 'Test 7: Expired unpaid event must be deleted from storage');
+  console.log('  ✓ 7. unpaid + EXPIRED → SUCCESS');
 
   // Test 8: paid + EXPIRED -> DELETE REJECTED
   const ev8 = createTestEvent({
@@ -241,7 +237,7 @@ async function runAllTests() {
   assert.strictEqual(del9.code, 'ALREADY_CANCELLED');
   await assert.rejects(
     async () => deleteEvent(ev9.id, { now: dateBeforeSetup }, env),
-    /Cancelled events cannot be deleted/
+    /Cancelled or refunded events cannot be deleted/
   );
   console.log('  ✓ 9. CANCELLED → DELETE REJECTED');
 
@@ -431,6 +427,10 @@ async function runAllTests() {
   const evPaidApi = createTestEvent({
     payment_status: 'PAID',
     paid_amount: 1900,
+    start_date: '2026-11-10',
+    end_date: '2026-11-11',
+    starts_at: '2026-11-09T16:00:00.000Z',
+    expires_at: '2026-11-11T15:59:59.999Z',
   });
   const apiDelPaidRes = await worker.fetch(
     new Request(`https://api.eventgamestudio.local/api/events/${evPaidApi.id}`, {
@@ -449,6 +449,10 @@ async function runAllTests() {
   const evUnpaidApi = createTestEvent({
     payment_status: 'UNPAID',
     paid_amount: 0,
+    start_date: '2026-11-10',
+    end_date: '2026-11-11',
+    starts_at: '2026-11-09T16:00:00.000Z',
+    expires_at: '2026-11-11T15:59:59.999Z',
   });
   const apiCancelUnpaidRes = await worker.fetch(
     new Request(`https://api.eventgamestudio.local/api/events/${evUnpaidApi.id}/cancel`, {
@@ -472,6 +476,10 @@ async function runAllTests() {
   const evRace = createTestEvent({
     payment_status: 'UNPAID',
     event_price: 1400,
+    start_date: '2026-11-10',
+    end_date: '2026-11-11',
+    starts_at: '2026-11-09T16:00:00.000Z',
+    expires_at: '2026-11-11T15:59:59.999Z',
   });
   await processEventPayment({
     organizationId: org.id,

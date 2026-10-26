@@ -15,8 +15,8 @@ import { initializeEmptyWallet, getWalletBalance, getWalletTransactions, grantWe
 import { getUserById, localUsersCache } from './users.js';
 import { getOrgMembers, addMember, OrgMemberWithUserDetails, localMembersCache } from './members.js';
 import { getEventsByOrgId } from './events.js';
-import crypto from 'node:crypto';
 import { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry, getCurrencyForCountry } from '../../src/lib/countryUtils.js';
+import { recordDbOperation } from './dbMetrics.js';
 export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry, getCurrencyForCountry };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -135,6 +135,7 @@ loadLocalOrgs();
 
 export async function getOrganizationById(id: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
   if (!id) return null;
+  recordDbOperation('org_read', env);
   if (!isUUID(id) && isLocalFallbackAllowed(env)) {
     return localOrgsCache.get(id) || null;
   }

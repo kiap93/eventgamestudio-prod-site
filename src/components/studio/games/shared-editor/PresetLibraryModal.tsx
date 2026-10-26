@@ -118,7 +118,7 @@ export const PresetLibraryModal = <T extends BaseVisualElement = BaseVisualEleme
                       className="w-full py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow transition-colors cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>{t('editor.applyPresetConfirm', undefined, 'Apply Preset')}</span>
+                      <span>{t('editor.applyPreset', undefined, 'Apply Preset')}</span>
                     </button>
                   </div>
                 );

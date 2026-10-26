@@ -84,7 +84,7 @@ export async function apiFetch(input: string | URL | Request, init?: RequestInit
 
   // If url is a relative string path and running in an environment without implicit origin (e.g. tests)
   if (typeof url === 'string' && url.startsWith('/')) {
-    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null') {
       url = `${window.location.origin}${url}`;
     } else {
       url = `http://localhost:3000${url}`;

@@ -521,7 +521,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             </div>
             <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.confirmationPending')}</h1>
             <p className="text-sm text-slate-400 max-w-md mx-auto">
-              We received your return from the payment gateway. We are waiting for authoritative cryptographic confirmation (webhook) from Stripe before updating your wallet balance.
+              {t('payment.webhookPendingExplanation', undefined, 'We received your return from the payment gateway. We are waiting for authoritative cryptographic confirmation (webhook) from Stripe before updating your wallet balance.')}
             </p>
           </div>
 
@@ -554,12 +554,12 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                 <span>{t('payment.realTimeStatusCheck')}</span>
               </span>
               <span className="font-mono text-amber-400 font-semibold text-[11px]">
-                {isPollingStatus ? `Checking... (Check #${pollAttemptCount || 1})` : 'Awaiting Next Poll'}
+                {isPollingStatus ? t('payment.checkingAttempt', { count: pollAttemptCount || 1 }, `Checking... (Check #${pollAttemptCount || 1})`) : t('payment.awaitingNextPoll', undefined, 'Awaiting Next Poll')}
               </span>
             </div>
             
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Payment webhooks typically arrive within <strong className="text-slate-200">{t('payment.secondsWindow')}</strong>. You can safely stay on this page or refresh your browser — your top-up order is safely tracked on the server.
+              {t('payment.webhookArrivalNotePrefix', undefined, 'Payment webhooks typically arrive within')} <strong className="text-slate-200">{t('payment.secondsWindow')}</strong>. {t('payment.webhookArrivalNoteSuffix', undefined, 'You can safely stay on this page or refresh your browser — your top-up order is safely tracked on the server.')}
             </p>
 
             <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
@@ -598,24 +598,24 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                 </div>
 
                 <p className="text-[11px] text-slate-400">
-                  Simulate the exact scenario where the customer returns while the webhook is in-flight.
+                  {t('payment.simulateWebhookInFlightDesc', undefined, 'Simulate the exact scenario where the customer returns while the webhook is in-flight.')}
                 </p>
 
                 {delayedWebhookCountdown !== null ? (
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2 animate-in fade-in">
                     <div className="flex items-center justify-center gap-2 text-amber-300 font-bold text-xs">
                       <Clock className="w-4 h-4 animate-spin" />
-                      <span>Simulating Late Webhook: Arrives in {delayedWebhookCountdown}s</span>
+                      <span>{t('payment.simulatingLateWebhookArrivesIn', { seconds: delayedWebhookCountdown }, `Simulating Late Webhook: Arrives in ${delayedWebhookCountdown}s`)}</span>
                     </div>
                     <p className="text-[10px] text-slate-400">
-                      Try refreshing your browser now to test page refresh during the pending window!
+                      {t('payment.tryRefreshingDuringPendingWindow', undefined, 'Try refreshing your browser now to test page refresh during the pending window!')}
                     </p>
                     <button
                       type="button"
                       onClick={handleCancelDelayedWebhookSimulation}
                       className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold underline cursor-pointer"
                     >
-                      Cancel Simulation Timer
+                      {t('payment.cancelSimulationTimer', undefined, 'Cancel Simulation Timer')}
                     </button>
                   </div>
                 ) : (
@@ -688,7 +688,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           <div className="space-y-2">
             <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.paymentSuccessful')}</h1>
             <p className="text-sm text-slate-400">
-              Your payment has been verified by the payment provider. Your wallet has been credited with separate ledger entries.
+              {t('payment.paymentVerifiedSeparateLedgers', undefined, 'Your payment has been verified by the payment provider. Your wallet has been credited with separate ledger entries.')}
             </p>
           </div>
 
@@ -728,7 +728,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="flex items-center justify-between">
               <span>{t('payment.ledgerVerification')}</span>
               <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> Settled via Webhook
+                <ShieldCheck className="w-3.5 h-3.5" /> {t('payment.settledViaWebhook', undefined, 'Settled via Webhook')}
               </span>
             </div>
           </div>
@@ -768,7 +768,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.topUpExpired')}</h1>
             <p className="text-sm font-semibold text-amber-300">{t('payment.topUpExpiredDesc')}</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              The payment checkout window for this order has elapsed. Your wallet balance remains untouched and no charges were made.
+              {t('payment.topUpExpiredDetail', undefined, 'The payment checkout window for this order has elapsed. Your wallet balance remains untouched and no charges were made.')}
             </p>
           </div>
 
@@ -832,7 +832,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.topUpCancelled')}</h1>
             <p className="text-sm font-semibold text-slate-300">{t('payment.topUpCancelledDesc')}</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              You cancelled the payment checkout session before completing the transaction. Your wallet balance remains unchanged.
+              {t('payment.topUpCancelledDetail', undefined, 'You cancelled the payment checkout session before completing the transaction. Your wallet balance remains unchanged.')}
             </p>
           </div>
 
@@ -887,7 +887,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <h1 className="text-3xl font-black text-slate-100 tracking-tight">{t('payment.paymentFailed')}</h1>
             <p className="text-sm font-semibold text-rose-300">{t('payment.paymentFailedDesc')}</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Your payment provider did not confirm this transaction. Your wallet balance remains untouched.
+              {t('payment.paymentFailedDetail', undefined, 'Your payment provider did not confirm this transaction. Your wallet balance remains untouched.')}
             </p>
           </div>
 
@@ -965,7 +965,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                 </span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                Purchase Paid Balance and earn promotional Top-up Credits for event launches.
+                {t('payment.topUpWalletSubtitle', undefined, 'Purchase Paid Balance and earn promotional Top-up Credits for event launches.')}
               </p>
             </div>
           </div>
@@ -998,7 +998,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   <span>{t('payment.selectTopUpAmount')}</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Choose a recommended package or enter a custom amount.
+                  {t('payment.selectTopUpAmountSubtitle', undefined, 'Choose a recommended package or enter a custom amount.')}
                 </p>
               </div>
 
@@ -1013,13 +1013,13 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                 const isSelected = selectedPreset === amt;
                 let rewardText: string | null = null;
                 if (amt === 6000) {
-                  rewardText = '+ RM300 reward';
+                  rewardText = t('payment.rewardAmountTag', { amount: 'RM300' }, '+ RM300 reward');
                 } else if (amt === 10000) {
-                  rewardText = '+ RM700 reward';
+                  rewardText = t('payment.rewardAmountTag', { amount: 'RM700' }, '+ RM700 reward');
                 } else if (amt >= 10000) {
-                  rewardText = `+ RM${(amt * 0.07).toFixed(0)} reward`;
+                  rewardText = t('payment.rewardAmountTag', { amount: `RM${(amt * 0.07).toFixed(0)}` }, `+ RM${(amt * 0.07).toFixed(0)} reward`);
                 } else if (amt >= 6000) {
-                  rewardText = `+ RM${(amt * 0.05).toFixed(0)} reward`;
+                  rewardText = t('payment.rewardAmountTag', { amount: `RM${(amt * 0.05).toFixed(0)}` }, `+ RM${(amt * 0.05).toFixed(0)} reward`);
                 }
 
                 return (
@@ -1041,7 +1041,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
                     <div className="space-y-1">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {amt === 1400 ? '1 Event' : 'Package'}
+                        {amt === 1400 ? t('payment.oneEventTag', undefined, '1 Event') : t('payment.packageTag', undefined, 'Package')}
                       </div>
                       <div className="text-lg sm:text-2xl font-mono font-black tracking-tight group-hover:text-amber-400 transition-colors">
                         {formatCurrency(amt)}
@@ -1055,7 +1055,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                             <Sparkles className="w-3 h-3" /> {rewardText}
                           </span>
                         ) : (
-                          'Standard'
+                          t('payment.standardTag', undefined, 'Standard')
                         )}
                       </span>
                       <div
@@ -1119,37 +1119,37 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
                 <div className="font-bold text-emerald-400 flex items-center gap-1">
-                  <Coins className="w-3.5 h-3.5" /> Paid Balance
+                  <Coins className="w-3.5 h-3.5" /> {t('payment.paidBalance', undefined, 'Paid Balance')}
                 </div>
                 <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Actual deposited funds. 100% refundable to your payment method if an event is cancelled prior to setup day.
+                  {t('payment.paidBalancePolicyDesc', undefined, 'Actual deposited funds. 100% refundable to your payment method if an event is cancelled prior to setup day.')}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
                 <div className="font-bold text-cyan-400 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" /> Top-up Credit Bonus
+                  <Sparkles className="w-3.5 h-3.5" /> {t('payment.topUpCreditBonusTitle', undefined, 'Top-up Credit Bonus')}
                 </div>
                 <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Promotional reward (5% on RM6,000+, 7% on RM10,000+). Usable up to 20% (RM280) per event launch.
+                  {t('payment.topUpCreditPolicyDesc', undefined, 'Promotional reward (5% on RM6,000+, 7% on RM10,000+). Usable up to 20% (RM280) per event launch.')}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
                 <div className="font-bold text-purple-400 flex items-center gap-1">
-                  <Gift className="w-3.5 h-3.5" /> Welcome Credit
+                  <Gift className="w-3.5 h-3.5" /> {t('payment.welcomeCredit', undefined, 'Welcome Credit')}
                 </div>
                 <p className="text-slate-400 text-[11px] leading-relaxed">
-                  One-time promotional grant of RM800.00 applicable towards first event launch.
+                  {t('payment.welcomeCreditPolicyDesc', undefined, 'One-time promotional grant of RM800.00 applicable towards first event launch.')}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
                 <div className="font-bold text-amber-400 flex items-center gap-1">
-                  <Award className="w-3.5 h-3.5" /> Showcase Credit
+                  <Award className="w-3.5 h-3.5" /> {t('payment.showcaseCredit', undefined, 'Showcase Credit')}
                 </div>
                 <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Approved event showcase reward of RM300.00 per event.
+                  {t('payment.showcaseCreditPolicyDesc', undefined, 'Approved event showcase reward of RM300.00 per event.')}
                 </p>
               </div>
             </div>
@@ -1182,7 +1182,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   <span>{t('payment.topUpCredit')}</span>
                   {quote && quote.bonus_percentage > 0 && (
                     <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                      {quote.bonus_percentage}% Bonus
+                      {quote.bonus_percentage}% {t('payment.bonusLabel', undefined, 'Bonus')}
                     </span>
                   )}
                 </span>
@@ -1207,7 +1207,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             {/* Payment Summary Box */}
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                Payment Summary
+                {t('payment.paymentSummary', undefined, 'Payment Summary')}
               </div>
 
               <div className="flex items-center justify-between">
@@ -1275,7 +1275,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-100">{t('payment.securePaymentCheckout')}</h3>
-                  <p className="text-xs text-slate-400">Order #{activeOrder.id.slice(0, 8)}</p>
+                  <p className="text-xs text-slate-400">{t('payment.orderId', undefined, 'Order')} #{activeOrder.id.slice(0, 8)}</p>
                 </div>
               </div>
 
@@ -1298,7 +1298,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   {formatCurrency(activeOrder.top_up_amount)}
                 </span>
                 <span className="block text-[10px] text-cyan-400">
-                  +{formatCurrency(activeOrder.expected_credit_amount)} Bonus Included
+                  +{formatCurrency(activeOrder.expected_credit_amount)} {t('payment.bonusIncluded', undefined, 'Bonus Included')}
                 </span>
               </div>
             </div>
@@ -1317,7 +1317,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   </div>
                 </div>
                 <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Active
+                  {t('common.active', undefined, 'Active')}
                 </span>
               </div>
             </div>
@@ -1334,10 +1334,10 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
               <strong className="text-slate-300 block flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Cryptographic Webhook Settlement
+                {t('payment.cryptographicWebhookSettlementTitle', undefined, 'Cryptographic Webhook Settlement')}
               </strong>
               <p>
-                Funds are credited strictly after verified HMAC webhook confirmation from the payment gateway.
+                {t('payment.cryptographicWebhookSettlementDesc', undefined, 'Funds are credited strictly after verified HMAC webhook confirmation from the payment gateway.')}
               </p>
             </div>
 
@@ -1352,7 +1352,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                   className="w-full py-3.5 px-4 rounded-xl bg-[#635BFF] hover:bg-[#5851DF] text-white font-bold text-sm shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <CreditCard className="w-4 h-4" />
-                  <span>Open Payment Gateway ({formatCurrency(activeOrder.top_up_amount)})</span>
+                  <span>{t('payment.openPaymentGateway', undefined, 'Open Payment Gateway')} ({formatCurrency(activeOrder.top_up_amount)})</span>
                 </a>
               )}
 
@@ -1360,7 +1360,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               {showDevSandbox && (
                 <div className="pt-2 border-t border-slate-800/80 space-y-2">
                   <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-semibold text-center">
-                    Developer Admin Sandbox Tools
+                    {t('payment.developerSandboxTools', undefined, 'Developer Admin Sandbox Tools')}
                   </div>
                   <button
                     type="button"

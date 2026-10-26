@@ -22,7 +22,12 @@ export type ResultScreenElementType =
   | 'best-reaction'
   | 'worst-reaction'
   | 'round-results'
-  | 'rating';
+  | 'rating'
+  | 'target-score'
+  | 'star-rating'
+  | 'matches'
+  | 'specials'
+  | 'combo';
 
 export interface ResultScreenBaseElement {
   id: string;
@@ -293,6 +298,54 @@ export interface ResultGroupElement extends ResultScreenBaseElement {
   children?: ResultScreenElement[];
 }
 
+export interface ResultTargetScoreElement extends ResultScreenBaseElement {
+  type: 'target-score';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultStarRatingStyle {
+  starCount?: number;
+  starSize?: number;
+  starSpacing?: number;
+  filledColor?: string;
+  emptyColor?: string;
+  showLabel?: boolean;
+  label?: string;
+  labelColor?: string;
+  fontSize?: number;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  shadow?: boolean;
+}
+
+export interface ResultStarRatingElement extends ResultScreenBaseElement {
+  type: 'star-rating';
+  label?: string;
+  starsCount?: number;
+  style?: ResultStarRatingStyle;
+}
+
+export interface ResultMatchesElement extends ResultScreenBaseElement {
+  type: 'matches';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultSpecialsElement extends ResultScreenBaseElement {
+  type: 'specials';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultComboElement extends ResultScreenBaseElement {
+  type: 'combo';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
 export type ResultScreenElement =
   | ResultCardElement
   | ResultImageElement
@@ -309,7 +362,12 @@ export type ResultScreenElement =
   | ResultBestReactionElement
   | ResultWorstReactionElement
   | ResultRoundResultsElement
-  | ResultRatingElement;
+  | ResultRatingElement
+  | ResultTargetScoreElement
+  | ResultStarRatingElement
+  | ResultMatchesElement
+  | ResultSpecialsElement
+  | ResultComboElement;
 
 export interface ResultScreenCanvasConfig {
   width: number;
@@ -324,6 +382,17 @@ export interface ResultScreenBackgroundConfig {
 }
 
 export interface ResultScreenConfig {
+  enabled?: boolean;
+  screenTitle?: string;
+  successMessage?: string;
+  failureMessage?: string;
+  restartButtonText?: string;
+  finalScoreLabel?: string;
+  titleColor?: string;
+  buttonBgColor?: string;
+  buttonTextColor?: string;
+  logoUrl?: string | null;
+
   backgroundType?: ScreenBackgroundType;
   backgroundColor?: string;
   backgroundImageUrl?: string | null;

@@ -237,4 +237,48 @@ describe('Phase 3 — Sales Partner Game Catalogue, Verified Previews, and Prici
     expect(detailRoute.salesGameId).toBe('catch-brand');
     expect(detailRoute.salesSection).toBe('games');
   });
+
+  // 10. Default theme background resolution: each game resolves its own default theme background
+  test('10. each sales game card resolves its own canonical default theme background (no carnival or generic fallback)', async () => {
+    const games = await getApprovedSalesGames(undefined, testEnv);
+    expect(games.length).toBeGreaterThanOrEqual(4);
+
+    const gameMap = new Map(games.map((g) => [g.game_type, g]));
+
+    // Verify Catch The Brand
+    const catchBrand = gameMap.get('catch-brand');
+    expect(catchBrand).toBeDefined();
+    expect(catchBrand!.cover_image_url).toBe('/assets/games/catch-brand/themes/default/background.png');
+    expect(catchBrand!.background_url).toBe('/assets/games/catch-brand/themes/default/background.png');
+
+    // Verify Brand Memory Match
+    const memoryMatch = gameMap.get('memory-match');
+    expect(memoryMatch).toBeDefined();
+    expect(memoryMatch!.cover_image_url).toBe('/assets/games/memory-match/themes/default/background.png');
+    expect(memoryMatch!.background_url).toBe('/assets/games/memory-match/themes/default/background.png');
+    expect(memoryMatch!.cover_image_url).not.toContain('carnival');
+
+    // Verify Reaction Tap (Formula Reflex)
+    const reactionTap = gameMap.get('reaction-tap');
+    expect(reactionTap).toBeDefined();
+    expect(reactionTap!.cover_image_url).toBe('/assets/games/reaction-tap/themes/default/background.png');
+    expect(reactionTap!.background_url).toBe('/assets/games/reaction-tap/themes/default/background.png');
+    expect(reactionTap!.cover_image_url).not.toContain('carnival');
+
+    // Verify Match-3
+    const match3 = gameMap.get('match-3');
+    expect(match3).toBeDefined();
+    expect(match3!.cover_image_url).toBe('/assets/games/match-3/themes/default/background.png');
+    expect(match3!.background_url).toBe('/assets/games/match-3/themes/default/background.png');
+
+    // Verify none of the games use the old generic /assets/background.png or stale /assets/themes/
+    for (const g of games) {
+      expect(g.cover_image_url).not.toBe('/assets/background.png');
+      expect(g.cover_image_url).not.toContain('/assets/themes/');
+      expect(g.background_url).not.toBe('/assets/background.png');
+      expect(g.background_url).not.toContain('/assets/themes/');
+      // Must be scoped to its own game
+      expect(g.cover_image_url).toContain(`/assets/games/${g.game_type}/`);
+    }
+  });
 });

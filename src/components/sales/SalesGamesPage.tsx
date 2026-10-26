@@ -30,6 +30,29 @@ import {
   Info,
 } from 'lucide-react';
 import { COUNTRIES, getCountryByCode, POPULAR_COUNTRY_CODES } from '../../lib/countryUtils';
+import { getDefaultThemeForGameType } from '../../themes/registry';
+import { isStaleAssetUrl, normalizeGameType } from '../../themes/gameAssetResolver';
+
+export function getSalesGameDisplayCover(game: SalesGameCatalogItem): string {
+  const canonicalType = normalizeGameType(game.game_type || game.slug);
+  const defaultBg =
+    getDefaultThemeForGameType(canonicalType).background_url ||
+    `/assets/games/${canonicalType}/themes/default/background.png`;
+
+  if (!game.cover_image_url || isStaleAssetUrl(game.cover_image_url)) {
+    return defaultBg;
+  }
+
+  // Cross-game check: ensure cover_image_url doesn't point to another game's assets
+  if (game.cover_image_url.includes('/assets/games/')) {
+    const match = game.cover_image_url.match(/\/assets\/games\/([^/]+)\//);
+    if (match && match[1] !== canonicalType) {
+      return defaultBg;
+    }
+  }
+
+  return game.cover_image_url;
+}
 
 export const SalesGamesPage: React.FC = () => {
   const { t } = useLocalization();
@@ -138,7 +161,7 @@ export const SalesGamesPage: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       <SEO
         robots="noindex, follow"
-        title="Sales Partner Game Catalogue | Event Game Studio"
+        title={`${t('sales.games.title')} | ${t('sales.nav.brandTitle')}`}
       />
 
       <SalesNavbar activeSection="games" />
@@ -150,13 +173,13 @@ export const SalesGamesPage: React.FC = () => {
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Verified Sales Demonstration Catalogue</span>
+              <span>{t('sales.games.title')}</span>
             </div>
             <h1 className="text-3xl font-black text-white tracking-tight sm:text-4xl">
-              Approved Event Games
+              {t('sales.games.title')}
             </h1>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Showcase and pitch interactive event mini-games to clients. High attendee throughput, customizable brand assets, live scoreboards, and duration-based event licenses.
+              {t('sales.games.subtitle')}
             </p>
           </div>
 
@@ -165,15 +188,12 @@ export const SalesGamesPage: React.FC = () => {
             <div className="flex items-center justify-between gap-2 mb-2">
               <label htmlFor="quote-country-select" className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Globe className="w-4 h-4 text-amber-400" />
-                <span>Client Quote Context</span>
+                <span>{t('sales.games.pricingCountry')}</span>
               </label>
               <span className="text-[11px] text-slate-400 font-mono">
                 Currency: {currentCountryInfo?.currencyCode || 'USD'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mb-3 leading-snug">
-              Select client's country to display localized pricing tiers. Does not change your organization or wallet.
-            </p>
             <div className="flex items-center gap-2">
               <select
                 id="quote-country-select"
@@ -203,7 +223,7 @@ export const SalesGamesPage: React.FC = () => {
 
               <button
                 onClick={() => loadCatalogue()}
-                title="Refresh Pricing Quotes"
+                title={t('sales.dashboard.refresh')}
                 className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer shrink-0"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
@@ -221,7 +241,7 @@ export const SalesGamesPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search approved games by title, category, or features..."
+              placeholder={t('sales.customers.searchPlaceholder')}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-800 focus:border-amber-500/50 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors"
             />
           </div>
@@ -238,7 +258,7 @@ export const SalesGamesPage: React.FC = () => {
                     : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-850'
                 }`}
               >
-                {cat === 'all' ? 'All Categories' : cat}
+                {cat === 'all' ? t('sales.games.allGames') : cat}
               </button>
             ))}
           </div>
@@ -251,7 +271,7 @@ export const SalesGamesPage: React.FC = () => {
               <AlertCircle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Catalogue Error</h3>
+              <h3 className="text-base font-bold text-white">{t('sales.aiTranslator.errorTitle')}</h3>
               <p className="text-xs text-rose-300/80 mt-1">{errorMessage}</p>
             </div>
             <button
@@ -259,7 +279,7 @@ export const SalesGamesPage: React.FC = () => {
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry Loading</span>
+              <span>{t('sales.aiTranslator.retry')}</span>
             </button>
           </div>
         )}
@@ -288,9 +308,9 @@ export const SalesGamesPage: React.FC = () => {
               <Gamepad2 className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">No Matching Games Found</h3>
+              <h3 className="text-base font-bold text-white">{t('sales.customers.emptyState')}</h3>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                No approved games match your search criteria. Try clearing search filters.
+                {t('sales.customers.emptyStateDesc')}
               </p>
             </div>
             {(searchQuery || selectedCategory !== 'all') && (
@@ -315,50 +335,55 @@ export const SalesGamesPage: React.FC = () => {
               return (
                 <div
                   key={game.id}
-                  className="group bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl overflow-hidden flex flex-col transition-all duration-200 shadow-xl hover:shadow-2xl hover:shadow-amber-500/5"
+                  className="group bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-200 shadow-xl hover:shadow-2xl hover:shadow-amber-500/5"
                 >
-                  {/* Cover Image & Badges */}
-                  <div className="relative aspect-video w-full bg-slate-950 overflow-hidden border-b border-slate-800/80">
-                    <img
-                      src={game.cover_image_url}
-                      alt={game.name}
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/assets/background.png';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                  {/* Top: Cover Image & Badges */}
+                  <div>
+                    <div className="relative aspect-video w-full bg-slate-950 overflow-hidden border-b border-slate-800/80">
+                      <img
+                        src={getSalesGameDisplayCover(game)}
+                        alt={game.name}
+                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          const canonicalGameType = normalizeGameType(game.game_type || game.slug);
+                          const fallbackSrc = `/assets/games/${canonicalGameType}/themes/default/background.png`;
+                          if (target.src !== fallbackSrc && !target.src.endsWith(fallbackSrc)) {
+                            target.src = fallbackSrc;
+                          }
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
-                    {/* Top Badges */}
-                    <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                      <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-950/80 backdrop-blur-md text-amber-400 border border-amber-500/30">
-                        {game.category}
-                      </span>
-                    </div>
-
-                    <div className="absolute top-3 right-3">
-                      {game.has_playable_preview ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 backdrop-blur-md text-emerald-300 border border-emerald-500/30">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>Playable Demo</span>
+                      {/* Top Badges */}
+                      <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-950/80 backdrop-blur-md text-amber-400 border border-amber-500/30">
+                          {game.category}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-900/80 backdrop-blur-md text-slate-400 border border-slate-700">
-                          <span>Preview Unavailable</span>
-                        </span>
-                      )}
+                      </div>
+
+                      <div className="absolute top-3 right-3">
+                        {game.has_playable_preview ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 backdrop-blur-md text-emerald-300 border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>{t('sales.games.previewPlayable')}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-900/80 backdrop-blur-md text-slate-400 border border-slate-700">
+                            <span>{t('sales.games.previewUnavailable')}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Duration badge */}
+                      <div className="absolute bottom-3 left-3 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-950/80 text-[10px] text-slate-300 font-mono">
+                        <Clock className="w-3 h-3 text-amber-400" />
+                        <span>{t('sales.games.roundDuration', { seconds: game.default_duration_seconds })}</span>
+                      </div>
                     </div>
 
-                    {/* Duration badge */}
-                    <div className="absolute bottom-3 left-3 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-950/80 text-[10px] text-slate-300 font-mono">
-                      <Clock className="w-3 h-3 text-amber-400" />
-                      <span>{game.default_duration_seconds}s round</span>
-                    </div>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-3">
+                    {/* Card Body */}
+                    <div className="p-5 space-y-3">
                       <div>
                         <h3 className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors">
                           {game.name}
@@ -375,75 +400,69 @@ export const SalesGamesPage: React.FC = () => {
                       {/* Technical Specs Tags */}
                       <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px] text-slate-400">
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Inputs:</span>
+                          <span className="text-slate-500">{t('sales.games.inputsLabel')}</span>
                           <span className="text-slate-300 truncate max-w-[190px]">
                             {game.supported_input_types.join(', ')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Orientations:</span>
-                          <span className="text-slate-300 truncate max-w-[190px]">
-                            {game.orientations.length > 1 ? 'Portrait & Landscape' : game.orientations[0]}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Customization:</span>
+                          <span className="text-slate-500">{t('sales.games.brandCustomization')}:</span>
                           <span className="text-emerald-400 font-medium">
-                            {game.customization_capabilities.length} brandable asset slots
+                            {t('sales.games.slotsCount', { count: game.customization_capabilities.length })}
                           </span>
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Pricing Box & Action Buttons */}
-                    <div className="pt-3 border-t border-slate-800 space-y-3">
-                      <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
-                        <div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                            Pricing Summary
-                          </div>
-                          <div className="text-xs font-black text-white mt-0.5">
-                            {pricing.requires_custom_quote ? (
-                              <span className="text-amber-400 font-bold">Contact Us for Quote</span>
-                            ) : (
-                              <span>{pricing.display_price}</span>
-                            )}
-                          </div>
+                  {/* Pricing Box & Action Buttons */}
+                  <div className="p-5 pt-0 space-y-3">
+                    <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                          {t('sales.games.standardPricing')}
                         </div>
-                        {pricing.is_fallback && !pricing.requires_custom_quote && (
-                          <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
-                            {pricing.pricing_country} fallback
-                          </span>
-                        )}
+                        <div className="text-xs font-black text-white mt-0.5">
+                          {pricing.requires_custom_quote ? (
+                            <span className="text-amber-400 font-bold">{t('sales.games.contactQuote')}</span>
+                          ) : (
+                            <span>{pricing.display_price}</span>
+                          )}
+                        </div>
                       </div>
+                      {pricing.is_fallback && !pricing.requires_custom_quote && (
+                        <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                          {t('sales.games.countryFallback', { country: pricing.pricing_country })}
+                        </span>
+                      )}
+                    </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => navigateTo(`/sales/games/${game.slug || game.id}`)}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                      >
+                        <span>{t('sales.games.viewDetails')}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+
+                      {game.has_playable_preview ? (
                         <button
-                          onClick={() => navigateTo(`/sales/games/${game.slug || game.id}`)}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                          onClick={() => handleLaunchPreview(game)}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer"
                         >
-                          <span>Sales Specs</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{t('sales.games.playDemo')}</span>
                         </button>
-
-                        {game.has_playable_preview ? (
-                          <button
-                            onClick={() => handleLaunchPreview(game)}
-                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>Play Demo</span>
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-slate-800/40 text-slate-500 font-medium text-xs rounded-xl cursor-not-allowed"
-                            title="Playable demonstration preview not available"
-                          >
-                            <span>No Preview</span>
-                          </button>
-                        )}
-                      </div>
+                      ) : (
+                        <button
+                          disabled
+                          className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-slate-800/40 text-slate-500 font-medium text-xs rounded-xl cursor-not-allowed"
+                          title={t('sales.games.previewNotAvailableTooltip')}
+                        >
+                          <span>{t('sales.games.noPreview')}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

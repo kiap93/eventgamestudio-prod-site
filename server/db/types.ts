@@ -63,6 +63,15 @@ export interface OrgInvitationRecord {
   verification_code_expires_at?: string | null;
   verification_attempts?: number;
   last_code_sent_at?: string | null;
+  phone?: string | null;
+  channel?: 'email' | 'whatsapp' | 'both';
+  invitation_status?: 'pending' | 'accepted' | 'expired' | 'revoked';
+  whatsapp_status?: 'never_sent' | 'initiated' | 'delivered' | 'read' | 'failed';
+  whatsapp_initiated_at?: string | null;
+  accepted_user_id?: string | null;
+  customer_company_id?: string | null;
+  customer_recipient_id?: string | null;
+  notes?: string | null;
 }
 
 export interface GoogleMailSettingsRecord {
@@ -629,6 +638,10 @@ export type EventCreditOption = 'NONE' | 'FULL_PAID' | 'WELCOME_CREDIT' | 'SHOWC
 
 export interface EventPaymentCalculation {
   eventPrice: number;
+  currency?: string;
+  pricingCountry?: string | null;
+  isFallback?: boolean;
+  durationDays?: number;
   paymentMode: PaymentMode;
   paidAmount: number;
   welcomeCreditUsed: number;

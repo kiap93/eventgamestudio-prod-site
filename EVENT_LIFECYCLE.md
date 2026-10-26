@@ -170,27 +170,28 @@ When creating an event:
 | :--- | :--- | :--- | :--- |
 | **BEFORE_SETUP_DAY** | **UNPAID** | **ALLOWED** | N/A (unpaid; delete instead) |
 | **BEFORE_SETUP_DAY** | **PAID** | **FORBIDDEN** | **ALLOWED** (full ledger refund) |
-| **SETUP_DAY** | **UNPAID** | **FORBIDDEN** | **FORBIDDEN** (operationally locked) |
+| **SETUP_DAY** | **UNPAID** | **ALLOWED** | N/A (unpaid; delete instead) |
 | **SETUP_DAY** | **PAID** | **FORBIDDEN** | **FORBIDDEN** (operationally locked) |
+| **LIVE** | **UNPAID** | **ALLOWED** (unpaid never goes live) | N/A (unpaid; delete instead) |
 | **LIVE** | **PAID** | **FORBIDDEN** | **FORBIDDEN** |
 | **COMPLETED** | **PAID** | **FORBIDDEN** | **FORBIDDEN** |
-| **EXPIRED** | **UNPAID** | **FORBIDDEN** | **FORBIDDEN** |
+| **EXPIRED** | **UNPAID** | **ALLOWED** | N/A (unpaid; delete instead) |
 | **EXPIRED** | **PAID** | **FORBIDDEN** | **FORBIDDEN** |
 | **CANCELLED** | — | **FORBIDDEN** | **FORBIDDEN** |
 
 ### Detailed Rules:
-1. **Before Setup Day**:
-   - **Unpaid event**: Delete is allowed. No refund is applicable because nothing was paid. The event can be permanently deleted.
-   - **Paid event**: Delete is NOT allowed. "Cancel & Refund" is allowed with full audit ledger refund.
-2. **Once Setup Day Begins (Setup Day, Live, Completed, Expired, Cancelled)**:
-   - Delete is strictly NOT allowed.
-   - Cancellation is strictly NOT allowed.
-   - Refund is strictly NOT allowed.
-   - The event is operationally locked.
-3. **Cancelled Events**:
-   - Delete is NOT allowed.
-   - Second cancellation/refund is strictly rejected (idempotent, single refund guarantee).
-   - Financial audit trail and ledger entries remain intact.
+1. **Unpaid Events (Newly Created, Setup Day, or Expired)**:
+   - When an event has been created but payment has not been made, the event owner or admin can permanently delete it.
+   - Deletion is available even if the event date has already passed (expired) or if Setup Day has arrived, provided the event remains unpaid and no financial records (e.g., invoices) or operational restrictions prevent deletion.
+   - Confirmation dialog displaying the event name and explicit warning that the action cannot be undone is enforced.
+2. **Paid Events**:
+   - Physical deletion is strictly NOT allowed.
+   - Paid events before Setup Day must use the authorized "Cancel & Refund" workflow.
+   - Once Setup Day begins or after the event has started, cancellation and refund are locked.
+3. **Cancelled or Refunded Events**:
+   - Physical deletion is NOT allowed to ensure financial audit trail and ledger history remain intact.
+4. **Financial Record Retention Safeguard**:
+   - Events with existing tax invoices, credit notes, or confirmed financial transactions cannot be physically deleted.
 
 ---
 

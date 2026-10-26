@@ -10,10 +10,16 @@ export class MockTranslationProvider implements TranslationProvider {
   public readonly name = 'Mock Fallback Provider';
 
   public isConfigured(): boolean {
-    return true;
+    // Strictly disallowed in production unless ALLOW_MOCK_AUTH is explicitly true
+    const isProduction = process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true';
+    return !isProduction;
   }
 
   public async translate(req: TranslationRequest): Promise<TranslationResult> {
+    if (!this.isConfigured()) {
+      throw new Error('Mock translation provider is disabled in production.');
+    }
+
     const fieldsToTranslate = req.fields || (req.text ? { text: req.text } : {});
     const translatedFields: Record<string, string> = {};
 
@@ -41,6 +47,7 @@ export class MockTranslationProvider implements TranslationProvider {
       sourceLanguage: req.sourceLanguage,
       targetLanguage: req.targetLanguage,
       provider: this.id,
+      isMock: true,
       fields: translatedFields,
       translatedText: translatedFields.text || Object.values(translatedFields)[0] || '',
     };

@@ -74,15 +74,40 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-4 text-xs text-slate-300">
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-xs flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-300 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-red-200">{t('events.deleteFailed', undefined, 'Deletion Failed')}</p>
+                <p className="text-red-300 leading-relaxed">{error}</p>
+              </div>
             </div>
           )}
 
-          <p className="text-sm text-slate-300 leading-relaxed">
-            {t('event.deleteModalDesc')}
-          </p>
+          {/* Event Details Card */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+              {t('events.eventToDelete', undefined, 'Event to Delete')}
+            </div>
+            <div className="text-sm font-bold text-slate-100 break-words">
+              {event.name}
+            </div>
+            {event.public_token && (
+              <div className="text-[11px] text-slate-400 font-mono">
+                {t('events.tokenLabel', { token: '' }, 'Token: ')}<span className="text-amber-400">{event.public_token}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Cannot Be Undone Warning Callout */}
+          <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-300 text-xs flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-amber-200">{t('events.deleteCannotBeUndoneWarning', undefined, 'Warning: This action cannot be undone.')}</p>
+              <p className="text-amber-300/90 leading-relaxed">
+                {t('events.deleteUnpaidWarningDesc', undefined, 'Permanently deleting this unpaid event will remove all configured tournament settings, test records, and public URLs.')}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Footer Actions */}
@@ -110,7 +135,7 @@ export const DeleteEventModal: React.FC<DeleteEventModalProps> = ({
             ) : (
               <>
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{t('event.confirmDelete')}</span>
+                <span>{t('event.confirmDelete', undefined, 'Confirm Delete')}</span>
               </>
             )}
           </button>

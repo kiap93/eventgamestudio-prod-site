@@ -3,8 +3,9 @@ import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, 
 import { GamePricingRecord, GamePricingTier } from './types.js';
 import { getAllPlatformGames } from './games.js';
 import { getDefaultPricingCountry, DEFAULT_PRICING_COUNTRY } from './platformSettings.js';
-import { getCurrencyForCountry } from '../../src/lib/countryUtils.js';
+import { getCurrencyForCountry, isValidCountryCode } from '../../src/lib/countryUtils.js';
 import { executeWithResilience } from './supabaseResilience.js';
+import { recordDbOperation } from './dbMetrics.js';
 
 export interface CreateGamePricingParams {
   min_days: number;
@@ -501,7 +502,7 @@ export async function resolveGamePrice(
   durationDays: number,
   countryCode?: string,
   env?: any,
-  options?: { throwOnError?: boolean }
+  options?: { throwOnError?: boolean; defaultCountry?: string }
 ): Promise<ResolvedGamePriceQuote> {
   if (!gameId) {
     const fail: ResolvedGamePriceQuote = {
@@ -519,13 +520,19 @@ export async function resolveGamePrice(
   }
 
   const days = Math.max(1, Math.floor(Number(durationDays) || 1));
-  const defaultCountry = (await getDefaultPricingCountry(env)) || 'US';
+  const defaultCountry = (options?.defaultCountry && options.defaultCountry.trim())
+    ? options.defaultCountry.trim().toUpperCase()
+    : (await getDefaultPricingCountry(env)) || 'US';
   const normDefaultCountry = defaultCountry.trim().toUpperCase();
+  const defaultCountryCurrency = (getCurrencyForCountry(normDefaultCountry) || 'USD').toUpperCase();
   const secondaryFallbackCountry = 'MY';
 
-  const requestedCountry = (countryCode && countryCode.trim())
-    ? countryCode.trim().toUpperCase()
-    : normDefaultCountry;
+  // Primary configured markets that strictly fail closed when designated domestic pricing is missing
+  const PRIMARY_STRICT_MARKETS = new Set(['US', 'MY', 'SG']);
+
+  const rawCountry = countryCode ? countryCode.trim().toUpperCase() : '';
+  const isExplicitCountry = Boolean(rawCountry && isValidCountryCode(rawCountry));
+  const requestedCountry = isExplicitCountry ? rawCountry : normDefaultCountry;
 
   // Retrieve all active pricing tiers for this game across all countries
   const activeTiers = await getActiveGamePricing(gameId, undefined, env);
@@ -552,7 +559,7 @@ export async function resolveGamePrice(
     return fail;
   }
 
-  // Helper to find tiers covering the requested duration
+  // Canonical helper to find active tiers covering the requested duration
   const findMatchingDuration = (tiersList: GamePricingRecord[]) => {
     return tiersList.filter((t) => {
       if (!t.is_active || t.price <= 0) return false;
@@ -562,98 +569,94 @@ export async function resolveGamePrice(
     });
   };
 
-  // Step 1: Check requested country for matching active tier covering duration on both country and expected currency
-  const expectedCurrency = (getCurrencyForCountry(requestedCountry) || 'USD').toUpperCase();
-  const requestedTiers = activeTiers.filter(
-    (t) =>
-      (t.country_code || '').toUpperCase() === requestedCountry &&
-      (t.currency || '').toUpperCase() === expectedCurrency &&
-      t.price > 0
-  );
-  const matchedRequested = findMatchingDuration(requestedTiers);
+  // =========================================================================
+  // PRIORITY A — Valid organization country and currency settings
+  // If the organization has an explicitly configured country, first look for
+  // an active tier matching all dimensions: (game_id, country_code, currency, duration).
+  // =========================================================================
+  if (isExplicitCountry) {
+    const expectedCurrency = (getCurrencyForCountry(requestedCountry) || 'USD').toUpperCase();
+    const requestedTiers = activeTiers.filter(
+      (t) =>
+        (t.country_code || '').toUpperCase() === requestedCountry &&
+        (t.currency || '').toUpperCase() === expectedCurrency &&
+        t.price > 0
+    );
+    const matchedRequested = findMatchingDuration(requestedTiers);
 
-  if (matchedRequested.length > 1) {
-    console.error(`Multiple active pricing tiers match duration ${days} days for game ${gameId} in country ${requestedCountry} (${expectedCurrency}):`, matchedRequested);
-    const fail: ResolvedGamePriceFailure = {
-      success: false,
-      error: 'AMBIGUOUS_PRICING_TIER',
-      message: `Multiple active pricing tiers match duration of ${days} days for this game in country ${requestedCountry} (${expectedCurrency}). Overlapping active tiers must be resolved in Developer Settings.`,
-      requestedCountry,
-      pricingCountry: requestedCountry,
-      isFallback: false,
-    };
-    if (options?.throwOnError) {
-      throw { status: 409, code: 'AMBIGUOUS_PRICING_TIER', message: fail.message };
-    }
-    return fail;
-  }
-
-  if (matchedRequested.length === 1) {
-    const matched = matchedRequested[0];
-    const ruleLabel = formatPricingDurationLabel(matched.min_days, matched.max_days);
-    return {
-      success: true,
-      price: Number(matched.price),
-      currency: matched.currency || expectedCurrency,
-      pricingId: matched.id,
-      tierId: matched.id,
-      tier: matched,
-      ruleLabel,
-      durationDays: days,
-      requestedCountry,
-      pricingCountry: requestedCountry,
-      isFallback: false,
-      fallbackLevel: 0,
-    };
-  }
-
-  // Step 2: requested country has no matching tier for this duration.
-  // Strict Fail-Closed Rule for Primary Configured Markets (US and MY):
-  // Malaysia organizations must use MYR. US organizations must use USD.
-  // They MUST NOT cross-fallback to another country or currency.
-  if (requestedCountry === 'US' || requestedCountry === 'MY') {
-    const fail: ResolvedGamePriceQuote = {
-      success: false,
-      error: 'NO_PRICING_TIER',
-      message: `No pricing tier is configured for a ${days}-day event for this game in country ${requestedCountry}.`,
-      requestedCountry,
-      pricingCountry: null,
-      isFallback: false,
-      defaultCountry: normDefaultCountry,
-    };
-    if (options?.throwOnError) {
-      throw {
-        status: 422,
-        code: 'NO_PRICING_TIER',
-        message: fail.message,
+    if (matchedRequested.length > 1) {
+      console.error(`Multiple active pricing tiers match duration ${days} days for game ${gameId} in country ${requestedCountry} (${expectedCurrency}):`, matchedRequested);
+      const fail: ResolvedGamePriceFailure = {
+        success: false,
+        error: 'AMBIGUOUS_PRICING_TIER',
+        message: `Multiple active pricing tiers match duration of ${days} days for this game in country ${requestedCountry} (${expectedCurrency}). Overlapping active tiers must be resolved in Developer Settings.`,
         requestedCountry,
-        defaultCountry: normDefaultCountry,
+        pricingCountry: requestedCountry,
+        isFallback: false,
+      };
+      if (options?.throwOnError) {
+        throw { status: 409, code: 'AMBIGUOUS_PRICING_TIER', message: fail.message };
+      }
+      return fail;
+    }
+
+    if (matchedRequested.length === 1) {
+      const matched = matchedRequested[0];
+      const ruleLabel = formatPricingDurationLabel(matched.min_days, matched.max_days);
+      return {
+        success: true,
+        price: Number(matched.price),
+        currency: (matched.currency || expectedCurrency).toUpperCase(),
+        pricingId: matched.id,
+        tierId: matched.id,
+        tier: matched,
+        ruleLabel,
+        durationDays: days,
+        requestedCountry,
+        pricingCountry: requestedCountry,
+        isFallback: false,
+        fallbackLevel: 0,
       };
     }
-    return fail;
-  }
 
-  // Step 3: Unconfigured third-country fallback (e.g. VN, FR)
-  // Inspect whether the default country (e.g. US or configured default) has ANY active pricing for this game with expected currency.
-  const defaultCountryExpectedCurrency = (getCurrencyForCountry(normDefaultCountry) || 'USD').toUpperCase();
-  const defTiers = activeTiers.filter(
-    (t) =>
-      (t.country_code || '').toUpperCase() === normDefaultCountry &&
-      (t.currency || '').toUpperCase() === defaultCountryExpectedCurrency &&
-      t.price > 0
-  );
+    // Step A.2: Explicit primary market (US, MY, SG) with no matching tier fails closed.
+    // Malaysia must use MYR. Singapore must use SGD. US must use USD.
+    // They MUST NEVER cross-fallback to another country or currency.
+    if (PRIMARY_STRICT_MARKETS.has(requestedCountry)) {
+      const fail: ResolvedGamePriceQuote = {
+        success: false,
+        error: 'NO_PRICING_TIER',
+        message: `No pricing tier is configured for a ${days}-day event for this game in country ${requestedCountry}.`,
+        requestedCountry,
+        pricingCountry: null,
+        isFallback: false,
+        defaultCountry: normDefaultCountry,
+      };
+      if (options?.throwOnError) {
+        throw {
+          status: 422,
+          code: 'NO_PRICING_TIER',
+          message: fail.message,
+          requestedCountry,
+          defaultCountry: normDefaultCountry,
+        };
+      }
+      return fail;
+    }
 
-  if (defTiers.length > 0) {
-    // Case A: Default country has at least one active pricing tier for the game.
-    // Default country becomes the authoritative fallback pricing country for that game.
-    // For the requested duration:
-    // - if default country has a matching tier -> use default country pricing
-    // - if default country does NOT have a matching tier -> Contact Us
-    // DO NOT continue to MY!
+    // Step A.3: Non-primary international market without domestic tiers (e.g. VN, FR):
+    // If default country (US) has active tiers for this game, US is the sole fallback market.
+    // If US has no tier for this duration, fail closed — NEVER fall through to MYR (Case A).
+    // If US has ZERO active tiers for this game, secondary fallback MY is attempted (Case B).
+    const defTiers = activeTiers.filter(
+      (t) =>
+        (t.country_code || '').toUpperCase() === normDefaultCountry &&
+        (t.currency || '').toUpperCase() === defaultCountryCurrency &&
+        t.price > 0
+    );
     const matchedDef = findMatchingDuration(defTiers);
 
     if (matchedDef.length > 1) {
-      console.error(`Multiple active fallback pricing tiers match duration ${days} days for game ${gameId} in default country ${normDefaultCountry}:`, matchedDef);
       const fail: ResolvedGamePriceFailure = {
         success: false,
         error: 'AMBIGUOUS_PRICING_TIER',
@@ -671,11 +674,10 @@ export async function resolveGamePrice(
     if (matchedDef.length === 1) {
       const matched = matchedDef[0];
       const ruleLabel = formatPricingDurationLabel(matched.min_days, matched.max_days);
-      const isFb = requestedCountry !== normDefaultCountry;
       return {
         success: true,
         price: Number(matched.price),
-        currency: matched.currency || defaultCountryExpectedCurrency,
+        currency: (matched.currency || defaultCountryCurrency).toUpperCase(),
         pricingId: matched.id,
         tierId: matched.id,
         tier: matched,
@@ -683,13 +685,58 @@ export async function resolveGamePrice(
         durationDays: days,
         requestedCountry,
         pricingCountry: normDefaultCountry,
-        isFallback: isFb,
-        fallbackLevel: (isFb ? 1 : 0) as 0 | 1,
+        isFallback: true,
+        fallbackLevel: 1,
       };
     }
 
-    // Default country has active tiers for this game, but does NOT have a matching tier for this duration.
-    // DO NOT continue to MY! Return Contact Us / NO_PRICING_TIER.
+    // Default country has ZERO active tiers for this game -> attempt secondary fallback MY (Case B)
+    if (defTiers.length === 0) {
+      const myTiers = activeTiers.filter(
+        (t) =>
+          (t.country_code || '').toUpperCase() === secondaryFallbackCountry &&
+          (t.currency || '').toUpperCase() === 'MYR' &&
+          t.price > 0
+      );
+      const matchedMY = findMatchingDuration(myTiers);
+
+      if (matchedMY.length > 1) {
+        const fail: ResolvedGamePriceFailure = {
+          success: false,
+          error: 'AMBIGUOUS_PRICING_TIER',
+          message: `Multiple active fallback pricing tiers match duration of ${days} days for this game in secondary fallback country ${secondaryFallbackCountry}.`,
+          requestedCountry,
+          pricingCountry: secondaryFallbackCountry,
+          isFallback: true,
+        };
+        if (options?.throwOnError) {
+          throw { status: 409, code: 'AMBIGUOUS_PRICING_TIER', message: fail.message };
+        }
+        return fail;
+      }
+
+      if (matchedMY.length === 1) {
+        const matched = matchedMY[0];
+        const ruleLabel = formatPricingDurationLabel(matched.min_days, matched.max_days);
+        return {
+          success: true,
+          price: Number(matched.price),
+          currency: 'MYR',
+          pricingId: matched.id,
+          tierId: matched.id,
+          tier: matched,
+          ruleLabel,
+          durationDays: days,
+          requestedCountry,
+          pricingCountry: secondaryFallbackCountry,
+          isFallback: true,
+          fallbackLevel: 2,
+        };
+      }
+    }
+
+    // Default country has tiers but none for this duration, or secondary fallback has no matching tier:
+    // Strictly fail closed.
     const fail: ResolvedGamePriceQuote = {
       success: false,
       error: 'NO_PRICING_TIER',
@@ -711,12 +758,64 @@ export async function resolveGamePrice(
     return fail;
   }
 
-  // Case B: US has ZERO active pricing for the game.
-  // Only in this situation should MY become the fallback.
-  const myTiers = activeTiers.filter(
-    (t) => (t.country_code || '').toUpperCase() === secondaryFallbackCountry && (t.currency || '').toUpperCase() === 'MYR' && t.price > 0
+  // =========================================================================
+  // PRIORITY B — USD default when country/currency settings are missing
+  // Organization has NO configured country setting (genuinely unconfigured).
+  // Attempt default pricing country (US / USD) for the requested duration.
+  // =========================================================================
+  const defTiers = activeTiers.filter(
+    (t) =>
+      (t.country_code || '').toUpperCase() === normDefaultCountry &&
+      (t.currency || '').toUpperCase() === defaultCountryCurrency &&
+      t.price > 0
   );
+  const matchedDef = findMatchingDuration(defTiers);
 
+  if (matchedDef.length > 1) {
+    const fail: ResolvedGamePriceFailure = {
+      success: false,
+      error: 'AMBIGUOUS_PRICING_TIER',
+      message: `Multiple active fallback pricing tiers match duration of ${days} days for this game in default country ${normDefaultCountry}.`,
+      requestedCountry: normDefaultCountry,
+      pricingCountry: normDefaultCountry,
+      isFallback: true,
+    };
+    if (options?.throwOnError) {
+      throw { status: 409, code: 'AMBIGUOUS_PRICING_TIER', message: fail.message };
+    }
+    return fail;
+  }
+
+  if (matchedDef.length === 1) {
+    const matched = matchedDef[0];
+    const ruleLabel = formatPricingDurationLabel(matched.min_days, matched.max_days);
+    return {
+      success: true,
+      price: Number(matched.price),
+      currency: (matched.currency || defaultCountryCurrency).toUpperCase(),
+      pricingId: matched.id,
+      tierId: matched.id,
+      tier: matched,
+      ruleLabel,
+      durationDays: days,
+      requestedCountry: normDefaultCountry,
+      pricingCountry: normDefaultCountry,
+      isFallback: true,
+      fallbackLevel: 1,
+    };
+  }
+
+  // =========================================================================
+  // PRIORITY C — MYR fallback for unconfigured organizations
+  // If the default country has NO matching tier for the selected duration
+  // (even if it has tiers for other durations!), continue to MYR fallback.
+  // =========================================================================
+  const myTiers = activeTiers.filter(
+    (t) =>
+      (t.country_code || '').toUpperCase() === secondaryFallbackCountry &&
+      (t.currency || '').toUpperCase() === 'MYR' &&
+      t.price > 0
+  );
   const matchedMY = findMatchingDuration(myTiers);
 
   if (matchedMY.length > 1) {
@@ -725,7 +824,7 @@ export async function resolveGamePrice(
       success: false,
       error: 'AMBIGUOUS_PRICING_TIER',
       message: `Multiple active fallback pricing tiers match duration of ${days} days for this game in secondary fallback country ${secondaryFallbackCountry}.`,
-      requestedCountry,
+      requestedCountry: normDefaultCountry,
       pricingCountry: secondaryFallbackCountry,
       isFallback: true,
     };
@@ -738,29 +837,31 @@ export async function resolveGamePrice(
   if (matchedMY.length === 1) {
     const matched = matchedMY[0];
     const ruleLabel = formatPricingDurationLabel(matched.min_days, matched.max_days);
-    const isFb = requestedCountry !== secondaryFallbackCountry;
     return {
       success: true,
       price: Number(matched.price),
-      currency: matched.currency || 'MYR',
+      currency: 'MYR',
       pricingId: matched.id,
       tierId: matched.id,
       tier: matched,
       ruleLabel,
       durationDays: days,
-      requestedCountry,
+      requestedCountry: normDefaultCountry,
       pricingCountry: secondaryFallbackCountry,
-      isFallback: isFb,
-      fallbackLevel: (isFb ? 2 : 0) as 0 | 2,
+      isFallback: true,
+      fallbackLevel: 2,
     };
   }
 
-  // Case C: Neither requested country, US (zero tiers), nor MY has a matching active tier -> Contact Us
+  // =========================================================================
+  // PRIORITY D — No valid tier
+  // Neither matching USD nor MYR tier exists for the requested duration.
+  // =========================================================================
   const fail: ResolvedGamePriceQuote = {
     success: false,
     error: 'NO_PRICING_TIER',
     message: `No pricing tier is configured for a ${days}-day event for this game.`,
-    requestedCountry,
+    requestedCountry: normDefaultCountry,
     pricingCountry: null,
     isFallback: false,
     defaultCountry: normDefaultCountry,
@@ -770,7 +871,7 @@ export async function resolveGamePrice(
       status: 422,
       code: 'NO_PRICING_TIER',
       message: fail.message,
-      requestedCountry,
+      requestedCountry: normDefaultCountry,
       defaultCountry: normDefaultCountry,
     };
   }

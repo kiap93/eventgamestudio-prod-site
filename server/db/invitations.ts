@@ -1,6 +1,8 @@
 import { getSupabaseServerClient, isSupabaseConfigured, isProductionEnvironment, isLocalFallbackAllowed } from '../supabase.js';
 import { OrgInvitationRecord, OrgRole } from './types.js';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { hashToken, signAppToken } from '../auth.js';
 import { sendEmailViaResend } from '../email/resend.js';
 import { generateInvitationVerificationEmailTemplate } from '../email/invitationVerificationTemplate.js';
@@ -29,6 +31,11 @@ export async function createInvitation(
     email_status?: 'pending' | 'sent' | 'failed';
     email_sent_at?: string | null;
     email_error?: string | null;
+    phone?: string | null;
+    channel?: 'email' | 'whatsapp' | 'both';
+    whatsapp_status?: 'never_sent' | 'initiated' | 'delivered' | 'read' | 'failed';
+    customer_company_id?: string | null;
+    customer_recipient_id?: string | null;
   },
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord> {
@@ -36,6 +43,14 @@ export async function createInvitation(
   const now = new Date().toISOString();
   const tokenHash = params.token_hash || crypto.randomUUID();
   const expiresAt = params.expires_at || new Date(Date.now() + 7 * 86400000).toISOString();
+
+  const allowedRoles: OrgRole[] = ['owner', 'admin', 'designer', 'viewer'];
+  if (!params.role || !allowedRoles.includes(params.role)) {
+    const roleErr: any = new Error(`Invalid invitation role: "${params.role}". Allowed roles are: ${allowedRoles.join(', ')}`);
+    roleErr.statusCode = 400;
+    roleErr.code = 'INVALID_ROLE';
+    throw roleErr;
+  }
 
   const record: OrgInvitationRecord = {
     id,
@@ -50,6 +65,11 @@ export async function createInvitation(
     email_status: params.email_status || 'pending',
     email_sent_at: params.email_sent_at || null,
     email_error: params.email_error || null,
+    phone: params.phone || null,
+    channel: params.channel || 'email',
+    whatsapp_status: params.whatsapp_status || 'never_sent',
+    customer_company_id: params.customer_company_id || null,
+    customer_recipient_id: params.customer_recipient_id || null,
   };
 
   if (!isSupabaseConfigured(env)) {
@@ -72,6 +92,12 @@ export async function createInvitation(
     email_sent_at: params.email_sent_at || null,
     email_error: params.email_error || null,
   };
+
+  if (params.phone) insertPayload.phone = params.phone;
+  if (params.channel) insertPayload.channel = params.channel;
+  if (params.whatsapp_status) insertPayload.whatsapp_status = params.whatsapp_status;
+  if (params.customer_company_id) insertPayload.customer_company_id = params.customer_company_id;
+  if (params.customer_recipient_id) insertPayload.customer_recipient_id = params.customer_recipient_id;
 
   const { data, error } = await supabase
     .from('organization_invitations')
@@ -326,23 +352,63 @@ export async function deleteInvitation(
 
 export async function markInvitationAccepted(
   id: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  acceptedUserId?: string
 ): Promise<OrgInvitationRecord> {
+  const now = new Date().toISOString();
   if (!isSupabaseConfigured(env)) {
     const existing = localInvitationsCache.get(id);
     if (!existing) throw new Error('Invitation not found');
-    existing.accepted_at = new Date().toISOString();
+    existing.accepted_at = now;
+    if (acceptedUserId) {
+      existing.accepted_user_id = acceptedUserId;
+      existing.invitation_status = 'accepted';
+    }
+    // Update customer attribution in local storage if present
+    if (acceptedUserId && (existing.customer_recipient_id || existing.email)) {
+      try {
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        const localStorageFile = path.join(uploadsDir, 'customer_invitations.json');
+        if (fs.existsSync(localStorageFile)) {
+          const content = fs.readFileSync(localStorageFile, 'utf8');
+          const store = JSON.parse(content);
+          if (Array.isArray(store.recipients)) {
+            const rec = existing.customer_recipient_id
+              ? store.recipients.find((r: any) => r.id === existing.customer_recipient_id)
+              : store.recipients.find((r: any) => r.email.toLowerCase() === existing.email.toLowerCase());
+            if (rec) {
+              rec.accepted_user_id = acceptedUserId;
+              rec.accepted_at = now;
+              rec.updated_at = now;
+              const comp = store.companies?.find((c: any) => c.id === rec.company_id);
+              if (comp && (comp.lead_status === 'lead' || comp.lead_status === 'invited')) {
+                comp.lead_status = 'onboarding';
+                comp.updated_at = now;
+              }
+              fs.writeFileSync(localStorageFile, JSON.stringify(store, null, 2), 'utf8');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Notice updating local customer recipient attribution:', err);
+      }
+    }
     return existing;
   }
 
   const supabase = getSupabaseServerClient(env);
-  const now = new Date().toISOString();
+
+  const updatePayload: Record<string, any> = {
+    accepted_at: now,
+    invitation_status: 'accepted',
+  };
+  if (acceptedUserId) {
+    updatePayload.accepted_user_id = acceptedUserId;
+  }
 
   const { data, error } = await supabase
     .from('organization_invitations')
-    .update({
-      accepted_at: now,
-    })
+    .update(updatePayload)
     .eq('id', id)
     .select()
     .single();
@@ -350,6 +416,45 @@ export async function markInvitationAccepted(
   if (error) {
     console.error('Error in markInvitationAccepted:', error);
     throw new Error(`Failed to mark invitation as accepted: ${error.message}`);
+  }
+
+  // Update customer_company_recipients and customer_companies lead_status
+  const invRecord = data as any;
+  if (acceptedUserId && (invRecord?.customer_recipient_id || invRecord?.email)) {
+    try {
+      if (invRecord.customer_recipient_id) {
+        await supabase
+          .from('customer_company_recipients')
+          .update({
+            accepted_user_id: acceptedUserId,
+            accepted_at: now,
+            updated_at: now,
+          })
+          .eq('id', invRecord.customer_recipient_id);
+      } else {
+        await supabase
+          .from('customer_company_recipients')
+          .update({
+            accepted_user_id: acceptedUserId,
+            accepted_at: now,
+            updated_at: now,
+          })
+          .ilike('email', invRecord.email);
+      }
+
+      if (invRecord.customer_company_id) {
+        await supabase
+          .from('customer_companies')
+          .update({
+            lead_status: 'onboarding',
+            updated_at: now,
+          })
+          .eq('id', invRecord.customer_company_id)
+          .in('lead_status', ['lead', 'invited']);
+      }
+    } catch (err) {
+      console.warn('Notice updating customer recipient attribution on Supabase:', err);
+    }
   }
 
   return data as OrgInvitationRecord;
@@ -1046,7 +1151,7 @@ export async function acceptInvitationWithEmailVerification(params: {
   }
 
   // Mark invitation accepted
-  await markInvitationAccepted(invite.id, env);
+  await markInvitationAccepted(invite.id, env, user.id);
 
   // Issue authoritative application JWT session token
   const appToken = await signAppToken(user.id, invite.organization_id, effectiveRole, undefined, env);

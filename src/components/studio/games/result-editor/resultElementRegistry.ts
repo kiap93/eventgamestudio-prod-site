@@ -1,9 +1,11 @@
 import { ResultScreenElementType } from '../../../../games/memory-match/types';
+import { normalizeGameType } from '../../../../themes/types';
 
 export type ResultElementCategory = 'container' | 'visual' | 'stat' | 'control';
 
 export interface ResultElementDefinition {
   type: ResultScreenElementType;
+  subType?: string;
   label: string;
   category: ResultElementCategory;
   description?: string;
@@ -73,14 +75,52 @@ export const REACTION_GAME_RESULT_ELEMENTS: ResultElementDefinition[] = [
 ];
 
 /**
+ * Result screen elements for Match-3 arcade cascade games
+ * STRICT SEPARATION: Dedicated Match-3 Result Status, Score & Performance, Branding, Appearance, and Actions.
+ * Absolutely no Memory Card concepts (Moves flip count, Matched Pairs count, Flip accuracy).
+ */
+export const MATCH3_RESULT_ELEMENTS: ResultElementDefinition[] = [
+  // Containers
+  { type: 'card', label: 'Card Container', category: 'container', description: 'Framed card container for grouping result elements' },
+  { type: 'group', label: 'Group Wrapper', category: 'container', description: 'Invisible group wrapper for layered positioning' },
+
+  // Result Status
+  { type: 'text', subType: 'title', label: 'Result Title', category: 'visual', description: 'Celebratory headline (e.g. Sweet Victory!, Time\'s Up!)' },
+  { type: 'text', subType: 'message', label: 'Result Message', category: 'visual', description: 'Performance message or encouragement' },
+
+  // Score and Performance
+  { type: 'score', label: 'Final Score', category: 'stat', description: 'Total points scored in Match-3 session', badge: 'PRIMARY' },
+  { type: 'target-score', label: 'Target Score', category: 'stat', description: 'Configured level goal or objective target points' },
+  { type: 'star-rating', label: 'Star Rating', category: 'stat', description: 'Performance rating (1 to 5 stars earned)' },
+  { type: 'matches', label: 'Matches Cleared', category: 'stat', description: 'Total number of valid tile matches achieved' },
+  { type: 'combo', label: 'Best Combo', category: 'stat', description: 'Highest combo cascade multiplier reached' },
+  { type: 'specials', label: 'Specials Created', category: 'stat', description: 'Total rockets, bombs, and color bombs created' },
+  { type: 'time', label: 'Time Elapsed', category: 'stat', description: 'Total match play time elapsed' },
+  { type: 'leaderboard', label: 'Match-3 Leaderboard', category: 'stat', description: 'Event leaderboard and score submission widget' },
+
+  // Branding & Visuals
+  { type: 'image', subType: 'logo', label: 'Brand Logo', category: 'visual', description: 'Company or sponsor brand logo' },
+  { type: 'image', label: 'Custom Image', category: 'visual', description: 'Custom victory artwork, badge, or celebration icon' },
+  { type: 'text', label: 'Custom Text', category: 'visual', description: 'Additional custom text block or note' },
+
+  // Interactive Actions
+  { type: 'button', subType: 'playAgain', label: 'Play Again Button', category: 'control', description: 'Action button to restart and play another match' },
+  { type: 'button', subType: 'exit', label: 'Close / Exit Button', category: 'control', description: 'Action button to close or exit the game' },
+];
+
+/**
  * Returns the exact list of available result-screen elements for a given game type.
  */
 export function getAvailableResultElements(gameType?: string): ResultElementDefinition[] {
-  if (gameType === 'reaction-time' || gameType === 'reaction-tap') {
+  const norm = normalizeGameType(gameType || '');
+  if (norm === 'reaction-tap' || norm === 'reaction-time') {
     return REACTION_GAME_RESULT_ELEMENTS;
   }
-  if (gameType === 'memory-match') {
+  if (norm === 'memory-match') {
     return MEMORY_MATCH_RESULT_ELEMENTS;
+  }
+  if (norm === 'match-3') {
+    return MATCH3_RESULT_ELEMENTS;
   }
   return CATCH_BRAND_RESULT_ELEMENTS;
 }
@@ -101,7 +141,39 @@ export function getResultElementsGroupedByCategory(gameType?: string): Record<Re
 /**
  * Returns human-readable default label for an element type in a given game
  */
-export function getDefaultElementLabel(type: ResultScreenElementType, gameType?: string): string {
+export function getDefaultElementLabel(
+  type: ResultScreenElementType,
+  gameType?: string,
+  elementId?: string
+): string {
+  const norm = normalizeGameType(gameType || '');
+
+  if (norm === 'match-3') {
+    if (elementId === 'stat-matches' || type === 'matches' || type === 'moves') {
+      return 'Matches Cleared';
+    }
+    if (elementId === 'stat-combo' || type === 'combo' || type === 'accuracy') {
+      return 'Best Combo';
+    }
+    if (elementId === 'stat-specials' || type === 'specials' || type === 'pairs') {
+      return 'Specials Created';
+    }
+    if (elementId === 'title-match3') {
+      return 'Result Title';
+    }
+    if (elementId === 'btn-play-again') {
+      return 'Play Again Button';
+    }
+    if (elementId === 'leaderboard-match3') {
+      return 'Leaderboard';
+    }
+    if (elementId === 'stat-score' || type === 'score') {
+      return 'Final Score';
+    }
+    if (type === 'target-score') return 'Target Score';
+    if (type === 'star-rating') return 'Star Rating';
+  }
+
   const elements = getAvailableResultElements(gameType);
   const found = elements.find((e) => e.type === type);
   if (found) return found.label;
@@ -112,6 +184,11 @@ export function getDefaultElementLabel(type: ResultScreenElementType, gameType?:
     case 'text': return 'Text Block';
     case 'image': return 'Image / Icon';
     case 'score': return 'Final Score';
+    case 'target-score': return 'Target Score';
+    case 'star-rating': return 'Star Rating';
+    case 'matches': return 'Matches Cleared';
+    case 'combo': return 'Best Combo';
+    case 'specials': return 'Specials Created';
     case 'moves': return 'Total Moves';
     case 'pairs': return 'Matched Pairs';
     case 'time': return 'Time Elapsed';

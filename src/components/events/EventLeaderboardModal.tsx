@@ -270,17 +270,17 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
             <span className="font-semibold text-slate-300">{t('game.gameplayMetrics')}</span>
             {stats?.completionRate !== undefined && (
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-medium">
-                {stats.completionRate}% Completion Rate
+                {stats.completionRate}% {t('game.completionRate', undefined, 'Completion Rate')}
               </span>
             )}
             {stats?.averageMoves !== null && stats?.averageMoves !== undefined && (
               <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 font-medium">
-                Avg {stats.averageMoves} Moves
+                {t('game.avgMoves', { moves: stats.averageMoves }, `Avg ${stats.averageMoves} Moves`)}
               </span>
             )}
             {stats?.averageDuration !== null && stats?.averageDuration !== undefined && (
               <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 font-medium">
-                Avg {stats.averageDuration}s Duration
+                {t('game.avgDuration', { duration: stats.averageDuration }, `Avg ${stats.averageDuration}s Duration`)}
               </span>
             )}
           </div>
@@ -316,11 +316,11 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-100">{t('game.testScores')}</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 border border-purple-500/30 text-purple-300">
-                    Pre-Event
+                    {t('game.preEvent', undefined, 'Pre-Event')}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  {displayTestScoresCount} {displayTestScoresCount === 1 ? 'test score' : 'test scores'}
+                  {displayTestScoresCount} {displayTestScoresCount === 1 ? t('game.testScoreSingular', undefined, 'test score') : t('game.testScoresPlural', undefined, 'test scores')}
                 </p>
               </div>
             </div>
@@ -394,10 +394,10 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
             <div className="py-16 text-center text-slate-400">
               <Trophy className="w-12 h-12 text-slate-700 mx-auto mb-3" />
               <p className="text-sm font-semibold text-slate-300">
-                {searchTerm ? 'No matching player scores' : 'No High Scores Yet'}
+                {searchTerm ? t('game.noMatchingPlayerScores', undefined, 'No matching player scores') : t('game.noHighScoresYet', undefined, 'No High Scores Yet')}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                {searchTerm ? 'Try a different search term' : 'Scores will appear here once players play this event'}
+                {searchTerm ? t('game.tryDifferentSearchTerm', undefined, 'Try a different search term') : t('game.scoresWillAppearHere', undefined, 'Scores will appear here once players play this event')}
               </p>
             </div>
           ) : (
@@ -454,7 +454,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                           </span>
                           {entry.metadata?.moves !== undefined && (
                             <span className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-400 font-mono">
-                              {entry.metadata.moves} moves
+                              {entry.metadata.moves} {t('game.movesLower', undefined, 'moves')}
                             </span>
                           )}
                           {entry.metadata?.duration !== undefined && (
@@ -464,7 +464,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                           )}
                           {entry.metadata?.isVictory && (
                             <span className="px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-800/60 text-[10px] text-emerald-400 font-medium">
-                              Completed
+                              {t('event.statusCompleted', undefined, 'Completed')}
                             </span>
                           )}
                         </div>
@@ -501,7 +501,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
               <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
               <div className="text-xs">
                 <span className="font-bold text-red-300 block">{t('game.resetBoardConfirm')}</span>
-                <span className="text-red-400/80">This will permanently delete all {scores.length} scores for this event.</span>
+                <span className="text-red-400/80">{t('game.permanentlyDeleteAllScoresDesc', { count: scores.length }, `This will permanently delete all ${scores.length} scores for this event.`)}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -509,14 +509,14 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                 onClick={() => setShowClearConfirm(false)}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleClearLeaderboard}
                 disabled={isClearing}
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
               >
-                {isClearing ? 'Resetting...' : 'Yes, Reset Leaderboard'}
+                {isClearing ? t('game.resetting', undefined, 'Resetting...') : t('game.yesResetLeaderboard', undefined, 'Yes, Reset Leaderboard')}
               </button>
             </div>
           </div>
@@ -533,7 +533,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-white">{t('game.clearTestScoresConfirm')}</h3>
                   <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                    This will permanently remove all TEST scores for this event. LIVE scores will not be affected.
+                    {t('game.clearTestScoresConfirmDesc', undefined, 'This will permanently remove all TEST scores for this event. LIVE scores will not be affected.')}
                   </p>
                 </div>
               </div>
@@ -546,7 +546,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                   disabled={isClearingTestScores}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', undefined, 'Cancel')}
                 </button>
                 <button
                   id="btn-confirm-clear-test-scores"
@@ -575,13 +575,13 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-800 flex items-center justify-between bg-slate-950/30">
           <span className="text-xs text-slate-500">
-            Showing {filteredScores.length} of {scores.length} recorded entries
+            {t('game.showingRecordedEntries', { shown: filteredScores.length, total: scores.length }, `Showing ${filteredScores.length} of ${scores.length} recorded entries`)}
           </span>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors"
           >
-            Close
+            {t('common.close', undefined, 'Close')}
           </button>
         </div>
       </div>

@@ -25,6 +25,7 @@ import {
 import {
   createInvitation,
   getActiveOrgInvitations,
+  getInvitationById,
   renewInvitation,
   localInvitationsCache,
 } from './invitations.js';
@@ -37,6 +38,7 @@ export interface CustomerCompanyRecord {
   id: string;
   company_name: string;
   contact_person: string | null;
+  phone?: string | null;
   notes: string | null;
   organization_id?: string | null;
   lead_status?: string | null;
@@ -55,7 +57,10 @@ export interface CustomerCompanyRecipientRecord {
   invitation_id?: string | null;
   whatsapp_status?: 'never_sent' | 'initiated' | 'delivered' | 'read' | 'failed';
   whatsapp_initiated_at?: string | null;
+  whatsapp_message_text?: string | null;
+  whatsapp_error?: string | null;
   accepted_user_id?: string | null;
+  accepted_at?: string | null;
   invitation_count: number;
   last_invited_at: string | null;
   last_invitation_status: 'never_invited' | 'sent' | 'failed';
@@ -75,6 +80,7 @@ export interface CustomerInvitationLogRecord {
   status: 'sent' | 'failed';
   error_message: string | null;
   sent_by_user_id: string | null;
+  channel?: 'email' | 'whatsapp';
   created_at: string;
 }
 
@@ -451,6 +457,7 @@ export async function createCustomerCompany(
   params: {
     company_name: string;
     contact_person?: string | null;
+    phone?: string | null;
     notes?: string | null;
     organization_id?: string | null;
     lead_status?: string | null;
@@ -472,6 +479,20 @@ export async function createCustomerCompany(
     err.statusCode = 400;
     err.code = 'VALIDATION_ERROR';
     throw err;
+  }
+
+  let normalizedCompanyPhone: string | null = null;
+  if (params.phone && typeof params.phone === 'string' && params.phone.trim()) {
+    const norm = normalizePhoneNumber(params.phone);
+    if (!norm.valid || !norm.normalized) {
+      const err: any = new Error(
+        `Invalid company phone number "${params.phone}": ${norm.error || 'Must be a valid international format e.g. +60123456789'}`
+      );
+      err.statusCode = 400;
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    normalizedCompanyPhone = norm.normalized;
   }
 
   if (!params.recipients || !Array.isArray(params.recipients) || params.recipients.length === 0) {
@@ -500,6 +521,9 @@ export async function createCustomerCompany(
       throw err;
     }
 
+    const channel: 'email' | 'whatsapp' | 'both' =
+      r.channel === 'email' || r.channel === 'whatsapp' ? r.channel : 'both';
+
     let normalizedPhone: string | null = null;
     if (r.phone && typeof r.phone === 'string' && r.phone.trim()) {
       const norm = normalizePhoneNumber(r.phone);
@@ -512,10 +536,14 @@ export async function createCustomerCompany(
         throw err;
       }
       normalizedPhone = norm.normalized;
+    } else if (channel === 'whatsapp') {
+      const err: any = new Error(
+        `Phone number is required when invitation channel is set to WhatsApp for recipient "${r.email}".`
+      );
+      err.statusCode = 400;
+      err.code = 'VALIDATION_ERROR';
+      throw err;
     }
-
-    const channel: 'email' | 'whatsapp' | 'both' =
-      r.channel === 'email' || r.channel === 'whatsapp' ? r.channel : 'both';
 
     if (seenEmails.has(cleanEmail)) {
       continue; // Duplicate within company deduplicated
@@ -543,6 +571,7 @@ export async function createCustomerCompany(
     id: companyId,
     company_name: companyName,
     contact_person: params.contact_person?.trim() || null,
+    phone: normalizedCompanyPhone,
     notes: params.notes?.trim() || null,
     organization_id: params.organization_id || null,
     lead_status: params.lead_status || 'lead',
@@ -607,12 +636,15 @@ export async function createCustomerCompany(
       throw ambigErr;
     }
 
-    // Persist extra fields (phone, channel, organization_id)
+    // Persist extra fields (company phone, recipient phone, channel, organization_id)
     try {
-      if (newCompany.organization_id) {
+      if (newCompany.phone || newCompany.organization_id) {
         await supabase
           .from('customer_companies')
-          .update({ organization_id: newCompany.organization_id })
+          .update({
+            phone: newCompany.phone || null,
+            organization_id: newCompany.organization_id || null,
+          })
           .eq('id', newCompany.id);
       }
       for (const rec of newRecipients) {
@@ -632,7 +664,7 @@ export async function createCustomerCompany(
     }
 
     return computeCompanyStats(
-      { ...rpcData.company, organization_id: newCompany.organization_id },
+      { ...rpcData.company, phone: newCompany.phone, organization_id: newCompany.organization_id },
       newRecipients
     );
   }
@@ -658,6 +690,7 @@ export async function updateCustomerCompany(
   params: {
     company_name?: string;
     contact_person?: string | null;
+    phone?: string | null;
     notes?: string | null;
     organization_id?: string | null;
     lead_status?: string | null;
@@ -673,6 +706,22 @@ export async function updateCustomerCompany(
 ): Promise<CustomerCompanyWithRecipients> {
   assertProductionCustomerInvitationsSafe('updateCustomerCompany', env);
   const now = new Date().toISOString();
+
+  let normalizedCompanyPhone: string | null = null;
+  if (params.phone !== undefined) {
+    if (params.phone && typeof params.phone === 'string' && params.phone.trim()) {
+      const norm = normalizePhoneNumber(params.phone);
+      if (!norm.valid || !norm.normalized) {
+        const err: any = new Error(
+          `Invalid company phone number "${params.phone}": ${norm.error || 'Must be a valid international format e.g. +60123456789'}`
+        );
+        err.statusCode = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
+      }
+      normalizedCompanyPhone = norm.normalized;
+    }
+  }
 
   if (params.recipients) {
     if (!Array.isArray(params.recipients) || params.recipients.length === 0) {
@@ -693,12 +742,19 @@ export async function updateCustomerCompany(
         const norm = normalizePhoneNumber(r.phone);
         if (!norm.valid || !norm.normalized) {
           const err: any = new Error(
-            `Invalid phone number "${r.phone}" for recipient "${r.email}": ${norm.error || 'Must be a valid international format'}`
+            `Invalid phone number "${r.phone}" for recipient "${r.email}": ${norm.error || 'Must be a valid international format e.g. +60123456789'}`
           );
           err.statusCode = 400;
           err.code = 'VALIDATION_ERROR';
           throw err;
         }
+      } else if (r.channel === 'whatsapp') {
+        const err: any = new Error(
+          `Phone number is required when invitation channel is set to WhatsApp for recipient "${r.email}".`
+        );
+        err.statusCode = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
       }
     }
   }
@@ -748,12 +804,23 @@ export async function updateCustomerCompany(
     }
 
     try {
+      const compUpdates: Record<string, any> = {};
+      if (params.phone !== undefined) {
+        compUpdates.phone = normalizedCompanyPhone;
+      }
       if (params.organization_id !== undefined) {
+        compUpdates.organization_id = params.organization_id;
+      }
+      if (params.lead_status !== undefined) {
+        compUpdates.lead_status = params.lead_status;
+      }
+      if (Object.keys(compUpdates).length > 0) {
         await supabase
           .from('customer_companies')
-          .update({ organization_id: params.organization_id })
+          .update(compUpdates)
           .eq('id', id);
       }
+
       if (params.recipients) {
         for (const r of params.recipients) {
           if (r.id && (r.phone !== undefined || r.channel !== undefined)) {
@@ -775,7 +842,12 @@ export async function updateCustomerCompany(
       // Ignored
     }
 
-    return computeCompanyStats(rpcData.company, rpcData.recipients || []);
+    const companyResult = {
+      ...rpcData.company,
+      phone: params.phone !== undefined ? normalizedCompanyPhone : (rpcData.company as any).phone,
+      organization_id: params.organization_id !== undefined ? params.organization_id : (rpcData.company as any).organization_id,
+    };
+    return computeCompanyStats(companyResult, rpcData.recipients || []);
   }
 
   // Local fallback ONLY when allowed in non-production
@@ -795,6 +867,7 @@ export async function updateCustomerCompany(
   const comp = store.companies[compIndex];
   if (params.company_name !== undefined) comp.company_name = params.company_name.trim();
   if (params.contact_person !== undefined) comp.contact_person = params.contact_person?.trim() || null;
+  if (params.phone !== undefined) comp.phone = normalizedCompanyPhone;
   if (params.notes !== undefined) comp.notes = params.notes?.trim() || null;
   if (params.organization_id !== undefined) comp.organization_id = params.organization_id;
   if (params.lead_status !== undefined) comp.lead_status = params.lead_status;
@@ -869,6 +942,8 @@ export interface GenerateCustomerWhatsAppInvitationResult {
   company: CustomerCompanyRecord;
   isExistingReused: boolean;
   organizationId: string;
+  role: OrgRole;
+  invitationId?: string;
 }
 
 /**
@@ -884,13 +959,13 @@ export async function generateCustomerWhatsAppInvitation(
     companyId: string;
     recipientId: string;
     organizationId?: string | null;
-    role?: OrgRole;
+    role?: OrgRole | string;
     invitedByUserId?: string | null;
     request?: any;
     env?: Record<string, any>;
   }
 ): Promise<GenerateCustomerWhatsAppInvitationResult> {
-  const { companyId, recipientId, organizationId, role = 'member', invitedByUserId, request, env } = params;
+  const { companyId, recipientId, organizationId, role = 'admin', invitedByUserId, request, env } = params;
 
   // 1. Fetch company
   const company = await getCustomerCompanyById(companyId, env);
@@ -1035,14 +1110,38 @@ export async function generateCustomerWhatsAppInvitation(
     throw err;
   }
 
-  // Role safety: prevent privilege escalation to 'owner'
-  const permittedRole: OrgRole = (role === 'owner' ? 'admin' : role) as OrgRole;
+  // Validate and resolve role: only valid OrgRoles ('admin', 'designer', 'viewer', 'owner') allowed
+  const rawRole = role || 'admin';
+  const allowedRoles = ['admin', 'designer', 'viewer', 'owner'];
+  if (!allowedRoles.includes(rawRole)) {
+    const roleErr: any = new Error(
+      `Invalid role "${rawRole}". Allowed invitation roles are: admin, designer, viewer.`
+    );
+    roleErr.statusCode = 400;
+    roleErr.code = 'INVALID_ROLE';
+    throw roleErr;
+  }
 
-  // 5. Look for an existing active invitation for this email in this organization
+  // Role safety: prevent privilege escalation to 'owner' (customer invitations are capped at 'admin')
+  const permittedRole: OrgRole = (rawRole === 'owner' ? 'admin' : rawRole) as OrgRole;
+
+  // 5. Look for an existing active invitation for this email or recipient in this organization
   const activeInvites = await getActiveOrgInvitations(targetOrgId, env);
-  const existingInvite = activeInvites.find(
-    (i) => i.email.toLowerCase() === recipient.email.toLowerCase()
+  let existingInvite = activeInvites.find(
+    (i) => i.email.toLowerCase() === recipient.email.toLowerCase() || (recipient.invitation_id && i.id === recipient.invitation_id)
   );
+
+  // If not in active list but recipient has an invitation_id, check if it can be retrieved
+  if (!existingInvite && recipient.invitation_id) {
+    try {
+      const prevInvite = await getInvitationById(recipient.invitation_id, env);
+      if (prevInvite && !prevInvite.accepted_at && prevInvite.organization_id === targetOrgId) {
+        existingInvite = prevInvite;
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const rawToken = crypto.randomBytes(24).toString('base64url');
   const tokenHash = hashToken(rawToken);
@@ -1055,6 +1154,9 @@ export async function generateCustomerWhatsAppInvitation(
   if (existingInvite) {
     isExistingReused = true;
     invitationRecordId = existingInvite.id;
+    console.log(
+      `[Customer WhatsApp Invitation] Reusing existing invitation ${existingInvite.id} for recipient=${recipient.email}, targetOrg=${targetOrgId}`
+    );
     await renewInvitation(
       existingInvite.id,
       {
@@ -1063,7 +1165,29 @@ export async function generateCustomerWhatsAppInvitation(
       },
       env
     );
+    if (isSupabaseConfigured(env)) {
+      const supabase = getSupabaseServerClient(env);
+      try {
+        await supabase
+          .from('organization_invitations')
+          .update({
+            role: permittedRole,
+            phone: phoneRes.normalized,
+            channel: 'whatsapp',
+            whatsapp_status: 'initiated',
+            whatsapp_initiated_at: now,
+            customer_company_id: companyId,
+            customer_recipient_id: recipientId,
+          })
+          .eq('id', existingInvite.id);
+      } catch (err) {
+        console.warn('[Customer WhatsApp Invitation] Failed to update existing organization_invitations record:', err);
+      }
+    }
   } else {
+    console.log(
+      `[Customer WhatsApp Invitation] Creating new invitation for recipient=${recipient.email}, targetOrg=${targetOrgId}, role=${permittedRole}`
+    );
     const created = await createInvitation(
       {
         organization_id: targetOrgId,
@@ -1073,6 +1197,11 @@ export async function generateCustomerWhatsAppInvitation(
         invited_by: invitedByUserId || 'system',
         expires_at: expiresAt,
         email_status: 'pending',
+        phone: phoneRes.normalized,
+        channel: 'whatsapp',
+        whatsapp_status: 'initiated',
+        customer_company_id: companyId,
+        customer_recipient_id: recipientId,
       },
       env
     );
@@ -1095,6 +1224,7 @@ export async function generateCustomerWhatsAppInvitation(
   const updatedFields = {
     whatsapp_status: 'initiated' as const,
     whatsapp_initiated_at: now,
+    whatsapp_message_text: messageText,
     invitation_id: invitationRecordId,
     phone: phoneRes.normalized,
     last_invited_at: now,
@@ -1109,18 +1239,86 @@ export async function generateCustomerWhatsAppInvitation(
 
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
+    let rpcSucceeded = false;
     try {
-      const { data, error } = await supabase
-        .from('customer_company_recipients')
-        .update(updatedFields)
-        .eq('id', recipientId)
-        .select()
-        .single();
-      if (!error && data) {
-        updatedRecipient = data;
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('record_whatsapp_invitation_initiation_atomic', {
+        p_company_id: companyId,
+        p_recipient_id: recipientId,
+        p_invitation_id: isUUID(invitationRecordId) ? invitationRecordId : null,
+        p_phone: phoneRes.normalized,
+        p_message_text: messageText,
+        p_sent_by_user_id: isUUID(invitedByUserId) ? invitedByUserId : null,
+      });
+
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        rpcSucceeded = true;
+        const { data: recRow } = await supabase
+          .from('customer_company_recipients')
+          .select('*')
+          .eq('id', recipientId)
+          .maybeSingle();
+        if (recRow) {
+          updatedRecipient = recRow;
+        }
       }
-    } catch (err) {
-      console.warn('Notice: Updating customer_company_recipients table error:', err);
+    } catch (rpcErr) {
+      console.warn('Notice: record_whatsapp_invitation_initiation_atomic RPC error:', rpcErr);
+    }
+
+    if (!rpcSucceeded) {
+      try {
+        const { data, error } = await supabase
+          .from('customer_company_recipients')
+          .update(updatedFields)
+          .eq('id', recipientId)
+          .select()
+          .single();
+        if (!error && data) {
+          updatedRecipient = data;
+        }
+
+        // Update organization_invitations
+        if (isUUID(invitationRecordId)) {
+          await supabase
+            .from('organization_invitations')
+            .update({
+              phone: phoneRes.normalized,
+              whatsapp_status: 'initiated',
+              whatsapp_initiated_at: now,
+              customer_company_id: companyId,
+              customer_recipient_id: recipientId,
+            })
+            .eq('id', invitationRecordId);
+        }
+
+        // Record audit log
+        await supabase.from('customer_invitation_logs').insert({
+          id: crypto.randomUUID(),
+          company_id: companyId,
+          recipient_id: recipientId,
+          email: recipient.email,
+          subject: 'WhatsApp Invitation (Initiated)',
+          provider: 'whatsapp_web',
+          provider_message_id: null,
+          status: 'sent',
+          error_message: null,
+          sent_by_user_id: isUUID(invitedByUserId) ? invitedByUserId : null,
+          channel: 'whatsapp',
+          created_at: now,
+        });
+
+        // Update company lead status
+        await supabase
+          .from('customer_companies')
+          .update({
+            lead_status: 'invited',
+            updated_at: now,
+          })
+          .eq('id', companyId)
+          .eq('lead_status', 'lead');
+      } catch (err) {
+        console.warn('Notice: Updating customer_company_recipients table error:', err);
+      }
     }
   } else {
     const store = readLocalStorage(env);
@@ -1130,9 +1328,44 @@ export async function generateCustomerWhatsAppInvitation(
         ...store.recipients[rIdx],
         ...updatedFields,
       };
-      writeLocalStorage(store, env);
       updatedRecipient = store.recipients[rIdx];
     }
+
+    // Update company lead status
+    const compIdx = store.companies.findIndex((c) => c.id === companyId);
+    if (compIdx !== -1 && store.companies[compIdx].lead_status === 'lead') {
+      store.companies[compIdx].lead_status = 'invited';
+      store.companies[compIdx].updated_at = now;
+    }
+
+    // Record audit log
+    store.logs.unshift({
+      id: crypto.randomUUID(),
+      company_id: companyId,
+      recipient_id: recipientId,
+      email: recipient.email,
+      subject: 'WhatsApp Invitation (Initiated)',
+      provider: 'whatsapp_web',
+      provider_message_id: null,
+      status: 'sent',
+      error_message: null,
+      sent_by_user_id: isUUID(invitedByUserId) ? invitedByUserId : null,
+      channel: 'whatsapp',
+      created_at: now,
+    });
+
+    // Update local cache invitation
+    const localInv = localInvitationsCache.get(invitationRecordId);
+    if (localInv) {
+      localInv.phone = phoneRes.normalized;
+      localInv.channel = 'whatsapp';
+      localInv.whatsapp_status = 'initiated';
+      localInv.whatsapp_initiated_at = now;
+      localInv.customer_company_id = companyId;
+      localInv.customer_recipient_id = recipientId;
+    }
+
+    writeLocalStorage(store, env);
   }
 
   return {
@@ -1145,6 +1378,8 @@ export async function generateCustomerWhatsAppInvitation(
     company,
     isExistingReused,
     organizationId: targetOrgId,
+    role: permittedRole,
+    invitationId: invitationRecordId,
   };
 }
 

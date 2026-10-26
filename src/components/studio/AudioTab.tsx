@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameTheme, isMemoryMatchTheme, isMatch3Theme } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchAudioTester } from './games/MemoryMatchCustomizer';
@@ -21,34 +21,60 @@ import {
 
 interface AudioTabProps {
   theme: GameTheme;
-  onChange: (updated: GameTheme) => void;
+  onChange?: (updated: GameTheme) => void;
+  onFieldChange?: (field: keyof GameTheme, value: any) => void;
   onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
   uploadingAsset?: string | null;
+  isViewer?: boolean;
 }
 
 export const AudioTab: React.FC<AudioTabProps> = ({
   theme,
   onChange,
+  onFieldChange,
   onUploadAsset,
   uploadingAsset,
+  isViewer = false,
 }) => {
   const { t } = useLocalization();
   const isMemoryMatch = isMemoryMatchTheme(theme);
   const isMatch3 = isMatch3Theme(theme);
 
+  // Authoritative theme change dispatcher: supports onChange and adapts onFieldChange
+  const handleThemeChange = (updated: GameTheme) => {
+    if (typeof onChange === 'function') {
+      onChange(updated);
+    } else if (typeof onFieldChange === 'function') {
+      if (updated.sounds_config !== theme.sounds_config) {
+        onFieldChange('sounds_config', updated.sounds_config);
+      }
+      if (updated.game_config !== theme.game_config) {
+        onFieldChange('game_config', updated.game_config);
+      }
+    }
+  };
+
+  const [isPlayingBgmSample, setIsPlayingBgmSample] = useState(false);
+  const [showCustomAudioUrls, setShowCustomAudioUrls] = useState(false);
+
+  // Stop BGM sample preview when navigating away or switching tabs
+  useEffect(() => {
+    return () => {
+      soundManager.stopBgm();
+      match3Sounds.stopBgm();
+    };
+  }, []);
+
   if (isMatch3) {
     return (
       <Match3AudioEditor
         theme={theme}
-        onChange={onChange}
+        onChange={handleThemeChange}
         onUploadAsset={onUploadAsset}
         uploadingAsset={uploadingAsset}
       />
     );
   }
-
-  const [isPlayingBgmSample, setIsPlayingBgmSample] = useState(false);
-  const [showCustomAudioUrls, setShowCustomAudioUrls] = useState(false);
 
   const sounds = theme.sounds_config || {
     soundVolume: 0.8,
@@ -67,7 +93,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
       ...sounds,
       ...updates,
     };
-    onChange({
+    handleThemeChange({
       ...theme,
       sounds_config: nextSounds,
       // If Match-3, sync top-level sound attributes into game_config
@@ -175,7 +201,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
                       ? 'bg-emerald-600 text-slate-950 shadow-md'
                       : 'bg-slate-800 text-slate-400'
                   }`}
-                  title="Toggle background music on or off"
+                  title={t('studio.toggleBgmTitle', undefined, 'Toggle background music on or off')}
                 >
                   {sounds.bgmEnabled ? 'BGM ON' : 'BGM OFF'}
                 </button>

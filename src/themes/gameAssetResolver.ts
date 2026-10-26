@@ -89,6 +89,26 @@ export const THEME_ASSET_ALIASES: Record<string, string> = {
   'default': 'default',
   'durian': 'default',
   'catch-brand': 'default',
+  // Match-3 Classic & Cartoon Themes
+  'match-3': 'default',
+  'match-3-default': 'default',
+  'match-3-cascade': 'default',
+  'cute-animals': 'cute-animals',
+  'match-3-cute-animals': 'cute-animals',
+  'super-heroes': 'super-heroes',
+  'match-3-super-heroes': 'super-heroes',
+  'fantasy-creatures': 'fantasy-creatures',
+  'match-3-fantasy-creatures': 'fantasy-creatures',
+  'space-explorers': 'space-explorers',
+  'match-3-space-explorers': 'space-explorers',
+  'food-characters': 'food-characters',
+  'match-3-food-characters': 'food-characters',
+  'ocean-friends': 'ocean-friends',
+  'match-3-ocean-friends': 'ocean-friends',
+  'robot-friends': 'robot-friends',
+  'match-3-robot-friends': 'robot-friends',
+  'princess-fairytale': 'princess-fairytale',
+  'match-3-princess-fairytale': 'princess-fairytale',
 };
 
 /**
@@ -106,7 +126,14 @@ export function isStaleAssetUrl(url?: string | null): boolean {
   if (!url || typeof url !== 'string') return false;
   const clean = url.trim().toLowerCase();
   return (
+    clean === '/assets/background.png' ||
     clean.startsWith('/assets/themes/') ||
+    clean.startsWith('assets/themes/') ||
+    clean.startsWith('/public/assets/themes/') ||
+    clean.startsWith('public/assets/themes/') ||
+    clean.startsWith('/assets/game/') ||
+    clean.startsWith('assets/game/') ||
+    clean.includes('/catch-the-brand/themes/') ||
     clean.startsWith('/assets/christmas_') ||
     clean.startsWith('/assets/cny_') ||
     clean.startsWith('/assets/santa_') ||
@@ -140,7 +167,10 @@ export function isSystemTheme(theme?: any): boolean {
     const slug = String(theme.slug || '').toLowerCase();
     if (
       id === 'default' || id === 'carnival' || id === 'christmas' || id === 'chinese-new-year' || id === 'cny' || id === 'halloween' || id === 'mango' ||
-      slug === 'default' || slug === 'carnival' || slug === 'christmas-rush' || slug === 'cny-fortune' || slug === 'halloween-spooky' || slug === 'spooky-halloween' || slug === 'mango-festival' || slug === 'mango-harvest'
+      id === 'match-3' || id === 'cute-animals' || id === 'super-heroes' || id === 'fantasy-creatures' || id === 'space-explorers' || id === 'food-characters' || id === 'ocean-friends' || id === 'robot-friends' || id === 'princess-fairytale' ||
+      slug === 'default' || slug === 'carnival' || slug === 'christmas-rush' || slug === 'cny-fortune' || slug === 'halloween-spooky' || slug === 'spooky-halloween' || slug === 'mango-festival' || slug === 'mango-harvest' ||
+      slug === 'match-3' || slug === 'cute-animals' || slug === 'super-heroes' || slug === 'fantasy-creatures' || slug === 'space-explorers' || slug === 'food-characters' || slug === 'ocean-friends' || slug === 'robot-friends' || slug === 'princess-fairytale' ||
+      slug === 'match-3-cute-animals' || slug === 'match-3-super-heroes' || slug === 'match-3-fantasy-creatures' || slug === 'match-3-space-explorers' || slug === 'match-3-food-characters' || slug === 'match-3-ocean-friends' || slug === 'match-3-robot-friends' || slug === 'match-3-princess-fairytale'
     ) {
       return true;
     }
@@ -148,9 +178,37 @@ export function isSystemTheme(theme?: any): boolean {
   return false;
 }
 
+const MATCH3_CANONICAL_IDS = [
+  'cute-animals',
+  'super-heroes',
+  'fantasy-creatures',
+  'space-explorers',
+  'food-characters',
+  'ocean-friends',
+  'robot-friends',
+  'princess-fairytale',
+];
+
+function resolveMatch3CanonicalAssetThemeId(str: string): string | null {
+  for (const m3Id of MATCH3_CANONICAL_IDS) {
+    if (str === m3Id || str === `match-3-${m3Id}` || str.includes(m3Id)) {
+      return m3Id;
+    }
+  }
+  if (str.includes('animal')) return 'cute-animals';
+  if (str.includes('hero')) return 'super-heroes';
+  if (str.includes('creature') || str.includes('dragon') || str.includes('unicorn')) return 'fantasy-creatures';
+  if (str.includes('space') || str.includes('astro') || str.includes('rocket')) return 'space-explorers';
+  if (str.includes('food') || str.includes('snack') || str.includes('burger')) return 'food-characters';
+  if (str.includes('ocean') || str.includes('marine') || str.includes('sea')) return 'ocean-friends';
+  if (str.includes('robot') || str.includes('bot')) return 'robot-friends';
+  if (str.includes('princess') || str.includes('fairytale')) return 'princess-fairytale';
+  return null;
+}
+
 /**
  * Single canonical asset theme resolver.
- * Determines the filesystem-safe canonical asset theme directory ID ('default', 'carnival', 'christmas', 'cny', 'halloween', 'mango').
+ * Determines the filesystem-safe canonical asset theme directory ID ('default', 'carnival', 'christmas', 'cny', 'halloween', 'mango', etc.).
  * Resolves reliably from metadata, slug, name, or canonical IDs without ever returning a database UUID.
  */
 export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | any): string {
@@ -165,6 +223,9 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     if (THEME_ASSET_ALIASES[clean]) {
       return THEME_ASSET_ALIASES[clean];
     }
+    const m3Match = resolveMatch3CanonicalAssetThemeId(clean);
+    if (m3Match) return m3Match;
+
     if (clean.includes('christmas')) return 'christmas';
     if (clean.includes('cny') || clean.includes('chinese-new-year') || clean.includes('lunar')) return 'cny';
     if (clean.includes('carnival')) return 'carnival';
@@ -184,6 +245,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     const cleanExplicit = explicitAssetTheme.trim().toLowerCase();
     if (!isUUID(cleanExplicit)) {
       if (THEME_ASSET_ALIASES[cleanExplicit]) return THEME_ASSET_ALIASES[cleanExplicit];
+      const m3Match = resolveMatch3CanonicalAssetThemeId(cleanExplicit);
+      if (m3Match) return m3Match;
       if (cleanExplicit === 'christmas' || cleanExplicit === 'cny' || cleanExplicit === 'carnival' || cleanExplicit === 'default' || cleanExplicit === 'halloween' || cleanExplicit === 'mango') {
         return cleanExplicit;
       }
@@ -194,6 +257,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const slug = String(theme.slug || '').toLowerCase().trim();
   if (slug) {
     if (THEME_ASSET_ALIASES[slug]) return THEME_ASSET_ALIASES[slug];
+    const m3Match = resolveMatch3CanonicalAssetThemeId(slug);
+    if (m3Match) return m3Match;
     if (slug.includes('christmas')) return 'christmas';
     if (slug.includes('cny') || slug.includes('chinese-new-year') || slug.includes('lunar')) return 'cny';
     if (slug.includes('carnival')) return 'carnival';
@@ -204,6 +269,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   // 3. Check name / title
   const name = String(theme.name || theme.branding?.gameTitle || '').toLowerCase().trim();
   if (name) {
+    const m3Match = resolveMatch3CanonicalAssetThemeId(name);
+    if (m3Match) return m3Match;
     if (name.includes('christmas')) return 'christmas';
     if (name.includes('lunar') || name.includes('chinese new year') || name.includes('cny') || name.includes('angpow') || name.includes('fortune')) return 'cny';
     if (name.includes('carnival')) return 'carnival';
@@ -215,6 +282,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const id = String(theme.id || '').toLowerCase().trim();
   if (id && !isUUID(id)) {
     if (THEME_ASSET_ALIASES[id]) return THEME_ASSET_ALIASES[id];
+    const m3Match = resolveMatch3CanonicalAssetThemeId(id);
+    if (m3Match) return m3Match;
     if (id.includes('christmas')) return 'christmas';
     if (id.includes('chinese-new-year') || id.includes('cny') || id.includes('lunar')) return 'cny';
     if (id.includes('carnival')) return 'carnival';
@@ -226,6 +295,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const baseId = String(theme.base_theme_id || theme.baseThemeId || '').toLowerCase().trim();
   if (baseId && !isUUID(baseId)) {
     if (THEME_ASSET_ALIASES[baseId]) return THEME_ASSET_ALIASES[baseId];
+    const m3Match = resolveMatch3CanonicalAssetThemeId(baseId);
+    if (m3Match) return m3Match;
     if (baseId.includes('christmas')) return 'christmas';
     if (baseId.includes('cny') || baseId.includes('chinese-new-year') || baseId.includes('lunar')) return 'cny';
     if (baseId.includes('carnival')) return 'carnival';
@@ -252,7 +323,17 @@ const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
   ]),
   'memory-match': new Set(['default']),
   'reaction-tap': new Set(['default']),
-  'match-3': new Set(['default']),
+  'match-3': new Set([
+    'default',
+    'cute-animals',
+    'super-heroes',
+    'fantasy-creatures',
+    'space-explorers',
+    'food-characters',
+    'ocean-friends',
+    'robot-friends',
+    'princess-fairytale',
+  ]),
 };
 
 /**

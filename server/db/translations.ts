@@ -31,6 +31,8 @@ export interface TranslationJobRecord {
   id: string;
   entity_type: 'event' | 'showcase' | 'game_instructions';
   entity_id: string;
+  user_id?: string | null;
+  organization_id?: string | null;
   source_language: string;
   target_language: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -334,6 +336,8 @@ export async function deleteShowcaseTranslation(
 export async function createTranslationJob(params: {
   entity_type: 'event' | 'showcase' | 'game_instructions';
   entity_id: string;
+  user_id?: string | null;
+  organization_id?: string | null;
   source_language: string;
   target_language: string;
   provider?: string;
@@ -342,6 +346,8 @@ export async function createTranslationJob(params: {
   const payload = {
     entity_type: params.entity_type,
     entity_id: params.entity_id,
+    user_id: params.user_id || null,
+    organization_id: params.organization_id || null,
     source_language: params.source_language,
     target_language: params.target_language,
     status: 'PENDING' as const,

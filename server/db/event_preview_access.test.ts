@@ -12,8 +12,8 @@ const scheduledEvent = {
   event_status: 'SCHEDULED',
   status: 'scheduled',
   payment_status: 'PAID',
-  start_date: '2026-10-01',
-  end_date: '2026-10-02',
+  start_date: '2026-11-01',
+  end_date: '2026-11-02',
 };
 assert.strictEqual(serverCanAccessPreview(scheduledEvent), true, 'Server: Scheduled event should allow preview');
 assert.strictEqual(clientCanAccessPreview(scheduledEvent), true, 'Client: Scheduled event should allow preview');
@@ -26,8 +26,8 @@ const pendingPaymentEvent = {
   event_status: 'PENDING_PAYMENT',
   status: 'pending_payment',
   payment_status: 'UNPAID',
-  start_date: '2026-10-01',
-  end_date: '2026-10-02',
+  start_date: '2026-11-01',
+  end_date: '2026-11-02',
 };
 assert.strictEqual(serverCanAccessPreview(pendingPaymentEvent), true, 'Server: Pending payment event should allow preview');
 assert.strictEqual(clientCanAccessPreview(pendingPaymentEvent), true, 'Client: Pending payment event should allow preview');

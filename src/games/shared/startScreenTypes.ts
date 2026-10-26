@@ -324,6 +324,16 @@ export interface StartScreenGameMeta {
 }
 
 export interface StartScreenConfig {
+  enabled?: boolean;
+  screenTitle?: string;
+  descriptionText?: string;
+  startButtonText?: string;
+  titleColor?: string;
+  descriptionColor?: string;
+  startButtonBgColor?: string;
+  startButtonTextColor?: string;
+  logoUrl?: string | null;
+
   // Legacy compatibility fields
   backgroundType?: ScreenBackgroundType;
   backgroundColor?: string;
@@ -938,89 +948,106 @@ export function generateDefaultReactionStartScreenElements(
 /**
  * Generate default Start Screen elements for Match-3.
  */
+/**
+ * Generate default Start Screen elements for Match-3.
+ */
 export function generateDefaultMatch3StartScreenElements(
   theme?: Partial<GameTheme> | null,
-  gameMeta?: StartScreenGameMeta
+  gameMeta?: StartScreenGameMeta,
+  legacyConfig?: Partial<StartScreenConfig>
 ): StartScreenElement[] {
-  const title = gameMeta?.gameTitle || theme?.branding?.gameTitle || theme?.name || 'MATCH-3 CASCADE';
-  const subtitle = gameMeta?.gameSubtitle || theme?.branding?.subtitle || 'Swap adjacent tiles to create 3+ matches, trigger special combos, and score big!';
-  const logo = gameMeta?.logoUrl || theme?.branding?.clientLogoUrl || (theme as any)?.clientLogo || null;
+  const title = legacyConfig?.screenTitle || gameMeta?.gameTitle || theme?.branding?.gameTitle || theme?.name || 'MATCH-3 CASCADE';
+  const subtitle = legacyConfig?.descriptionText || gameMeta?.gameSubtitle || theme?.branding?.subtitle || 'Swap adjacent tiles to create 3+ matches, trigger special combos, and score big!';
+  const logo = legacyConfig?.logoUrl ?? (gameMeta?.logoUrl || theme?.branding?.clientLogoUrl || (theme as any)?.clientLogo || null);
   const duration = gameMeta?.duration || 60;
+  const startBtnText = legacyConfig?.startButtonText || 'START MATCH';
 
-  const cardChildren: StartScreenElement[] = [
-    ...(logo
-      ? ([
-          {
-            id: 'client-logo',
-            type: 'image',
-            x: 280,
-            y: 20,
-            width: 200,
-            height: 40,
-            imageUrl: logo,
-            objectFit: 'contain',
-          },
-        ] as StartScreenElement[])
-      : ([
-          {
-            id: 'eyebrow-text',
-            type: 'text',
-            x: 40,
-            y: 24,
-            width: 640,
-            height: 20,
-            text: 'MATCH-3 PUZZLE ENGINE',
-            style: {
-              fontSize: 12,
-              fontWeight: 'bold',
-              color: '#f59e0b',
-              textAlign: 'center',
-              letterSpacing: 2,
-              textTransform: 'uppercase',
-            },
-          },
-        ] as StartScreenElement[])),
-    {
-      id: 'game-title',
-      type: 'text',
-      x: 40,
-      y: 70,
-      width: 640,
-      height: 55,
-      text: title,
-      style: {
-        fontSize: 34,
-        fontWeight: 900,
-        color: '#ffffff',
-        textAlign: 'center',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-      },
+  const showIcon = legacyConfig?.showIcon !== false;
+  const showGrid = legacyConfig?.showGridInfo !== false;
+  const showTimer = legacyConfig?.showTimerInfo !== false;
+  const showLeaderboard = legacyConfig?.showLeaderboard !== false;
+
+  const cardChildren: StartScreenElement[] = [];
+
+  if (showIcon) {
+    if (logo) {
+      cardChildren.push({
+        id: 'client-logo',
+        type: 'image',
+        x: 280,
+        y: 20,
+        width: 200,
+        height: 40,
+        imageUrl: logo,
+        objectFit: 'contain',
+      } as StartScreenElement);
+    } else {
+      cardChildren.push({
+        id: 'eyebrow-text',
+        type: 'text',
+        x: 40,
+        y: 24,
+        width: 640,
+        height: 20,
+        text: 'MATCH-3 PUZZLE ENGINE',
+        style: {
+          fontSize: 12,
+          fontWeight: 'bold',
+          color: '#f59e0b',
+          textAlign: 'center',
+          letterSpacing: 2,
+          textTransform: 'uppercase',
+        },
+      } as StartScreenElement);
+    }
+  }
+
+  cardChildren.push({
+    id: 'game-title',
+    type: 'text',
+    x: 40,
+    y: showIcon ? 70 : 45,
+    width: 640,
+    height: 55,
+    text: title,
+    style: {
+      fontSize: 34,
+      fontWeight: 900,
+      color: legacyConfig?.titleColor || '#ffffff',
+      textAlign: 'center',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
     },
-    {
-      id: 'game-instructions',
-      type: 'text',
-      x: 50,
-      y: 135,
-      width: 620,
-      height: 45,
-      text: subtitle,
-      style: {
-        fontSize: 16,
-        fontWeight: 400,
-        color: '#94a3b8',
-        textAlign: 'center',
-        lineHeight: 1.4,
-      },
+  });
+
+  cardChildren.push({
+    id: 'game-instructions',
+    type: 'text',
+    x: 50,
+    y: showIcon ? 135 : 110,
+    width: 620,
+    height: 45,
+    text: subtitle,
+    style: {
+      fontSize: 16,
+      fontWeight: 400,
+      color: legacyConfig?.descriptionColor || '#94a3b8',
+      textAlign: 'center',
+      lineHeight: 1.4,
     },
-    {
+  });
+
+  const badgeY = showIcon ? 200 : 175;
+
+  if (showGrid) {
+    cardChildren.push({
       id: 'badge-grid',
       type: 'badge',
       metric: 'grid',
       label: 'BOARD',
       value: '8 × 8 Grid',
-      x: 135,
-      y: 200,
+      x: showTimer ? 135 : 255,
+      y: badgeY,
       width: 210,
       height: 70,
       style: {
@@ -1032,15 +1059,18 @@ export function generateDefaultMatch3StartScreenElements(
         valueColor: '#f59e0b',
         fontSize: 16,
       },
-    },
-    {
+    });
+  }
+
+  if (showTimer) {
+    cardChildren.push({
       id: 'badge-timer',
       type: 'badge',
       metric: 'timer',
       label: 'TIMER',
       value: `${duration}s`,
-      x: 375,
-      y: 200,
+      x: showGrid ? 375 : 255,
+      y: badgeY,
       width: 210,
       height: 70,
       style: {
@@ -1052,35 +1082,41 @@ export function generateDefaultMatch3StartScreenElements(
         valueColor: '#06b6d4',
         fontSize: 16,
       },
+    });
+  }
+
+  const buttonY = (showGrid || showTimer) ? (badgeY + 95) : (badgeY + 20);
+
+  cardChildren.push({
+    id: 'start-button',
+    type: 'button',
+    action: 'start',
+    x: 60,
+    y: buttonY,
+    width: 600,
+    height: 65,
+    text: startBtnText,
+    icon: 'Play',
+    style: {
+      backgroundColor: legacyConfig?.startButtonBgColor || '#f59e0b',
+      textColor: legacyConfig?.startButtonTextColor || '#020617',
+      fontSize: 22,
+      fontWeight: 900,
+      borderRadius: 20,
+      shadow: true,
+      gradient: !legacyConfig?.startButtonBgColor,
+      gradientFrom: legacyConfig?.startButtonBgColor || '#f59e0b',
+      gradientTo: legacyConfig?.startButtonBgColor || '#d97706',
     },
-    {
-      id: 'start-button',
-      type: 'button',
-      action: 'start',
-      x: 60,
-      y: 295,
-      width: 600,
-      height: 65,
-      text: 'START GAME',
-      icon: 'Play',
-      style: {
-        backgroundColor: '#f59e0b',
-        textColor: '#020617',
-        fontSize: 22,
-        fontWeight: 900,
-        borderRadius: 20,
-        shadow: true,
-        gradient: true,
-        gradientFrom: '#f59e0b',
-        gradientTo: '#d97706',
-      },
-    },
-    {
+  });
+
+  if (showLeaderboard) {
+    cardChildren.push({
       id: 'leaderboard-btn',
       type: 'button',
       action: 'leaderboard',
       x: 285,
-      y: 380,
+      y: buttonY + 85,
       width: 150,
       height: 35,
       text: 'Leaderboard',
@@ -1091,8 +1127,10 @@ export function generateDefaultMatch3StartScreenElements(
         fontSize: 14,
         fontWeight: 700,
       },
-    },
-  ];
+    });
+  }
+
+  const cardHeight = showLeaderboard ? (buttonY + 140) : (buttonY + 95);
 
   return [
     {
@@ -1101,7 +1139,7 @@ export function generateDefaultMatch3StartScreenElements(
       x: 152,
       y: 63,
       width: 720,
-      height: 450,
+      height: cardHeight,
       style: {
         backgroundColor: 'rgba(15, 23, 42, 0.95)',
         borderWidth: 1,
@@ -1142,7 +1180,7 @@ export function generateDefaultStartScreenElements(
   const normType = (gameType || '').trim().toLowerCase().replace(/_/g, '-');
 
   if (normType === 'match-3' || normType === 'match3') {
-    return generateDefaultMatch3StartScreenElements(theme, gameMeta);
+    return generateDefaultMatch3StartScreenElements(theme, gameMeta, config);
   }
   if (normType === 'reaction-tap' || normType === 'reaction-time') {
     return generateDefaultReactionStartScreenElements(theme, gameMeta);

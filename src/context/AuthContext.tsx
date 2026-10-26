@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { GameTheme, registerThemes, setActiveTheme, normalizeGameTheme, getActiveTheme } from '../themes';
 import { apiFetch, migrateLegacyAppToken } from '../lib/api';
 import { navigateTo, getStoredReferralCode } from '../hooks/useRouteContext';
@@ -96,7 +96,7 @@ interface AuthContextType {
   updateUserProfile: (data: { name?: string; avatar_url?: string | null }) => Promise<User>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function resolveActiveOrganization(
   rawActiveOrg: any,
@@ -166,6 +166,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [themes, setThemes] = useState<GameTheme[]>([]);
   const [activeTheme, setActiveThemeState] = useState<GameTheme | null>(() => getActiveTheme());
 
+  const activeThemeRef = useRef<GameTheme | null>(activeTheme);
+  useEffect(() => {
+    activeThemeRef.current = activeTheme;
+  }, [activeTheme]);
+
+  const themesInFlightRef = useRef<Map<string, Promise<GameTheme[]>>>(new Map());
+  const activeGameInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshSessionInFlightRef = useRef<Promise<void> | null>(null);
+
   const authFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
       const currentToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('app_token') : null);
@@ -179,29 +188,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const fetchThemes = useCallback(async (gameId?: string): Promise<GameTheme[]> => {
-    try {
-      const url = gameId ? `/api/themes?gameId=${encodeURIComponent(gameId)}` : '/api/themes';
-      const res = await authFetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.themes)) {
-          const normalizedList = data.themes.map((t: any) => normalizeGameTheme(t));
-          registerThemes(normalizedList);
-          setThemes(normalizedList);
-
-          const defaultTheme = normalizedList[0];
-          if (defaultTheme && !activeTheme) {
-            setActiveTheme(defaultTheme);
-            setActiveThemeState(defaultTheme);
-          }
-          return normalizedList;
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch themes:', err);
+    const cacheKey = gameId || '__all__';
+    const inFlight = themesInFlightRef.current.get(cacheKey);
+    if (inFlight) {
+      return inFlight;
     }
-    return [];
-  }, [authFetch, activeTheme]);
+
+    const promise = (async () => {
+      try {
+        const url = gameId ? `/api/themes?gameId=${encodeURIComponent(gameId)}` : '/api/themes';
+        const res = await authFetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.themes)) {
+            const normalizedList = data.themes.map((t: any) => normalizeGameTheme(t));
+            registerThemes(normalizedList);
+            setThemes(normalizedList);
+
+            const defaultTheme = normalizedList[0];
+            if (defaultTheme) {
+              setActiveThemeState((prev) => {
+                if (!prev) {
+                  setActiveTheme(defaultTheme);
+                  activeThemeRef.current = defaultTheme;
+                  return defaultTheme;
+                }
+                return prev;
+              });
+            }
+            return normalizedList;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch themes:', err);
+      } finally {
+        themesInFlightRef.current.delete(cacheKey);
+      }
+      return [];
+    })();
+
+    themesInFlightRef.current.set(cacheKey, promise);
+    return promise;
+  }, [authFetch]);
 
   const createTheme = async (themeData: Partial<GameTheme>): Promise<GameTheme> => {
     const res = await authFetch('/api/themes', {
@@ -236,9 +264,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const data = await res.json();
     const normalized = normalizeGameTheme(data.theme || data);
     setThemes((prev) => prev.map((t) => (t.id === themeId ? normalized : t)));
-    if (activeTheme?.id === themeId) {
+    if (activeThemeRef.current?.id === themeId) {
       setActiveTheme(normalized);
       setActiveThemeState(normalized);
+      activeThemeRef.current = normalized;
     }
     return normalized;
   };
@@ -259,9 +288,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const data = await res.json();
     const normalized = normalizeGameTheme(data.theme || data);
     setThemes((prev) => prev.map((t) => (t.id === themeId ? normalized : t)));
-    if (activeTheme?.id === themeId) {
+    if (activeThemeRef.current?.id === themeId) {
       setActiveTheme(normalized);
       setActiveThemeState(normalized);
+      activeThemeRef.current = normalized;
     }
     return normalized;
   };
@@ -361,76 +391,97 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return normalizedList;
   };
 
-  const fetchActiveGame = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/games');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.games && data.games.length > 0) {
-          setActiveGame(data.games[0]);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch active game', err);
+  const fetchActiveGame = useCallback(async (): Promise<void> => {
+    if (activeGameInFlightRef.current) {
+      return activeGameInFlightRef.current;
     }
+
+    const promise = (async () => {
+      try {
+        const res = await authFetch('/api/games');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.games && data.games.length > 0) {
+            setActiveGame(data.games[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch active game', err);
+      } finally {
+        activeGameInFlightRef.current = null;
+      }
+    })();
+
+    activeGameInFlightRef.current = promise;
+    return promise;
   }, [authFetch]);
 
-  const refreshSession = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/auth/me');
+  const refreshSession = useCallback(async (): Promise<void> => {
+    if (refreshSessionInFlightRef.current) {
+      return refreshSessionInFlightRef.current;
+    }
 
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
-        const orgList: Organization[] = Array.isArray(data.organizations) ? data.organizations : [];
-        setOrganizations(orgList);
-        if (data.salesPartnerUnavailable) {
-          console.warn('[AuthContext] Sales Partner lookup temporarily unavailable; preserving existing status');
-        } else if (data.salesPartner !== undefined) {
-          setSalesPartner(data.salesPartner || null);
-        }
+    const promise = (async () => {
+      try {
+        const res = await authFetch('/api/auth/me');
 
-        // 1 & 2: Restore currentOrganization from data.activeOrganization.
-        // If absent, fallback to valid organization membership in orgList.
-        // Ensure restored organization contains ID, name, role, country_code, logo_url.
-        const rawActive = data.activeOrganization || data.activeOrganizationId || null;
-        const resolvedOrg = resolveActiveOrganization(rawActive, orgList);
-        setCurrentOrganization(resolvedOrg);
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data.user);
+          const orgList: Organization[] = Array.isArray(data.organizations) ? data.organizations : [];
+          setOrganizations(orgList);
+          if (data.salesPartnerUnavailable) {
+            console.warn('[AuthContext] Sales Partner lookup temporarily unavailable; preserving existing status');
+          } else if (data.salesPartner !== undefined) {
+            setSalesPartner(data.salesPartner || null);
+          }
 
-        if (resolvedOrg) {
-          try {
-            localStorage.setItem('active_org_id', resolvedOrg.id);
-          } catch {}
-          // 3: Restore organization-scoped game and theme data only after active organization is resolved.
-          await Promise.all([fetchActiveGame(), fetchThemes()]);
+          // 1 & 2: Restore currentOrganization from data.activeOrganization.
+          // If absent, fallback to valid organization membership in orgList.
+          // Ensure restored organization contains ID, name, role, country_code, logo_url.
+          const rawActive = data.activeOrganization || data.activeOrganizationId || null;
+          const resolvedOrg = resolveActiveOrganization(rawActive, orgList);
+          setCurrentOrganization(resolvedOrg);
+
+          if (resolvedOrg) {
+            try {
+              localStorage.setItem('active_org_id', resolvedOrg.id);
+            } catch {}
+          } else {
+            try {
+              localStorage.removeItem('active_org_id');
+            } catch {}
+            // Clear stale organization-scoped state when no organization membership exists.
+            setActiveGame(null);
+            setThemes([]);
+            setActiveThemeState(null);
+            activeThemeRef.current = null;
+          }
         } else {
-          try {
-            localStorage.removeItem('active_org_id');
-          } catch {}
-          // Clear stale organization-scoped state when no organization membership exists.
+          try { localStorage.removeItem('app_token'); } catch {}
+          try { localStorage.removeItem('durian_app_token'); } catch {}
+          try { localStorage.removeItem('active_org_id'); } catch {}
+          setToken(null);
+          setCurrentUser(null);
+          setCurrentOrganization(null);
+          setOrganizations([]);
+          setSalesPartner(null);
           setActiveGame(null);
           setThemes([]);
           setActiveThemeState(null);
+          activeThemeRef.current = null;
         }
-      } else {
-        try { localStorage.removeItem('app_token'); } catch {}
-        try { localStorage.removeItem('durian_app_token'); } catch {}
-        try { localStorage.removeItem('active_org_id'); } catch {}
-        setToken(null);
-        setCurrentUser(null);
-        setCurrentOrganization(null);
-        setOrganizations([]);
-        setSalesPartner(null);
-        setActiveGame(null);
-        setThemes([]);
-        setActiveThemeState(null);
+      } catch (err) {
+        console.error('Failed to refresh session:', err);
+      } finally {
+        setIsLoading(false);
+        refreshSessionInFlightRef.current = null;
       }
-    } catch (err) {
-      console.error('Failed to refresh session:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [authFetch, fetchActiveGame, fetchThemes]);
+    })();
+
+    refreshSessionInFlightRef.current = promise;
+    return promise;
+  }, [authFetch]);
 
   useEffect(() => {
     refreshSession();
@@ -453,7 +504,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         localStorage.setItem('active_org_id', resolvedOrg.id);
       } catch {}
-      await Promise.all([fetchActiveGame(), fetchThemes()]);
     } else {
       try {
         localStorage.removeItem('active_org_id');
@@ -461,8 +511,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveGame(null);
       setThemes([]);
       setActiveThemeState(null);
+      activeThemeRef.current = null;
     }
-  }, [authFetch, fetchActiveGame, fetchThemes]);
+  }, []);
 
   const login = async (idToken: string) => {
     setIsLoading(true);
@@ -735,14 +786,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const targetOrg = resolveActiveOrganization(rawActive, orgList);
       setCurrentOrganization(targetOrg);
 
+      setActiveGame(null);
+      setThemes([]);
+      setActiveThemeState(null);
+      activeThemeRef.current = null;
+
       if (targetOrg) {
         try { localStorage.setItem('active_org_id', targetOrg.id); } catch {}
-        await Promise.all([fetchActiveGame(), fetchThemes()]);
       } else {
         try { localStorage.removeItem('active_org_id'); } catch {}
-        setActiveGame(null);
-        setThemes([]);
-        setActiveThemeState(null);
       }
     } finally {
       setIsLoading(false);

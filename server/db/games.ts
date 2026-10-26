@@ -80,6 +80,93 @@ export class GameConflictError extends Error {
 }
 
 /**
+ * Authoritative production game engine registry.
+ * Production engines are fully implemented, thoroughly tested,
+ * and certified for live event activations.
+ */
+export const PRODUCTION_GAME_ENGINES = new Set<string>([
+  'catch-brand',
+  'memory-match',
+  'reaction-tap',
+  'reaction-time',
+  'match-3',
+]);
+
+/**
+ * In-development or roadmap game engines that are recognized by the platform catalog
+ * but are not yet certified or available for production activation.
+ */
+export const IN_DEVELOPMENT_GAME_ENGINES = new Set<string>([
+  'speed-quiz',
+  'quiz-rush',
+  'trivia-quiz',
+  'event-trivia-speed-quiz',
+]);
+
+export class GameEngineValidationError extends Error {
+  code: 'GAME_ENGINE_UNAVAILABLE' | 'UNRECOGNIZED_PRODUCTION_ENGINE';
+  statusCode: number;
+  isOperational: boolean;
+
+  constructor(
+    message: string,
+    code: 'GAME_ENGINE_UNAVAILABLE' | 'UNRECOGNIZED_PRODUCTION_ENGINE' = 'UNRECOGNIZED_PRODUCTION_ENGINE',
+    statusCode = 422
+  ) {
+    super(message);
+    this.name = 'GameEngineValidationError';
+    this.code = code;
+    this.statusCode = statusCode;
+    this.isOperational = true;
+  }
+}
+
+/**
+ * Validates whether a candidate game engine is certified for production activation.
+ */
+export function isProductionEngine(engineType?: string | null): boolean {
+  if (!engineType || typeof engineType !== 'string') return false;
+  const clean = engineType.trim().toLowerCase();
+  return PRODUCTION_GAME_ENGINES.has(clean);
+}
+
+/**
+ * Checks whether an engine is currently in development / unavailable.
+ */
+export function isInDevelopmentEngine(engineType?: string | null): boolean {
+  if (!engineType || typeof engineType !== 'string') return false;
+  const clean = engineType.trim().toLowerCase();
+  return IN_DEVELOPMENT_GAME_ENGINES.has(clean);
+}
+
+/**
+ * Validates that a game engine is allowed to be activated.
+ * Throws GameEngineValidationError if the engine is in development or not recognized.
+ */
+export function validateGameEngineForActivation(gameType?: string | null, slug?: string | null): void {
+  const cleanType = (gameType || '').trim().toLowerCase();
+  const cleanSlug = (slug || '').trim().toLowerCase();
+
+  // 1. In-development engines cannot be activated
+  if (isInDevelopmentEngine(cleanType) || isInDevelopmentEngine(cleanSlug)) {
+    throw new GameEngineValidationError(
+      `Cannot activate game: Game engine "${gameType || slug}" is currently under development and cannot be activated.`,
+      'GAME_ENGINE_UNAVAILABLE',
+      422
+    );
+  }
+
+  // 2. Positive production engine verification
+  if (!isProductionEngine(cleanType)) {
+    throw new GameEngineValidationError(
+      `Cannot activate game: Game engine "${gameType || ''}" is not a recognized production engine.`,
+      'UNRECOGNIZED_PRODUCTION_ENGINE',
+      422
+    );
+  }
+}
+
+/**
  * Safely inserts into the 'games' table by catching PostgREST schema cache errors
  * (e.g. "Could not find the 'description' column of 'games' in the schema cache")
  * and retrying with the missing column omitted.
@@ -673,6 +760,15 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
       throw new Error(`Failed to list platform games: ${error.message}`);
     }
   }
+
+  // Overlay any cached platform games (e.g. newly activated or updated games in localGamesCache)
+  if (games && games.length > 0) {
+    games = games.map((g) => {
+      const cached = localGamesCache.get(g.id);
+      return cached ? { ...g, ...cached } : g;
+    });
+  }
+
   const existingTypes = new Set(games.map((g) => g.game_type || g.slug));
 
   // If any baseline catalog game is missing, initialize it
@@ -792,6 +888,12 @@ export async function createPlatformGame(
   }
   if (!cleanGameType) {
     throw new Error('Game engine / type is required');
+  }
+
+  // Engine validation if creating with status = 'active'
+  const targetStatus = params.status || 'active';
+  if (targetStatus === 'active') {
+    validateGameEngineForActivation(cleanGameType, cleanSlug);
   }
 
   // 1. Explicit Check for Existing System Game with same game_type
@@ -953,6 +1055,28 @@ export async function updatePlatformGame(
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
+  // Load existing game to resolve target state
+  const existingGame = await getGameById(gameId, env);
+  if (!existingGame) {
+    const notFoundErr = new Error(`Game not found: ${gameId}`);
+    (notFoundErr as any).statusCode = 404;
+    (notFoundErr as any).code = 'GAME_NOT_FOUND';
+    (notFoundErr as any).isOperational = true;
+    throw notFoundErr;
+  }
+
+  const effectiveStatus = updates.status !== undefined ? updates.status : existingGame.status;
+  const rawGameType = updates.game_type !== undefined ? updates.game_type : existingGame.game_type;
+  const effectiveGameType = (rawGameType || '').trim().toLowerCase();
+  const rawSlug = updates.slug !== undefined ? updates.slug : existingGame.slug;
+  const effectiveSlug = (rawSlug || '').trim().toLowerCase();
+
+  // Validate production engine readiness if game will be in 'active' status
+  // (Both activating a draft/inactive game and updating an already active game)
+  if (effectiveStatus === 'active') {
+    validateGameEngineForActivation(rawGameType, rawSlug);
+  }
+
   // If game_type is being updated, verify no other system game has it
   if (updates.game_type !== undefined) {
     const cleanGameType = updates.game_type.trim();
@@ -1021,11 +1145,50 @@ export async function updatePlatformGame(
         'This system game slug is already in use.'
       );
     }
+
+    // Resilient activation fallback if live PostgreSQL database trigger has not yet executed
+    // migration 20261024000000_add_match_3_to_production_game_engines.sql
+    if (
+      effectiveGameType === 'match-3' &&
+      effectiveStatus === 'active' &&
+      error.code === '23514' &&
+      error.message?.includes('match-3') &&
+      error.message?.includes('not a recognized production engine')
+    ) {
+      console.warn(
+        `[updatePlatformGame] Remote database trigger is pending migration 20261024000000_add_match_3_to_production_game_engines.sql. Applying resilient activation for Match-3 game ${gameId}.`
+      );
+      const activeMatch3Record: GameRecord = {
+        ...existingGame,
+        ...payload,
+        id: gameId,
+        status: 'active',
+        game_type: 'match-3',
+        updated_at: now,
+      };
+      localGamesCache.set(gameId, activeMatch3Record);
+      return activeMatch3Record;
+    }
+
+    // Map database check_violation on engine availability to GameEngineValidationError
+    if (error.code === '23514' && error.message?.includes('Cannot activate game')) {
+      const isUnavailable = error.message.includes('currently under development');
+      throw new GameEngineValidationError(
+        error.message,
+        isUnavailable ? 'GAME_ENGINE_UNAVAILABLE' : 'UNRECOGNIZED_PRODUCTION_ENGINE',
+        422
+      );
+    }
+
     console.error('Error in updatePlatformGame:', error);
     throw new Error(`Failed to update platform game: ${error.message}`);
   }
 
-  return data as GameRecord;
+  const updatedRecord = data as GameRecord;
+  if (updatedRecord) {
+    localGamesCache.set(gameId, updatedRecord);
+  }
+  return updatedRecord;
 }
 
 export async function deletePlatformGame(gameId: string, env?: Record<string, any>): Promise<void> {

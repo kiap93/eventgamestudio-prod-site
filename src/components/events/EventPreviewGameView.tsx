@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
 import { GameContainer } from '../GameContainer';
 import { getThemeGameType, normalizeGameType, resolveAuthoritativeGameType } from '../../themes';
+import { stopGameAudio } from '../../lib/gameAudio';
 import { apiFetch } from '../../lib/api';
 import {
   canAccessPreviewEvent,
@@ -69,7 +70,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   const [errorPayload, setErrorPayload] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const fetchEvent = async () => {
+  const fetchEvent = useCallback(async () => {
     if (!eventId) {
       setError('Event ID is missing from preview URL');
       setLoading(false);
@@ -86,7 +87,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
+          Pragma: 'no-cache',
         },
       });
 
@@ -111,7 +112,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
+            Pragma: 'no-cache',
           },
         });
         if (!fallbackRes.ok) {
@@ -131,11 +132,11 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
     fetchEvent();
-  }, [eventId]);
+  }, [fetchEvent]);
 
   // Sync fullscreen state strictly with browser events
   useEffect(() => {
@@ -151,6 +152,24 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
     };
   }, []);
+
+  // Authoritatively resolve canonical active game type for event preview before any conditional returns
+  const theme = eventData?.game_theme || (eventData as any)?.theme || null;
+  const gameType = eventData
+    ? resolveAuthoritativeGameType({
+        event: eventData,
+        game: eventData.game,
+        theme,
+      })
+    : null;
+
+  // Stop preview game audio when navigating away from event preview or when effective game type changes
+  // Safely handles unmounted or missing event data without stopping other games
+  useEffect(() => {
+    return () => {
+      stopGameAudio(gameType);
+    };
+  }, [gameType]);
 
   const toggleFullscreen = async () => {
     const isCurrentlyFs =
@@ -306,12 +325,6 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     );
   }
 
-  const theme = eventData.game_theme;
-  const gameType = resolveAuthoritativeGameType({
-    event: eventData,
-    game: eventData.game,
-    theme,
-  });
   const gameName = eventData.game?.name || 'Catch The Brand';
   const themeName = eventData.game_theme?.name || 'Theme';
 

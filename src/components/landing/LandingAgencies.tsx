@@ -138,13 +138,13 @@ export const LandingAgencies: React.FC = () => {
         >
           <div className="space-y-2 max-w-2xl text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-400 uppercase tracking-wider">
-              <span>Agency & Partner Monetization</span>
+              <span>{t('landing.agencyMonetizationBadge')}</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Earn Commissions with the Sales Partner Program
+              {t('landing.agencyMonetizationTitle')}
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Pitch branded interactive mini-games to your corporate clients and exhibitions. Earn transparent commissions—10% on first qualifying orders and 5% on repeat qualifying bookings within 12 months (subject to eligibility and authorized overrides). Keep your customer workspace and event management fully active.
+              {t('landing.agencyMonetizationDesc')}
             </p>
           </div>
 
@@ -153,7 +153,7 @@ export const LandingAgencies: React.FC = () => {
               to="/sales/apply"
               className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer text-center"
             >
-              <span>Explore Partner Program</span>
+              <span>{t('landing.explorePartnerProgram')}</span>
             </InternalLink>
           </div>
         </motion.div>

@@ -14,6 +14,7 @@ import {
   calculateCatcherTargetY,
 } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
+import { stopAllGameAudio } from '../../lib/gameAudio';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
 import { ReactionGame } from '../../games/reaction-time/ReactionGame';
 import { Match3Game } from '../../games/match-3/Match3Game';
@@ -360,6 +361,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       window.removeEventListener('orientationchange', measureBackdrop);
     };
   }, [showSettingsModal, isFullscreen, responsive.stageHeight, responsive.isPortrait]);
+
+  // Clean up all audio when leaving theme preview
+  useEffect(() => {
+    return () => {
+      stopAllGameAudio();
+    };
+  }, []);
 
   const [previewFallSpeed, setPreviewFallSpeed] = useState<number>(
     theme.physics_config?.fallSpeedMultiplier ?? 0.7

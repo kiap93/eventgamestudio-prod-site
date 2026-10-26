@@ -166,6 +166,14 @@ export class GameScene extends Phaser.Scene {
     this.applySettings(settings);
     soundManager.applySettings(settings);
 
+    // Stop all audio when scene is shut down or destroyed
+    this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
+      soundManager.stopAll();
+    });
+    this.events.on(Phaser.Scenes.Events.DESTROY, () => {
+      soundManager.stopAll();
+    });
+
     // Mark scene as created and ready
     this.isSceneCreated = true;
 
@@ -558,7 +566,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   public stopGame() {
-    soundManager.stopBgm();
+    soundManager.stopAll();
     this.resetStats();
     this.physics.pause();
     this.setGameState('START');

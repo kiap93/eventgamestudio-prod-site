@@ -768,17 +768,17 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             {!isSim && loadingLeaderboard ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-slate-400">
                 <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                <span className="text-xs font-sans">{t('game.loadingRankings', undefined, 'Loading rankings...')}</span>
+                <span className="text-xs font-sans">{t('game.loadingLeaderboard', undefined, 'Loading leaderboard...')}</span>
               </div>
             ) : !isSim && leaderboardError ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
                 <AlertCircle className="w-4 h-4 text-rose-400/80" />
-                <span className="text-xs font-sans">{t('game.leaderboardUnavailable', undefined, 'Leaderboard unavailable')}</span>
+                <span className="text-xs font-sans">{t('game.unableToLoadRankings', undefined, 'Unable to load rankings')}</span>
               </div>
             ) : displayRows.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
                 <Users className="w-4 h-4 text-slate-600" />
-                <span className="text-xs font-sans">{t('game.noScoresRecorded', undefined, 'No scores recorded yet')}</span>
+                <span className="text-xs font-sans">{t('game.noScoresYetBeFirst', undefined, 'No scores yet. Be the first!')}</span>
               </div>
             ) : (
               displayRows.map((entry, i) => {

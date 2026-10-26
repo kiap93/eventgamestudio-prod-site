@@ -152,6 +152,13 @@ Contains the canonical timestamp migrations:
 - `20261008000000_create_customer_invitations.sql` — Creates prospective customer companies, recipients, invitation audit logs, and atomic creation procedure create_customer_company_atomic with developer-admin RLS policies
 - `20261009000000_add_invitation_email_verification.sql` — Adds single-use email verification code columns to public.organization_invitations allowing invited users from all email providers (Outlook, Hotmail, Yahoo, custom domains, etc.) to securely verify email ownership and accept invitations.
 - `20261020000000_fix_game_status_in_atomic_create_event.sql` — Fixes create_event_atomic RPC to use authoritative status column on public.games ('active', 'inactive', 'archived', 'draft') instead of nonexistent is_active and engine_status columns.
+- `20261020010000_add_whatsapp_customer_invitations_and_onboarding.sql` — Adds WhatsApp customer invitation link generation, recipient and company contact phone numbers, invitation channel selection (Email, WhatsApp, Both), organization linking, onboarding attribution, and atomic record_whatsapp_invitation_initiation_atomic procedure.
+- `20261021000000_update_event_deletion_rules.sql` — Enforces soft-deletion integrity and cancellation rules for live and paid events.
+- `20261021010000_combined_credit_showcase_support.sql` — Adds combined wallet credit and showcase reward support for event purchases.
+- `20261022000000_fix_game_pricing_multi_dimensional_lookup.sql` — Fixes multi-dimensional game pricing tier resolution by duration and country.
+- `20261023000000_fix_currency_resolution_usd_myr_fallback.sql` — Normalizes unconfigured organization country to allow USD to MYR fallback.
+- `20261024000000_add_match_3_to_production_game_engines.sql` — Registers match-3 game engine in production platform game settings.
+- `20261025000000_resolve_create_event_atomic_rpc_ambiguity.sql` — Resolves PostgreSQL RPC signature ambiguity by dropping obsolete character varying / varchar overloads and creating a single canonical public.create_event_atomic function with standard TEXT parameters, explicit security search_path, NULL-safe country normalization, and timezone-aware pending limit checks.
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.

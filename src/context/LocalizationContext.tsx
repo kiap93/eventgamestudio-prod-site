@@ -8,7 +8,7 @@ import {
   isSupportedLanguage,
   normalizeLanguageCode,
 } from '../lib/i18n/languages';
-import { resolveTranslatedContent } from '../lib/i18n/i18n';
+import { resolveTranslatedContent, detectInitialLanguage } from '../lib/i18n/i18n';
 import { en } from '../locales/en';
 import { msMY } from '../locales/ms-MY';
 import { zhCN } from '../locales/zh-CN';
@@ -56,28 +56,7 @@ function interpolate(text: string, params?: Record<string, any>): string {
 
 export const LocalizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<SupportedLanguage>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (typeof localStorage !== 'undefined') {
-          const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-          if (isSupportedLanguage(stored)) return stored;
-        }
-      } catch {
-        // Ignore storage access errors
-      }
-
-      // Check navigator.language
-      try {
-        const navLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
-        if (navLang) {
-          if (navLang.startsWith('zh')) return 'zh-CN';
-          if (navLang.startsWith('ms')) return 'ms-MY';
-        }
-      } catch {
-        // Ignore navigator errors
-      }
-    }
-    return DEFAULT_LANGUAGE;
+    return detectInitialLanguage();
   });
 
   const setLanguage = useCallback((lang: SupportedLanguage) => {
@@ -104,8 +83,41 @@ export const LocalizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const setLocale = setLanguage;
   const locale = language;
 
+  // Sync URL ?lang= parameter changes dynamically and on navigation
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined' || !window.location) return;
+
+    const syncUrlLang = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const urlLang = searchParams.get('lang');
+        if (urlLang) {
+          const normalized = normalizeLanguageCode(urlLang);
+          if (isSupportedLanguage(normalized)) {
+            try {
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+              }
+            } catch {
+              // Ignore storage write errors
+            }
+            setLanguageState((prev) => (prev !== normalized ? normalized : prev));
+          }
+        }
+      } catch {
+        // Ignore URL parsing errors
+      }
+    };
+
+    syncUrlLang();
+    window.addEventListener('popstate', syncUrlLang);
+    return () => {
+      window.removeEventListener('popstate', syncUrlLang);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement) {
       document.documentElement.lang = language;
     }
   }, [language]);

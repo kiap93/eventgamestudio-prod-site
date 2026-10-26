@@ -111,6 +111,12 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
     loadSystemThemes();
   }, [loadSystemThemes]);
 
+  useEffect(() => {
+    if (game?.id) {
+      fetchThemes(game.id);
+    }
+  }, [game?.id, fetchThemes]);
+
   const playModalRef = useRef<HTMLDivElement | null>(null);
 
   // Sync fullscreen state

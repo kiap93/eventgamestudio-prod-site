@@ -2,6 +2,7 @@ import { getSupabaseServerClient, isLocalFallbackAllowed, isSupabaseConfigured }
 import { OrgMemberRecord, OrgRole } from './types.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import crypto from 'node:crypto';
+import { recordDbOperation } from './dbMetrics.js';
 
 export const localMembersCache = new Map<string, OrgMemberRecord>();
 
@@ -20,6 +21,7 @@ export interface OrgMemberWithUserDetails {
 }
 
 export async function getMember(organizationId: string, userId: string, env?: Record<string, any>): Promise<OrgMemberRecord | null> {
+  recordDbOperation('org_membership_verify', env);
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organization_members')

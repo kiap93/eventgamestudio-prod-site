@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from '../../lib/api';
 import { CustomerAttribution, CustomerAttributionAuditLog, AttributionStatus } from '../../types/sales';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   Users,
   Search,
@@ -35,6 +36,7 @@ interface SalesPartnerOption {
 }
 
 export const DeveloperSalesAttributions: React.FC = () => {
+  const { t } = useLocalization();
   const [attributions, setAttributions] = useState<CustomerAttribution[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -266,28 +268,28 @@ export const DeveloperSalesAttributions: React.FC = () => {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3 h-3" />
-            Approved
+            {t('dev.attributions.statusApproved', undefined, 'Approved')}
           </span>
         );
       case 'pending':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
             <Clock className="w-3 h-3" />
-            Pending Org
+            {t('dev.attributions.statusPendingOrg', undefined, 'Pending Org')}
           </span>
         );
       case 'needs_review':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30 animate-pulse">
             <AlertTriangle className="w-3 h-3" />
-            Needs Review
+            {t('dev.attributions.statusNeedsReview', undefined, 'Needs Review')}
           </span>
         );
       case 'rejected':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
             <XCircle className="w-3 h-3" />
-            Rejected
+            {t('dev.attributions.statusRejected', undefined, 'Rejected')}
           </span>
         );
       default:
@@ -307,14 +309,14 @@ export const DeveloperSalesAttributions: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4" />
-              Administrative Governance
+              {t('dev.attributions.badge', undefined, 'Administrative Governance')}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Sales Referrals & Attribution Management
+            {t('dev.attributions.title', undefined, 'Sales Referrals & Attribution Management')}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-            Audit deterministic customer attribution records, resolve competing partner claims, enforce existing-customer boundaries, and execute authoritative reassignments.
+            {t('dev.attributions.subtitle', undefined, 'Audit deterministic customer attribution records, resolve competing partner claims, enforce existing-customer boundaries, and execute authoritative reassignments.')}
           </p>
         </div>
 
@@ -327,7 +329,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
           className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          <span>Refresh Records</span>
+          <span>{t('dev.attributions.refreshRecords', undefined, 'Refresh Records')}</span>
         </button>
       </div>
 
@@ -342,7 +344,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
             onClick={() => setError(null)}
             className="text-rose-400 hover:text-rose-200 text-xs font-bold cursor-pointer"
           >
-            Dismiss
+            {t('common.dismiss', undefined, 'Dismiss')}
           </button>
         </div>
       )}
@@ -357,7 +359,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
             onClick={() => setSuccessMessage(null)}
             className="text-emerald-400 hover:text-emerald-200 text-xs font-bold cursor-pointer"
           >
-            Dismiss
+            {t('common.dismiss', undefined, 'Dismiss')}
           </button>
         </div>
       )}
@@ -365,13 +367,13 @@ export const DeveloperSalesAttributions: React.FC = () => {
       {/* Metric Counters */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-          <span className="text-xs text-slate-400 font-medium">Total Captured</span>
+          <span className="text-xs text-slate-400 font-medium">{t('dev.attributions.totalCaptured', undefined, 'Total Captured')}</span>
           <div className="text-2xl font-black text-white">{totalCount}</div>
         </div>
 
         <div className="bg-slate-900 border border-purple-500/30 rounded-xl p-4 space-y-1 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-purple-400 font-medium">Needs Admin Review</span>
+            <span className="text-xs text-purple-400 font-medium">{t('dev.attributions.needsAdminReview', undefined, 'Needs Admin Review')}</span>
             {needsReviewCount > 0 && (
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
             )}
@@ -380,17 +382,17 @@ export const DeveloperSalesAttributions: React.FC = () => {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-          <span className="text-xs text-emerald-400 font-medium">Approved Attributions</span>
+          <span className="text-xs text-emerald-400 font-medium">{t('dev.attributions.approvedAttributions', undefined, 'Approved Attributions')}</span>
           <div className="text-2xl font-black text-emerald-400">{approvedCount}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-          <span className="text-xs text-amber-400 font-medium">Pending Org Creation</span>
+          <span className="text-xs text-amber-400 font-medium">{t('dev.attributions.pendingOrgCreation', undefined, 'Pending Org Creation')}</span>
           <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
-          <span className="text-xs text-rose-400 font-medium">Rejected / Conflicts</span>
+          <span className="text-xs text-rose-400 font-medium">{t('dev.attributions.rejectedConflicts', undefined, 'Rejected / Conflicts')}</span>
           <div className="text-2xl font-black text-rose-400">
             {rejectedCount}
             {(competingCount > 0 || selfReferralCount > 0) && (
@@ -408,11 +410,11 @@ export const DeveloperSalesAttributions: React.FC = () => {
           {/* Status Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
             {[
-              { id: 'all', label: `All (${totalCount})` },
-              { id: 'needs_review', label: `Needs Review (${needsReviewCount})` },
-              { id: 'approved', label: `Approved (${approvedCount})` },
-              { id: 'pending', label: `Pending Org (${pendingCount})` },
-              { id: 'rejected', label: `Rejected (${rejectedCount})` },
+              { id: 'all', label: `${t('common.all', undefined, 'All')} (${totalCount})` },
+              { id: 'needs_review', label: `${t('dev.attributions.statusNeedsReview', undefined, 'Needs Review')} (${needsReviewCount})` },
+              { id: 'approved', label: `${t('dev.attributions.statusApproved', undefined, 'Approved')} (${approvedCount})` },
+              { id: 'pending', label: `${t('dev.attributions.statusPendingOrg', undefined, 'Pending Org')} (${pendingCount})` },
+              { id: 'rejected', label: `${t('dev.attributions.statusRejected', undefined, 'Rejected')} (${rejectedCount})` },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -435,7 +437,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search partner, customer, org, code..."
+              placeholder={t('dev.attributions.searchPlaceholder', undefined, 'Search partner, customer, org, code...')}
               className="w-full bg-slate-900 border border-slate-800 focus:border-emerald-500 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-500"
             />
           </div>
@@ -443,12 +445,12 @@ export const DeveloperSalesAttributions: React.FC = () => {
 
         {/* Risk / Flag Chips */}
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-500 text-[11px] font-semibold uppercase tracking-wider">Flags:</span>
+          <span className="text-slate-500 text-[11px] font-semibold uppercase tracking-wider">{t('dev.attributions.flags', undefined, 'Flags')}:</span>
           {[
-            { id: 'all', label: 'All Records' },
-            { id: 'competing', label: `Competing Claims (${competingCount})` },
-            { id: 'self_referral', label: `Self-Referrals (${selfReferralCount})` },
-            { id: 'existing_customer', label: 'Existing Customers' },
+            { id: 'all', label: t('dev.attributions.allRecords', undefined, 'All Records') },
+            { id: 'competing', label: `${t('dev.attributions.competingClaims', undefined, 'Competing Claims')} (${competingCount})` },
+            { id: 'self_referral', label: `${t('dev.attributions.selfReferrals', undefined, 'Self-Referrals')} (${selfReferralCount})` },
+            { id: 'existing_customer', label: t('dev.attributions.existingCustomers', undefined, 'Existing Customers') },
           ].map((chip) => (
             <button
               key={chip.id}
@@ -469,18 +471,18 @@ export const DeveloperSalesAttributions: React.FC = () => {
       {loading ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
           <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">Loading customer attributions...</p>
+          <p className="text-xs text-slate-400">{t('dev.attributions.loadingAttributions', undefined, 'Loading customer attributions...')}</p>
         </div>
       ) : filteredAttributions.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
           <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
             <Users className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-bold text-slate-300">No attribution records found</h3>
+          <h3 className="text-sm font-bold text-slate-300">{t('dev.attributions.noRecordsFound', undefined, 'No attribution records found')}</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             {searchQuery || statusFilter !== 'all' || flagFilter !== 'all'
-              ? 'Try modifying your search query or filter selections.'
-              : 'When sales partners share referral codes and clients register, attributions will appear here.'}
+              ? t('dev.attributions.tryModifyingFilters', undefined, 'Try modifying your search query or filter selections.')
+              : t('dev.attributions.emptyStateDesc', undefined, 'When sales partners share referral codes and clients register, attributions will appear here.')}
           </p>
         </div>
       ) : (
@@ -489,13 +491,13 @@ export const DeveloperSalesAttributions: React.FC = () => {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/70 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
                 <tr>
-                  <th className="py-3 px-4 font-semibold">Referral & Method</th>
-                  <th className="py-3 px-4 font-semibold">Sales Partner</th>
-                  <th className="py-3 px-4 font-semibold">Referred Customer</th>
-                  <th className="py-3 px-4 font-semibold">Target Organization</th>
-                  <th className="py-3 px-4 font-semibold">Status & Flags</th>
-                  <th className="py-3 px-4 font-semibold">Captured</th>
-                  <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                  <th className="py-3 px-4 font-semibold">{t('dev.attributions.colReferralMethod', undefined, 'Referral & Method')}</th>
+                  <th className="py-3 px-4 font-semibold">{t('dev.attributions.colSalesPartner', undefined, 'Sales Partner')}</th>
+                  <th className="py-3 px-4 font-semibold">{t('dev.attributions.colReferredCustomer', undefined, 'Referred Customer')}</th>
+                  <th className="py-3 px-4 font-semibold">{t('dev.attributions.colTargetOrg', undefined, 'Target Organization')}</th>
+                  <th className="py-3 px-4 font-semibold">{t('dev.attributions.colStatusFlags', undefined, 'Status & Flags')}</th>
+                  <th className="py-3 px-4 font-semibold">{t('dev.attributions.colCaptured', undefined, 'Captured')}</th>
+                  <th className="py-3 px-4 font-semibold text-right">{t('common.actions', undefined, 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
@@ -546,10 +548,10 @@ export const DeveloperSalesAttributions: React.FC = () => {
                       ) : item.prospect_email ? (
                         <div className="space-y-0.5">
                           <div className="font-mono text-slate-300">{item.prospect_email}</div>
-                          <span className="text-[10px] text-amber-400 italic">Unregistered Lead</span>
+                          <span className="text-[10px] text-amber-400 italic">{t('dev.attributions.unregisteredLead', undefined, 'Unregistered Lead')}</span>
                         </div>
                       ) : (
-                        <span className="text-slate-500 italic">Anonymous Visit</span>
+                        <span className="text-slate-500 italic">{t('dev.attributions.anonymousVisit', undefined, 'Anonymous Visit')}</span>
                       )}
                     </td>
 
@@ -568,7 +570,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                           </div>
                         </div>
                       ) : (
-                        <span className="text-slate-500 italic text-[11px]">No Org Linked Yet</span>
+                        <span className="text-slate-500 italic text-[11px]">{t('dev.attributions.noOrgLinked', undefined, 'No Org Linked Yet')}</span>
                       )}
                     </td>
 
@@ -582,19 +584,19 @@ export const DeveloperSalesAttributions: React.FC = () => {
                           {item.is_competing_claim && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                               <AlertTriangle className="w-2.5 h-2.5" />
-                              Competing Claim
+                              {t('dev.attributions.competingClaim', undefined, 'Competing Claim')}
                             </span>
                           )}
                           {item.is_self_referral && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
                               <ShieldAlert className="w-2.5 h-2.5" />
-                              Self-Referral
+                              {t('dev.attributions.selfReferral', undefined, 'Self-Referral')}
                             </span>
                           )}
                           {item.is_existing_customer && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
                               <Info className="w-2.5 h-2.5" />
-                              Existing Client
+                              {t('dev.attributions.existingClient', undefined, 'Existing Client')}
                             </span>
                           )}
                         </div>
@@ -626,7 +628,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                         <button
                           onClick={() => openInspectModal(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                          title="Inspect Details & Audit Trail"
+                          title={t('dev.attributions.inspectTitle', undefined, 'Inspect Details & Audit Trail')}
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -639,7 +641,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                               setApproveReason('');
                             }}
                             className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 transition-colors cursor-pointer"
-                            title="Approve Attribution"
+                            title={t('dev.attributions.approveTitle', undefined, 'Approve Attribution')}
                           >
                             <Check className="w-3.5 h-3.5" />
                           </button>
@@ -653,7 +655,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                               setRejectReason('');
                             }}
                             className="p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-slate-950 transition-colors cursor-pointer"
-                            title="Reject Attribution"
+                            title={t('dev.attributions.rejectTitle', undefined, 'Reject Attribution')}
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -667,7 +669,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                             setReassignReason('');
                           }}
                           className="p-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500 text-indigo-400 hover:text-slate-950 transition-colors cursor-pointer"
-                          title="Reassign to Another Partner"
+                          title={t('dev.attributions.reassignTitle', undefined, 'Reassign to Another Partner')}
                         >
                           <ArrowRightLeft className="w-3.5 h-3.5" />
                         </button>
@@ -693,7 +695,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                   <Eye className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Attribution Inspection & History</h3>
+                  <h3 className="text-base font-bold text-white">{t('dev.attributions.inspectModalTitle', undefined, 'Attribution Inspection & History')}</h3>
                   <p className="text-xs text-slate-400 font-mono">ID: {inspectItem.id}</p>
                 </div>
               </div>
@@ -708,14 +710,14 @@ export const DeveloperSalesAttributions: React.FC = () => {
             {/* Attribution Core Spec */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
-                <span className="text-[11px] font-bold uppercase text-slate-500">Sales Partner</span>
+                <span className="text-[11px] font-bold uppercase text-slate-500">{t('dev.attributions.colSalesPartner', undefined, 'Sales Partner')}</span>
                 <div className="font-bold text-slate-200">{inspectItem.partner?.name || 'Partner Account'}</div>
                 <div className="text-slate-400 font-mono">{inspectItem.partner?.email || inspectItem.partner_user_id}</div>
                 <div className="text-[10px] text-slate-500">User ID: {inspectItem.partner_user_id}</div>
               </div>
 
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
-                <span className="text-[11px] font-bold uppercase text-slate-500">Referred Customer</span>
+                <span className="text-[11px] font-bold uppercase text-slate-500">{t('dev.attributions.colReferredCustomer', undefined, 'Referred Customer')}</span>
                 {inspectItem.referred_user ? (
                   <>
                     <div className="font-bold text-slate-200">{inspectItem.referred_user.name}</div>
@@ -723,12 +725,12 @@ export const DeveloperSalesAttributions: React.FC = () => {
                     <div className="text-[10px] text-slate-500">User ID: {inspectItem.referred_user.id}</div>
                   </>
                 ) : (
-                  <div className="text-slate-400 font-mono">{inspectItem.prospect_email || 'No email recorded'}</div>
+                  <div className="text-slate-400 font-mono">{inspectItem.prospect_email || t('dev.attributions.noEmailRecorded', undefined, 'No email recorded')}</div>
                 )}
               </div>
 
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
-                <span className="text-[11px] font-bold uppercase text-slate-500">Target Organization</span>
+                <span className="text-[11px] font-bold uppercase text-slate-500">{t('dev.attributions.colTargetOrg', undefined, 'Target Organization')}</span>
                 {inspectItem.organization ? (
                   <>
                     <div className="font-bold text-slate-200">{inspectItem.organization.name}</div>
@@ -736,15 +738,15 @@ export const DeveloperSalesAttributions: React.FC = () => {
                     <div className="text-[10px] text-slate-500">Org ID: {inspectItem.organization.id}</div>
                   </>
                 ) : (
-                  <div className="text-slate-500 italic">No organization linked yet</div>
+                  <div className="text-slate-500 italic">{t('dev.attributions.noOrgLinked', undefined, 'No organization linked yet')}</div>
                 )}
               </div>
 
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
-                <span className="text-[11px] font-bold uppercase text-slate-500">Governance Status</span>
+                <span className="text-[11px] font-bold uppercase text-slate-500">{t('dev.attributions.governanceStatus', undefined, 'Governance Status')}</span>
                 <div>{getStatusBadge(inspectItem.status)}</div>
                 {inspectItem.decision_reason && (
-                  <div className="text-emerald-400 text-[11px]">Reason: {inspectItem.decision_reason}</div>
+                  <div className="text-emerald-400 text-[11px]">{t('common.reason', undefined, 'Reason')}: {inspectItem.decision_reason}</div>
                 )}
                 {inspectItem.review_reason && (
                   <div className="text-purple-400 text-[11px]">Review Flag: {inspectItem.review_reason}</div>
@@ -757,11 +759,11 @@ export const DeveloperSalesAttributions: React.FC = () => {
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Competing Claim Detected from Another Partner</span>
+                  <span>{t('dev.attributions.competingDetected', undefined, 'Competing Claim Detected from Another Partner')}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/60 p-3 rounded-lg border border-amber-500/20">
                   <div>
-                    <span className="text-[10px] text-slate-500 uppercase">Competing Partner</span>
+                    <span className="text-[10px] text-slate-500 uppercase">{t('dev.attributions.competingPartner', undefined, 'Competing Partner')}</span>
                     <div className="font-bold text-slate-200">
                       {inspectItem.competing_attribution.partner?.name || 'Partner Account'}
                     </div>
@@ -770,7 +772,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 uppercase">Status & Established At</span>
+                    <span className="text-[10px] text-slate-500 uppercase">{t('dev.attributions.statusEstablishedAt', undefined, 'Status & Established At')}</span>
                     <div>{getStatusBadge(inspectItem.competing_attribution.status)}</div>
                     <div className="text-slate-400 font-mono text-[11px] mt-1">
                       {new Date(inspectItem.competing_attribution.created_at).toLocaleString()}
@@ -784,17 +786,17 @@ export const DeveloperSalesAttributions: React.FC = () => {
             <div className="space-y-3 border-t border-slate-800 pt-4">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
                 <History className="w-4 h-4 text-emerald-400" />
-                <span>Authoritative Audit History</span>
+                <span>{t('dev.attributions.auditHistory', undefined, 'Authoritative Audit History')}</span>
               </div>
 
               {loadingAuditLogs ? (
                 <div className="text-center py-6">
                   <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin mx-auto" />
-                  <span className="text-[11px] text-slate-500 mt-2 block">Loading audit trail...</span>
+                  <span className="text-[11px] text-slate-500 mt-2 block">{t('dev.attributions.loadingAuditTrail', undefined, 'Loading audit trail...')}</span>
                 </div>
               ) : inspectAuditLogs.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-xs italic">
-                  No previous audit records logged for this attribution.
+                  {t('dev.attributions.noAuditLogs', undefined, 'No previous audit records logged for this attribution.')}
                 </div>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -832,7 +834,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 onClick={() => setInspectItem(null)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold cursor-pointer"
               >
-                Close
+                {t('common.close', undefined, 'Close')}
               </button>
             </div>
           </div>
@@ -848,7 +850,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-base font-bold text-white">Approve Attribution</h3>
+                <h3 className="text-base font-bold text-white">{t('dev.attributions.approveTitle', undefined, 'Approve Attribution')}</h3>
               </div>
               <button onClick={() => setApproveItem(null)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -859,7 +861,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
               <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>
-                  Warning: This customer has a competing claim. Approving this attribution establishes this partner as the primary authoritative owner.
+                  {t('dev.attributions.competingWarning', undefined, 'Warning: This customer has a competing claim. Approving this attribution establishes this partner as the primary authoritative owner.')}
                 </span>
               </div>
             )}
@@ -868,7 +870,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
               <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
                 <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>
-                  Self-Referral Warning: Partner is the customer or organization owner. Confirming will override self-referral blocks.
+                  {t('dev.attributions.selfReferralWarning', undefined, 'Self-Referral Warning: Partner is the customer or organization owner. Confirming will override self-referral blocks.')}
                 </span>
               </div>
             )}
@@ -883,12 +885,12 @@ export const DeveloperSalesAttributions: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300">
-                Decision Notes / Reason (Optional)
+                {t('dev.attributions.decisionNotesLabel', undefined, 'Decision Notes / Reason (Optional)')}
               </label>
               <textarea
                 value={approveReason}
                 onChange={(e) => setApproveReason(e.target.value)}
-                placeholder="e.g. Verified genuine introduction at Kuala Lumpur roadshow"
+                placeholder={t('dev.attributions.approveReasonPlaceholder', undefined, 'e.g. Verified genuine introduction at Kuala Lumpur roadshow')}
                 className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl p-3 text-xs text-slate-200 outline-none h-20 placeholder:text-slate-600"
               />
             </div>
@@ -898,7 +900,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 onClick={() => setApproveItem(null)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleApprove}
@@ -906,7 +908,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {approving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                <span>Confirm Approval</span>
+                <span>{t('dev.attributions.confirmApproval', undefined, 'Confirm Approval')}</span>
               </button>
             </div>
           </div>
@@ -922,7 +924,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-rose-400" />
-                <h3 className="text-base font-bold text-white">Reject Attribution</h3>
+                <h3 className="text-base font-bold text-white">{t('dev.attributions.rejectTitle', undefined, 'Reject Attribution')}</h3>
               </div>
               <button onClick={() => setRejectItem(null)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -936,12 +938,12 @@ export const DeveloperSalesAttributions: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300">
-                Rejection Justification <span className="text-rose-400">*</span>
+                {t('dev.attributions.rejectionJustification', undefined, 'Rejection Justification')} <span className="text-rose-400">*</span>
               </label>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Reason is required for audit logs (e.g. Existing corporate customer; partner was not the lead initiator)"
+                placeholder={t('dev.attributions.rejectReasonPlaceholder', undefined, 'Reason is required for audit logs (e.g. Existing corporate customer; partner was not the lead initiator)')}
                 className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl p-3 text-xs text-slate-200 outline-none h-24 placeholder:text-slate-600"
               />
             </div>
@@ -951,7 +953,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 onClick={() => setRejectItem(null)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleReject}
@@ -959,7 +961,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {rejecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
-                <span>Confirm Rejection</span>
+                <span>{t('dev.attributions.confirmRejection', undefined, 'Confirm Rejection')}</span>
               </button>
             </div>
           </div>
@@ -975,7 +977,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <ArrowRightLeft className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Reassign Attribution</h3>
+                <h3 className="text-base font-bold text-white">{t('dev.attributions.reassignModalTitle', undefined, 'Reassign Attribution')}</h3>
               </div>
               <button onClick={() => setReassignItem(null)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -989,14 +991,14 @@ export const DeveloperSalesAttributions: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300">
-                Target Active Sales Partner <span className="text-indigo-400">*</span>
+                {t('dev.attributions.targetPartnerLabel', undefined, 'Target Active Sales Partner')} <span className="text-indigo-400">*</span>
               </label>
               <select
                 value={reassignTargetUserId}
                 onChange={(e) => setReassignTargetUserId(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none"
               >
-                <option value="">Select target Sales Partner...</option>
+                <option value="">{t('dev.attributions.selectTargetPartner', undefined, 'Select target Sales Partner...')}</option>
                 {activePartners
                   .filter((p) => p.user_id !== reassignItem.partner_user_id && p.user_id !== reassignItem.referred_user_id)
                   .map((p) => (
@@ -1009,12 +1011,12 @@ export const DeveloperSalesAttributions: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300">
-                Reassignment Reason <span className="text-indigo-400">*</span>
+                {t('dev.attributions.reassignmentReason', undefined, 'Reassignment Reason')} <span className="text-indigo-400">*</span>
               </label>
               <textarea
                 value={reassignReason}
                 onChange={(e) => setReassignReason(e.target.value)}
-                placeholder="Reason is required for audit logs (e.g. Territory handover; original lead belonged to target partner)"
+                placeholder={t('dev.attributions.reassignReasonPlaceholder', undefined, 'Reason is required for audit logs (e.g. Territory handover; original lead belonged to target partner)')}
                 className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-200 outline-none h-20 placeholder:text-slate-600"
               />
             </div>
@@ -1024,7 +1026,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 onClick={() => setReassignItem(null)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 onClick={handleReassign}
@@ -1032,7 +1034,7 @@ export const DeveloperSalesAttributions: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {reassigning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
-                <span>Confirm Reassignment</span>
+                <span>{t('dev.attributions.confirmReassignment', undefined, 'Confirm Reassignment')}</span>
               </button>
             </div>
           </div>

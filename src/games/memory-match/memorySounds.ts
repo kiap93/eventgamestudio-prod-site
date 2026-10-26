@@ -9,6 +9,7 @@ class MemorySoundManager {
   private isMuted: boolean = false;
 
   private initCtx() {
+    if (typeof window === 'undefined') return;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -206,6 +207,12 @@ class MemorySoundManager {
 
     osc.start(now);
     osc.stop(now + 0.05);
+  }
+
+  public stopAll() {
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
   }
 }
 

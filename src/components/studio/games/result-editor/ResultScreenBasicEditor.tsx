@@ -19,6 +19,9 @@ import {
   Gauge,
   Timer,
   Play,
+  Flame,
+  Sparkles,
+  Boxes,
 } from 'lucide-react';
 import { GameTheme } from '../../../../themes/types';
 import {
@@ -33,6 +36,7 @@ import {
   generateDefaultResultScreenElements,
   generateDefaultCatchBrandResultScreenElements,
   generateDefaultReactionResultScreenElements,
+  generateDefaultMatch3ResultScreenElements,
 } from '../../../../games/shared/resultScreenTypes';
 
 export const RESULT_BG_COLOR_PRESETS = [
@@ -72,7 +76,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
   const isMemory = gameType === 'memory-match';
   const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
-  const isCatch = !isMemory && !isReaction;
+  const isMatch3 = gameType === 'match-3' || gameType === 'match3';
+  const isCatch = !isMemory && !isReaction && !isMatch3;
 
   const currentBgType =
     resultConfig.backgroundType || resultConfig.background?.type || 'theme';
@@ -96,11 +101,14 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
     if (isReaction) {
       return generateDefaultReactionResultScreenElements(resultConfig);
     }
+    if (isMatch3) {
+      return generateDefaultMatch3ResultScreenElements(resultConfig);
+    }
     if (isCatch) {
       return generateDefaultCatchBrandResultScreenElements(resultConfig);
     }
     return generateDefaultResultScreenElements(resultConfig);
-  }, [rawElements, isReaction, isCatch, resultConfig]);
+  }, [rawElements, isReaction, isMatch3, isCatch, resultConfig]);
 
   const handleUpdateBackground = (updates: {
     backgroundType?: 'theme' | 'color' | 'image';
@@ -387,7 +395,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
   // Title / text updater
   const handleUpdateTitleText = (newText: string) => {
-    const titleId = isCatch ? 'title-catch' : isReaction ? 'title-reaction' : 'title-victory';
+    const titleId = isCatch ? 'title-catch' : isReaction ? 'title-reaction' : isMatch3 ? 'title-match3' : 'title-victory';
     const nextElements = updateResultScreenElementText(elements, titleId, newText);
     onChange({
       elements: nextElements,
@@ -403,11 +411,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
   };
 
   // Current title text
+  const titleId = isCatch ? 'title-catch' : isReaction ? 'title-reaction' : isMatch3 ? 'title-match3' : 'title-victory';
   const currentTitle =
-    findResultScreenElementText(
-      elements,
-      isCatch ? 'title-catch' : isReaction ? 'title-reaction' : 'title-victory'
-    ) ?? (isCatch ? 'GAME OVER!' : isReaction ? 'GREAT REFLEXES!' : 'VICTORY!');
+    findResultScreenElementText(elements, titleId) ??
+    (isCatch ? 'GAME OVER!' : isReaction ? 'GREAT REFLEXES!' : isMatch3 ? "TIME'S UP!" : 'VICTORY!');
 
   // Current button text
   const currentBtnText = 'PLAY AGAIN';
@@ -424,7 +431,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
             <div>
               <h4 className="text-sm font-bold text-slate-100">{t('editor.resultScreenBg', undefined, 'Result Screen Background')}</h4>
               <p className="text-xs text-slate-400">
-                Choose between theme wallpaper, solid backdrop color, or custom uploaded image
+                {t('editor.resultScreenBgDesc', undefined, 'Choose between theme wallpaper, solid backdrop color, or custom uploaded image')}
               </p>
             </div>
           </div>
@@ -453,8 +460,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           >
             <Layers className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">{t('editor.activeThemeBg', undefined, 'Active Theme BG')}</span>
-              <span className="text-[10px] text-slate-500 block truncate">{t('editor.activeThemeBgDesc', undefined, 'Uses theme wallpaper')}</span>
+              <span className="text-xs block">{t('editor.themeDefaultBg', undefined, 'Theme Default')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.themeDefaultBgDesc', undefined, 'Uses game wallpaper')}</span>
             </div>
             {currentBgType === 'theme' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -470,8 +477,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           >
             <Palette className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">{t('editor.solidColor', undefined, 'Solid Color')}</span>
-              <span className="text-[10px] text-slate-500 block truncate">{t('editor.solidColorDesc', undefined, 'Custom backdrop color')}</span>
+              <span className="text-xs block">{t('editor.solidColorBg', undefined, 'Solid Color')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.solidColorBgDesc', undefined, 'Clean studio backdrop')}</span>
             </div>
             {currentBgType === 'color' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -487,8 +494,8 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
           >
             <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="text-xs block">{t('editor.customImage', undefined, 'Custom Image')}</span>
-              <span className="text-[10px] text-slate-500 block truncate">{t('editor.customImageDesc', undefined, 'Independent artwork upload')}</span>
+              <span className="text-xs block">{t('editor.customImageBg', undefined, 'Custom Image')}</span>
+              <span className="text-[10px] text-slate-500 block truncate">{t('editor.customImageBgDesc', undefined, 'Dedicated artwork')}</span>
             </div>
             {currentBgType === 'image' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
           </button>
@@ -506,7 +513,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                   className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
                 />
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block">{t('editor.customColor', undefined, 'Custom Color')}</label>
+                  <label className="text-xs font-semibold text-slate-300 block">{t('editor.backdropHexColor', undefined, 'Backdrop Hex Color')}</label>
                   <input
                     type="text"
                     value={currentBgColor}
@@ -692,13 +699,13 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
               type="text"
               value={currentTitle}
               onChange={(e) => handleUpdateTitleText(e.target.value)}
-              placeholder={isCatch ? 'GAME OVER!' : isReaction ? 'GREAT REFLEXES!' : 'VICTORY!'}
+              placeholder={isCatch ? 'GAME OVER!' : isReaction ? 'GREAT REFLEXES!' : isMatch3 ? "TIME'S UP!" : 'VICTORY!'}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 block">{t('editor.playAgainBtn', undefined, 'Play Again Button')}</label>
+            <label className="text-xs font-semibold text-slate-300 block">{t('editor.playAgainButtonText', undefined, 'Play Again Button Text')}</label>
             <input
               type="text"
               defaultValue={currentBtnText}
@@ -1110,10 +1117,221 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
             </>
           )}
 
+          {/* MATCH-3 CASCADE ELEMENTS */}
+          {isMatch3 && (
+            <>
+              {/* Final Score */}
+              {(() => {
+                const isVis =
+                  findResultScreenElementVisibility(elements, 'stat-score') !== false &&
+                  resultConfig.showScore !== false;
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 shrink-0">
+                        <Trophy className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.finalScore', undefined, 'Final Score')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.finalScoreDesc', undefined, 'Total match points scored')}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVis}
+                      onClick={() => handleToggleElementVisibility('stat-score', isVis)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVis ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVis ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Matches Cleared */}
+              {(() => {
+                const isVis =
+                  findResultScreenElementVisibility(elements, ['stat-matches', 'stat-moves', 'moves']) !== false &&
+                  resultConfig.showMoves !== false;
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-sky-400 shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('match3.matchesCleared')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('match3.matchesClearedDesc')}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVis}
+                      onClick={() => handleToggleElementVisibility(['stat-matches', 'stat-moves', 'moves'], isVis)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVis ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVis ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Best Combo */}
+              {(() => {
+                const isVis =
+                  findResultScreenElementVisibility(elements, ['stat-combo', 'stat-accuracy', 'accuracy']) !== false &&
+                  resultConfig.showAccuracy !== false;
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-rose-400 shrink-0">
+                        <Flame className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('match3.bestCombo')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('match3.bestComboDesc')}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVis}
+                      onClick={() => handleToggleElementVisibility(['stat-combo', 'stat-accuracy', 'accuracy'], isVis)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVis ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVis ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Specials Created */}
+              {(() => {
+                const isVis =
+                  findResultScreenElementVisibility(elements, ['stat-specials', 'stat-pairs', 'pairs']) !== false &&
+                  resultConfig.showPairs !== false;
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-purple-400 shrink-0">
+                        <Boxes className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('match3.specialsCreated')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('match3.specialsCreatedDesc')}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVis}
+                      onClick={() => handleToggleElementVisibility(['stat-specials', 'stat-pairs', 'pairs'], isVis)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVis ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVis ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Event Leaderboard */}
+              {(() => {
+                const isVis = findResultScreenElementVisibility(elements, ['leaderboard-match3', 'leaderboard', 'leaderboard-main']) !== false;
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-violet-400 shrink-0">
+                        <Trophy className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.eventLeaderboard', undefined, 'Event Leaderboard')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.eventLeaderboardDesc', undefined, 'Top ranking players list')}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVis}
+                      onClick={() => handleToggleElementVisibility(['leaderboard-match3', 'leaderboard', 'leaderboard-main'], isVis)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVis ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVis ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Play Again Button */}
+              {(() => {
+                const isVis = findResultScreenElementVisibility(elements, ['btn-play-again', 'playAgain', 'button']) !== false;
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 shrink-0">
+                        <Play className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.playAgainBtn', undefined, 'Play Again Button')}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{t('editor.playAgainBtnDesc', undefined, 'Replay game action trigger')}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isVis}
+                      onClick={() => handleToggleElementVisibility(['btn-play-again', 'playAgain', 'button'], isVis)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        isVis ? 'bg-emerald-500' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isVis ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+
           {/* FORMULA (REACTION LIGHTS) ELEMENTS */}
           {isReaction && (
             <>
-              {/* {t('editor.avgReactionTime', undefined, 'Average Reaction Time')} */}
+              {/* Average Reaction Time */}
               {(() => {
                 const isVis =
                   findResultScreenElementVisibility(elements, [
@@ -1263,7 +1481,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                 );
               })()}
 
-              {/* {t('editor.roundResults', undefined, 'Round Results Breakdown')} */}
+              {/* Round Results Breakdown */}
               {(() => {
                 const isVis =
                   findResultScreenElementVisibility(elements, [
@@ -1338,7 +1556,7 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                         <Trophy className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.reactionTierRating', undefined, 'Reaction Tier Rating')}</span>
+                        <span className="text-xs font-bold text-slate-200 block truncate">{t('editor.reactionTierRating', undefined, 'Reaction Rating Tier')}</span>
                         <span className="text-[10px] text-slate-400 block truncate">{t('editor.reactionTierRatingDesc', undefined, 'Godlike, F1 Driver, Fast tier')}</span>
                       </div>
                     </div>

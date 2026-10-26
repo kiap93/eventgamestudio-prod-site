@@ -12,7 +12,7 @@ import {
   TranslationJobRecord,
 } from '../db/translations.js';
 
-class TranslationService {
+export class TranslationService {
   private providers: Map<string, TranslationProvider> = new Map();
   private defaultProviderId: string = 'gemini';
 
@@ -25,18 +25,27 @@ class TranslationService {
     this.providers.set(provider.id, provider);
   }
 
+  public setDefaultProviderId(id: string): void {
+    this.defaultProviderId = id;
+  }
+
   public getProvider(id?: string): TranslationProvider {
     if (id && this.providers.has(id)) {
       const p = this.providers.get(id)!;
       if (p.isConfigured()) return p;
     }
 
-    // Try default
+    // Try default (Gemini)
     const def = this.providers.get(this.defaultProviderId);
     if (def && def.isConfigured()) return def;
 
-    // Fall back to mock
-    return this.providers.get('mock') || new MockTranslationProvider();
+    // Only allow mock provider in test/dev environments
+    const mock = this.providers.get('mock');
+    if (mock && mock.isConfigured()) {
+      return mock;
+    }
+
+    return def || new GeminiTranslationProvider();
   }
 
   public getAvailableProviders(): { id: string; name: string; isConfigured: boolean }[] {
@@ -51,14 +60,11 @@ class TranslationService {
    * Translates content synchronously using the active configured provider.
    */
   public async translate(req: TranslationRequest, preferredProviderId?: string): Promise<TranslationResult> {
-    try {
-      const provider = this.getProvider(preferredProviderId);
-      return await provider.translate(req);
-    } catch (err) {
-      console.warn('[TranslationService] Primary provider failed, falling back to mock provider:', err);
-      const fallback = new MockTranslationProvider();
-      return fallback.translate(req);
+    const provider = this.getProvider(preferredProviderId);
+    if (!provider || !provider.isConfigured()) {
+      throw new Error('AI translation provider is not configured. Please ensure GEMINI_API_KEY is configured.');
     }
+    return await provider.translate(req);
   }
 
   /**
@@ -67,16 +73,21 @@ class TranslationService {
   public async queueTranslationJob(params: {
     entity_type: 'event' | 'showcase' | 'game_instructions';
     entity_id: string;
+    user_id?: string | null;
+    organization_id?: string | null;
     source_language: string;
     target_language: string;
     fields: Record<string, string>;
     glossary?: string[];
     context?: string;
+    provider_id?: string;
   }): Promise<TranslationJobRecord> {
-    const provider = this.getProvider();
+    const provider = this.getProvider(params.provider_id);
     const job = await createTranslationJob({
       entity_type: params.entity_type,
       entity_id: params.entity_id,
+      user_id: params.user_id,
+      organization_id: params.organization_id,
       source_language: params.source_language,
       target_language: params.target_language,
       provider: provider.id,

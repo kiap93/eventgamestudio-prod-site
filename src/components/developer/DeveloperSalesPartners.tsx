@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { SalesPartnerProfile, SalesPartnerAuditLog, SalesPartnerStatus } from '../../types/sales';
 import {
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 
 export const DeveloperSalesPartners: React.FC = () => {
+  const { t } = useLocalization();
   const [partners, setPartners] = useState<SalesPartnerProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -236,9 +238,9 @@ export const DeveloperSalesPartners: React.FC = () => {
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Sales Partner Management</h1>
+              <h1 className="text-xl font-bold text-white">{t('sales.developer.title')}</h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Review, activate, configure overrides, and track sales affiliate partners.
+                {t('sales.developer.subtitle')}
               </p>
             </div>
           </div>
@@ -251,7 +253,7 @@ export const DeveloperSalesPartners: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl font-medium transition-colors border border-slate-700 disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <span>{refreshing ? t('sales.developer.refreshing') : t('sales.developer.refresh')}</span>
           </button>
         </div>
       </div>
@@ -277,7 +279,7 @@ export const DeveloperSalesPartners: React.FC = () => {
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search partner name, email, referral code..."
+              placeholder={t('sales.developer.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50"
@@ -287,7 +289,7 @@ export const DeveloperSalesPartners: React.FC = () => {
             type="submit"
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium cursor-pointer"
           >
-            Search
+            {t('sales.customers.search')}
           </button>
         </form>
 
@@ -298,11 +300,11 @@ export const DeveloperSalesPartners: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500/50"
           >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="suspended">Suspended</option>
-            <option value="rejected">Rejected</option>
+            <option value="all">{t('sales.developer.allStatuses', undefined, 'All Statuses')}</option>
+            <option value="active">{t('sales.developer.statusActive', undefined, 'Active')}</option>
+            <option value="pending">{t('sales.developer.statusPending', undefined, 'Pending')}</option>
+            <option value="suspended">{t('sales.developer.statusSuspended', undefined, 'Suspended')}</option>
+            <option value="rejected">{t('sales.developer.statusRejected', undefined, 'Rejected')}</option>
           </select>
         </div>
       </div>
@@ -312,25 +314,25 @@ export const DeveloperSalesPartners: React.FC = () => {
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-3">
             <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
-            <p>Loading Sales Partners...</p>
+            <p>{t('sales.developer.loadingPartners', undefined, 'Loading Sales Partners...')}</p>
           </div>
         ) : filteredPartners.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-500">
             <Users className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
-            <p>No Sales Partners found matching your criteria.</p>
+            <p>{t('sales.developer.noPartnersFound', undefined, 'No Sales Partners found matching your criteria.')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/80 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800">
                 <tr>
-                  <th className="py-3 px-4">Partner</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Referral Code</th>
-                  <th className="py-3 px-4">Commission Overrides</th>
-                  <th className="py-3 px-4">Attributions</th>
-                  <th className="py-3 px-4">Applied</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4">{t('sales.developer.partnerCol')}</th>
+                  <th className="py-3 px-4">{t('sales.developer.statusCol')}</th>
+                  <th className="py-3 px-4">{t('sales.referrals.yourReferralCode')}</th>
+                  <th className="py-3 px-4">{t('sales.developer.ratesCol')}</th>
+                  <th className="py-3 px-4">{t('sales.developer.clientsCol')}</th>
+                  <th className="py-3 px-4">{t('sales.developer.appliedCol', undefined, 'Applied')}</th>
+                  <th className="py-3 px-4 text-right">{t('sales.developer.actionsCol')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -372,7 +374,7 @@ export const DeveloperSalesPartners: React.FC = () => {
                           {partner.referral_code}
                         </span>
                       ) : (
-                        <span className="text-slate-500 italic">None</span>
+                        <span className="text-slate-500 italic">{t('common.none', undefined, 'None')}</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4">
@@ -381,23 +383,23 @@ export const DeveloperSalesPartners: React.FC = () => {
                       typeof partner.custom_commission_rate === 'number' ? (
                         <div className="text-[11px] text-amber-400 space-y-0.5">
                           {typeof partner.first_order_commission_rate === 'number' && (
-                            <div>1st: {(partner.first_order_commission_rate * 100).toFixed(0)}%</div>
+                            <div>{t('sales.developer.firstShort', undefined, '1st')}: {(partner.first_order_commission_rate * 100).toFixed(0)}%</div>
                           )}
                           {typeof partner.repeat_order_commission_rate === 'number' && (
-                            <div>Repeat: {(partner.repeat_order_commission_rate * 100).toFixed(0)}%</div>
+                            <div>{t('sales.developer.repeatShort', undefined, 'Repeat')}: {(partner.repeat_order_commission_rate * 100).toFixed(0)}%</div>
                           )}
                           {typeof partner.custom_commission_rate === 'number' && (
-                            <div>Flat: {(partner.custom_commission_rate * 100).toFixed(0)}%</div>
+                            <div>{t('sales.developer.flatShort', undefined, 'Flat')}: {(partner.custom_commission_rate * 100).toFixed(0)}%</div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-500 text-[11px]">Platform Standard (10% / 5%)</span>
+                        <span className="text-slate-500 text-[11px]">{t('sales.developer.platformStandardRates', undefined, 'Platform Standard (10% / 5%)')}</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="text-[11px]">
-                        <span className="font-medium text-white">{partner.approved_attributions || 0}</span> approved
-                        <span className="text-slate-500"> / {partner.total_attributions || 0} total</span>
+                        <span className="font-medium text-white">{partner.approved_attributions || 0}</span> {t('sales.developer.approvedCount', undefined, 'approved')}
+                        <span className="text-slate-500"> / {partner.total_attributions || 0} {t('sales.developer.totalCount', undefined, 'total')}</span>
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-slate-400 text-[11px]">
@@ -408,14 +410,14 @@ export const DeveloperSalesPartners: React.FC = () => {
                         <button
                           onClick={() => handleInspect(partner)}
                           className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors cursor-pointer"
-                          title="Inspect Details & Audit Logs"
+                          title={t('sales.developer.viewAuditLogs')}
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => openRatesModal(partner)}
                           className="p-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-lg transition-colors border border-amber-500/20 cursor-pointer"
-                          title="Configure Commission Rates"
+                          title={t('sales.developer.adjustRates')}
                         >
                           <Percent className="w-3.5 h-3.5" />
                         </button>
@@ -423,7 +425,7 @@ export const DeveloperSalesPartners: React.FC = () => {
                           <button
                             onClick={() => openStatusModal(partner, 'active')}
                             className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors border border-emerald-500/20 cursor-pointer"
-                            title="Activate Partner"
+                            title={t('sales.developer.approve')}
                           >
                             <Check className="w-3.5 h-3.5" />
                           </button>
@@ -432,7 +434,7 @@ export const DeveloperSalesPartners: React.FC = () => {
                           <button
                             onClick={() => openStatusModal(partner, 'suspended')}
                             className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors border border-rose-500/20 cursor-pointer"
-                            title="Suspend Partner"
+                            title={t('sales.developer.suspend')}
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -455,7 +457,7 @@ export const DeveloperSalesPartners: React.FC = () => {
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-emerald-400" />
                 <h2 className="text-sm font-bold text-white">
-                  Partner Details & Audit Trail: {inspectPartner.user?.name}
+                  {t('sales.developer.partnerDetailsTitle', undefined, 'Partner Details & Audit Trail')}: {inspectPartner.user?.name}
                 </h2>
               </div>
               <button
@@ -469,27 +471,27 @@ export const DeveloperSalesPartners: React.FC = () => {
             <div className="p-5 overflow-y-auto space-y-5 text-xs">
               <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase">Partner ID</span>
+                  <span className="text-slate-500 block text-[10px] uppercase">{t('sales.developer.partnerIdLabel', undefined, 'Partner ID')}</span>
                   <span className="font-mono text-slate-300">{inspectPartner.id}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase">User Email</span>
+                  <span className="text-slate-500 block text-[10px] uppercase">{t('sales.developer.userEmailLabel', undefined, 'User Email')}</span>
                   <span className="text-white">{inspectPartner.user?.email}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase">Status</span>
+                  <span className="text-slate-500 block text-[10px] uppercase">{t('sales.developer.statusCol')}</span>
                   <span className="font-semibold text-emerald-400 capitalize">{inspectPartner.status}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase">Referral Code</span>
-                  <span className="font-mono text-emerald-400">{inspectPartner.referral_code || 'None'}</span>
+                  <span className="text-slate-500 block text-[10px] uppercase">{t('sales.referrals.yourReferralCode')}</span>
+                  <span className="font-mono text-emerald-400">{inspectPartner.referral_code || t('common.none', undefined, 'None')}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase">Agency / Entity</span>
-                  <span className="text-amber-400 font-medium">{inspectPartner.agency_name || 'Not provided'}</span>
+                  <span className="text-slate-500 block text-[10px] uppercase">{t('sales.developer.agencyEntityLabel', undefined, 'Agency / Entity')}</span>
+                  <span className="text-amber-400 font-medium">{inspectPartner.agency_name || t('sales.developer.notProvided', undefined, 'Not provided')}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase">Applied At</span>
+                  <span className="text-slate-500 block text-[10px] uppercase">{t('sales.developer.appliedAtLabel', undefined, 'Applied At')}</span>
                   <span className="text-slate-300">
                     {inspectPartner.applied_at ? new Date(inspectPartner.applied_at).toLocaleString() : '—'}
                   </span>
@@ -500,22 +502,22 @@ export const DeveloperSalesPartners: React.FC = () => {
               <div className="space-y-3">
                 <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
                   <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
-                    Applicant Submission Details
+                    {t('sales.developer.applicantSubmissionDetails', undefined, 'Applicant Submission Details')}
                   </span>
                   <div className="text-slate-300 whitespace-pre-wrap leading-relaxed">
                     {inspectPartner.application_notes || (
-                      <span className="text-slate-500 italic">No application notes provided by applicant.</span>
+                      <span className="text-slate-500 italic">{t('sales.developer.noApplicationNotes', undefined, 'No application notes provided by applicant.')}</span>
                     )}
                   </div>
                 </div>
 
                 <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
                   <span className="text-amber-400 block text-[10px] uppercase font-bold tracking-wider">
-                    Internal Administrator Notes (Private)
+                    {t('sales.developer.internalAdminNotes', undefined, 'Internal Administrator Notes (Private)')}
                   </span>
                   <div className="text-slate-300 whitespace-pre-wrap leading-relaxed">
                     {inspectPartner.admin_notes || (
-                      <span className="text-slate-500 italic">No internal administrator notes recorded.</span>
+                      <span className="text-slate-500 italic">{t('sales.developer.noAdminNotes', undefined, 'No internal administrator notes recorded.')}</span>
                     )}
                   </div>
                 </div>
@@ -524,13 +526,13 @@ export const DeveloperSalesPartners: React.FC = () => {
               <div>
                 <h3 className="font-semibold text-white mb-2 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  Audit History
+                  {t('sales.developer.auditLogsTitle')}
                 </h3>
                 {loadingAuditLogs ? (
-                  <div className="p-6 text-center text-slate-500">Loading audit history...</div>
+                  <div className="p-6 text-center text-slate-500">{t('sales.developer.loadingAuditHistory', undefined, 'Loading audit history...')}</div>
                 ) : auditLogs.length === 0 ? (
                   <div className="p-4 bg-slate-950 rounded-xl text-center text-slate-500 border border-slate-800">
-                    No audit records logged for this partner.
+                    {t('sales.developer.noAuditLogs')}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -545,11 +547,11 @@ export const DeveloperSalesPartners: React.FC = () => {
                         </div>
                         {log.reason && (
                           <div className="text-slate-300 bg-slate-900/60 p-2 rounded border border-slate-800">
-                            Reason: {log.reason}
+                            {t('sales.developer.reasonPrefix', undefined, 'Reason')}: {log.reason}
                           </div>
                         )}
                         <div className="text-slate-500 text-[10px]">
-                          Transition: {log.previous_status || 'none'} &rarr; {log.new_status}
+                          {t('sales.developer.transitionPrefix', undefined, 'Transition')}: {log.previous_status || 'none'} &rarr; {log.new_status}
                         </div>
                       </div>
                     ))}
@@ -563,7 +565,7 @@ export const DeveloperSalesPartners: React.FC = () => {
                 onClick={() => setInspectPartner(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium cursor-pointer"
               >
-                Close
+                {t('common.close', undefined, 'Close')}
               </button>
             </div>
           </div>
@@ -578,7 +580,7 @@ export const DeveloperSalesPartners: React.FC = () => {
             className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full shadow-2xl p-5 space-y-4 text-xs"
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-sm font-bold text-white">Change Partner Status</h2>
+              <h2 className="text-sm font-bold text-white">{t('sales.developer.changePartnerStatus', undefined, 'Change Partner Status')}</h2>
               <button
                 type="button"
                 onClick={() => setStatusTargetPartner(null)}
@@ -590,19 +592,19 @@ export const DeveloperSalesPartners: React.FC = () => {
 
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 text-[11px]">
               <div>
-                <span className="text-slate-500">Applicant: </span>
+                <span className="text-slate-500">{t('sales.developer.applicantLabel', undefined, 'Applicant')}: </span>
                 <strong className="text-white">{statusTargetPartner.user?.name}</strong>{' '}
                 <span className="text-slate-400">({statusTargetPartner.user?.email})</span>
               </div>
               {statusTargetPartner.agency_name && (
                 <div>
-                  <span className="text-slate-500">Agency / Entity: </span>
+                  <span className="text-slate-500">{t('sales.developer.agencyEntityLabel', undefined, 'Agency / Entity')}: </span>
                   <span className="text-amber-400 font-medium">{statusTargetPartner.agency_name}</span>
                 </div>
               )}
               {statusTargetPartner.application_notes && (
                 <div>
-                  <span className="text-slate-500 block">Applicant Submission:</span>
+                  <span className="text-slate-500 block">{t('sales.developer.applicantSubmissionLabel', undefined, 'Applicant Submission')}:</span>
                   <p className="text-slate-300 italic bg-slate-900/60 p-2 rounded border border-slate-800/80 mt-1 whitespace-pre-wrap max-h-24 overflow-y-auto">
                     {statusTargetPartner.application_notes}
                   </p>
@@ -611,38 +613,38 @@ export const DeveloperSalesPartners: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-1 font-medium">New Status</label>
+              <label className="block text-slate-400 mb-1 font-medium">{t('sales.developer.newStatusLabel', undefined, 'New Status')}</label>
               <select
                 value={targetStatus}
                 onChange={(e) => setTargetStatus(e.target.value as SalesPartnerStatus)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs focus:outline-none focus:border-emerald-500"
               >
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="pending">Pending</option>
-                <option value="rejected">Rejected</option>
+                <option value="active">{t('sales.developer.statusActive', undefined, 'Active')}</option>
+                <option value="suspended">{t('sales.developer.statusSuspended', undefined, 'Suspended')}</option>
+                <option value="pending">{t('sales.developer.statusPending', undefined, 'Pending')}</option>
+                <option value="rejected">{t('sales.developer.statusRejected', undefined, 'Rejected')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-slate-400 mb-1 font-medium">
-                Reason {(targetStatus === 'suspended' || targetStatus === 'rejected') && '(Required)'}
+                {t('sales.developer.reasonLabel', undefined, 'Reason')} {(targetStatus === 'suspended' || targetStatus === 'rejected') && t('common.requiredParen', undefined, '(Required)')}
               </label>
               <textarea
                 value={statusReason}
                 onChange={(e) => setStatusReason(e.target.value)}
-                placeholder="Reason for changing partner status..."
+                placeholder={t('sales.developer.statusReasonPlaceholder', undefined, 'Reason for changing partner status...')}
                 rows={2}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-1 font-medium">Admin Notes (Internal)</label>
+              <label className="block text-slate-400 mb-1 font-medium">{t('sales.developer.adminNotesLabel', undefined, 'Admin Notes (Internal)')}</label>
               <textarea
                 value={statusAdminNotes}
                 onChange={(e) => setStatusAdminNotes(e.target.value)}
-                placeholder="Internal notes visible to admins..."
+                placeholder={t('sales.developer.adminNotesPlaceholder', undefined, 'Internal notes visible to admins...')}
                 rows={2}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs focus:outline-none focus:border-emerald-500"
               />
@@ -654,14 +656,14 @@ export const DeveloperSalesPartners: React.FC = () => {
                 onClick={() => setStatusTargetPartner(null)}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 type="submit"
                 disabled={updatingStatus}
                 className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg disabled:opacity-50"
               >
-                {updatingStatus ? 'Updating...' : 'Confirm'}
+                {updatingStatus ? t('sales.developer.updating', undefined, 'Updating...') : t('common.confirm', undefined, 'Confirm')}
               </button>
             </div>
           </form>
@@ -678,7 +680,7 @@ export const DeveloperSalesPartners: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Percent className="w-4 h-4 text-amber-400" />
-                <h2 className="text-sm font-bold text-white">Configure Commission Rate Overrides</h2>
+                <h2 className="text-sm font-bold text-white">{t('sales.developer.adjustRatesTitle')}</h2>
               </div>
               <button
                 type="button"
@@ -697,7 +699,7 @@ export const DeveloperSalesPartners: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">First-Order Commission Rate (%)</label>
+                <label className="block text-slate-300 mb-1 font-medium">{t('sales.developer.firstOrderRateLabel')}</label>
                 <input
                   type="number"
                   step="0.1"
@@ -711,7 +713,7 @@ export const DeveloperSalesPartners: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">Repeat-Order Commission Rate (%)</label>
+                <label className="block text-slate-300 mb-1 font-medium">{t('sales.developer.repeatOrderRateLabel')}</label>
                 <input
                   type="number"
                   step="0.1"
@@ -725,7 +727,7 @@ export const DeveloperSalesPartners: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">Flat Custom Commission Rate (%)</label>
+                <label className="block text-slate-300 mb-1 font-medium">{t('sales.developer.customRateLabel')}</label>
                 <input
                   type="number"
                   step="0.1"
@@ -739,7 +741,7 @@ export const DeveloperSalesPartners: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">Reason for Override</label>
+                <label className="block text-slate-300 mb-1 font-medium">{t('sales.developer.reasonLabel')}</label>
                 <textarea
                   value={ratesReason}
                   onChange={(e) => setRatesReason(e.target.value)}
@@ -756,14 +758,14 @@ export const DeveloperSalesPartners: React.FC = () => {
                 onClick={() => setRatesTargetPartner(null)}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
               >
-                Cancel
+                {t('sales.commissions.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={updatingRates}
                 className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg disabled:opacity-50"
               >
-                {updatingRates ? 'Saving...' : 'Save Rates'}
+                {updatingRates ? t('sales.developer.saving') : t('sales.developer.saveRates')}
               </button>
             </div>
           </form>

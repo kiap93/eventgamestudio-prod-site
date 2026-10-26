@@ -35,13 +35,13 @@ describe('Admin Panel Register New System Game Flow', () => {
     localGamesCache.clear();
   });
 
-  test('1. Baseline platform games only auto-seed catch-brand, reaction-tap, and memory-match', async () => {
+  test('1. Baseline platform games auto-seed catch-brand, reaction-tap, memory-match, and match-3', async () => {
     const baselineTypes = BASELINE_PLATFORM_GAMES.map((g) => g.game_type);
     expect(baselineTypes).toContain('catch-brand');
     expect(baselineTypes).toContain('reaction-tap');
     expect(baselineTypes).toContain('memory-match');
+    expect(baselineTypes).toContain('match-3');
     expect(baselineTypes).not.toContain('speed-quiz');
-    expect(baselineTypes).not.toContain('match-3');
 
     // CATALOG_GAMES contains definitions for reference
     const catalogTypes = CATALOG_GAMES.map((g) => g.game_type);
@@ -53,8 +53,7 @@ describe('Admin Panel Register New System Game Flow', () => {
     expect(gameTypes).toContain('catch-brand');
     expect(gameTypes).toContain('reaction-tap');
     expect(gameTypes).toContain('memory-match');
-    // Match-3 is NOT pre-registered in baseline games
-    expect(gameTypes).not.toContain('match-3');
+    expect(gameTypes).toContain('match-3');
     expect(gameTypes).not.toContain('speed-quiz');
   });
 
@@ -103,44 +102,12 @@ describe('Admin Panel Register New System Game Flow', () => {
       { key: 'reaction-tap', name: 'Formula Reaction Lights', status: 'Registered' },
       { key: 'memory-match', name: 'Brand Memory Match', status: 'Registered' },
       { key: 'speed-quiz', name: 'Event Trivia Speed Quiz', status: 'Available' },
-      { key: 'match-3', name: 'Match-3', status: 'Available' },
+      { key: 'match-3', name: 'Match-3', status: 'Registered' },
     ]);
   });
 
-  test('4. Registering Match-3 via createPlatformGame succeeds, seeds themes and pricing', async () => {
-    const newGame = await createPlatformGame({
-      name: 'Match-3',
-      slug: 'match-3',
-      game_type: 'match-3',
-      description:
-        'Swap matching tiles to create combinations, trigger special tiles, build combos, and achieve the highest score before time runs out.',
-      icon_name: 'Sparkles',
-      status: 'active',
-    });
-
-    expect(newGame).toBeDefined();
-    expect(newGame.id).toBeDefined();
-    expect(newGame.name).toBe('Match-3');
-    expect(newGame.slug).toBe('match-3');
-    expect(newGame.game_type).toBe('match-3');
-    expect(newGame.icon_name).toBe('Sparkles');
-    expect(newGame.status).toBe('active');
-
-    // Verify themes were seeded for this game
-    const themes = await getSystemThemesByGameId(newGame.id);
-    expect(themes.length).toBeGreaterThan(0);
-
-    // Verify pricing tiers were seeded
-    const pricing = localGamePricingCache.get(newGame.id);
-    expect(pricing).toBeDefined();
-    expect(pricing!.length).toBeGreaterThan(0);
-
-    // Verify subsequent getAllPlatformGames now reflects match-3 as registered
-    const gamesAfter = await getAllPlatformGames();
-    const typesAfter = new Set(gamesAfter.map((g) => g.game_type));
-    expect(typesAfter.has('match-3')).toBe(true);
-
-    // Check conflict protection: attempting to register match-3 again throws GameConflictError
+  test('4. Conflict protection: attempting to register an already registered engine throws GameConflictError', async () => {
+    // Attempting to register already-registered match-3 throws GameConflictError
     let threwConflict = false;
     try {
       await createPlatformGame({

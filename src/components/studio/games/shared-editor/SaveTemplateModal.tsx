@@ -1,6 +1,6 @@
 import { useLocalization } from '../../../../context/LocalizationContext';
 /**
- * Shared Visual Editor Engine - Save Template Modal
+ * Shared Visual Editor Engine - {t('editor.saveTemplateBtn', undefined, 'Save Template')} Modal
  * Enables naming, categorizing, and locally saving the current layout as a reusable template.
  */
 import React, { useState } from 'react';

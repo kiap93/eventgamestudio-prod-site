@@ -243,19 +243,21 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         if (quoteRes.ok) {
           const quoteData = await quoteRes.json();
           const calc = quoteData.calculation;
-          const p = Number(calc?.eventPrice);
-          if (calc && !isNaN(p) && p > 0) {
-            const curr = calc.currency || getCurrencyForCountry((currentOrganization as any)?.country_code) || 'USD';
+          const p = Number(quoteData.event_price ?? calc?.eventPrice);
+          if (!isNaN(p) && p > 0) {
+            // Authoritative currency resolution: Always prefer quoteData.currency or calc.currency
+            // NEVER override resolved tier currency with organization country default!
+            const curr = (quoteData.currency || calc?.currency || getCurrencyForCountry((currentOrganization as any)?.country_code) || 'USD').toUpperCase();
             pricingCacheRef.current.set(cacheKey, {
               status: 'available',
               price: p,
               currency: curr,
-              ruleLabel: calc.ruleLabel || '',
+              ruleLabel: quoteData.pricing_rule_label || quoteData.pricingRuleLabel || calc?.ruleLabel || '',
             });
             setConfigPricingStatus('available');
             setConfigPrice(p);
             setConfigCurrency(curr);
-            setConfigRuleLabel(calc.ruleLabel || '');
+            setConfigRuleLabel(quoteData.pricing_rule_label || quoteData.pricingRuleLabel || calc?.ruleLabel || '');
             setConfigPricingError(null);
           } else {
             pricingCacheRef.current.set(cacheKey, { status: 'unavailable' });
@@ -340,6 +342,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const activeCurrency =
     createdEvent?.event_currency ||
     (activeCalculation as any)?.currency ||
+    configCurrency ||
     (wallet as any)?.currency ||
     getCurrencyForCountry((currentOrganization as any)?.country_code) ||
     'USD';
@@ -527,8 +530,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       }
 
       const quoteData = await quoteRes.json();
+      const resolvedCurrency = (quoteData.currency || quoteData.calculation?.currency || configCurrency || 'USD').toUpperCase();
       if (quoteData.calculation) {
-        setActiveCalculation(quoteData.calculation);
+        setActiveCalculation({
+          ...quoteData.calculation,
+          currency: resolvedCurrency,
+        });
+      }
+      if (resolvedCurrency) {
+        setConfigCurrency(resolvedCurrency);
       }
       if (quoteData.wallet) {
         setWallet(quoteData.wallet);
@@ -639,6 +649,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           status: 'pending_payment',
           event_timezone: eventTimezone,
           country_code: (currentOrganization as any)?.country_code || undefined,
+          event_price: configPrice || undefined,
+          event_currency: configCurrency || undefined,
         }),
       });
 

@@ -28,3 +28,4 @@ export * from './salesAttribution.js';
 export * from './salesCommissions.js';
 export * from './salesDashboard.js';
 export * from './invoices.js';
+export * from './dbMetrics.js';

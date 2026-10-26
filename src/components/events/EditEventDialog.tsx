@@ -8,6 +8,7 @@ import {
   formatEventDateRange,
   getTodayDateString,
   isDateBefore,
+  canDeleteEvent,
 } from '../../lib/dateUtils';
 import { SUPPORTED_TIMEZONES, resolveEventTimezone } from '../../lib/countryUtils';
 import { CustomDatePicker } from '../common/CustomDatePicker';
@@ -28,6 +29,7 @@ import {
   Globe,
   ChevronDown,
   Mail,
+  Trash2,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -49,6 +51,7 @@ interface EditEventDialogProps {
   userRole?: string;
   onClose: () => void;
   onEventUpdated: (updatedEvent: any) => void;
+  onDelete?: (eventId: string) => void;
 }
 
 export const EditEventDialog: React.FC<EditEventDialogProps> = ({
@@ -57,6 +60,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
   userRole,
   onClose,
   onEventUpdated,
+  onDelete,
 }) => {
   const { t } = useLocalization();
   const { settings } = usePlatformContactSettings();
@@ -126,6 +130,8 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
   if (!isOpen || !event) return null;
 
   const isPaid = (event?.payment_status || '').toUpperCase() === 'PAID';
+  const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
+  const deleteEligibility = event?.deletion_eligibility || canDeleteEvent(event);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,7 +227,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-400 font-mono">
-                Token: {event.public_token}
+                {t('event.tokenLabel', undefined, 'Token')}: {event.public_token}
               </p>
             </div>
           </div>
@@ -254,7 +260,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                     )}
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Automatic system lifecycle transitions (Live window activation, High score tracking, and Completion) continue to operate automatically.
+                    {t('event.autoLifecycleNote', undefined, 'Automatic system lifecycle transitions (Live window activation, High score tracking, and Completion) continue to operate automatically.')}
                   </p>
                 </div>
               </div>
@@ -279,7 +285,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               <div className="text-xs text-slate-300">
                 <span className="font-semibold text-slate-100">{t('showcase.showcasePage', undefined, 'Event Showcase Page')}</span>
                 <p className="text-[11px] text-slate-400">
-                  Manage branding, photos, and video media on the dedicated full-page showcase.
+                  {t('showcase.manageBrandingMediaDesc', undefined, 'Manage branding, photos, and video media on the dedicated full-page showcase.')}
                 </p>
               </div>
             </div>
@@ -341,7 +347,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               </div>
               {isPaid && (
                 <p className="text-[11px] text-slate-500">
-                  Event name is locked after payment to preserve live attendee branding.
+                  {t('event.eventNameLockedNote', undefined, 'Event name is locked after payment to preserve live attendee branding.')}
                 </p>
               )}
             </div>
@@ -363,7 +369,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 <span className="text-[11px] text-slate-500">
                   {isPaid
                     ? t('event.lockedBadge', undefined, 'Theme locked after payment')
-                    : 'Switch live theme without breaking URL'}
+                    : t('event.switchLiveThemeHint', undefined, 'Switch live theme without breaking URL')}
                 </span>
               </div>
 
@@ -428,7 +434,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                               {isSelected ? (
                                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                   {isPaid ? <Lock className="w-2.5 h-2.5" /> : <Check className="w-3 h-3 text-amber-400" />}
-                                  <span>{isPaid ? 'Active Theme (Locked)' : 'Selected'}</span>
+                                  <span>{isPaid ? t('event.activeThemeLocked', undefined, 'Active Theme (Locked)') : t('common.selected', undefined, 'Selected')}</span>
                                 </div>
                               ) : isPaid ? (
                                 <Lock className="w-3 h-3 text-slate-600" />
@@ -443,7 +449,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               )}
               {isPaid && (
                 <p className="text-[11px] text-slate-500">
-                  Game theme is locked to preserve live tournament gameplay and branded assets.
+                  {t('event.themeLockedNote', undefined, 'Game theme is locked to preserve live tournament gameplay and branded assets.')}
                 </p>
               )}
             </div>
@@ -614,7 +620,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               </div>
               {isPaid && (
                 <p className="text-[11px] text-slate-500">
-                  Status transitions are automated by the platform schedule (Setup Day, Live Window, and Expiration).
+                  {t('event.statusTransitionsAutomatedNote', undefined, 'Status transitions are automated by the platform schedule (Setup Day, Live Window, and Expiration).')}
                 </p>
               )}
             </div>
@@ -658,7 +664,22 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 </>
               ) : (
                 <>
-                  <div />
+                  <div>
+                    {deleteEligibility.canDelete && isOwnerOrAdmin && onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onDelete(event.id);
+                        }}
+                        className="px-3.5 py-2 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700/60 hover:border-red-500/30 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title={t('event.deleteEvent', undefined, 'Delete Event')}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{t('event.deleteEvent', undefined, 'Delete Event')}</span>
+                      </button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 justify-end">
                     <button
                       type="button"

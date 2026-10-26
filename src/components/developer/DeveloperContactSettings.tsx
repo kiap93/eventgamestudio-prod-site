@@ -203,11 +203,11 @@ export const DeveloperContactSettings: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
               <Sliders className="w-3 h-3" />
-              Platform Configuration
+              {t('developer.platformConfiguration', undefined, 'Platform Configuration')}
             </span>
             {isDirty && (
               <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider">
-                Unsaved Changes
+                {t('developer.unsavedChanges', undefined, 'Unsaved Changes')}
               </span>
             )}
           </div>
@@ -215,7 +215,7 @@ export const DeveloperContactSettings: React.FC = () => {
             <span>{t('developer.contactEnquiryVars', undefined, 'Contact & Enquiry Variables')}</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl">
-            Configure the central WhatsApp click-to-chat line, prefilled message, official enquiry email, support hours, and office location. Changes take effect across the public website immediately.
+            {t('developer.contactEnquiryVarsDesc', undefined, 'Configure the central WhatsApp click-to-chat line, prefilled message, official enquiry email, support hours, and office location. Changes take effect across the public website immediately.')}
           </p>
         </div>
 
@@ -355,7 +355,7 @@ export const DeveloperContactSettings: React.FC = () => {
                 className="px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${enquiriesLoading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <span>{t('common.refresh', undefined, 'Refresh')}</span>
               </button>
             </div>
           </div>
@@ -363,14 +363,14 @@ export const DeveloperContactSettings: React.FC = () => {
           {enquiriesLoading && enquiries.length === 0 ? (
             <div className="py-16 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
               <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
-              <span>{t('developer.loadingReceivedEnquiries', undefined, 'Loading received enquiries...')}</span>
+              <span>{t('developer.loadingEnquiries', undefined, 'Loading enquiries...')}</span>
             </div>
           ) : enquiries.length === 0 ? (
             <div className="p-12 text-center rounded-3xl bg-slate-900/50 border border-slate-800/80 space-y-3">
               <Inbox className="w-10 h-10 text-slate-600 mx-auto" />
               <h3 className="text-sm font-bold text-slate-300">{t('developer.noEnquiriesReceivedYet', undefined, 'No Enquiries Received Yet')}</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                When visitors or event agencies submit the Contact Us form, their enquiry details and ticket numbers will appear here immediately.
+                {t('developer.noEnquiriesReceivedDesc', undefined, 'When visitors or event agencies submit the Contact Us form, their enquiry details and ticket numbers will appear here immediately.')}
               </p>
             </div>
           ) : (
@@ -524,17 +524,17 @@ export const DeveloperContactSettings: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                  WhatsApp Contact Configuration
+                  {t('developer.whatsappContactConfigTitle', undefined, 'WhatsApp Contact Configuration')}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Controls the primary WhatsApp Click-to-Chat number, human-readable display, and prefilled message.
+                  {t('developer.whatsappContactConfigDesc', undefined, 'Controls the primary WhatsApp Click-to-Chat number, human-readable display, and prefilled message.')}
                 </p>
               </div>
             </div>
 
             <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-center">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live Direct Chat
+              {t('developer.liveDirectChat', undefined, 'Live Direct Chat')}
             </span>
           </div>
 
@@ -542,7 +542,7 @@ export const DeveloperContactSettings: React.FC = () => {
             {/* WhatsApp Number (Raw Digits) */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                WhatsApp Phone Number (Digits Only with Country Code)
+                {t('developer.whatsappDigitsOnlyLabel', undefined, 'WhatsApp Phone Number (Digits Only with Country Code)')}
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -556,14 +556,14 @@ export const DeveloperContactSettings: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                Used in <code className="text-emerald-400">https://wa.me/&lt;number&gt;</code>. Include international country code (e.g. <strong className="text-slate-400">60</strong> for Malaysia, <strong className="text-slate-400">65</strong> for Singapore) without plus sign or dashes.
+                {t('developer.whatsappDigitsOnlyHint', undefined, 'Used in https://wa.me/<number>. Include international country code (e.g. 60 for Malaysia, 65 for Singapore) without plus sign or dashes.')}
               </p>
             </div>
 
             {/* WhatsApp Display Label */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                WhatsApp Display Label (Formatted for Humans)
+                {t('developer.whatsappDisplayLabel', undefined, 'WhatsApp Display Label (Formatted for Humans)')}
               </label>
               <input
                 type="text"
@@ -574,14 +574,14 @@ export const DeveloperContactSettings: React.FC = () => {
                 required
               />
               <p className="text-[11px] text-slate-500">
-                The visual text shown to attendees and clients in the footer and contact page (e.g. <strong className="text-slate-400">+60 16-212 8913</strong>).
+                {t('developer.whatsappDisplayHint', undefined, 'The visual text shown to attendees and clients in the footer and contact page (e.g. +60 16-212 8913).')}
               </p>
             </div>
 
             {/* Prefilled Message */}
             <div className="md:col-span-2 space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Default Prefill WhatsApp Message
+                {t('developer.defaultPrefillMessageLabel', undefined, 'Default Prefill WhatsApp Message')}
               </label>
               <textarea
                 value={whatsappPrefill}
@@ -591,7 +591,7 @@ export const DeveloperContactSettings: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl p-3 text-sm text-white placeholder-slate-600 transition-colors leading-relaxed"
               />
               <p className="text-[11px] text-slate-500">
-                Automatically populates in the attendee&apos;s WhatsApp composer when they click the chat button.
+                {t('developer.defaultPrefillMessageHint', undefined, "Automatically populates in the attendee's WhatsApp composer when they click the chat button.")}
               </p>
             </div>
           </div>
@@ -601,7 +601,7 @@ export const DeveloperContactSettings: React.FC = () => {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                Live Preview & Validation
+                {t('developer.livePreviewValidation', undefined, 'Live Preview & Validation')}
               </span>
               <a
                 href={previewWhatsappUrl}
@@ -629,17 +629,17 @@ export const DeveloperContactSettings: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                  Enquiry Email & Operations Details
+                  {t('developer.enquiryEmailOpsTitle', undefined, 'Enquiry Email & Operations Details')}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Official correspondence email address, operating office region, and stated response commitments.
+                  {t('developer.enquiryEmailOpsDesc', undefined, 'Official correspondence email address, operating office region, and stated response commitments.')}
                 </p>
               </div>
             </div>
 
             <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-center">
               <Globe className="w-3 h-3" />
-              Regional Desk
+              {t('developer.regionalDesk', undefined, 'Regional Desk')}
             </span>
           </div>
 
@@ -647,7 +647,7 @@ export const DeveloperContactSettings: React.FC = () => {
             {/* Enquiry Email */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Official Enquiry Email Address
+                {t('developer.officialEnquiryEmailLabel', undefined, 'Official Enquiry Email Address')}
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -661,14 +661,14 @@ export const DeveloperContactSettings: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                Shown as the primary email contact on the public contact page and used for mailto links.
+                {t('developer.officialEnquiryEmailHint', undefined, 'Shown as the primary email contact on the public contact page and used for mailto links.')}
               </p>
             </div>
 
             {/* Office Location */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Office / Regional Location
+                {t('developer.officeRegionalLocationLabel', undefined, 'Office / Regional Location')}
               </label>
               <div className="relative">
                 <MapPin className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -682,14 +682,14 @@ export const DeveloperContactSettings: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                Displayed in the footer and contact page office information block.
+                {t('developer.officeRegionalLocationHint', undefined, 'Displayed in the footer and contact page office information block.')}
               </p>
             </div>
 
             {/* Support Hours */}
             <div className="md:col-span-2 space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Support Hours & Response Time Commitment
+                {t('developer.supportHoursLabel', undefined, 'Support Hours & Response Time Commitment')}
               </label>
               <div className="relative">
                 <Clock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -703,7 +703,7 @@ export const DeveloperContactSettings: React.FC = () => {
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                Shown to clients explaining operational coverage and expected response turnaround.
+                {t('developer.supportHoursHint', undefined, 'Shown to clients explaining operational coverage and expected response turnaround.')}
               </p>
             </div>
           </div>
@@ -711,7 +711,7 @@ export const DeveloperContactSettings: React.FC = () => {
           {/* Email Preview Link */}
           <div className="rounded-2xl p-4 bg-slate-950/80 border border-slate-800/80 flex items-center justify-between">
             <div className="text-xs text-slate-400">
-              <span className="font-semibold text-slate-300">Mailto Target: </span>
+              <span className="font-semibold text-slate-300">{t('developer.mailtoTargetLabel', undefined, 'Mailto Target:')} </span>
               <code className="text-amber-400 font-mono">{previewMailtoUrl}</code>
             </div>
             <a
@@ -729,44 +729,44 @@ export const DeveloperContactSettings: React.FC = () => {
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 space-y-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Public Surface Impact</span>
+            <span>{t('developer.publicSurfaceImpactTitle', undefined, 'Public Surface Impact')}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/60 space-y-1.5">
               <div className="font-bold text-white flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Landing Page Footer
+                {t('developer.landingPageFooterTitle', undefined, 'Landing Page Footer')}
               </div>
               <p className="text-slate-400 leading-relaxed">
-                Direct WhatsApp link and formatted display label dynamically mirror these variables.
+                {t('developer.landingPageFooterImpactDesc', undefined, 'Direct WhatsApp link and formatted display label dynamically mirror these variables.')}
               </p>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/60 space-y-1.5">
               <div className="font-bold text-white flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Dedicated Contact Page
+                {t('developer.dedicatedContactPageTitle', undefined, 'Dedicated Contact Page')}
               </div>
               <p className="text-slate-400 leading-relaxed">
-                VIP WhatsApp chat card, official enquiry email, support hours, and office address automatically sync.
+                {t('developer.dedicatedContactPageImpactDesc', undefined, 'VIP WhatsApp chat card, official enquiry email, support hours, and office address automatically sync.')}
               </p>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/60 space-y-1.5">
               <div className="font-bold text-white flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Attendee Direct Enquiries
+                {t('developer.attendeeDirectEnquiriesTitle', undefined, 'Attendee Direct Enquiries')}
               </div>
               <p className="text-slate-400 leading-relaxed">
-                Enquiries submitted via web form link directly to the operational contact and support desk.
+                {t('developer.attendeeDirectEnquiriesImpactDesc', undefined, 'Enquiries submitted via web form link directly to the operational contact and support desk.')}
               </p>
             </div>
           </div>
 
           {settings.updated_at && (
             <div className="pt-2 text-[11px] text-slate-500 text-right">
-              Last updated:{' '}
+              {t('developer.lastUpdatedLabel', undefined, 'Last updated:')}{' '}
               <span className="text-slate-400 font-mono">
                 {new Date(settings.updated_at).toLocaleString('en-SG', {
                   timeZone: 'Asia/Singapore',
@@ -788,7 +788,7 @@ export const DeveloperContactSettings: React.FC = () => {
               disabled={saving}
               className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
             >
-              Discard Changes
+              {t('common.discard', undefined, 'Discard Changes')}
             </button>
           )}
 

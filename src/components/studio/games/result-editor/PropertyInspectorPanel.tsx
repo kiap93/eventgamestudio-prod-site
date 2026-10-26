@@ -759,7 +759,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
 
               {/* ID info */}
               <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-800/80">
-                <span className="text-slate-500 font-medium">ID:</span>
+                <span className="text-slate-500 font-medium">{t('editor.idLabel', undefined, 'ID:')}</span>
                 <span className="font-mono text-slate-400 truncate max-w-[170px]">{selectedElement.id}</span>
               </div>
             </div>
@@ -1942,8 +1942,8 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 Logical canvas space is locked at <strong>1000 × 1000</strong> coordinates. Elements scale dynamically to any screen resolution.
               </p>
               <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400">
-                <span>Total Elements: <strong className="text-amber-300">{elements.length}</strong></span>
-                <span>Coordinates: <strong className="text-slate-200">1000 × 1000</strong></span>
+                <span>{t('editor.totalElements', undefined, 'Total Elements:')} <strong className="text-amber-300">{elements.length}</strong></span>
+                <span>{t('editor.coordinates', undefined, 'Coordinates:')} <strong className="text-slate-200">1000 × 1000</strong></span>
               </div>
             </div>
 
@@ -1951,7 +1951,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-3">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Plus className="w-3 h-3 text-amber-400" />
-                <span>Add Elements to Canvas</span>
+                <span>{t('editor.addElementsToCanvas', undefined, 'Add Elements to Canvas')}</span>
               </span>
 
               {/* CONTAINERS */}
@@ -2056,7 +2056,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-2.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Palette className="w-3 h-3 text-amber-400" />
-                <span>Screen Background</span>
+                <span>{t('editor.screenBackground', undefined, 'Screen Background')}</span>
               </span>
 
               <div className="space-y-1">
