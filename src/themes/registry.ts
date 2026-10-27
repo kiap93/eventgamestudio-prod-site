@@ -20,6 +20,12 @@ import {
   match3PrincessFairytaleTheme,
 } from './match-3';
 import {
+  desertQuickDrawTheme,
+  oceanTreasureHuntTheme,
+  DEFAULT_RANDOM_TARGET_THEME,
+  normalizeRandomTargetConfig,
+} from './random-target';
+import {
   isUUID,
   isStaleAssetUrl,
   isSystemTheme,
@@ -76,6 +82,9 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   'match-3-robot-friends': match3RobotFriendsTheme,
   'princess-fairytale': match3PrincessFairytaleTheme,
   'match-3-princess-fairytale': match3PrincessFairytaleTheme,
+  'random-target': desertQuickDrawTheme,
+  'desert-quick-draw': desertQuickDrawTheme,
+  'ocean-treasure-hunt': oceanTreasureHuntTheme,
   // Alias durian to default for seamless backwards-compatibility
   durian: defaultCatchBrandTheme,
 };
@@ -92,6 +101,15 @@ let currentActiveTheme: GameTheme = defaultCatchBrandTheme;
  */
 export function getDefaultThemeForGameType(gameType?: string | null): GameTheme {
   const clean = (gameType || '').toLowerCase().trim();
+  if (
+    clean === 'random-target' ||
+    clean.includes('random-target') ||
+    clean.includes('quick-draw') ||
+    clean.includes('treasure-hunt') ||
+    clean.includes('target')
+  ) {
+    return desertQuickDrawTheme;
+  }
   if (
     clean === 'match-3' ||
     clean.includes('match-3') ||
@@ -135,6 +153,9 @@ export function resolveThemeBaseId(raw: any): string {
         return THEME_ASSET_ALIASES[regMatch.id] || regMatch.id;
       }
     }
+    if (clean.includes('quick-draw') || clean.includes('desert')) return 'desert-quick-draw';
+    if (clean.includes('treasure-hunt') || clean.includes('ocean')) return 'ocean-treasure-hunt';
+    if (clean === 'random-target' || clean.includes('random-target') || clean.includes('target-arcade')) return 'desert-quick-draw';
     if (clean === 'durian') return 'default';
     if (clean === 'match-3' || clean === 'match3' || clean.includes('match-3')) return 'match-3';
     if (clean.includes('christmas')) return 'christmas';
@@ -175,6 +196,9 @@ export function resolveThemeBaseId(raw: any): string {
     if (slug.includes('carnival')) return 'carnival';
     if (slug.includes('halloween') || slug.includes('spooky')) return 'halloween';
     if (slug.includes('mango')) return 'mango';
+    if (slug.includes('quick-draw') || slug.includes('desert')) return 'desert-quick-draw';
+    if (slug.includes('treasure-hunt') || slug.includes('ocean')) return 'ocean-treasure-hunt';
+    if (slug.includes('random-target') || slug.includes('target-arcade')) return 'desert-quick-draw';
     if (slug.includes('memory')) return 'memory-match';
     if (slug.includes('reaction') || slug.includes('reflex')) return 'reaction-tap';
   }
@@ -182,6 +206,9 @@ export function resolveThemeBaseId(raw: any): string {
   // 3. Check raw.name
   const name = String(raw.name || raw.branding?.gameTitle || '').toLowerCase().trim();
   if (name) {
+    if (name.includes('quick draw') || name.includes('desert quick draw')) return 'desert-quick-draw';
+    if (name.includes('treasure hunt') || name.includes('ocean treasure hunt')) return 'ocean-treasure-hunt';
+    if (name.includes('random target')) return 'desert-quick-draw';
     if (name.includes('match-3') || name.includes('match 3')) return 'match-3';
     if (name.includes('christmas')) return 'christmas';
     if (name.includes('lunar') || name.includes('chinese new year') || name.includes('cny') || name.includes('angpow') || name.includes('fortune')) return 'cny';
@@ -202,6 +229,9 @@ export function resolveThemeBaseId(raw: any): string {
         return THEME_ASSET_ALIASES[regMatch.id] || regMatch.id;
       }
     }
+    if (id.includes('quick-draw') || id.includes('desert')) return 'desert-quick-draw';
+    if (id.includes('treasure-hunt') || id.includes('ocean')) return 'ocean-treasure-hunt';
+    if (id.includes('random-target')) return 'desert-quick-draw';
     if (id === 'match-3' || id.includes('match-3')) return 'match-3';
     if (id.includes('christmas')) return 'christmas';
     if (id.includes('chinese-new-year') || id.includes('cny') || id.includes('lunar')) return 'cny';
@@ -218,6 +248,9 @@ export function resolveThemeBaseId(raw: any): string {
   if (rawBase) {
     if (!isUUID(rawBase)) {
       if (rawBase === 'durian') return 'default';
+      if (rawBase.includes('quick-draw') || rawBase.includes('desert')) return 'desert-quick-draw';
+      if (rawBase.includes('treasure-hunt') || rawBase.includes('ocean')) return 'ocean-treasure-hunt';
+      if (rawBase.includes('random-target')) return 'desert-quick-draw';
       if (rawBase === 'match-3' || rawBase.includes('match-3')) return 'match-3';
       if (THEME_ASSET_ALIASES[rawBase]) return THEME_ASSET_ALIASES[rawBase];
       if (THEME_REGISTRY[rawBase]) return rawBase;
@@ -241,6 +274,9 @@ export function resolveThemeBaseId(raw: any): string {
   const gameSlug = String(raw.game_slug || (raw.games?.slug) || '').toLowerCase();
   const gameType = String(raw.game_type || raw.game_id || '').toLowerCase();
 
+  if (gameSlug.includes('random-target') || gameType.includes('random-target') || gameSlug.includes('quick-draw') || gameType.includes('quick-draw') || gameSlug.includes('treasure-hunt') || gameType.includes('treasure-hunt')) {
+    return 'desert-quick-draw';
+  }
   if (gameSlug.includes('match-3') || gameType.includes('match-3') || gameSlug.includes('match3') || gameType.includes('match3')) {
     return 'match-3';
   }
@@ -278,7 +314,9 @@ export function normalizeGameTheme(raw: any): GameTheme {
 
   const resolvedGameType =
     (explicitCandidate ? normalizeGameType(explicitCandidate) : null) ||
-    (canonicalBaseId === 'match-3' || (raw.slug || '').includes('match-3') || (raw.slug || '').includes('match3') || (raw.name || '').toLowerCase().includes('match-3') || (raw.name || '').toLowerCase().includes('match 3') || (raw.name || '').toLowerCase().includes('cascade') || (raw.game_config?.tileDefinitions || raw.game_config?.match3Config || (raw.game_config?.rows && raw.game_config?.cols) || raw.game_config?.tileTypesCount !== undefined || raw.game_config?.minimumMatch !== undefined)
+    (canonicalBaseId === 'random-target' || canonicalBaseId === 'desert-quick-draw' || canonicalBaseId === 'ocean-treasure-hunt' || (raw.slug || '').includes('random-target') || (raw.slug || '').includes('quick-draw') || (raw.slug || '').includes('treasure-hunt') || (raw.name || '').toLowerCase().includes('random target') || (raw.name || '').toLowerCase().includes('quick draw') || (raw.name || '').toLowerCase().includes('treasure hunt') || (raw.game_config?.positiveTarget || raw.game_config?.negativeTarget || raw.game_config?.interactionTool)
+      ? 'random-target'
+      : canonicalBaseId === 'match-3' || (raw.slug || '').includes('match-3') || (raw.slug || '').includes('match3') || (raw.name || '').toLowerCase().includes('match-3') || (raw.name || '').toLowerCase().includes('match 3') || (raw.name || '').toLowerCase().includes('cascade') || (raw.game_config?.tileDefinitions || raw.game_config?.match3Config || (raw.game_config?.rows && raw.game_config?.cols) || raw.game_config?.tileTypesCount !== undefined || raw.game_config?.minimumMatch !== undefined)
       ? 'match-3'
       : canonicalBaseId === 'memory-match' || canonicalBaseId === 'memory-carnival' || (raw.slug || '').includes('memory') || (raw.name || '').toLowerCase().includes('memory') || (raw.game_config?.cardPairs || raw.game_config?.memoryConfig)
       ? 'memory-match'
@@ -286,11 +324,14 @@ export function normalizeGameTheme(raw: any): GameTheme {
       ? 'reaction-tap'
       : raw.game_type || raw.game_slug || raw.games?.slug || raw.games?.game_type || 'catch-brand');
 
+  const isRandomTarget = resolvedGameType === 'random-target' || canonicalBaseId === 'random-target' || canonicalBaseId === 'desert-quick-draw' || canonicalBaseId === 'ocean-treasure-hunt';
   const isMatch3 = resolvedGameType === 'match-3' || canonicalBaseId === 'match-3';
   const isMemory = resolvedGameType === 'memory-match' || canonicalBaseId === 'memory-match' || canonicalBaseId === 'memory-carnival';
   const isReaction = resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time' || canonicalBaseId === 'reaction-tap' || canonicalBaseId === 'reaction-time';
 
-  const basePreset = isMatch3
+  const basePreset = isRandomTarget
+    ? (canonicalBaseId === 'ocean-treasure-hunt' ? oceanTreasureHuntTheme : desertQuickDrawTheme)
+    : isMatch3
     ? match3Theme
     : isMemory
     ? memoryMatchTheme
@@ -319,6 +360,9 @@ export function normalizeGameTheme(raw: any): GameTheme {
       id === 'match-3' ||
       id === 'memory-match' ||
       id === 'reaction-tap' ||
+      id === 'random-target' ||
+      id === 'desert-quick-draw' ||
+      id === 'ocean-treasure-hunt' ||
       slug === 'christmas-rush' ||
       slug === 'cny-fortune' ||
       slug === 'carnival' ||
@@ -327,7 +371,9 @@ export function normalizeGameTheme(raw: any): GameTheme {
       slug === 'spooky-halloween' ||
       slug === 'mango-festival' ||
       slug === 'mango-harvest' ||
-      slug === 'match-3'
+      slug === 'match-3' ||
+      slug === 'desert-quick-draw' ||
+      slug === 'ocean-treasure-hunt'
     ))
   );
 
@@ -361,6 +407,9 @@ export function normalizeGameTheme(raw: any): GameTheme {
   if (isMatch3 && (!background_url || background_url.includes('/catch-brand/') || background_url.includes('/memory-match/') || background_url.includes('/reaction-tap/'))) {
     background_url = '/assets/games/match-3/themes/default/background.png';
   }
+  if (isRandomTarget && (!background_url || background_url.includes('/catch-brand/') || background_url.includes('/memory-match/') || background_url.includes('/reaction-tap/') || background_url.includes('/match-3/'))) {
+    background_url = basePreset.background_url || '/assets/games/random-target/themes/desert-quick-draw/background.png';
+  }
 
   let rawGameConfig = raw.game_config;
   if (typeof rawGameConfig === 'string') {
@@ -372,7 +421,12 @@ export function normalizeGameTheme(raw: any): GameTheme {
   }
 
   let game_config: Record<string, any> | undefined = undefined;
-  if (rawGameConfig && typeof rawGameConfig === 'object') {
+  if (isRandomTarget) {
+    game_config = {
+      ...normalizeRandomTargetConfig(rawGameConfig, basePreset.game_config as any),
+      ...(rawGameConfig?.screens ? { screens: rawGameConfig.screens } : {}),
+    };
+  } else if (rawGameConfig && typeof rawGameConfig === 'object') {
     game_config = {
       ...(basePreset.game_config || {}),
       ...rawGameConfig,
@@ -424,7 +478,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
   // For system themes or when imageUrl is stale/empty, resolve from canonical asset hierarchy.
   // For custom organization themes, preserve explicit custom uploaded assets.
   let basket_config: ThemeBasketConfig | null = null;
-  if (!isMemory && !isReaction && !isMatch3) {
+  if (!isMemory && !isReaction && !isMatch3 && !isRandomTarget) {
     let basketImg: string;
     if (isSystem) {
       basketImg = resolveGameAsset({ gameType: 'catch-brand', themeId: canonicalAssetThemeId, assetType: 'catcher' }) ||
@@ -472,7 +526,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
         isHazard: false,
         isBonus: false,
       }))
-    : (isReaction || isMatch3)
+    : (isReaction || isMatch3 || isRandomTarget)
     ? []
     : rawItems.map((item: any, index: number) => {
         const points = item.points !== undefined ? Number(item.points) : (index === 0 ? 10 : index === 1 ? -10 : 50);
@@ -576,17 +630,17 @@ export function normalizeGameTheme(raw: any): GameTheme {
 
   const goodEffectiveImg = (firstGood && firstGood.imageUrl)
     ? firstGood.imageUrl
-    : (isMemory || isReaction || isMatch3 ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: false, isBonus: false }));
+    : (isMemory || isReaction || isMatch3 || isRandomTarget ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: false, isBonus: false }));
 
   const badEffectiveImg = (firstBad && firstBad.imageUrl)
     ? firstBad.imageUrl
-    : (isMemory || isReaction || isMatch3 ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: true, isBonus: false }));
+    : (isMemory || isReaction || isMatch3 || isRandomTarget ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: true, isBonus: false }));
 
   const bonusEffectiveImg = (firstBonus && firstBonus.imageUrl)
     ? firstBonus.imageUrl
-    : (isMemory || isReaction || isMatch3 ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: false, isBonus: true }));
+    : (isMemory || isReaction || isMatch3 || isRandomTarget ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: false, isBonus: true }));
 
-  const catcherEffectiveImg = basket_config?.imageUrl || ((isMemory || isReaction || isMatch3) ? '' : resolveThemeDefaultBasketImage({ ...raw, base_theme_id, game_type: resolvedGameType }));
+  const catcherEffectiveImg = basket_config?.imageUrl || ((isMemory || isReaction || isMatch3 || isRandomTarget) ? '' : resolveThemeDefaultBasketImage({ ...raw, base_theme_id, game_type: resolvedGameType }));
 
   const isSystemThemeResult = Boolean(
     raw.is_system ||
@@ -604,15 +658,18 @@ export function normalizeGameTheme(raw: any): GameTheme {
       id === 'memory-match' ||
       id === 'memory-carnival' ||
       id === 'reaction-tap' ||
-      id === 'reaction-time'
+      id === 'reaction-time' ||
+      id === 'random-target' ||
+      id === 'desert-quick-draw' ||
+      id === 'ocean-treasure-hunt'
     ))
   );
 
   return {
     id,
     organization_id: raw.organization_id,
-    game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'match-3' ? 'match-3' : resolvedGameType === 'memory-match' ? 'memory-match' : resolvedGameType === 'reaction-tap' ? 'reaction-tap' : 'catch-brand'),
-    game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'match-3' ? 'Match-3 Cascade' : resolvedGameType === 'memory-match' ? 'Brand Memory Match' : resolvedGameType === 'reaction-tap' ? 'Reaction Tap' : 'Catch the Brand'),
+    game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'random-target' ? 'game-random-target' : resolvedGameType === 'match-3' ? 'match-3' : resolvedGameType === 'memory-match' ? 'memory-match' : resolvedGameType === 'reaction-tap' ? 'reaction-tap' : 'catch-brand'),
+    game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'random-target' ? 'Random Target Arcade' : resolvedGameType === 'match-3' ? 'Match-3 Cascade' : resolvedGameType === 'memory-match' ? 'Brand Memory Match' : resolvedGameType === 'reaction-tap' ? 'Reaction Tap' : 'Catch the Brand'),
     game_slug: raw.game_slug || raw.games?.slug || resolvedGameType,
     game_type: resolvedGameType,
     is_system: isSystemThemeResult,
@@ -683,6 +740,9 @@ export function normalizeGameTheme(raw: any): GameTheme {
       if (!isSys) return false;
       if (gameSlugOrId) {
         const target = gameSlugOrId.toLowerCase();
+        if (target === 'random-target' || target === 'random_target' || target.includes('target') || target.includes('quick-draw') || target.includes('treasure-hunt')) {
+          return theme.game_slug === 'random-target' || theme.game_type === 'random-target' || theme.id === 'desert-quick-draw' || theme.id === 'ocean-treasure-hunt' || theme.id === 'random-target' || theme.base_theme_id === 'desert-quick-draw' || theme.base_theme_id === 'ocean-treasure-hunt';
+        }
         if (target === 'match-3' || target === 'match3') {
           return theme.game_slug === 'match-3' || theme.game_type === 'match-3' || theme.id === 'match-3' || theme.base_theme_id === 'match-3';
         }
@@ -693,7 +753,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
           return theme.game_slug === 'reaction-tap' || theme.game_type === 'reaction-tap' || theme.id === 'reaction-tap';
         }
         if (target === 'catch-brand' || target === 'catch') {
-          return (theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || (!theme.game_type && theme.id !== 'memory-match' && theme.id !== 'reaction-tap' && theme.id !== 'match-3')) && theme.id !== 'match-3';
+          return (theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || (!theme.game_type && theme.id !== 'memory-match' && theme.id !== 'reaction-tap' && theme.id !== 'match-3' && theme.id !== 'random-target' && theme.id !== 'desert-quick-draw' && theme.id !== 'ocean-treasure-hunt')) && theme.id !== 'match-3' && theme.id !== 'random-target';
         }
       }
       return true;

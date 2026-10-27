@@ -75,6 +75,7 @@ export const GameShell: React.FC<GameShellProps> = ({
     if (targetGameType === 'match-3') return getThemeById('match-3');
     if (targetGameType === 'memory-match') return getThemeById('memory-match');
     if (targetGameType === 'reaction-tap' || targetGameType === 'reaction-time') return getThemeById('reaction-time');
+    if (targetGameType === 'random-target') return getThemeById('desert-quick-draw');
     if (contextActiveTheme && getThemeGameType(contextActiveTheme, targetGameType) === targetGameType) return contextActiveTheme;
     return initActiveTheme();
   };

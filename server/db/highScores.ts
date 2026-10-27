@@ -27,6 +27,7 @@ import {
   resolveEventGameType,
   resolveAuthoritativeMemoryMatchConfig,
   resolveAuthoritativeCatchBrandConfig,
+  resolveAuthoritativeRandomTargetConfig,
 } from './events.js';
 import { executeWithResilience } from './supabaseResilience.js';
 import { isUUID, getThemeById } from './themes.js';
@@ -41,6 +42,11 @@ import {
   CATCH_BRAND_GAME_VERSION,
   CATCH_BRAND_SCORING_VERSION,
 } from '../games/catchBrandScoring.js';
+import {
+  validateRandomTargetResult,
+  RANDOM_TARGET_GAME_VERSION,
+  RANDOM_TARGET_SCORING_VERSION,
+} from '../games/randomTargetScoring.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -1157,16 +1163,50 @@ async function executeSubmitEventScore(
     metadata.matches = metadata.matches !== undefined ? Number(metadata.matches) : undefined;
     metadata.bestCombo = metadata.bestCombo !== undefined ? Number(metadata.bestCombo) : undefined;
     metadata.specialTilesCreated = metadata.specialTilesCreated !== undefined ? Number(metadata.specialTilesCreated) : undefined;
+  } else if (eventGameType === 'random-target') {
+    // Authoritative Random Target Arcade score handling
+    const rtConfig = await resolveAuthoritativeRandomTargetConfig(event, env);
+    const rawSubmittedScore =
+      typeof params.score === 'number' ? params.score : Number(params.score);
+
+    const validation = validateRandomTargetResult({
+      submittedScore: rawSubmittedScore,
+      metadata,
+      config: rtConfig,
+    });
+
+    if (!validation.isValid) {
+      const err: any = new Error(validation.reason || 'Invalid Random Target score data');
+      err.status = 422;
+      err.code = validation.code || 'INVALID_RANDOM_TARGET_SCORE';
+      throw err;
+    }
+
+    if (validation.expectedScore !== undefined) {
+      scoreNum = validation.expectedScore;
+    }
+
+    metadata.gameType = 'random-target';
+    metadata.gameVersion = metadata.gameVersion || RANDOM_TARGET_GAME_VERSION;
+    metadata.scoringVersion = metadata.scoringVersion || RANDOM_TARGET_SCORING_VERSION;
+    metadata.authoritativeDuration = rtConfig.gameDurationSeconds;
+    metadata.startingScore = rtConfig.startingScore;
+    metadata.positiveScore = rtConfig.positiveScore;
+    metadata.negativePenalty = rtConfig.negativePenalty;
+    metadata.allowNegativeScore = rtConfig.allowNegativeScore;
   }
 
-  // Validate score: must be a non-negative integer
-  if (isNaN(scoreNum) || scoreNum < 0) {
+  // Validate score: must be a valid integer (non-negative unless allowNegativeScore is enabled for random-target)
+  const canBeNegative =
+    eventGameType === 'random-target' && metadata.allowNegativeScore === true;
+  if (isNaN(scoreNum) || (!canBeNegative && scoreNum < 0)) {
     const err: any = new Error('Score must be a non-negative integer');
     err.status = 422;
+    err.code = 'INVALID_SCORE';
     throw err;
   }
-  // Sanity upper bound across all game types
-  if (scoreNum > 1000000) {
+  // Sanity upper/lower bound across all game types
+  if (scoreNum > 1000000 || scoreNum < -1000000) {
     const err: any = new Error('Score exceeds maximum allowed session threshold');
     err.status = 422;
     err.code = 'SCORE_EXCEEDS_MAXIMUM_POSSIBLE';

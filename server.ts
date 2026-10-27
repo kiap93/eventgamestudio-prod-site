@@ -8744,6 +8744,32 @@ app.get('/api/developer/sales-commissions', authenticateDeveloperAdmin, handleLi
 app.get('/api/admin/sales-commissions', authenticateDeveloperAdmin, handleListAdminCommissions);
 
 /**
+ * GET /api/developer/sales-commissions/settings
+ */
+app.get('/api/developer/sales-commissions/settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const settings = await getSalesCommissionSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT /api/developer/sales-commissions/settings
+ */
+app.put('/api/developer/sales-commissions/settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const admin = req.user!;
+    const settings = req.body || {};
+    const updated = await updateSalesCommissionSettings(settings, admin.id);
+    res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
  * GET /api/developer/sales-commissions/:id
  */
 app.get('/api/developer/sales-commissions/:id', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
@@ -8943,32 +8969,6 @@ app.post('/api/developer/sales-payouts/batches/:id/pay', authenticateDeveloperAd
     }
     const updated = await markPayoutBatchPaid(req.params.id, paymentReference.trim(), admin.id, notes);
     res.json({ success: true, batch: updated });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * GET /api/developer/sales-commissions/settings
- */
-app.get('/api/developer/sales-commissions/settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
-  try {
-    const settings = await getSalesCommissionSettings();
-    res.json({ success: true, settings });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * PUT /api/developer/sales-commissions/settings
- */
-app.put('/api/developer/sales-commissions/settings', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
-  try {
-    const admin = req.user!;
-    const settings = req.body || {};
-    const updated = await updateSalesCommissionSettings(settings, admin.id);
-    res.json({ success: true, settings: updated });
   } catch (err: any) {
     handleApiError(err, req, res);
   }

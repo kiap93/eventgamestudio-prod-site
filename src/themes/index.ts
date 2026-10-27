@@ -13,6 +13,7 @@ export * from './mango';
 export * from './memory-match';
 export * from './reaction-time';
 export * from './match-3';
+export * from './random-target';
 export * from './screenBackground';
 export * from './itemSizing';
 export * from './catcherSizing';

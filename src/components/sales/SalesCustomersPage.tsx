@@ -775,10 +775,16 @@ export const SalesCustomersPage: React.FC = () => {
                             <div>
                               <div className="font-bold text-white">
                                 {comm.order_type === 'first_order'
-                                  ? t('sales.customers.firstOrderRate')
+                                  ? t('sales.customers.firstOrderRate').replace(
+                                      '10%',
+                                      `${Math.round((comm.commission_rate ?? 0.10) * 10000) / 100}%`
+                                    )
                                   : comm.order_type === 'repeat_order'
-                                  ? t('sales.customers.repeatOrderRate')
-                                  : 'Opportunity Commission'}
+                                  ? t('sales.customers.repeatOrderRate').replace(
+                                      '5%',
+                                      `${Math.round((comm.commission_rate ?? 0.05) * 10000) / 100}%`
+                                    )
+                                  : `Opportunity (${Math.round((comm.commission_rate ?? 0.05) * 10000) / 100}%)`}
                               </div>
                               <div className="text-[11px] text-slate-400">
                                 {t('sales.customers.spendCol')}: {formatCurrency(comm.cash_collected_amount, comm.currency)} •{' '}

@@ -173,26 +173,41 @@ export const SalesCommissionsPage: React.FC = () => {
     }
   };
 
-  const getOrderTypeBadge = (orderType: string) => {
+  const formatRateBadgeLabel = (baseLabel: string, defaultPercent: number, actualRate?: number) => {
+    if (typeof actualRate === 'number' && Number.isFinite(actualRate)) {
+      const actualPercent = Math.round(actualRate * 10000) / 100;
+      if (Math.abs(actualPercent - defaultPercent) > 0.01) {
+        return baseLabel.replace(`${defaultPercent}%`, `${actualPercent}%`);
+      }
+    }
+    return baseLabel;
+  };
+
+  const getOrderTypeBadge = (orderType: string, commissionRate?: number) => {
     switch (orderType) {
       case 'first_order':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-            {t('sales.customers.firstOrderRate')}
+            {formatRateBadgeLabel(t('sales.customers.firstOrderRate'), 10, commissionRate)}
           </span>
         );
       case 'repeat_order':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-            {t('sales.customers.repeatOrderRate')}
+            {formatRateBadgeLabel(t('sales.customers.repeatOrderRate'), 5, commissionRate)}
           </span>
         );
-      case 'approved_opportunity':
+      case 'approved_opportunity': {
+        const oppPct =
+          typeof commissionRate === 'number' && Number.isFinite(commissionRate)
+            ? `${Math.round(commissionRate * 10000) / 100}%`
+            : '5%';
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-            Opportunity
+            Opportunity ({oppPct})
           </span>
         );
+      }
       default:
         return <span className="text-xs text-slate-400">{orderType}</span>;
     }
@@ -353,7 +368,7 @@ export const SalesCommissionsPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {getOrderTypeBadge(comm.order_type)}
+                        {getOrderTypeBadge(comm.order_type, comm.commission_rate)}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-300">
                         RM{Number(comm.cash_collected_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

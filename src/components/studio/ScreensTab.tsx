@@ -1,9 +1,10 @@
 import React from 'react';
-import { GameTheme, isMemoryMatchTheme, isReactionTheme, isMatch3Theme } from '../../themes';
+import { GameTheme, isMemoryMatchTheme, isReactionTheme, isMatch3Theme, isRandomTargetTheme } from '../../themes';
 import { MemoryMatchScreensCustomizer } from './games/MemoryMatchCustomizer';
 import { ReactionScreensCustomizer } from './games/ReactionGameCustomizer';
 import { CatchBrandScreensCustomizer } from './games/CatchBrandCustomizer';
 import { Match3ScreensCustomizer } from './games/Match3Customizer';
+import { RandomTargetScreensCustomizer } from './games/RandomTargetCustomizer';
 
 interface ScreensTabProps {
   theme: GameTheme;
@@ -45,6 +46,17 @@ export const ScreensTab: React.FC<ScreensTabProps> = ({
   if (isMatch3Theme(theme)) {
     return (
       <Match3ScreensCustomizer
+        theme={theme}
+        onChange={onChange}
+        onUploadAsset={onUploadAsset}
+        uploadingAsset={uploadingAsset}
+      />
+    );
+  }
+
+  if (isRandomTargetTheme(theme)) {
+    return (
+      <RandomTargetScreensCustomizer
         theme={theme}
         onChange={onChange}
         onUploadAsset={onUploadAsset}

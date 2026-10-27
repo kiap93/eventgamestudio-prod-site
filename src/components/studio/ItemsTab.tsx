@@ -6,12 +6,14 @@ import {
   isMemoryMatchTheme,
   isReactionTheme,
   isMatch3Theme,
+  isRandomTargetTheme,
   getDropItemDisplaySize,
   DEFAULT_MAX_DROP_ITEM_SIZE,
   memoryMatchTheme,
 } from '../../themes';
 import { MemoryMatchCardsCustomizer } from './games/MemoryMatchCustomizer';
 import { Match3TilesCustomizer } from './games/Match3Customizer';
+import { RandomTargetTargetsCustomizer } from './games/RandomTargetCustomizer';
 import {
   Sparkles,
   Plus,
@@ -322,6 +324,17 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
   if (isMemoryMatch) {
     return (
       <MemoryMatchCardsCustomizer
+        theme={theme}
+        onChange={handleThemeChange}
+        onUploadAsset={safeUploadAsset}
+        uploadingAsset={uploadingAsset}
+      />
+    );
+  }
+
+  if (isRandomTargetTheme(theme)) {
+    return (
+      <RandomTargetTargetsCustomizer
         theme={theme}
         onChange={handleThemeChange}
         onUploadAsset={safeUploadAsset}

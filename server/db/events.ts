@@ -2134,6 +2134,8 @@ export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
       ? 'Brand Memory Match'
       : finalGameType === 'reaction-tap'
       ? 'Formula Reaction Lights'
+      : finalGameType === 'random-target'
+      ? 'Random Target Arcade'
       : 'Catch The Brand';
 
   const gameDTO = rawGame
@@ -2196,29 +2198,57 @@ export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
 export async function resolveEventGameType(
   event: any,
   env?: Record<string, any>
-): Promise<'memory-match' | 'catch-brand' | 'reaction-tap' | 'match-3' | string> {
+): Promise<'memory-match' | 'catch-brand' | 'reaction-tap' | 'match-3' | 'random-target' | string> {
   if (!event) return 'catch-brand';
+
+  const isRandomTargetIdentifier = (val: string): boolean => {
+    const v = val.toLowerCase().trim();
+    return (
+      v === 'random-target' ||
+      v === 'random_target' ||
+      v === 'random-target-arcade' ||
+      v === 'game-random-target' ||
+      v === 'desert-quick-draw' ||
+      v === 'ocean-treasure-hunt'
+    );
+  };
+
+  // 0. Direct event.game_type
+  if (event.game_type) {
+    const egt = String(event.game_type).toLowerCase().trim();
+    if (isRandomTargetIdentifier(egt)) return 'random-target';
+    if (egt === 'match-3' || egt === 'match3') return 'match-3';
+    if (egt === 'reaction-tap' || egt === 'reaction-time') return 'reaction-tap';
+    if (egt === 'memory-match' || egt === 'catch-brand') return egt;
+  }
 
   // 1. Direct game object on event
   if (event.game) {
     if (event.game.game_type) {
       const gt = String(event.game.game_type).toLowerCase().trim();
+      if (isRandomTargetIdentifier(gt)) return 'random-target';
       if (gt === 'match-3' || gt === 'match3') return 'match-3';
       if (gt === 'reaction-tap' || gt === 'reaction-time') return 'reaction-tap';
       if (gt === 'memory-match' || gt === 'catch-brand') return gt;
     }
     if (event.game.slug) {
       const slug = String(event.game.slug).toLowerCase().trim();
+      if (isRandomTargetIdentifier(slug)) return 'random-target';
       if (slug === 'match-3' || slug === 'match3') return 'match-3';
       if (slug === 'reaction-tap' || slug === 'reaction-time') return 'reaction-tap';
       if (slug === 'memory-match') return 'memory-match';
       if (slug === 'catch-brand') return 'catch-brand';
+    }
+    if (event.game.id) {
+      const gid = String(event.game.id).toLowerCase().trim();
+      if (isRandomTargetIdentifier(gid)) return 'random-target';
     }
   }
 
   // 2. Direct event.game_id
   if (event.game_id) {
     const gid = String(event.game_id).toLowerCase().trim();
+    if (isRandomTargetIdentifier(gid)) return 'random-target';
     if (gid === 'match-3' || gid === 'match3') return 'match-3';
     if (gid === 'reaction-tap' || gid === 'reaction-time') return 'reaction-tap';
     if (gid === 'memory-match') return 'memory-match';
@@ -2228,6 +2258,7 @@ export async function resolveEventGameType(
       const gameRecord = await getGameById(event.game_id, env);
       if (gameRecord) {
         const gt = (gameRecord.game_type || gameRecord.slug || '').toLowerCase().trim();
+        if (isRandomTargetIdentifier(gt)) return 'random-target';
         if (gt === 'match-3' || gt === 'match3') return 'match-3';
         if (gt === 'reaction-tap' || gt === 'reaction-time') return 'reaction-tap';
         if (gt === 'memory-match') return 'memory-match';
@@ -2239,10 +2270,11 @@ export async function resolveEventGameType(
   }
 
   // 3. Check event theme
-  const theme = event.game_theme || (event.game_theme_id ? await getThemeById(event.game_theme_id, env).catch(() => null) : null);
+  const theme = event.game_theme || event.theme || (event.game_theme_id ? await getThemeById(event.game_theme_id, env).catch(() => null) : null);
   if (theme) {
     if (theme.game_type) {
       const tgt = String(theme.game_type).toLowerCase().trim();
+      if (isRandomTargetIdentifier(tgt)) return 'random-target';
       if (tgt === 'match-3' || tgt === 'match3') return 'match-3';
       if (tgt === 'reaction-tap' || tgt === 'reaction-time') return 'reaction-tap';
       if (tgt === 'memory-match') return 'memory-match';
@@ -2250,6 +2282,7 @@ export async function resolveEventGameType(
     }
     if (theme.game_slug) {
       const tgs = String(theme.game_slug).toLowerCase().trim();
+      if (isRandomTargetIdentifier(tgs)) return 'random-target';
       if (tgs === 'match-3' || tgs === 'match3') return 'match-3';
       if (tgs === 'reaction-tap' || tgs === 'reaction-time') return 'reaction-tap';
       if (tgs === 'memory-match') return 'memory-match';
@@ -2257,6 +2290,7 @@ export async function resolveEventGameType(
     }
     if (theme.base_theme_id) {
       const bti = String(theme.base_theme_id).toLowerCase().trim();
+      if (isRandomTargetIdentifier(bti)) return 'random-target';
       if (bti === 'match-3' || bti === 'match3') return 'match-3';
       if (bti === 'reaction-tap' || bti === 'reaction-time') return 'reaction-tap';
       if (bti === 'memory-match' || bti === 'memory-carnival') return 'memory-match';
@@ -2264,6 +2298,7 @@ export async function resolveEventGameType(
     }
     if (theme.id) {
       const tid = String(theme.id).toLowerCase().trim();
+      if (isRandomTargetIdentifier(tid)) return 'random-target';
       if (tid === 'match-3' || tid === 'match3') return 'match-3';
       if (tid === 'reaction-tap' || tid === 'reaction-time') return 'reaction-tap';
       if (tid === 'memory-match' || tid === 'memory-carnival') return 'memory-match';
@@ -2271,15 +2306,25 @@ export async function resolveEventGameType(
     }
     if (theme.slug) {
       const tslug = String(theme.slug).toLowerCase().trim();
+      if (isRandomTargetIdentifier(tslug) || tslug.includes('random-target') || tslug.includes('quick-draw') || tslug.includes('treasure-hunt')) return 'random-target';
       if (tslug === 'match-3' || tslug === 'match3' || tslug.includes('match-3')) return 'match-3';
       if (tslug.includes('reaction') || tslug.includes('reflex')) return 'reaction-tap';
       if (tslug === 'memory-match' || tslug === 'memory-carnival' || tslug.includes('memory')) return 'memory-match';
     }
+    if (theme.game_config && typeof theme.game_config === 'object') {
+      const gc = theme.game_config;
+      if (gc.positiveTarget || gc.negativeTarget || gc.interactionTool) {
+        return 'random-target';
+      }
+    }
     if (theme.game_id) {
+      const tgid = String(theme.game_id).toLowerCase().trim();
+      if (isRandomTargetIdentifier(tgid)) return 'random-target';
       try {
         const themeGame = await getGameById(theme.game_id, env);
         if (themeGame) {
           const tgt = (themeGame.game_type || themeGame.slug || '').toLowerCase().trim();
+          if (isRandomTargetIdentifier(tgt)) return 'random-target';
           if (tgt === 'match-3' || tgt === 'match3') return 'match-3';
           if (tgt === 'reaction-tap' || tgt === 'reaction-time') return 'reaction-tap';
           if (tgt === 'memory-match') return 'memory-match';
@@ -2294,6 +2339,9 @@ export async function resolveEventGameType(
   // 4. String checks on event.game_theme_id
   if (event.game_theme_id) {
     const gtid = String(event.game_theme_id).toLowerCase().trim();
+    if (isRandomTargetIdentifier(gtid) || gtid.includes('random-target') || gtid.includes('quick-draw') || gtid.includes('treasure-hunt')) {
+      return 'random-target';
+    }
     if (gtid === 'match-3' || gtid === 'match3' || gtid.includes('match-3')) {
       return 'match-3';
     }
@@ -2305,8 +2353,18 @@ export async function resolveEventGameType(
     }
   }
 
-  // 5. Fallback check on event name or slug
+  // 5. Check event.game_config structure
+  if (event.game_config && typeof event.game_config === 'object') {
+    if (event.game_config.positiveTarget || event.game_config.negativeTarget || event.game_config.interactionTool) {
+      return 'random-target';
+    }
+  }
+
+  // 6. Fallback check on event name or slug
   const eventName = (event.name || event.slug || '').toLowerCase();
+  if (eventName.includes('random-target') || eventName.includes('random target') || eventName.includes('quick draw') || eventName.includes('treasure hunt')) {
+    return 'random-target';
+  }
   if (eventName.includes('match-3') || eventName.includes('match 3') || eventName.includes('match3')) {
     return 'match-3';
   }
@@ -2572,6 +2630,171 @@ export async function resolveAuthoritativeCatchBrandConfig(
     theme: themeRecord,
     gameConfig: rawConfig,
     gameType: 'catch-brand',
+  };
+}
+
+export interface AuthoritativeRandomTargetConfig {
+  gameDurationSeconds: number;
+  startingScore: number;
+  positiveScore: number;
+  negativePenalty: number;
+  initialSpawnIntervalMs: number;
+  minSpawnIntervalMs: number;
+  targetLifetimeMs: number;
+  minTargetLifetimeMs: number;
+  maxSimultaneousTargets: number;
+  allowNegativeScore: boolean;
+  theme: any | null;
+  gameConfig: any | null;
+  gameType: string;
+}
+
+/**
+ * Authoritatively resolves Random Target Arcade configuration from the event and theme records.
+ */
+export async function resolveAuthoritativeRandomTargetConfig(
+  event: any,
+  env?: Record<string, any>
+): Promise<AuthoritativeRandomTargetConfig> {
+  if (!event) {
+    const err: any = new Error('Event not found');
+    err.status = 404;
+    err.code = 'EVENT_NOT_FOUND';
+    throw err;
+  }
+
+  // 1. Resolve event game type
+  const gameType = await resolveEventGameType(event, env);
+  if (gameType !== 'random-target') {
+    const err: any = new Error(
+      `Event game type mismatch: Expected 'random-target' but event is '${gameType}'. Cross-game configuration fallback is forbidden.`
+    );
+    err.status = 422;
+    err.code = 'INVALID_GAME_TYPE';
+    throw err;
+  }
+
+  // 2. Resolve theme
+  let themeRecord: any = event.game_theme || event.theme || null;
+  const themeId = event.game_theme_id || event.theme_id || (themeRecord && themeRecord.id);
+  if (!themeRecord && themeId) {
+    try {
+      themeRecord = await getThemeById(themeId, env);
+    } catch {
+      themeRecord = null;
+    }
+  }
+
+  // 3. Cross-game theme verification
+  if (themeRecord) {
+    const themeGameType = (themeRecord.game_type || themeRecord.game_slug || '').toLowerCase().trim();
+    if (themeGameType && themeGameType !== 'random-target') {
+      const err: any = new Error(
+        `Theme game mismatch: Event requires Random Target Arcade, but theme is configured for '${themeGameType}'. Cross-game configuration fallback is forbidden.`
+      );
+      err.status = 422;
+      err.code = 'THEME_GAME_MISMATCH';
+      throw err;
+    }
+  }
+
+  // 4. Resolve raw custom game config (merge theme game_config and event game_config overrides)
+  let themeGameConfig = themeRecord?.game_config || null;
+  if (typeof themeGameConfig === 'string') {
+    try {
+      themeGameConfig = JSON.parse(themeGameConfig);
+    } catch {
+      themeGameConfig = null;
+    }
+  }
+  let eventGameConfig = event.game_config || null;
+  if (typeof eventGameConfig === 'string') {
+    try {
+      eventGameConfig = JSON.parse(eventGameConfig);
+    } catch {
+      eventGameConfig = null;
+    }
+  }
+
+  const rawConfig = {
+    ...(themeGameConfig && typeof themeGameConfig === 'object' ? themeGameConfig : {}),
+    ...(eventGameConfig && typeof eventGameConfig === 'object' ? eventGameConfig : {}),
+    positiveTarget: {
+      ...(themeGameConfig?.positiveTarget || {}),
+      ...(eventGameConfig?.positiveTarget || {}),
+    },
+    negativeTarget: {
+      ...(themeGameConfig?.negativeTarget || {}),
+      ...(eventGameConfig?.negativeTarget || {}),
+    },
+  };
+
+  const gameDurationSeconds =
+    typeof rawConfig?.gameDurationSeconds === 'number' && rawConfig.gameDurationSeconds > 0
+      ? rawConfig.gameDurationSeconds
+      : 30;
+
+  const startingScore =
+    typeof rawConfig?.startingScore === 'number' && Number.isFinite(rawConfig.startingScore)
+      ? Math.trunc(rawConfig.startingScore)
+      : 0;
+
+  const positiveScore =
+    typeof rawConfig?.positiveTarget?.score === 'number' && Number.isFinite(rawConfig.positiveTarget.score)
+      ? Math.trunc(rawConfig.positiveTarget.score)
+      : typeof rawConfig?.positiveScore === 'number' && Number.isFinite(rawConfig.positiveScore)
+      ? Math.trunc(rawConfig.positiveScore)
+      : 10;
+
+  const rawNegPenalty =
+    typeof rawConfig?.negativeTarget?.score === 'number' && Number.isFinite(rawConfig.negativeTarget.score)
+      ? Math.trunc(rawConfig.negativeTarget.score)
+      : typeof rawConfig?.negativePenalty === 'number' && Number.isFinite(rawConfig.negativePenalty)
+      ? Math.trunc(rawConfig.negativePenalty)
+      : -10;
+  const negativePenalty = rawNegPenalty > 0 ? -rawNegPenalty : rawNegPenalty;
+
+  const initialSpawnIntervalMs =
+    typeof rawConfig?.initialSpawnIntervalMs === 'number'
+      ? rawConfig.initialSpawnIntervalMs
+      : 1100;
+
+  const minSpawnIntervalMs =
+    typeof rawConfig?.minSpawnIntervalMs === 'number'
+      ? rawConfig.minSpawnIntervalMs
+      : 600;
+
+  const targetLifetimeMs =
+    typeof rawConfig?.targetLifetimeMs === 'number'
+      ? rawConfig.targetLifetimeMs
+      : 2000;
+
+  const minTargetLifetimeMs =
+    typeof rawConfig?.minTargetLifetimeMs === 'number'
+      ? rawConfig.minTargetLifetimeMs
+      : 1200;
+
+  const maxSimultaneousTargets =
+    typeof rawConfig?.maxSimultaneousTargets === 'number'
+      ? rawConfig.maxSimultaneousTargets
+      : 4;
+
+  const allowNegativeScore = Boolean(rawConfig?.allowNegativeScore);
+
+  return {
+    gameDurationSeconds,
+    startingScore,
+    positiveScore,
+    negativePenalty,
+    initialSpawnIntervalMs,
+    minSpawnIntervalMs,
+    targetLifetimeMs,
+    minTargetLifetimeMs,
+    maxSimultaneousTargets,
+    allowNegativeScore,
+    theme: themeRecord,
+    gameConfig: rawConfig,
+    gameType: 'random-target',
   };
 }
 

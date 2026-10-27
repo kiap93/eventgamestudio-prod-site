@@ -57,6 +57,13 @@ export const CATALOG_GAMES = [
     description: 'Swap matching tiles to create combinations, trigger special tiles, build combos, and achieve the highest score before time runs out.',
     icon_name: 'Sparkles',
   },
+  {
+    name: 'Random Target Arcade',
+    slug: 'random-target',
+    game_type: 'random-target',
+    description: 'Fast-paced arcade target shooter! Tap or click appearing targets to score points while avoiding hazard obstacles.',
+    icon_name: 'Crosshair',
+  },
 ];
 
 /**
@@ -67,7 +74,8 @@ export const BASELINE_PLATFORM_GAMES = CATALOG_GAMES.filter(
     g.game_type === 'catch-brand' ||
     g.game_type === 'memory-match' ||
     g.game_type === 'reaction-tap' ||
-    g.game_type === 'match-3'
+    g.game_type === 'match-3' ||
+    g.game_type === 'random-target'
 );
 
 export class GameConflictError extends Error {
@@ -90,6 +98,7 @@ export const PRODUCTION_GAME_ENGINES = new Set<string>([
   'reaction-tap',
   'reaction-time',
   'match-3',
+  'random-target',
 ]);
 
 /**

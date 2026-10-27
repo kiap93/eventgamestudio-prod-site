@@ -142,6 +142,46 @@ describe('Sales Partner Translation & Localization Engine Test Suite', () => {
       expect(promptText).toContain('Catch The Brand');
       expect(promptText).toContain('Formula Reaction Lights');
     });
+
+    test('1.5 All locale dictionaries (en, zh-CN, ms-MY) display 10% first-order and 5% repeat-order commission rates with zero stale 15% strings', () => {
+      // English
+      expect(en.sales.customers.firstOrderRate).toBe('First Order (10%)');
+      expect(en.sales.customers.repeatOrderRate).toBe('Repeat Orders (5%)');
+      expect(en.sales.referrals.step3Desc).toContain('10%');
+      expect(en.sales.referrals.step3Desc).toContain('5%');
+      expect(en.sales.referrals.step3Desc).not.toContain('15%');
+      expect(en.sales.apply.benefit1Title).toContain('10%');
+      expect(en.sales.apply.benefit1Desc).toContain('10%');
+      expect(en.sales.apply.benefit2Title).toContain('5%');
+      expect(en.sales.apply.benefit2Desc).toContain('5%');
+
+      // Bahasa Melayu
+      expect(msMY.sales.customers.firstOrderRate).toBe('Pesanan Pertama (10%)');
+      expect(msMY.sales.customers.repeatOrderRate).toBe('Pesanan Ulangan (5%)');
+      expect(msMY.sales.referrals.step3Desc).toContain('10%');
+      expect(msMY.sales.referrals.step3Desc).toContain('5%');
+      expect(msMY.sales.referrals.step3Desc).not.toContain('15%');
+      expect(msMY.sales.apply.benefit1Title).toContain('10%');
+      expect(msMY.sales.apply.benefit1Desc).toContain('10%');
+      expect(msMY.sales.apply.benefit2Title).toContain('5%');
+      expect(msMY.sales.apply.benefit2Desc).toContain('5%');
+
+      // Simplified Chinese
+      expect(zhCN.sales.customers.firstOrderRate).toBe('首单返佣 (10%)');
+      expect(zhCN.sales.customers.repeatOrderRate).toBe('续单返佣 (5%)');
+      expect(zhCN.sales.referrals.step3Desc).toContain('10%');
+      expect(zhCN.sales.referrals.step3Desc).toContain('5%');
+      expect(zhCN.sales.referrals.step3Desc).not.toContain('15%');
+      expect(zhCN.sales.apply.benefit1Title).toContain('10%');
+      expect(zhCN.sales.apply.benefit1Desc).toContain('10%');
+      expect(zhCN.sales.apply.benefit2Title).toContain('5%');
+      expect(zhCN.sales.apply.benefit2Desc).toContain('5%');
+
+      // Ensure no string anywhere in en.sales, msMY.sales, or zhCN.sales contains stale '15%'
+      expect(JSON.stringify(en.sales)).not.toContain('15%');
+      expect(JSON.stringify(msMY.sales)).not.toContain('15%');
+      expect(JSON.stringify(zhCN.sales)).not.toContain('15%');
+    });
   });
 
   // 2. BACKEND TRANSLATION PROVIDERS & SERVICE

@@ -1057,8 +1057,195 @@ export const DEFAULT_MATCH3_PRINCESS_FAIRYTALE_THEME: Omit<GameThemeRecord, 'id'
   layout: { ...DEFAULT_MATCH3_THEME.layout },
 };
 
+export const DEFAULT_RANDOM_TARGET_DESERT_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Desert Quick Draw',
+  slug: 'desert-quick-draw',
+  description: 'Aim and shoot gold bullseye targets in the canyon before they vanish — avoid TNT barrels!',
+  status: 'active',
+  game_type: 'random-target',
+  branding: {
+    gameTitle: 'DESERT QUICK DRAW',
+    subtitle: 'Tap bullseyes for points — dodge TNT barrels!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/random-target/themes/desert-quick-draw/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: {
+    gameDurationSeconds: 30,
+  } as any,
+  visuals_config: {
+    particleGood: 'particle_gold',
+    particleBad: 'particle_spike',
+    particleBonus: 'particle_gold',
+    primaryColor: '#d97706',
+    secondaryColor: '#92400e',
+    accentColor: '#fbbf24',
+    textColor: '#ffffff',
+    cardGoodBg: 'rgba(180, 83, 9, 0.7)',
+    cardGoodBorder: 'rgba(245, 158, 11, 0.5)',
+    cardBadBg: 'rgba(153, 27, 27, 0.7)',
+    cardBadBorder: 'rgba(239, 68, 68, 0.5)',
+    bgGradientFrom: '#451a03',
+    bgGradientTo: '#78350f',
+  },
+  sounds_config: {
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  game_config: {
+    gameDurationSeconds: 30,
+    startingScore: 0,
+    allowNegativeScore: false,
+    initialSpawnIntervalMs: 1000,
+    minSpawnIntervalMs: 550,
+    targetLifetimeMs: 2000,
+    minTargetLifetimeMs: 1100,
+    maxSimultaneousTargets: 4,
+    difficultyProgression: 'linear',
+    playArea: {
+      topPercent: 18,
+      bottomPercent: 78,
+      leftPercent: 12,
+      rightPercent: 85,
+    },
+    positiveTarget: {
+      id: 'positive_target',
+      name: 'Gold Bullseye Target',
+      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/target_positive.png',
+      score: 10,
+      spawnWeight: 72,
+      size: 92,
+      isPenalty: false,
+      hitEffectType: 'burst',
+    },
+    negativeTarget: {
+      id: 'negative_target',
+      name: 'Red TNT Barrel',
+      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/target_negative.png',
+      score: -10,
+      spawnWeight: 28,
+      size: 88,
+      isPenalty: true,
+      hitEffectType: 'explosion',
+    },
+    interactionTool: {
+      type: 'gun',
+      name: 'Sheriff Revolver',
+      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/tool_gun.png',
+      projectileEffect: 'bullet_spark',
+      muzzleFlashEnabled: true,
+      recoilStrength: 12,
+      rotationOffsetDeg: 0,
+    },
+    bgmEnabled: true,
+    sfxEnabled: true,
+  } as any,
+};
+
+export const DEFAULT_RANDOM_TARGET_OCEAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Ocean Treasure Hunt',
+  slug: 'ocean-treasure-hunt',
+  description: 'Cast your golden fishing net to catch pearl shells while avoiding spiky sea mines!',
+  status: 'active',
+  game_type: 'random-target',
+  branding: {
+    gameTitle: 'OCEAN TREASURE HUNT',
+    subtitle: 'Tap golden pearl shells — watch out for sea mines!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/random-target/themes/ocean-treasure-hunt/background.png',
+  basket_config: null as any,
+  items_config: [],
+  physics_config: {
+    gameDurationSeconds: 30,
+  } as any,
+  visuals_config: {
+    particleGood: 'particle_gold',
+    particleBad: 'particle_spike',
+    particleBonus: 'particle_gold',
+    primaryColor: '#0284c7',
+    secondaryColor: '#0369a1',
+    accentColor: '#38bdf8',
+    textColor: '#ffffff',
+    cardGoodBg: 'rgba(3, 105, 161, 0.7)',
+    cardGoodBorder: 'rgba(56, 189, 248, 0.5)',
+    cardBadBg: 'rgba(153, 27, 27, 0.7)',
+    cardBadBorder: 'rgba(239, 68, 68, 0.5)',
+    bgGradientFrom: '#082f49',
+    bgGradientTo: '#0c4a6e',
+  },
+  sounds_config: {
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  game_config: {
+    gameDurationSeconds: 30,
+    startingScore: 0,
+    allowNegativeScore: false,
+    initialSpawnIntervalMs: 1100,
+    minSpawnIntervalMs: 600,
+    targetLifetimeMs: 2100,
+    minTargetLifetimeMs: 1200,
+    maxSimultaneousTargets: 4,
+    difficultyProgression: 'linear',
+    playArea: {
+      topPercent: 18,
+      bottomPercent: 78,
+      leftPercent: 12,
+      rightPercent: 85,
+    },
+    positiveTarget: {
+      id: 'positive_target',
+      name: 'Golden Pearl Shell',
+      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/target_positive.png',
+      score: 10,
+      spawnWeight: 72,
+      size: 92,
+      isPenalty: false,
+      hitEffectType: 'splash',
+    },
+    negativeTarget: {
+      id: 'negative_target',
+      name: 'Spiky Sea Mine',
+      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/target_negative.png',
+      score: -10,
+      spawnWeight: 28,
+      size: 88,
+      isPenalty: true,
+      hitEffectType: 'explosion',
+    },
+    interactionTool: {
+      type: 'net',
+      name: 'Golden Fishing Net',
+      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/tool_net.png',
+      projectileEffect: 'net_cast',
+      muzzleFlashEnabled: false,
+      recoilStrength: 10,
+      rotationOffsetDeg: 0,
+    },
+    bgmEnabled: true,
+    sfxEnabled: true,
+  } as any,
+};
+
 export function getDefaultThemeForGameType(gameType?: string | null): Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> {
   const clean = (gameType || '').toLowerCase().trim();
+  if (
+    clean === 'random-target' ||
+    clean === 'random_target' ||
+    clean === 'desert-quick-draw' ||
+    clean === 'ocean-treasure-hunt' ||
+    clean.includes('random-target')
+  ) {
+    return clean === 'ocean-treasure-hunt'
+      ? DEFAULT_RANDOM_TARGET_OCEAN_THEME
+      : DEFAULT_RANDOM_TARGET_DESERT_THEME;
+  }
   if (
     clean === 'match-3' ||
     clean === 'match3' ||
@@ -1087,6 +1274,8 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
   DEFAULT_CARNIVAL_THEME,
   DEFAULT_MEMORY_CARNIVAL_THEME,
   DEFAULT_REACTION_THEME,
+  DEFAULT_RANDOM_TARGET_DESERT_THEME,
+  DEFAULT_RANDOM_TARGET_OCEAN_THEME,
   DEFAULT_MATCH3_THEME,
   DEFAULT_MATCH3_CUTE_ANIMALS_THEME,
   DEFAULT_MATCH3_SUPER_HEROES_THEME,
@@ -1488,6 +1677,15 @@ export function resolveServerGameType(
       return 'memory-match';
     }
     if (
+      gc.positiveTarget ||
+      gc.negativeTarget ||
+      gc.interactionTool ||
+      gc.screens?.start?.gameType === 'random-target' ||
+      gc.screens?.result?.gameType === 'random-target'
+    ) {
+      return 'random-target';
+    }
+    if (
       gc.reactionConfig ||
       gc.lightsCount !== undefined ||
       gc.screens?.start?.gameType === 'reaction-tap' ||
@@ -1502,16 +1700,19 @@ export function resolveServerGameType(
   // 2. Check base_theme_id, id, game_id on theme object if available
   if (tc && typeof tc === 'object') {
     const baseId = String(tc.base_theme_id || '').toLowerCase().trim();
+    if (baseId === 'random-target' || baseId === 'desert-quick-draw' || baseId === 'ocean-treasure-hunt' || baseId.includes('random-target')) return 'random-target';
     if (baseId === 'match-3' || baseId === 'match3' || baseId.includes('match-3')) return 'match-3';
     if (baseId === 'memory-match' || baseId === 'memory-carnival') return 'memory-match';
     if (baseId === 'reaction-tap' || baseId === 'reaction-time') return 'reaction-tap';
 
     const tId = String(tc.id || '').toLowerCase().trim();
+    if (tId === 'random-target' || tId === 'desert-quick-draw' || tId === 'ocean-treasure-hunt' || tId.includes('random-target')) return 'random-target';
     if (tId === 'match-3' || tId === 'match3' || tId.includes('match-3')) return 'match-3';
     if (tId === 'memory-match' || tId === 'memory-carnival') return 'memory-match';
     if (tId === 'reaction-tap' || tId === 'reaction-time') return 'reaction-tap';
 
     const gId = String(tc.game_id || '').toLowerCase().trim();
+    if (gId === 'random-target' || gId === 'game-random-target' || gId.includes('random-target')) return 'random-target';
     if (gId === 'match-3' || gId === 'match3' || gId.includes('match-3')) return 'match-3';
     if (gId === 'memory-match' || gId === 'memory-carnival') return 'memory-match';
     if (gId === 'reaction-tap' || gId === 'reaction-time') return 'reaction-tap';
@@ -1520,6 +1721,23 @@ export function resolveServerGameType(
   const cleanType = String(rawGameType || '').trim().toLowerCase();
   const cleanSlug = String(rawSlug || '').trim().toLowerCase();
   const cleanName = String(rawName || '').trim().toLowerCase();
+
+  if (
+    cleanType === 'random-target' ||
+    cleanType === 'random_target' ||
+    cleanType.includes('random-target') ||
+    cleanSlug === 'random-target' ||
+    cleanSlug === 'desert-quick-draw' ||
+    cleanSlug === 'ocean-treasure-hunt' ||
+    cleanSlug.includes('random-target') ||
+    cleanSlug.includes('quick-draw') ||
+    cleanSlug.includes('treasure-hunt') ||
+    cleanName.includes('random target') ||
+    cleanName.includes('quick draw') ||
+    cleanName.includes('treasure hunt')
+  ) {
+    return 'random-target';
+  }
 
   if (
     cleanType === 'match-3' ||
@@ -1746,7 +1964,10 @@ export async function enrichThemesWithGameData(
       // Resolve game info authoritatively from theme metadata rather than hardcoding Catch The Brand
       const serverType = resolveServerGameType(item.game_type, item.slug, item.name, item);
       resolvedGameType = serverType;
-      if (serverType === 'match-3') {
+      if (serverType === 'random-target') {
+        resolvedGameName = 'Random Target Arcade';
+        resolvedGameSlug = 'random-target';
+      } else if (serverType === 'match-3') {
         resolvedGameName = 'Match-3';
         resolvedGameSlug = 'match-3';
       } else if (serverType === 'memory-match') {
@@ -2604,14 +2825,15 @@ export async function createTheme(
     resolvedGameSlug = 'memory-match';
   }
 
-  const isMatch3 = resolvedGameType === 'match-3' || params.game_type === 'match-3' || params.game_slug === 'match-3' || resolvedGameSlug === 'match-3';
-  const isReaction = !isMatch3 && (resolvedGameType === 'reaction-tap' || params.game_type === 'reaction-tap' || params.game_slug === 'reaction-tap' || resolvedGameSlug === 'reaction-tap');
-  const isMemory = !isMatch3 && !isReaction && (resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match');
+  const isRandomTarget = resolvedGameType === 'random-target' || params.game_type === 'random-target' || params.game_slug === 'random-target' || resolvedGameSlug === 'random-target';
+  const isMatch3 = !isRandomTarget && (resolvedGameType === 'match-3' || params.game_type === 'match-3' || params.game_slug === 'match-3' || resolvedGameSlug === 'match-3');
+  const isReaction = !isRandomTarget && !isMatch3 && (resolvedGameType === 'reaction-tap' || params.game_type === 'reaction-tap' || params.game_slug === 'reaction-tap' || resolvedGameSlug === 'reaction-tap');
+  const isMemory = !isRandomTarget && !isMatch3 && !isReaction && (resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match');
   const defaultTemplate = getDefaultThemeForGameType(resolvedGameType);
 
   const defaultBranding: ThemeBrandingConfig = {
     gameTitle: params.name.toUpperCase(),
-    subtitle: params.description || (isReaction ? 'When the lights go out, react as fast as you can!' : isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch custom items, avoid hazards!'),
+    subtitle: params.description || (isRandomTarget ? 'Tap positive targets quickly and avoid penalty obstacles!' : isReaction ? 'When the lights go out, react as fast as you can!' : isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch custom items, avoid hazards!'),
     logoUrl: null,
     clientLogoUrl: null,
   };
@@ -2629,7 +2851,7 @@ export async function createTheme(
     status: params.status || 'active',
     branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: (isMemory || isReaction || isMatch3) ? (params.basket_config ?? {}) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: (isMemory || isReaction || isMatch3 || isRandomTarget) ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
@@ -3337,6 +3559,7 @@ export async function createSystemTheme(
   }
 
   const defaultTemplate = getDefaultThemeForGameType(resolvedGameType);
+  const isRandomTarget = resolvedGameType === 'random-target';
   const isMemory = resolvedGameType === 'memory-match';
   const isMatch3 = resolvedGameType === 'match-3';
   const isReaction = resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time';
@@ -3347,7 +3570,7 @@ export async function createSystemTheme(
 
   const defaultBranding: ThemeBrandingConfig = {
     gameTitle: params.name.toUpperCase(),
-    subtitle: params.description || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : isMatch3 ? 'Swap tiles, create combos, and clear the board!' : isReaction ? 'React when the lights go out!' : 'Catch the falling items, avoid the hazards!'),
+    subtitle: params.description || (isRandomTarget ? 'Tap positive targets quickly and avoid penalty obstacles!' : isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : isMatch3 ? 'Swap tiles, create combos, and clear the board!' : isReaction ? 'React when the lights go out!' : 'Catch the falling items, avoid the hazards!'),
     logoUrl: null,
     clientLogoUrl: null,
   };
@@ -3366,7 +3589,7 @@ export async function createSystemTheme(
     status: params.status || 'active',
     branding: params.branding ?? defaultBranding,
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: (isMemory || isReaction || isMatch3) ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: (isMemory || isReaction || isMatch3 || isRandomTarget) ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
@@ -3695,13 +3918,13 @@ export async function cloneSystemThemeToOrg(
     status: 'active',
     branding: systemTheme.branding,
     background_url: (resolvedThemeGameType === 'memory-match') ? (systemTheme.background_url || null) : systemTheme.background_url,
-    basket_config: (resolvedThemeGameType === 'memory-match' || resolvedThemeGameType === 'match-3' || resolvedThemeGameType === 'reaction-tap') ? null : systemTheme.basket_config,
+    basket_config: (resolvedThemeGameType === 'memory-match' || resolvedThemeGameType === 'match-3' || resolvedThemeGameType === 'reaction-tap' || resolvedThemeGameType === 'random-target') ? null : systemTheme.basket_config,
     items_config: systemTheme.items_config?.length ? systemTheme.items_config : fallbackDefaultTheme.items_config,
     physics_config: (resolvedThemeGameType === 'memory-match') ? DEFAULT_MEMORY_THEME.physics_config : (systemTheme.physics_config || fallbackDefaultTheme.physics_config),
     visuals_config: systemTheme.visuals_config || fallbackDefaultTheme.visuals_config,
     sounds_config: systemTheme.sounds_config,
     layout: systemTheme.layout,
-    game_config: systemTheme.game_config ?? (resolvedThemeGameType === 'memory-match' ? DEFAULT_MEMORY_THEME.game_config : {}),
+    game_config: systemTheme.game_config ?? (resolvedThemeGameType === 'memory-match' ? DEFAULT_MEMORY_THEME.game_config : (fallbackDefaultTheme as any).game_config ?? {}),
     created_at: now,
     updated_at: now,
   });
@@ -3751,7 +3974,7 @@ export async function cloneAllSystemThemesToOrg(
 
     const resolvedThemeGameType = resolveServerGameType(sysTheme.game_type, sysTheme.game_slug || sysTheme.slug, sysTheme.name);
     const fallbackDefaultTheme = getDefaultThemeForGameType(resolvedThemeGameType);
-    const isNonBasket = resolvedThemeGameType === 'memory-match' || resolvedThemeGameType === 'match-3' || resolvedThemeGameType === 'reaction-tap';
+    const isNonBasket = resolvedThemeGameType === 'memory-match' || resolvedThemeGameType === 'match-3' || resolvedThemeGameType === 'reaction-tap' || resolvedThemeGameType === 'random-target';
 
     const { data, error } = await safeInsertTheme(supabase, {
       id,
@@ -3772,7 +3995,7 @@ export async function cloneAllSystemThemesToOrg(
       visuals_config: sysTheme.visuals_config || fallbackDefaultTheme.visuals_config,
       sounds_config: sysTheme.sounds_config,
       layout: sysTheme.layout,
-      game_config: sysTheme.game_config ?? (resolvedThemeGameType === 'memory-match' ? DEFAULT_MEMORY_THEME.game_config : {}),
+      game_config: sysTheme.game_config ?? (resolvedThemeGameType === 'memory-match' ? DEFAULT_MEMORY_THEME.game_config : (fallbackDefaultTheme as any).game_config ?? {}),
       created_at: now,
       updated_at: now,
     });
@@ -3806,6 +4029,9 @@ export async function ensureSystemDefaultThemesForGame(
 
   // Filter presets based on gameType
   const relevantPresets = PRESET_THEMES.filter((p) => {
+    if (gameType === 'random-target') {
+      return p.slug === 'desert-quick-draw' || p.slug === 'ocean-treasure-hunt' || (p as any).game_type === 'random-target';
+    }
     if (gameType === 'match-3') {
       return p.slug === 'match-3' || p.slug.includes('match-3') || p.slug.includes('match3');
     }
@@ -3815,7 +4041,14 @@ export async function ensureSystemDefaultThemesForGame(
     if (gameType === 'memory-match') {
       return p.slug.includes('memory');
     }
-    return !p.slug.includes('memory') && !p.slug.includes('reaction') && !p.slug.includes('match-3');
+    return (
+      !p.slug.includes('memory') &&
+      !p.slug.includes('reaction') &&
+      !p.slug.includes('match-3') &&
+      p.slug !== 'desert-quick-draw' &&
+      p.slug !== 'ocean-treasure-hunt' &&
+      (p as any).game_type !== 'random-target'
+    );
   });
 
   const presetsToSeed = relevantPresets.length > 0
@@ -3879,6 +4112,7 @@ export async function ensureSystemDefaultThemesForGame(
 
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
+      const isRandomTarget = gameType === 'random-target';
       const isMemory = gameType === 'memory-match';
       const isMatch3 = gameType === 'match-3';
       const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
@@ -3895,13 +4129,13 @@ export async function ensureSystemDefaultThemesForGame(
         status: 'active',
         branding: preset.branding,
         background_url: preset.background_url,
-        basket_config: (isMemory || isMatch3 || isReaction) ? null : (preset.basket_config ?? defaultThemeForGame.basket_config),
-        items_config: (isMatch3 || isReaction) ? [] : (preset.items_config ?? defaultThemeForGame.items_config),
+        basket_config: (isMemory || isMatch3 || isReaction || isRandomTarget) ? null : (preset.basket_config ?? defaultThemeForGame.basket_config),
+        items_config: (isMatch3 || isReaction || isRandomTarget) ? [] : (preset.items_config ?? defaultThemeForGame.items_config),
         physics_config: preset.physics_config ?? defaultThemeForGame.physics_config,
         visuals_config: preset.visuals_config ?? defaultThemeForGame.visuals_config,
         sounds_config: preset.sounds_config ?? defaultThemeForGame.sounds_config,
         layout: (preset as any).layout ?? defaultThemeForGame.layout,
-        game_config: (preset as any).game_config ?? (isMatch3 ? DEFAULT_MATCH3_THEME.game_config : isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
+        game_config: (preset as any).game_config ?? (isMatch3 ? DEFAULT_MATCH3_THEME.game_config : isMemory ? DEFAULT_MEMORY_THEME.game_config : (defaultThemeForGame as any).game_config ?? {}),
         created_at: now,
         updated_at: now,
       });

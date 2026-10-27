@@ -6,6 +6,7 @@ import {
   isMemoryMatchTheme,
   isReactionTheme,
   isMatch3Theme,
+  isRandomTargetTheme,
   getThemeGameType,
   getMemoryMatchConfig,
   getDropItemDisplaySize,
@@ -18,6 +19,7 @@ import { stopAllGameAudio } from '../../lib/gameAudio';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
 import { ReactionGame } from '../../games/reaction-time/ReactionGame';
 import { Match3Game } from '../../games/match-3/Match3Game';
+import { RandomTargetGame, RANDOM_TARGET_DESIGN_WIDTH, RANDOM_TARGET_DESIGN_HEIGHT } from '../../games/random-target/RandomTargetGame';
 import { ScaledGameStage } from './ScaledGameStage';
 import {
   REACTION_GAME_DESIGN_WIDTH,
@@ -305,10 +307,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const isMemoryMatch = gameType === 'memory-match' || isMemoryMatchTheme(theme, gameType);
   const isReaction = gameType === 'reaction-tap' || isReactionTheme(theme, gameType);
   const isMatch3 = gameType === 'match-3' || isMatch3Theme(theme, gameType);
+  const isRandomTarget = gameType === 'random-target' || isRandomTargetTheme(theme, gameType);
 
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
   const resolvedPreviewDuration = isMemoryMatch
     ? (memoryConfig.gameplay.gameDurationSeconds ?? 45)
+    : isRandomTarget
+    ? ((theme.game_config as any)?.gameDurationSeconds ?? 30)
     : (theme.physics_config?.gameDurationSeconds || 20);
 
   const [score, setScore] = useState<number>(0);
@@ -421,13 +426,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   );
 
   const isCatchBrand = useMemo(() => {
-    if (isMemoryMatch || isReaction || isMatch3) return false;
+    if (isMemoryMatch || isReaction || isMatch3 || isRandomTarget) return false;
     // Exclude Durian Catcher explicitly per prompt rules
     if (theme.id === 'durian' || theme.slug === 'durian' || theme.base_theme_id === 'durian') {
       return false;
     }
     return true;
-  }, [isMemoryMatch, isReaction, isMatch3, theme.id, theme.slug, theme.base_theme_id]);
+  }, [isMemoryMatch, isReaction, isMatch3, isRandomTarget, theme.id, theme.slug, theme.base_theme_id]);
 
   // Authoritative stage bounding rect for drag and drop coordinate calculations
   const getAuthoritativeStageRect = useCallback((): DOMRect | null => {
@@ -1576,6 +1581,35 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             onToggleMute={() => setIsMuted(!isMuted)}
             onToggleFullscreen={handleToggleFullscreen}
           />
+        ) : isRandomTarget ? (
+          /* RANDOM TARGET LIVE SIMULATION - UNIFORMLY SCALED 1024x576 STAGE */
+          <ScaledGameStage
+            id="random-target-simulation-stage"
+            designWidth={RANDOM_TARGET_DESIGN_WIDTH}
+            designHeight={RANDOM_TARGET_DESIGN_HEIGHT}
+            scale={responsive.uiScale}
+            viewportWidth={responsive.width}
+            viewportHeight={responsive.height}
+            className="w-full h-full relative z-10"
+          >
+            <RandomTargetGame
+              key={`sim-rt-${theme.id}-${restartKey}-${responsive.isPortrait ? 'portrait' : 'landscape'}`}
+              className="w-full h-full"
+              activeTheme={theme}
+              config={theme.game_config as any}
+              isMuted={isMuted}
+              isFullscreen={isFullscreen}
+              isEventPreview={true}
+              isSimulation={false}
+              isInteractive={true}
+              stageScale={responsive.uiScale}
+              stageWidth={RANDOM_TARGET_DESIGN_WIDTH}
+              stageHeight={RANDOM_TARGET_DESIGN_HEIGHT}
+              overrideOrientation={responsive.isPortrait ? 'portrait' : 'landscape'}
+              onToggleMute={() => setIsMuted(!isMuted)}
+              onToggleFullscreen={handleToggleFullscreen}
+            />
+          </ScaledGameStage>
         ) : (
           /* CATCH BRAND FALLING CANVAS SIMULATION - CENTERED AND PROPORTIONALLY SCALED */
           <div

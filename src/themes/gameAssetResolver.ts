@@ -64,6 +64,11 @@ export const GAME_ASSET_MANIFEST: Record<string, Partial<Record<GameAssetType, s
   'match-3': {
     background: 'background.png',
   },
+  'random-target': {
+    background: 'background.png',
+    goodItem: 'target_positive.png',
+    hazardItem: 'target_negative.png',
+  },
 };
 
 /**
@@ -89,6 +94,10 @@ export const THEME_ASSET_ALIASES: Record<string, string> = {
   'default': 'default',
   'durian': 'default',
   'catch-brand': 'default',
+  // Random Target Arcade Themes
+  'random-target': 'desert-quick-draw',
+  'desert-quick-draw': 'desert-quick-draw',
+  'ocean-treasure-hunt': 'ocean-treasure-hunt',
   // Match-3 Classic & Cartoon Themes
   'match-3': 'default',
   'match-3-default': 'default',
@@ -167,8 +176,10 @@ export function isSystemTheme(theme?: any): boolean {
     const slug = String(theme.slug || '').toLowerCase();
     if (
       id === 'default' || id === 'carnival' || id === 'christmas' || id === 'chinese-new-year' || id === 'cny' || id === 'halloween' || id === 'mango' ||
+      id === 'random-target' || id === 'desert-quick-draw' || id === 'ocean-treasure-hunt' ||
       id === 'match-3' || id === 'cute-animals' || id === 'super-heroes' || id === 'fantasy-creatures' || id === 'space-explorers' || id === 'food-characters' || id === 'ocean-friends' || id === 'robot-friends' || id === 'princess-fairytale' ||
       slug === 'default' || slug === 'carnival' || slug === 'christmas-rush' || slug === 'cny-fortune' || slug === 'halloween-spooky' || slug === 'spooky-halloween' || slug === 'mango-festival' || slug === 'mango-harvest' ||
+      slug === 'random-target' || slug === 'desert-quick-draw' || slug === 'ocean-treasure-hunt' ||
       slug === 'match-3' || slug === 'cute-animals' || slug === 'super-heroes' || slug === 'fantasy-creatures' || slug === 'space-explorers' || slug === 'food-characters' || slug === 'ocean-friends' || slug === 'robot-friends' || slug === 'princess-fairytale' ||
       slug === 'match-3-cute-animals' || slug === 'match-3-super-heroes' || slug === 'match-3-fantasy-creatures' || slug === 'match-3-space-explorers' || slug === 'match-3-food-characters' || slug === 'match-3-ocean-friends' || slug === 'match-3-robot-friends' || slug === 'match-3-princess-fairytale'
     ) {
@@ -259,6 +270,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     if (THEME_ASSET_ALIASES[slug]) return THEME_ASSET_ALIASES[slug];
     const m3Match = resolveMatch3CanonicalAssetThemeId(slug);
     if (m3Match) return m3Match;
+    if (slug.includes('quick-draw') || slug.includes('desert')) return 'desert-quick-draw';
+    if (slug.includes('treasure-hunt')) return 'ocean-treasure-hunt';
     if (slug.includes('christmas')) return 'christmas';
     if (slug.includes('cny') || slug.includes('chinese-new-year') || slug.includes('lunar')) return 'cny';
     if (slug.includes('carnival')) return 'carnival';
@@ -269,6 +282,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   // 3. Check name / title
   const name = String(theme.name || theme.branding?.gameTitle || '').toLowerCase().trim();
   if (name) {
+    if (name.includes('quick draw') || name.includes('desert')) return 'desert-quick-draw';
+    if (name.includes('treasure hunt')) return 'ocean-treasure-hunt';
     const m3Match = resolveMatch3CanonicalAssetThemeId(name);
     if (m3Match) return m3Match;
     if (name.includes('christmas')) return 'christmas';
@@ -323,6 +338,10 @@ const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
   ]),
   'memory-match': new Set(['default']),
   'reaction-tap': new Set(['default']),
+  'random-target': new Set([
+    'desert-quick-draw',
+    'ocean-treasure-hunt',
+  ]),
   'match-3': new Set([
     'default',
     'cute-animals',
@@ -343,6 +362,16 @@ const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
 export function normalizeGameType(gameType?: string | null): string {
   if (!gameType) return 'catch-brand';
   const clean = String(gameType).trim().toLowerCase();
+  if (
+    clean === 'random-target' ||
+    clean === 'random_target' ||
+    clean === 'random-target-arcade' ||
+    clean === 'desert-quick-draw' ||
+    clean === 'ocean-treasure-hunt' ||
+    clean.includes('random-target')
+  ) {
+    return 'random-target';
+  }
   if (
     clean === 'match-3' ||
     clean === 'match3' ||
@@ -378,6 +407,9 @@ function getThemeGameType(theme?: Partial<GameTheme> | any, fallback: string = '
 
   // Check game_config markers
   const gc = theme.game_config as any;
+  if (gc && (gc.positiveTarget || gc.negativeTarget || gc.interactionTool)) {
+    return 'random-target';
+  }
   if (
     gc &&
     (Array.isArray(gc.tileDefinitions) ||
@@ -396,6 +428,9 @@ function getThemeGameType(theme?: Partial<GameTheme> | any, fallback: string = '
   // Check ID / slug heuristics
   const id = String(theme.id || theme.base_theme_id || theme.slug || '').toLowerCase();
   const name = String(theme.name || '').toLowerCase();
+  if (id.includes('random-target') || id.includes('quick-draw') || id.includes('treasure-hunt') || name.includes('random target') || name.includes('quick draw') || name.includes('treasure hunt')) {
+    return 'random-target';
+  }
   if (id.includes('match-3') || id.includes('match3') || id.includes('cascade') || name.includes('match-3') || name.includes('match 3') || name.includes('match3')) {
     return 'match-3';
   }

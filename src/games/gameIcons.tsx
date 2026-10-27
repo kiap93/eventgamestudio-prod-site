@@ -7,12 +7,13 @@ import {
   Gamepad2,
   HelpCircle,
   Sparkles,
+  Crosshair,
 } from 'lucide-react';
 
 /**
  * Canonical game engine types supported across Event Game Studio.
  */
-export type CanonicalGameType = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz' | 'match-3';
+export type CanonicalGameType = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz' | 'match-3' | 'random-target';
 
 /**
  * Normalizes a game type, slug, or name to its canonical identifier.
@@ -68,6 +69,15 @@ export function normalizeGameType(gameType?: string | null): string {
     return 'speed-quiz';
   }
 
+  if (
+    normalized === 'random-target' ||
+    normalized.includes('target') ||
+    normalized.includes('quick-draw') ||
+    normalized.includes('treasure-hunt')
+  ) {
+    return 'random-target';
+  }
+
   return normalized;
 }
 
@@ -107,11 +117,17 @@ export function getGameTypeIconComponent(gameTypeOrIconName?: string | null): Lu
   if (canonical === 'speed-quiz') {
     return HelpCircle;
   }
+  if (canonical === 'random-target') {
+    return Crosshair;
+  }
 
   // 2. Check direct Lucide icon names if passed (e.g. from database icon_name field)
   const lower = raw.toLowerCase();
   if (lower === 'sparkles' || lower === 'gem' || lower === 'match3' || lower === 'match-3') {
     return Sparkles;
+  }
+  if (lower === 'crosshair' || lower === 'target' || lower === 'gun' || lower === 'aim') {
+    return Crosshair;
   }
   if (lower === 'zap' || lower === 'timer' || lower === 'gauge') {
     return Zap;
@@ -146,6 +162,8 @@ export function getDefaultGameTypeIconName(gameType?: string | null): string {
       return 'ShoppingBasket';
     case 'speed-quiz':
       return 'HelpCircle';
+    case 'random-target':
+      return 'Crosshair';
     default:
       return 'Gamepad2';
   }
@@ -184,6 +202,8 @@ export function formatGameTypeName(gameType?: string | null): string {
       return 'Catch The Brand';
     case 'speed-quiz':
       return 'Speed Quiz';
+    case 'random-target':
+      return 'Random Target Arcade';
     default:
       if (!gameType) return 'Custom Game';
       return gameType

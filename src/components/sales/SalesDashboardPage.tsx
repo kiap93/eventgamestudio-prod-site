@@ -588,10 +588,16 @@ export const SalesDashboardPage: React.FC = () => {
                             </h5>
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
                               {comm.order_type === 'first_order'
-                                ? t('sales.customers.firstOrderRate')
+                                ? t('sales.customers.firstOrderRate').replace(
+                                    '10%',
+                                    `${Math.round((comm.commission_rate ?? 0.10) * 10000) / 100}%`
+                                  )
                                 : comm.order_type === 'repeat_order'
-                                ? t('sales.customers.repeatOrderRate')
-                                : 'Opportunity'}
+                                ? t('sales.customers.repeatOrderRate').replace(
+                                    '5%',
+                                    `${Math.round((comm.commission_rate ?? 0.05) * 10000) / 100}%`
+                                  )
+                                : `Opportunity (${Math.round((comm.commission_rate ?? 0.05) * 10000) / 100}%)`}
                             </span>
                           </div>
                           <div className="text-xs text-slate-400">

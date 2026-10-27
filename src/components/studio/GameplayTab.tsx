@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme, isReactionTheme, isMatch3Theme } from '../../themes';
+import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme, isReactionTheme, isMatch3Theme, isRandomTargetTheme } from '../../themes';
 import { useLocalization } from '../../context/LocalizationContext';
 import { MemoryMatchGameplayCustomizer } from './games/MemoryMatchCustomizer';
 import { ReactionGameGameplayCustomizer } from './games/ReactionGameCustomizer';
 import { Match3GameplayCustomizer, Match3HazardsCustomizer } from './games/Match3Customizer';
+import { RandomTargetGameplayCustomizer } from './games/RandomTargetCustomizer';
 import {
   Zap,
   Clock,
@@ -67,6 +68,11 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({
 
   if (isMemoryMatch) {
     return <MemoryMatchGameplayCustomizer theme={theme} onChange={handleThemeChange} />;
+  }
+
+  const isRandomTarget = isRandomTargetTheme(theme);
+  if (isRandomTarget) {
+    return <RandomTargetGameplayCustomizer theme={theme} onChange={handleThemeChange} />;
   }
 
   const physics = theme.physics_config || {

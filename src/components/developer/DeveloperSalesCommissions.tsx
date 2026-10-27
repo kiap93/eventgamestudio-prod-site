@@ -611,10 +611,19 @@ export const DeveloperSalesCommissions: React.FC = () => {
                             }`}
                           >
                             {comm.order_type === 'first_order'
-                              ? t('dev.commissions.badgeFirstOrder', undefined, '1st Order (10%)')
+                              ? t('dev.commissions.badgeFirstOrder', undefined, '1st Order (10%)').replace(
+                                  '10%',
+                                  `${Math.round((comm.commission_rate ?? 0.10) * 10000) / 100}%`
+                                )
                               : comm.order_type === 'repeat_order'
-                              ? t('dev.commissions.badgeRepeatOrder', undefined, 'Repeat (5%)')
-                              : t('dev.commissions.badgeOpportunity', undefined, 'Opportunity (5%)')}
+                              ? t('dev.commissions.badgeRepeatOrder', undefined, 'Repeat (5%)').replace(
+                                  '5%',
+                                  `${Math.round((comm.commission_rate ?? 0.05) * 10000) / 100}%`
+                                )
+                              : t('dev.commissions.badgeOpportunity', undefined, 'Opportunity (5%)').replace(
+                                  '5%',
+                                  `${Math.round((comm.commission_rate ?? 0.05) * 10000) / 100}%`
+                                )}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-right font-mono text-slate-200">
@@ -1000,14 +1009,21 @@ export const DeveloperSalesCommissions: React.FC = () => {
 
           <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">
-                {t('dev.commissions.firstOrderRateLabel', undefined, 'First-Order Commission Rate (Default: 0.10 for 10%)')}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-300">
+                  {t('dev.commissions.firstOrderRateLabel', undefined, 'First-Order Commission Rate (Default: 0.10 for 10%)')}
+                </label>
+                <span className="font-mono font-bold text-amber-400">
+                  {Number.isFinite(settingsForm.first_order_commission_rate)
+                    ? `${Math.round(settingsForm.first_order_commission_rate * 10000) / 100}%`
+                    : '10%'}
+                </span>
+              </div>
               <input
                 type="number"
                 step="0.01"
                 min="0"
-                max="1"
+                max="0.50"
                 value={settingsForm.first_order_commission_rate}
                 onChange={(e) =>
                   setSettingsForm({ ...settingsForm, first_order_commission_rate: parseFloat(e.target.value) })
@@ -1017,14 +1033,21 @@ export const DeveloperSalesCommissions: React.FC = () => {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">
-                {t('dev.commissions.repeatOrderRateLabel', undefined, 'Repeat-Order Commission Rate (Default: 0.05 for 5%)')}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-300">
+                  {t('dev.commissions.repeatOrderRateLabel', undefined, 'Repeat-Order Commission Rate (Default: 0.05 for 5%)')}
+                </label>
+                <span className="font-mono font-bold text-emerald-400">
+                  {Number.isFinite(settingsForm.repeat_order_commission_rate)
+                    ? `${Math.round(settingsForm.repeat_order_commission_rate * 10000) / 100}%`
+                    : '5%'}
+                </span>
+              </div>
               <input
                 type="number"
                 step="0.01"
                 min="0"
-                max="1"
+                max="0.50"
                 value={settingsForm.repeat_order_commission_rate}
                 onChange={(e) =>
                   setSettingsForm({ ...settingsForm, repeat_order_commission_rate: parseFloat(e.target.value) })

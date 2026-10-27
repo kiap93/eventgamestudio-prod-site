@@ -9117,6 +9117,33 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
       }
 
+      // GET /api/developer/sales-commissions/settings
+      if ((pathname === '/api/developer/sales-commissions/settings' || pathname === '/api/admin/sales-commissions/settings') && method === 'GET') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const settings = await getSalesCommissionSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // PUT /api/developer/sales-commissions/settings
+      if ((pathname === '/api/developer/sales-commissions/settings' || pathname === '/api/admin/sales-commissions/settings') && method === 'PUT') {
+        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const updated = await updateSalesCommissionSettings(body, auth.user!.id, env);
+          return jsonResponse({ success: true, settings: updated }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
       // GET /api/developer/sales-commissions/:id
       const devCommissionDetailMatch = parseRoute('/api/developer/sales-commissions/:id', pathname);
       if (devCommissionDetailMatch && method === 'GET') {
@@ -9327,33 +9354,6 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
           const updated = await markPayoutBatchPaid(devBatchPayMatch.id, body.paymentReference.trim(), auth.user!.id, body.notes, env);
           return jsonResponse({ success: true, batch: updated }, 200, cors);
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env);
-        }
-      }
-
-      // GET /api/developer/sales-commissions/settings
-      if ((pathname === '/api/developer/sales-commissions/settings' || pathname === '/api/admin/sales-commissions/settings') && method === 'GET') {
-        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        try {
-          const settings = await getSalesCommissionSettings(env);
-          return jsonResponse({ success: true, settings }, 200, cors);
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env);
-        }
-      }
-
-      // PUT /api/developer/sales-commissions/settings
-      if ((pathname === '/api/developer/sales-commissions/settings' || pathname === '/api/admin/sales-commissions/settings') && method === 'PUT') {
-        const auth = await authenticateWorkerDeveloperAdmin(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const updated = await updateSalesCommissionSettings(body, auth.user!.id, env);
-          return jsonResponse({ success: true, settings: updated }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }

@@ -2,7 +2,7 @@ import React from 'react';
 import { GameTheme } from '../themes/types';
 import { GameSettings, GameState, GameStats } from '../types';
 
-export type GameTypeId = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz' | 'match-3';
+export type GameTypeId = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz' | 'match-3' | 'random-target';
 export const DEFAULT_GAME_TYPE: GameTypeId = 'catch-brand';
 
 export interface BaseGameConfig {

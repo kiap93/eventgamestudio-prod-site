@@ -532,6 +532,8 @@ export function resolveGameMetaForStartScreen(
       ? 'Reaction Tap'
       : resolvedGameType === 'match-3'
       ? 'Match-3'
+      : resolvedGameType === 'random-target'
+      ? 'Random Target Arcade'
       : 'Memory Match';
 
   const defaultSubtitle =
@@ -541,6 +543,8 @@ export function resolveGameMetaForStartScreen(
       ? 'Flip cards, match pairs, and beat the clock!'
       : resolvedGameType === 'reaction-tap'
       ? 'Tap the lights as fast as you can!'
+      : resolvedGameType === 'random-target'
+      ? 'Tap targets to score points while avoiding hazard obstacles!'
       : 'Catch items, avoid hazards!';
 
   const gameTitle =
@@ -568,11 +572,14 @@ export function resolveGameMetaForStartScreen(
 
   // 4. Durations
   const match3Duration = gc.gameDurationSeconds ?? 60;
+  const randomTargetDuration = gc.gameDurationSeconds ?? 30;
   const memoryDuration = gc.gameplay?.gameDurationSeconds ?? gc.gameplay?.duration ?? gc.duration ?? 45;
   const catchDuration = gc.gameplay?.duration ?? gc.duration ?? 30;
   const defaultDuration =
     resolvedGameType === 'match-3'
       ? match3Duration
+      : resolvedGameType === 'random-target'
+      ? randomTargetDuration
       : resolvedGameType === 'catch-brand'
       ? catchDuration
       : memoryDuration;

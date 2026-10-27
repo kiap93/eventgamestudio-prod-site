@@ -91,6 +91,65 @@ export function clearLocalCommissionAuditLogsCache(): void {
 }
 
 /**
+ * Normalize persisted platform commission settings from database storage.
+ * Repairs legacy 0.15 / 0.10 defaults or whole-number percentage values (> 1) to authoritative decimal rates (0.10 / 0.05).
+ */
+export function normalizePersistedCommissionSettings(
+  raw: Record<string, any> | null | undefined
+): PlatformSalesCommissionSettings {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_COMMISSION_SETTINGS };
+  }
+
+  let firstRate =
+    typeof raw.first_order_commission_rate === 'number' && Number.isFinite(raw.first_order_commission_rate)
+      ? raw.first_order_commission_rate
+      : DEFAULT_COMMISSION_SETTINGS.first_order_commission_rate;
+  let repeatRate =
+    typeof raw.repeat_order_commission_rate === 'number' && Number.isFinite(raw.repeat_order_commission_rate)
+      ? raw.repeat_order_commission_rate
+      : DEFAULT_COMMISSION_SETTINGS.repeat_order_commission_rate;
+
+  // Guard against whole-number percentage storage (e.g. 10 stored instead of 0.10)
+  if (firstRate > 1 && firstRate <= 100) {
+    firstRate = firstRate / 100;
+  }
+  if (repeatRate > 1 && repeatRate <= 100) {
+    repeatRate = repeatRate / 100;
+  }
+
+  // Repair legacy 15% / 10% platform default pair if never migrated
+  if (Math.abs(firstRate - 0.15) < 0.0001 && Math.abs(repeatRate - 0.10) < 0.0001 && !raw.updated_by) {
+    firstRate = DEFAULT_COMMISSION_SETTINGS.first_order_commission_rate; // 0.10
+    repeatRate = DEFAULT_COMMISSION_SETTINGS.repeat_order_commission_rate; // 0.05
+  }
+
+  firstRate = Math.max(0, Math.min(0.50, Number(firstRate.toFixed(4))));
+  repeatRate = Math.max(0, Math.min(0.50, Number(repeatRate.toFixed(4))));
+
+  const repeatWindow =
+    typeof raw.repeat_window_months === 'number' && Number.isFinite(raw.repeat_window_months)
+      ? Math.max(1, Math.min(60, Math.round(raw.repeat_window_months)))
+      : DEFAULT_COMMISSION_SETTINGS.repeat_window_months;
+
+  return {
+    ...DEFAULT_COMMISSION_SETTINGS,
+    ...raw,
+    first_order_commission_rate: firstRate,
+    repeat_order_commission_rate: repeatRate,
+    repeat_window_months: repeatWindow,
+    require_delivery_completion:
+      typeof raw.require_delivery_completion === 'boolean'
+        ? raw.require_delivery_completion
+        : DEFAULT_COMMISSION_SETTINGS.require_delivery_completion,
+    minimum_payout_amount:
+      typeof raw.minimum_payout_amount === 'number' && Number.isFinite(raw.minimum_payout_amount)
+        ? Math.max(0, raw.minimum_payout_amount)
+        : DEFAULT_COMMISSION_SETTINGS.minimum_payout_amount,
+  };
+}
+
+/**
  * Retrieve current platform sales commission settings.
  */
 export async function getSalesCommissionSettings(
@@ -106,10 +165,7 @@ export async function getSalesCommissionSettings(
         .maybeSingle();
 
       if (!error && data?.value) {
-        return {
-          ...DEFAULT_COMMISSION_SETTINGS,
-          ...data.value,
-        };
+        return normalizePersistedCommissionSettings(data.value);
       }
     } catch (err: any) {
       if (isProductionEnvironment(env)) {
@@ -123,6 +179,8 @@ export async function getSalesCommissionSettings(
 
 /**
  * Update platform sales commission settings.
+ * Enforces consistent decimal rate units (0.00 to 0.50, e.g. 0.10 for 10% and 0.05 for 5%)
+ * so whole-number percentages (such as 10 or 5) are never accidentally stored as 1000% or clamped to 100%.
  */
 export async function updateSalesCommissionSettings(
   settings: Partial<PlatformSalesCommissionSettings>,
@@ -131,6 +189,22 @@ export async function updateSalesCommissionSettings(
 ): Promise<PlatformSalesCommissionSettings> {
   assertProductionSafe('updateSalesCommissionSettings', env);
 
+  const validatePlatformRate = (val: any, name: string) => {
+    if (val === undefined) return;
+    if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 0.50) {
+      const err: any = new Error(
+        `${name} must be a decimal fraction between 0.00 and 0.50 (e.g. 0.10 for 10% or 0.05 for 5%; maximum 50%)`
+      );
+      err.statusCode = 400;
+      err.status = 400;
+      err.isOperational = true;
+      throw err;
+    }
+  };
+
+  validatePlatformRate(settings.first_order_commission_rate, 'First-order commission rate');
+  validatePlatformRate(settings.repeat_order_commission_rate, 'Repeat-order commission rate');
+
   const current = await getSalesCommissionSettings(env);
   const updated: PlatformSalesCommissionSettings = {
     ...current,
@@ -138,15 +212,16 @@ export async function updateSalesCommissionSettings(
     updated_at: new Date().toISOString(),
   };
 
-  // Safe range clamps
   if (typeof updated.first_order_commission_rate === 'number') {
-    updated.first_order_commission_rate = Math.max(0, Math.min(1, updated.first_order_commission_rate));
+    updated.first_order_commission_rate = Number(Math.max(0, Math.min(0.50, updated.first_order_commission_rate)).toFixed(4));
   }
   if (typeof updated.repeat_order_commission_rate === 'number') {
-    updated.repeat_order_commission_rate = Math.max(0, Math.min(1, updated.repeat_order_commission_rate));
+    updated.repeat_order_commission_rate = Number(Math.max(0, Math.min(0.50, updated.repeat_order_commission_rate)).toFixed(4));
   }
-  if (typeof updated.repeat_window_months === 'number') {
+  if (typeof updated.repeat_window_months === 'number' && Number.isFinite(updated.repeat_window_months)) {
     updated.repeat_window_months = Math.max(1, Math.min(60, Math.round(updated.repeat_window_months)));
+  } else {
+    updated.repeat_window_months = DEFAULT_COMMISSION_SETTINGS.repeat_window_months;
   }
 
   if (isSupabaseConfigured(env)) {

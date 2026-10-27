@@ -7,6 +7,8 @@ import { DEFAULT_REACTION_CONFIG, ReactionGameConfig } from './reaction-time/typ
 import { SpeedQuizUnavailablePlaceholder } from './speed-quiz/SpeedQuizUnavailablePlaceholder';
 import { Match3Game } from './match-3/Match3Game';
 import { DEFAULT_MATCH3_CONFIG, Match3GameConfig } from './match-3/types';
+import { RandomTargetGame } from './random-target/RandomTargetGame';
+import { DEFAULT_DESERT_CONFIG, RandomTargetGameConfig } from './random-target/types';
 import {
   normalizeGameType,
   tryNormalizeGameType,
@@ -124,6 +126,21 @@ const CANONICAL_GAME_REGISTRY: Record<string, GameDefinition<any>> = {
     component: Match3Game,
     isAvailable: true,
   },
+  'random-target': {
+    id: 'random-target',
+    name: 'Random Target Arcade',
+    shortName: 'Target',
+    description: 'Tap appearing targets before time runs out! Hit positive score targets and avoid penalty obstacles across Desert and Ocean themes.',
+    iconName: 'Crosshair',
+    category: 'action',
+    minPlayers: 1,
+    maxPlayers: 1,
+    defaultDurationSeconds: 30,
+    supportedInputTypes: ['touch', 'mouse'],
+    defaultConfig: DEFAULT_DESERT_CONFIG as RandomTargetGameConfig,
+    component: RandomTargetGame,
+    isAvailable: true,
+  },
 };
 
 /**
@@ -140,11 +157,14 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = new Proxy(CANO
       if (prop === 'reaction-time' || prop === 'reaction-tap-f1-reflex') {
         return target['reaction-tap'];
       }
+      if (prop === 'random_target' || prop === 'target-arcade' || prop === 'desert-quick-draw' || prop === 'ocean-treasure-hunt') {
+        return target['random-target'];
+      }
     }
     return Reflect.get(target, prop);
   },
   has(target, prop: string | symbol) {
-    if (typeof prop === 'string' && (prop === 'reaction-time' || prop === 'reaction-tap-f1-reflex')) {
+    if (typeof prop === 'string' && (prop === 'reaction-time' || prop === 'reaction-tap-f1-reflex' || prop === 'random_target' || prop === 'target-arcade' || prop === 'desert-quick-draw' || prop === 'ocean-treasure-hunt')) {
       return true;
     }
     return Reflect.has(target, prop);

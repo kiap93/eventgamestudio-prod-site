@@ -15,6 +15,10 @@ import {
   handleEventRefundCommissionClawback,
   getCommissionAuditLogs,
   listAdminCommissions,
+  DEFAULT_COMMISSION_SETTINGS,
+  getSalesCommissionSettings,
+  updateSalesCommissionSettings,
+  normalizePersistedCommissionSettings,
 } from './db/salesCommissions.js';
 import {
   clearLocalSalesPartnersCache,
@@ -664,5 +668,147 @@ describe('Phase 5 — Sales Commissions, Opportunities, Payouts & Financial Safe
     expect(body2.success).toBe(true);
     expect(body2.opportunity.title).toBe('2027 Multi-City Showcase Tour');
     expect(body2.opportunity.status).toBe('pending');
+  });
+
+  // --------------------------------------------------------------------------
+  // 16. AUTHORITATIVE COMMISSION RATES (10% FIRST / 5% REPEAT) & UNIT SAFETY
+  // --------------------------------------------------------------------------
+  test('16. Authoritative default commission rates are 10% (0.10) first order and 5% (0.05) repeat order, rejecting whole-number percentage unit confusion', async () => {
+    expect(DEFAULT_COMMISSION_SETTINGS.first_order_commission_rate).toBe(0.10);
+    expect(DEFAULT_COMMISSION_SETTINGS.repeat_order_commission_rate).toBe(0.05);
+    expect(DEFAULT_COMMISSION_SETTINGS.repeat_window_months).toBe(12);
+
+    const initial = await getSalesCommissionSettings(testEnv);
+    expect(initial.first_order_commission_rate).toBe(0.10);
+    expect(initial.repeat_order_commission_rate).toBe(0.05);
+
+    // Reject whole-number percentage inputs (e.g. 10 instead of 0.10, or 5 instead of 0.05)
+    await expect(
+      updateSalesCommissionSettings({ first_order_commission_rate: 10 }, 'admin-user', testEnv)
+    ).rejects.toThrow('First-order commission rate must be a decimal fraction between 0.00 and 0.50');
+
+    await expect(
+      updateSalesCommissionSettings({ repeat_order_commission_rate: 5 }, 'admin-user', testEnv)
+    ).rejects.toThrow('Repeat-order commission rate must be a decimal fraction between 0.00 and 0.50');
+
+    // Normalize legacy 0.15 / 0.10 persisted defaults or whole-number storage safely
+    const normalizedLegacy = normalizePersistedCommissionSettings({
+      first_order_commission_rate: 0.15,
+      repeat_order_commission_rate: 0.10,
+      repeat_window_months: 12,
+    });
+    expect(normalizedLegacy.first_order_commission_rate).toBe(0.10);
+    expect(normalizedLegacy.repeat_order_commission_rate).toBe(0.05);
+
+    const normalizedWholeNumbers = normalizePersistedCommissionSettings({
+      first_order_commission_rate: 10,
+      repeat_order_commission_rate: 5,
+    });
+    expect(normalizedWholeNumbers.first_order_commission_rate).toBe(0.10);
+    expect(normalizedWholeNumbers.repeat_order_commission_rate).toBe(0.05);
+  });
+
+  // --------------------------------------------------------------------------
+  // 17. DEVELOPER ADMIN SETTINGS API & FINALIZED COMMISSION IMMUTABILITY
+  // --------------------------------------------------------------------------
+  test('17. Developer Admin rate settings save/load 10% and 5% via API without mutating existing finalized commissions', async () => {
+    const adminUser = await createUser({
+      email: 'admin@eventgamestudio.com',
+      name: 'Admin Dev',
+      is_developer: true,
+    }, testEnv);
+    const { signAppToken } = await import('./auth.js');
+    const adminToken = await signAppToken(adminUser.id, undefined, undefined, testEnv.JWT_SECRET, testEnv);
+
+    // 1. Create and approve a commission under default 10% rate
+    const { org, theme } = await setupPartnerAndCustomerOrg('tc17');
+    const event1 = await createTestEvent({
+      organization_id: org.id,
+      game_theme_id: theme.id,
+      name: 'Finalized Event 1',
+      payment_status: 'PAID',
+      event_status: 'COMPLETED',
+      status: 'completed',
+      paid_amount: 1400.00,
+    });
+    const eval1 = await evaluateAndRecordEventCommission(event1.id, testEnv);
+    const approvedComm = await approveCommission(eval1.commission!.id, adminUser.id, 'Approved at 10%', testEnv);
+    expect(approvedComm.commission_rate).toBe(0.10);
+    expect(approvedComm.commission_amount).toBe(140.00);
+
+    // 2. GET /api/developer/sales-commissions/settings returns 0.10 and 0.05
+    const getRes = await worker.fetch(
+      new Request('https://test.local/api/developer/sales-commissions/settings', {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }),
+      testEnv as any
+    );
+    expect(getRes.status).toBe(200);
+    const getBody = (await getRes.json()) as any;
+    expect(getBody.settings.first_order_commission_rate).toBe(0.10);
+    expect(getBody.settings.repeat_order_commission_rate).toBe(0.05);
+
+    // 3. PUT /api/developer/sales-commissions/settings rejects invalid unit (e.g. 10 instead of 0.10) with 400
+    const badPutRes = await worker.fetch(
+      new Request('https://test.local/api/developer/sales-commissions/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          first_order_commission_rate: 10,
+          repeat_order_commission_rate: 5,
+        }),
+      }),
+      testEnv as any
+    );
+    expect(badPutRes.status).toBe(400);
+
+    // 4. PUT /api/developer/sales-commissions/settings saves 0.10 and 0.05 cleanly
+    const validPutRes = await worker.fetch(
+      new Request('https://test.local/api/developer/sales-commissions/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          first_order_commission_rate: 0.10,
+          repeat_order_commission_rate: 0.05,
+          repeat_window_months: 12,
+          require_delivery_completion: true,
+        }),
+      }),
+      testEnv as any
+    );
+    expect(validPutRes.status).toBe(200);
+    const validPutBody = (await validPutRes.json()) as any;
+    expect(validPutBody.settings.first_order_commission_rate).toBe(0.10);
+    expect(validPutBody.settings.repeat_order_commission_rate).toBe(0.05);
+
+    // 5. Verify finalized commission record was NOT silently mutated
+    const commList = await listAdminCommissions({ organization_id: org.id }, testEnv);
+    const persistedComm = commList.commissions.find((c) => c.id === approvedComm.id);
+    expect(persistedComm?.status).toBe('approved');
+    expect(persistedComm?.commission_rate).toBe(0.10);
+    expect(persistedComm?.commission_amount).toBe(140.00);
+  });
+
+  // --------------------------------------------------------------------------
+  // 18. MIGRATION 20261027000000 VERIFICATION
+  // --------------------------------------------------------------------------
+  test('18. Migration 20261027000000 enforces 10% first-order and 5% repeat-order rates in platform_settings and create_sales_commission_atomic', () => {
+    const migrationPath = path.join(
+      process.cwd(),
+      'supabase/migrations/20261027000000_fix_sales_partner_commission_rates_10_5.sql'
+    );
+    expect(fs.existsSync(migrationPath)).toBe(true);
+    const sql = fs.readFileSync(migrationPath, 'utf8');
+    expect(sql).toContain("'first_order_commission_rate', 0.10");
+    expect(sql).toContain("'repeat_order_commission_rate', 0.05");
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION public.create_sales_commission_atomic');
+    expect(sql).toContain('v_default_first_rate NUMERIC := 0.10');
+    expect(sql).toContain('v_default_repeat_rate NUMERIC := 0.05');
   });
 });

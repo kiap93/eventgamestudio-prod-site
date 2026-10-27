@@ -2,6 +2,7 @@ import { soundManager } from '../game/systems/SoundManager';
 import { match3Sounds } from '../games/match-3/match3Sounds';
 import { memorySounds } from '../games/memory-match/memorySounds';
 import { reactionSounds } from '../games/reaction-time/reactionSounds';
+import { randomTargetSounds } from '../games/random-target/randomTargetSounds';
 import { GameTypeId } from '../games/types';
 
 /**
@@ -30,6 +31,10 @@ export function stopGameAudio(gameType?: GameTypeId | string | null): void {
     try {
       reactionSounds.stopAll();
     } catch {}
+  } else if (normalized === 'random-target') {
+    try {
+      randomTargetSounds.stopAll();
+    } catch {}
   } else {
     // If unrecognized game identifier, stop all to be completely safe
     stopAllGameAudio();
@@ -52,5 +57,8 @@ export function stopAllGameAudio(): void {
   } catch {}
   try {
     reactionSounds.stopAll();
+  } catch {}
+  try {
+    randomTargetSounds.stopAll();
   } catch {}
 }

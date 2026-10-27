@@ -272,8 +272,22 @@ export { isUUID };
 export function tryNormalizeGameType(gameType?: string | null): string | null {
   if (!gameType || typeof gameType !== 'string') return null;
   const clean = gameType.trim().toLowerCase();
-  if (!clean || isUUID(clean)) return null;
-
+  if (
+    clean === 'random-target' ||
+    clean === 'random_target' ||
+    clean === 'randomtarget' ||
+    clean === 'random-target-arcade' ||
+    clean === 'target-arcade' ||
+    clean === 'desert-quick-draw' ||
+    clean === 'ocean-treasure-hunt' ||
+    clean === 'quick-draw' ||
+    clean === 'treasure-hunt' ||
+    clean.includes('random-target') ||
+    clean.includes('quick-draw') ||
+    clean.includes('treasure-hunt')
+  ) {
+    return 'random-target';
+  }
   if (
     clean === 'match-3' ||
     clean === 'match3' ||
@@ -529,6 +543,14 @@ export function resolveAuthoritativeGameType(
     if (name && typeof name === 'string') {
       const lower = name.toLowerCase();
       if (
+        lower.includes('random target') ||
+        lower.includes('target arcade') ||
+        lower.includes('quick draw') ||
+        lower.includes('treasure hunt')
+      ) {
+        return 'random-target';
+      }
+      if (
         lower.includes('match-3') ||
         lower.includes('match 3') ||
         lower.includes('match3') ||
@@ -579,6 +601,17 @@ export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGame
       gc.screens?.result?.gameType === 'match-3')
   ) {
     return 'match-3';
+  }
+  if (
+    gc &&
+    (gc.randomTargetConfig ||
+      gc.positiveTarget ||
+      gc.negativeTarget ||
+      gc.interactionTool ||
+      gc.screens?.start?.gameType === 'random-target' ||
+      gc.screens?.result?.gameType === 'random-target')
+  ) {
+    return 'random-target';
   }
   if (gc && (gc.cardPairs || gc.memoryConfig || gc.screens?.start?.gameType === 'memory-match' || gc.screens?.result?.gameType === 'memory-match')) {
     return 'memory-match';
@@ -644,6 +677,25 @@ export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGame
   ) {
     return 'memory-match';
   }
+  if (
+    baseThemeId === 'random-target' ||
+    baseThemeId === 'desert-quick-draw' ||
+    baseThemeId === 'ocean-treasure-hunt' ||
+    themeId === 'random-target' ||
+    themeId === 'desert-quick-draw' ||
+    themeId === 'ocean-treasure-hunt' ||
+    themeSlug.includes('random-target') ||
+    themeSlug.includes('quick-draw') ||
+    themeSlug.includes('treasure-hunt') ||
+    themeName.includes('random target') ||
+    themeName.includes('quick draw') ||
+    themeName.includes('treasure hunt') ||
+    brandingTitle.includes('random target') ||
+    brandingTitle.includes('quick draw') ||
+    brandingTitle.includes('treasure hunt')
+  ) {
+    return 'random-target';
+  }
 
   // Check explicit properties on theme object next, prioritizing non-catch-brand candidates
   const explicitCandidates = [
@@ -687,6 +739,13 @@ export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGame
     return 'catch-brand';
   }
   return normalizeGameType(fallbackGameType || 'catch-brand');
+}
+
+/**
+ * Checks if a theme belongs to Random Target Arcade.
+ */
+export function isRandomTargetTheme(theme?: Partial<GameTheme> | null, fallbackGameType?: string): boolean {
+  return getThemeGameType(theme, fallbackGameType) === 'random-target';
 }
 
 /**
