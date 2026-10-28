@@ -67,6 +67,7 @@ import {
   createPlatformGame,
   updatePlatformGame,
   deletePlatformGame,
+  recordUserAndOrganizationLogin,
   getAllOrganizationsForDeveloper,
   getOrganizationDetailForDeveloper,
   ensureSystemCatalogGames,
@@ -733,6 +734,13 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
     const token = await signAppToken(user.id, activeOrgId, activeRole as any);
     setAuthCookieOnResponse(res, token, getCookieOptionsFromRequest(req));
 
+    // Record successful login activity for user and affiliated organizations
+    try {
+      await recordUserAndOrganizationLogin(user.id);
+    } catch (loginActErr: any) {
+      console.warn(`[Google Auth][${correlationId}] Non-blocking warning recording login activity:`, loginActErr?.message);
+    }
+
     res.json({
       token,
       user: {
@@ -955,6 +963,13 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     const token = await signAppToken(user.id, activeOrgId, activeRole as any);
     setAuthCookieOnResponse(res, token, getCookieOptionsFromRequest(req));
 
+    // Record successful login activity for user and affiliated organizations
+    try {
+      await recordUserAndOrganizationLogin(user.id);
+    } catch (loginActErr: any) {
+      console.warn(`[AUTH] Non-blocking warning recording login activity for user ${user.id}:`, loginActErr?.message);
+    }
+
     res.json({
       token,
       user: {
@@ -1022,6 +1037,13 @@ app.post('/api/auth/verify-email', authRateLimiter, async (req, res) => {
 
     const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any);
     setAuthCookieOnResponse(res, sessionToken, getCookieOptionsFromRequest(req));
+
+    // Record successful login activity for user and affiliated organizations
+    try {
+      await recordUserAndOrganizationLogin(verifiedUser.id);
+    } catch (loginActErr: any) {
+      console.warn(`[AUTH] Non-blocking warning recording login activity on verification:`, loginActErr?.message);
+    }
 
     res.json({
       success: true,

@@ -25,16 +25,20 @@ import {
   ActiveTarget,
   HitFeedback,
   ProjectileAnimation,
-  DEFAULT_DESERT_CONFIG,
-  DEFAULT_OCEAN_CONFIG,
-  normalizeRandomTargetConfig,
+  isOceanTreasureHuntTheme,
+  resolveEffectiveRandomTargetConfig,
+  resolveRandomTargetBackgroundUrl,
 } from './types';
 import {
   calculateCurrentDifficulty,
   spawnRandomTarget,
   handleTargetHit,
   handleTargetExpirations,
-  calculateAimAngleDeg,
+  calculateToolShotAngleDeg,
+  NEUTRAL_TOOL_AIM_DEG,
+  TOOL_MUZZLE_FLASH_DURATION_MS,
+  TOOL_RECOIL_DURATION_MS,
+  TOOL_RETURN_TO_NEUTRAL_MS,
 } from './engine';
 import { randomTargetSounds } from './randomTargetSounds';
 import { ResultScreenRenderer } from '../shared/ResultScreenRenderer';
@@ -81,18 +85,13 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
 }) => {
   const { t } = useLocalization();
 
-  // Merge theme game_config and propConfig with desert/ocean fallback using canonical normalizer
-  const resolvedConfig = useMemo<RandomTargetGameConfig>(() => {
-    const isOceanTheme = (activeTheme?.id || '').includes('ocean') || (activeTheme?.slug || '').includes('ocean');
-    const baseDefault = isOceanTheme ? DEFAULT_OCEAN_CONFIG : DEFAULT_DESERT_CONFIG;
+  // Authoritatively identify theme type and resolve config without cross-theme asset overrides
+  const isOceanTheme = useMemo(() => {
+    return isOceanTreasureHuntTheme(activeTheme, propConfig);
+  }, [activeTheme, propConfig]);
 
-    return normalizeRandomTargetConfig(
-      {
-        ...((activeTheme?.game_config as any) || {}),
-        ...(propConfig || {}),
-      },
-      baseDefault
-    );
+  const resolvedConfig = useMemo<RandomTargetGameConfig>(() => {
+    return resolveEffectiveRandomTargetConfig(activeTheme, propConfig);
   }, [activeTheme, propConfig]);
 
   // Core Game State
@@ -119,9 +118,10 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
   const [projectiles, setProjectiles] = useState<ProjectileAnimation[]>([]);
 
   // Bottom-right tool aim angle and recoil animation state
-  const [toolAimDeg, setToolAimDeg] = useState<number>(0);
+  const [toolAimDeg, setToolAimDeg] = useState<number>(NEUTRAL_TOOL_AIM_DEG);
   const [toolRecoil, setToolRecoil] = useState<boolean>(false);
   const [muzzleFlash, setMuzzleFlash] = useState<boolean>(false);
+  const [failedImageUrls, setFailedImageUrls] = useState<Record<string, boolean>>({});
 
   // References
   const stageRef = useRef<HTMLDivElement>(null);
@@ -130,6 +130,8 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
   const startTimeRef = useRef<number>(0);
   const isGameOverTriggeredRef = useRef<boolean>(false);
   const timeoutIdsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const toolTimeoutIdsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const shotSequenceRef = useRef<number>(0);
   const sessionIdRef = useRef<string>(
     `rt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
   );
@@ -166,11 +168,38 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
     return id;
   }, []);
 
+  const clearToolAnimationTimeouts = useCallback(() => {
+    for (const id of toolTimeoutIdsRef.current) {
+      clearTimeout(id);
+    }
+    if (toolTimeoutIdsRef.current.length > 0) {
+      const toolSet = new Set(toolTimeoutIdsRef.current);
+      timeoutIdsRef.current = timeoutIdsRef.current.filter((t) => !toolSet.has(t));
+      toolTimeoutIdsRef.current = [];
+    }
+  }, []);
+
+  const registerToolTimeout = useCallback(
+    (fn: () => void, delayMs: number) => {
+      const id = registerTimeout(() => {
+        toolTimeoutIdsRef.current = toolTimeoutIdsRef.current.filter((t) => t !== id);
+        fn();
+      }, delayMs);
+      toolTimeoutIdsRef.current.push(id);
+      return id;
+    },
+    [registerTimeout]
+  );
+
   const clearAllTimeouts = useCallback(() => {
     for (const id of timeoutIdsRef.current) {
       clearTimeout(id);
     }
+    for (const id of toolTimeoutIdsRef.current) {
+      clearTimeout(id);
+    }
     timeoutIdsRef.current = [];
+    toolTimeoutIdsRef.current = [];
   }, []);
 
   const fetchLeaderboard = useCallback(async () => {
@@ -193,12 +222,22 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
     }
   }, [eventId, publicToken]);
 
+  // Reset tool pose and clear pending timers when switching themes or tool configuration
+  useEffect(() => {
+    clearToolAnimationTimeouts();
+    shotSequenceRef.current += 1;
+    setToolAimDeg(NEUTRAL_TOOL_AIM_DEG);
+    setToolRecoil(false);
+    setMuzzleFlash(false);
+    setFailedImageUrls({});
+  }, [activeTheme?.id, activeTheme?.slug, resolvedConfig.interactionTool.type, resolvedConfig.interactionTool.imageUrl, clearToolAnimationTimeouts]);
+
   // Audio configuration sync
   useEffect(() => {
     randomTargetSounds.setMuted(isMuted || !resolvedConfig.soundEnabled);
     randomTargetSounds.setVolume(resolvedConfig.soundVolume || 0.8);
-    randomTargetSounds.setTheme(activeTheme?.id || 'desert-quick-draw');
-  }, [isMuted, resolvedConfig.soundEnabled, resolvedConfig.soundVolume, activeTheme?.id]);
+    randomTargetSounds.setTheme(isOceanTheme ? 'ocean-treasure-hunt' : (activeTheme?.id || 'desert-quick-draw'));
+  }, [isMuted, resolvedConfig.soundEnabled, resolvedConfig.soundVolume, activeTheme?.id, isOceanTheme]);
 
   // Notify parent of game state & stats changes
   useEffect(() => {
@@ -224,6 +263,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
    * Starts a new game round
    */
   const handleStartGame = useCallback(() => {
+    shotSequenceRef.current += 1;
     clearAllTimeouts();
     const initialStats: RandomTargetStats = {
       score: resolvedConfig.startingScore || 0,
@@ -244,7 +284,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
     setActiveTargets([]);
     setHitFeedbacks([]);
     setProjectiles([]);
-    setToolAimDeg(0);
+    setToolAimDeg(NEUTRAL_TOOL_AIM_DEG);
     setToolRecoil(false);
     setMuzzleFlash(false);
 
@@ -276,11 +316,13 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
   const handleGameOver = useCallback(() => {
     if (isGameOverTriggeredRef.current) return;
     isGameOverTriggeredRef.current = true;
+    shotSequenceRef.current += 1;
 
     clearAllTimeouts();
     activeTargetsRef.current = [];
     setActiveTargets([]);
     setProjectiles([]);
+    setToolAimDeg(NEUTRAL_TOOL_AIM_DEG);
     setToolRecoil(false);
     setMuzzleFlash(false);
 
@@ -389,6 +431,57 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
   const toolAnchorY = RANDOM_TARGET_DESIGN_HEIGHT - 8 - (resolvedConfig.interactionTool.size || 160) * 0.45;
 
   /**
+   * Executes the full aim -> cast/recoil -> return-to-neutral animation lifecycle.
+   * Cancels any older shot/cast's pending timers so rapid consecutive interactions never reset each other prematurely.
+   */
+  const triggerToolShotAnimation = useCallback(
+    (targetDesignX: number, targetDesignY: number) => {
+      clearToolAnimationTimeouts();
+      const shotId = ++shotSequenceRef.current;
+
+      // 1. Compute and apply the interaction's target angle relative to the neutral diagonal pose
+      const aimAngle = calculateToolShotAngleDeg(
+        toolAnchorX,
+        toolAnchorY,
+        targetDesignX,
+        targetDesignY,
+        RANDOM_TARGET_DESIGN_WIDTH,
+        RANDOM_TARGET_DESIGN_HEIGHT
+      );
+      setToolAimDeg(aimAngle);
+
+      // 2. Trigger recoil / cast motion; only trigger gunshot muzzle flash for pistol archetype
+      const isPistolTool = resolvedConfig.interactionTool.type === 'pistol';
+      setToolRecoil(true);
+      setMuzzleFlash(isPistolTool);
+
+      // 3. Clear muzzle flash (if active)
+      if (isPistolTool) {
+        registerToolTimeout(() => {
+          if (shotSequenceRef.current === shotId) {
+            setMuzzleFlash(false);
+          }
+        }, TOOL_MUZZLE_FLASH_DURATION_MS);
+      }
+
+      // 4. Restore original scale & recoil offset after recoil/cast snap
+      registerToolTimeout(() => {
+        if (shotSequenceRef.current === shotId) {
+          setToolRecoil(false);
+        }
+      }, TOOL_RECOIL_DURATION_MS);
+
+      // 5. Smoothly return aiming angle to neutral angle (0deg)
+      registerToolTimeout(() => {
+        if (shotSequenceRef.current === shotId) {
+          setToolAimDeg(NEUTRAL_TOOL_AIM_DEG);
+        }
+      }, TOOL_RETURN_TO_NEUTRAL_MS);
+    },
+    [clearToolAnimationTimeouts, registerToolTimeout, resolvedConfig.interactionTool.type, toolAnchorX, toolAnchorY]
+  );
+
+  /**
    * Handles target click / tap interaction
    */
   const handleTargetPointerDown = useCallback(
@@ -414,14 +507,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
       const targetDesignY =
         (currentTarget.yPercent / 100) * RANDOM_TARGET_DESIGN_HEIGHT + currentTarget.size / 2;
 
-      const aimAngle = calculateAimAngleDeg(toolAnchorX, toolAnchorY, targetDesignX, targetDesignY, 180);
-      setToolAimDeg(aimAngle);
-
-      // Trigger tool recoil & muzzle flash
-      setToolRecoil(true);
-      setMuzzleFlash(true);
-      registerTimeout(() => setToolRecoil(false), 140);
-      registerTimeout(() => setMuzzleFlash(false), 90);
+      triggerToolShotAnimation(targetDesignX, targetDesignY);
 
       // Play tool sound and hit sound
       randomTargetSounds.playToolAction(resolvedConfig.interactionTool.type);
@@ -489,7 +575,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
         }, projDuration);
       }
     },
-    [gameState, resolvedConfig, toolAnchorX, toolAnchorY, registerTimeout]
+    [gameState, resolvedConfig, toolAnchorX, toolAnchorY, triggerToolShotAnimation, registerTimeout]
   );
 
   /**
@@ -508,13 +594,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
       const clickX = Math.max(0, Math.min(RANDOM_TARGET_DESIGN_WIDTH, (e.clientX - canvasLeft) / scale));
       const clickY = Math.max(0, Math.min(RANDOM_TARGET_DESIGN_HEIGHT, (e.clientY - canvasTop) / scale));
 
-      const aimAngle = calculateAimAngleDeg(toolAnchorX, toolAnchorY, clickX, clickY, 180);
-      setToolAimDeg(aimAngle);
-
-      setToolRecoil(true);
-      setMuzzleFlash(true);
-      registerTimeout(() => setToolRecoil(false), 140);
-      registerTimeout(() => setMuzzleFlash(false), 90);
+      triggerToolShotAnimation(clickX, clickY);
 
       randomTargetSounds.playToolAction(resolvedConfig.interactionTool.type);
 
@@ -554,7 +634,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
         return next;
       });
     },
-    [gameState, scale, resolvedConfig, toolAnchorX, toolAnchorY, registerTimeout]
+    [gameState, scale, resolvedConfig, toolAnchorX, toolAnchorY, triggerToolShotAnimation, registerTimeout]
   );
 
   // Fetch leaderboard data when available
@@ -657,11 +737,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
     };
   }, [clearAllTimeouts]);
 
-  const backgroundImageUrl =
-    activeTheme?.background_url ||
-    (activeTheme?.id?.includes('ocean')
-      ? '/assets/images/ocean_arcade_bg_1792994317724.jpg'
-      : '/assets/images/desert_arcade_bg_1792994317277.jpg');
+  const backgroundImageUrl = resolveRandomTargetBackgroundUrl(activeTheme, isOceanTheme);
 
   return (
     <div
@@ -683,7 +759,7 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
       >
         {/* Background Image with Graceful Gradient Fallback */}
         <div
-          className="absolute inset-0 bg-cover bg-center pointer-events-none transition-opacity duration-500"
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none transition-opacity duration-500"
           style={{
             backgroundImage: `url(${backgroundImageUrl})`,
             backgroundColor: activeTheme?.visuals_config?.bgGradientFrom || '#0f172a',
@@ -781,6 +857,10 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
             const isExpired = target.state === 'expired';
             const isSpawning = target.state === 'spawning';
 
+            const hasValidSprite = Boolean(
+              target.imageUrl && !failedImageUrls[target.imageUrl]
+            );
+
             return (
               <div
                 key={target.uid}
@@ -802,41 +882,49 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
                   touchAction: 'none',
                 }}
               >
-                {/* Visual Target Card / Circle */}
+                {/* Target Sprite or Fallback Card */}
                 <div
-                  className={`relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-2 flex items-center justify-center p-1.5 ${
-                    target.isPenalty
-                      ? 'border-rose-500/80 bg-rose-950/70 shadow-rose-950/50'
-                      : 'border-amber-400/90 bg-amber-950/70 shadow-amber-950/50'
+                  className={`relative w-full h-full flex items-center justify-center ${
+                    hasValidSprite
+                      ? 'bg-transparent'
+                      : `rounded-2xl overflow-hidden shadow-2xl border-2 p-1.5 ${
+                          target.isPenalty
+                            ? 'border-rose-500/80 bg-rose-950/70 shadow-rose-950/50'
+                            : 'border-amber-400/90 bg-amber-950/70 shadow-amber-950/50'
+                        }`
                   }`}
                 >
-                  {/* Target Sprite Image with CSS Fallback */}
-                  <img
-                    src={target.imageUrl}
-                    alt={target.name}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain pointer-events-none drop-shadow-md select-none"
-                    onError={(e) => {
-                      // Graceful SVG fallback icon if asset URL fails
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-
-                  {/* Fallback Graphic if Image is missing */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
-                    {target.isPenalty ? (
-                      <AlertTriangle className="w-7 h-7 text-rose-400 mb-0.5" />
-                    ) : (
-                      <Sparkles className="w-7 h-7 text-amber-300 mb-0.5" />
-                    )}
-                    <span className="text-[10px] font-bold text-white uppercase tracking-tight leading-tight line-clamp-1">
-                      {target.name}
-                    </span>
-                  </div>
+                  {/* Target Sprite Image with Alpha Transparency */}
+                  {hasValidSprite ? (
+                    <img
+                      src={target.imageUrl}
+                      alt={target.name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-contain pointer-events-none drop-shadow-[0_6px_12px_rgba(0,0,0,0.65)] select-none"
+                      onError={() => {
+                        setFailedImageUrls((prev) => ({
+                          ...prev,
+                          [target.imageUrl]: true,
+                        }));
+                      }}
+                    />
+                  ) : (
+                    /* Fallback Graphic if Image is missing or fails to load */
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
+                      {target.isPenalty ? (
+                        <AlertTriangle className="w-7 h-7 text-rose-400 mb-0.5" />
+                      ) : (
+                        <Sparkles className="w-7 h-7 text-amber-300 mb-0.5" />
+                      )}
+                      <span className="text-[10px] font-bold text-white uppercase tracking-tight leading-tight line-clamp-1">
+                        {target.name}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Penalty / Good Badge Indicator */}
                   <div
-                    className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-md ${
+                    className={`absolute -top-1 -right-1 z-10 px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-md pointer-events-none ${
                       target.isPenalty ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-950'
                     }`}
                   >
@@ -894,11 +982,11 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
           }}
         >
           <div
-            className={`relative w-full h-full transition-transform duration-100 ease-out origin-bottom-right ${
-              toolRecoil ? 'scale-90' : 'scale-100'
-            }`}
+            data-testid="interaction-tool-transform"
+            className="relative w-full h-full transition-transform duration-150 ease-out"
             style={{
-              transform: `rotate(${toolAimDeg + (toolRecoil ? resolvedConfig.interactionTool.recoilAngleDeg : 0)}deg)`,
+              transformOrigin: '82% 88%',
+              transform: `rotate(${toolAimDeg + (toolRecoil ? resolvedConfig.interactionTool.recoilAngleDeg : 0)}deg) scale(${toolRecoil ? 0.9 : 1})`,
             }}
           >
             {/* Tool Sprite Image */}
@@ -909,8 +997,8 @@ export const RandomTargetGame: React.FC<RandomTargetGameProps> = ({
               className="w-full h-full object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.7)] select-none"
             />
 
-            {/* Muzzle Flash Effect */}
-            {muzzleFlash && (
+            {/* Muzzle Flash Effect (Pistol Only) */}
+            {muzzleFlash && resolvedConfig.interactionTool.type === 'pistol' && (
               <div className="absolute top-2 left-2 w-10 h-10 bg-amber-300 rounded-full blur-sm opacity-90 animate-ping" />
             )}
           </div>

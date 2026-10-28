@@ -11,8 +11,10 @@ import { stopGameAudio } from '../../lib/gameAudio';
 
 export interface GameShellProps {
   gameType?: GameTypeId | string;
+  gameId?: GameTypeId | string;
   theme?: GameTheme;
   customTheme?: GameTheme;
+  activeTheme?: GameTheme;
   customSettings?: GameSettings;
   className?: string;
   showCabinetFooter?: boolean;
@@ -29,8 +31,10 @@ export interface GameShellProps {
 
 export const GameShell: React.FC<GameShellProps> = ({
   gameType: gameTypeProp,
+  gameId: gameIdProp,
   theme,
   customTheme,
+  activeTheme: activeThemeProp,
   customSettings,
   className = '',
   showCabinetFooter = true,
@@ -43,7 +47,8 @@ export const GameShell: React.FC<GameShellProps> = ({
   onToggleFullscreen: controlledToggleFullscreen,
 }) => {
   const { t } = useLocalization();
-  const effectiveThemeProp = customTheme || theme;
+  const effectiveThemeProp = customTheme || theme || activeThemeProp;
+  const effectiveGameTypeProp = gameTypeProp || gameIdProp;
   const { activeGame, activeTheme: contextActiveTheme } = useAuth();
   const [internalFullscreen, setInternalFullscreen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -56,8 +61,8 @@ export const GameShell: React.FC<GameShellProps> = ({
   // Explicit gameTypeProp passed to GameShell is authoritative and must not be overridden
   // by ambient organization activeGame from auth context.
   const resolvedGameType = resolveAuthoritativeGameType({
-    shellGameType: gameTypeProp,
-    game: (!gameTypeProp || (activeGame && normalizeGameType(activeGame.game_type) === normalizeGameType(gameTypeProp))) ? activeGame : undefined,
+    shellGameType: effectiveGameTypeProp,
+    game: (!effectiveGameTypeProp || (activeGame && normalizeGameType(activeGame.game_type) === normalizeGameType(effectiveGameTypeProp))) ? activeGame : undefined,
     theme: effectiveThemeProp || contextActiveTheme,
   });
 
@@ -72,11 +77,13 @@ export const GameShell: React.FC<GameShellProps> = ({
         return themeProp;
       }
     }
+    if (contextActiveTheme && normalizeGameType(getThemeGameType(contextActiveTheme, targetGameType)) === targetGameType) {
+      return contextActiveTheme;
+    }
     if (targetGameType === 'match-3') return getThemeById('match-3');
     if (targetGameType === 'memory-match') return getThemeById('memory-match');
     if (targetGameType === 'reaction-tap' || targetGameType === 'reaction-time') return getThemeById('reaction-time');
     if (targetGameType === 'random-target') return getThemeById('desert-quick-draw');
-    if (contextActiveTheme && getThemeGameType(contextActiveTheme, targetGameType) === targetGameType) return contextActiveTheme;
     return initActiveTheme();
   };
 
@@ -228,7 +235,11 @@ export const GameShell: React.FC<GameShellProps> = ({
           <GameComponent
             activeTheme={activeTheme}
             settings={settings}
-            config={gameDef.defaultConfig}
+            config={
+              activeTheme?.game_config && Object.keys(activeTheme.game_config).length > 0
+                ? (activeTheme.game_config as any)
+                : gameDef.defaultConfig
+            }
             eventId={eventId}
             publicToken={publicToken}
             isEventPreview={isEventPreview}

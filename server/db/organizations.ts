@@ -72,12 +72,23 @@ export interface DeveloperOrganizationListItem {
   paid_balance: number;
   event_credit_balance: number;
   total_wallet_value: number;
+  last_login_at?: string | null;
+  last_login_user_id?: string | null;
+  last_login_user_name?: string | null;
+  last_login_user_email?: string | null;
   created_at: string;
 }
 
 export interface DeveloperOrganizationDetailResponse {
   organization: OrganizationRecord;
   owner: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  last_login_at?: string | null;
+  last_login_user?: {
     id: string;
     name: string;
     email: string;
@@ -735,6 +746,98 @@ export async function deleteOrganization(id: string, env?: Record<string, any>):
 }
 
 /**
+ * Records successful user login timestamp and propagates to all organizations
+ * where the user is an owner or member.
+ * Safe, idempotent, non-blocking on failure.
+ */
+export async function recordUserAndOrganizationLogin(
+  userId: string,
+  loginTime?: string,
+  env?: Record<string, any>
+): Promise<void> {
+  if (!userId) return;
+  const nowIso = loginTime || new Date().toISOString();
+
+  // 1. Update in-memory local caches for testing & dev fallback
+  try {
+    const localUser = localUsersCache.get(userId);
+    if (localUser) {
+      localUsersCache.set(userId, { ...localUser, last_login_at: nowIso, updated_at: nowIso });
+    }
+
+    // Find orgs where user is owner or member
+    for (const [orgId, org] of localOrgsCache.entries()) {
+      let isMemberOrOwner = org.owner_id === userId;
+      if (!isMemberOrOwner) {
+        for (const m of localMembersCache.values()) {
+          if (m.organization_id === orgId && m.user_id === userId) {
+            isMemberOrOwner = true;
+            break;
+          }
+        }
+      }
+      if (isMemberOrOwner) {
+        localOrgsCache.set(orgId, {
+          ...org,
+          last_login_at: nowIso,
+          last_login_user_id: userId,
+          updated_at: nowIso,
+        });
+      }
+    }
+    saveLocalOrgs();
+  } catch (cacheErr: any) {
+    console.warn('[AUTH] Notice updating local login cache:', cacheErr?.message);
+  }
+
+  // 2. Database update via Supabase if configured
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+
+      // Attempt atomic RPC first
+      const { error: rpcError } = await supabase.rpc('record_user_and_organization_login', {
+        p_user_id: userId,
+        p_login_time: nowIso,
+      });
+
+      if (!rpcError) {
+        return;
+      }
+
+      // If RPC is unavailable (e.g. migration pending), run sequential update
+      console.warn('[AUTH] RPC record_user_and_organization_login failed, running sequential fallback:', rpcError.message);
+
+      // A. Update users
+      await supabase.from('users').update({
+        last_login_at: nowIso,
+        updated_at: nowIso,
+      }).eq('id', userId);
+
+      // B. Find member & owner orgs
+      const [memberRowsRes, ownerRowsRes] = await Promise.all([
+        supabase.from('organization_members').select('organization_id').eq('user_id', userId),
+        supabase.from('organizations').select('id').eq('owner_id', userId),
+      ]);
+
+      const orgIds = new Set<string>();
+      (memberRowsRes.data || []).forEach((r: any) => orgIds.add(r.organization_id));
+      (ownerRowsRes.data || []).forEach((r: any) => orgIds.add(r.id));
+
+      if (orgIds.size > 0) {
+        await supabase.from('organizations').update({
+          last_login_at: nowIso,
+          last_login_user_id: userId,
+          updated_at: nowIso,
+        }).in('id', Array.from(orgIds));
+      }
+    } catch (dbErr: any) {
+      console.error('[AUTH] Non-blocking error recording user/org login activity:', dbErr?.message);
+    }
+  }
+}
+
+/**
  * Retrieve all organizations with aggregated stats for Developer Admin.
  */
 export async function getAllOrganizationsForDeveloper(
@@ -771,16 +874,20 @@ export async function getAllOrganizationsForDeveloper(
     return [];
   }
 
-  // Pre-fetch owner users
+  // Pre-fetch owner users and last login users
   const ownerIds = Array.from(new Set(orgs.map((o) => o.owner_id).filter(Boolean)));
+  const lastLoginUserIds = Array.from(
+    new Set(orgs.map((o) => o.last_login_user_id).filter(Boolean))
+  ) as string[];
+  const userIdsToFetch = Array.from(new Set([...ownerIds, ...lastLoginUserIds]));
   const usersMap = new Map<string, { id: string; name: string; email: string }>();
 
-  if (isProdDb && ownerIds.length > 0) {
+  if (isProdDb && userIdsToFetch.length > 0) {
     try {
       const { data: usersData } = await supabase
         .from('users')
         .select('id, name, email')
-        .in('id', ownerIds);
+        .in('id', userIdsToFetch);
       if (usersData) {
         for (const u of usersData) {
           usersMap.set(u.id, u);
@@ -858,6 +965,19 @@ export async function getAllOrganizationsForDeveloper(
       }
     }
 
+    let lastLoginUser = org.last_login_user_id ? usersMap.get(org.last_login_user_id) : undefined;
+    if (!lastLoginUser && org.last_login_user_id) {
+      try {
+        const u = await getUserById(org.last_login_user_id, env);
+        if (u) {
+          lastLoginUser = { id: u.id, name: u.name, email: u.email };
+          usersMap.set(u.id, lastLoginUser);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     let wallet: WalletBalanceSummary;
     const cachedWallet = walletsMap.get(org.id);
     if (cachedWallet) {
@@ -924,6 +1044,10 @@ export async function getAllOrganizationsForDeveloper(
       paid_balance: wallet.paid_balance,
       event_credit_balance: wallet.total_credit,
       total_wallet_value: wallet.total_balance,
+      last_login_at: org.last_login_at || null,
+      last_login_user_id: org.last_login_user_id || null,
+      last_login_user_name: lastLoginUser?.name || null,
+      last_login_user_email: lastLoginUser?.email || null,
       created_at: org.created_at,
     });
   }
@@ -1005,9 +1129,28 @@ export async function getOrganizationDetailForDeveloper(
     console.warn('Error fetching transactions for dev detail:', err);
   }
 
+  let last_login_user: { id: string; name: string; email: string; avatar_url: string | null } | null = null;
+  if (organization.last_login_user_id) {
+    try {
+      const loginUser = await getUserById(organization.last_login_user_id, env);
+      if (loginUser) {
+        last_login_user = {
+          id: loginUser.id,
+          name: loginUser.name,
+          email: loginUser.email,
+          avatar_url: loginUser.avatar_url,
+        };
+      }
+    } catch (err) {
+      console.warn('Error fetching last login user for dev detail:', err);
+    }
+  }
+
   return {
     organization,
     owner,
+    last_login_at: organization.last_login_at || null,
+    last_login_user,
     members,
     wallet,
     events,

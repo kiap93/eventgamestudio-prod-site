@@ -66,8 +66,9 @@ export const GAME_ASSET_MANIFEST: Record<string, Partial<Record<GameAssetType, s
   },
   'random-target': {
     background: 'background.png',
-    goodItem: 'target_positive.png',
-    hazardItem: 'target_negative.png',
+    catcher: 'pistol.png',
+    goodItem: 'bandit.png',
+    hazardItem: 'merchant.png',
   },
 };
 
@@ -160,6 +161,21 @@ export function isStaleAssetUrl(url?: string | null): boolean {
     clean.startsWith('/assets/spooky_candy') ||
     clean.startsWith('/assets/poison_spider') ||
     clean.startsWith('/assets/golden_skull') ||
+    clean.includes('bandit_target_1792994318514') ||
+    clean.includes('merchant_target_1792994318429') ||
+    clean.includes('western_pistol_1792994340847') ||
+    clean.includes('desert_arcade_bg_1792994317277') ||
+    clean.endsWith('/desert-quick-draw/target_positive.png') ||
+    clean.endsWith('/desert-quick-draw/target_negative.png') ||
+    clean.endsWith('/desert-quick-draw/tool_gun.png') ||
+    clean.includes('treasure_target_1792994339565') ||
+    clean.includes('shark_target_1792994339948') ||
+    clean.includes('fishing_rod_1792994341884') ||
+    clean.includes('ocean_arcade_bg_1792994317724') ||
+    clean.endsWith('/ocean-treasure-hunt/target_positive.png') ||
+    clean.endsWith('/ocean-treasure-hunt/target_negative.png') ||
+    clean.endsWith('/ocean-treasure-hunt/tool_net.png') ||
+    clean.includes('/games/random-target/themes/default/') ||
     clean.includes('lunar new year') ||
     clean.startsWith('theme_')
   );
@@ -234,6 +250,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     if (THEME_ASSET_ALIASES[clean]) {
       return THEME_ASSET_ALIASES[clean];
     }
+    if (clean.includes('quick-draw') || clean.includes('desert')) return 'desert-quick-draw';
+    if (clean.includes('treasure-hunt')) return 'ocean-treasure-hunt';
     const m3Match = resolveMatch3CanonicalAssetThemeId(clean);
     if (m3Match) return m3Match;
 
@@ -244,6 +262,11 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     if (clean.includes('mango')) return 'mango';
     return 'default';
   }
+
+  const gameTypeHint = String(theme.game_type || theme.game_slug || theme.game_id || '').toLowerCase();
+  const isRandomTargetThemeObj =
+    gameTypeHint.includes('random-target') ||
+    Boolean(theme.game_config?.positiveTarget || theme.game_config?.negativeTarget || theme.game_config?.interactionTool);
 
   // 1. Explicit canonical asset theme metadata if present
   const explicitAssetTheme = (
@@ -256,6 +279,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     const cleanExplicit = explicitAssetTheme.trim().toLowerCase();
     if (!isUUID(cleanExplicit)) {
       if (THEME_ASSET_ALIASES[cleanExplicit]) return THEME_ASSET_ALIASES[cleanExplicit];
+      if (cleanExplicit.includes('quick-draw') || cleanExplicit.includes('desert')) return 'desert-quick-draw';
+      if (cleanExplicit.includes('treasure-hunt') || (isRandomTargetThemeObj && cleanExplicit.includes('ocean'))) return 'ocean-treasure-hunt';
       const m3Match = resolveMatch3CanonicalAssetThemeId(cleanExplicit);
       if (m3Match) return m3Match;
       if (cleanExplicit === 'christmas' || cleanExplicit === 'cny' || cleanExplicit === 'carnival' || cleanExplicit === 'default' || cleanExplicit === 'halloween' || cleanExplicit === 'mango') {
@@ -268,10 +293,10 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const slug = String(theme.slug || '').toLowerCase().trim();
   if (slug) {
     if (THEME_ASSET_ALIASES[slug]) return THEME_ASSET_ALIASES[slug];
+    if (slug.includes('quick-draw') || slug.includes('desert')) return 'desert-quick-draw';
+    if (slug.includes('treasure-hunt') || (isRandomTargetThemeObj && slug.includes('ocean'))) return 'ocean-treasure-hunt';
     const m3Match = resolveMatch3CanonicalAssetThemeId(slug);
     if (m3Match) return m3Match;
-    if (slug.includes('quick-draw') || slug.includes('desert')) return 'desert-quick-draw';
-    if (slug.includes('treasure-hunt')) return 'ocean-treasure-hunt';
     if (slug.includes('christmas')) return 'christmas';
     if (slug.includes('cny') || slug.includes('chinese-new-year') || slug.includes('lunar')) return 'cny';
     if (slug.includes('carnival')) return 'carnival';
@@ -283,7 +308,7 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const name = String(theme.name || theme.branding?.gameTitle || '').toLowerCase().trim();
   if (name) {
     if (name.includes('quick draw') || name.includes('desert')) return 'desert-quick-draw';
-    if (name.includes('treasure hunt')) return 'ocean-treasure-hunt';
+    if (name.includes('treasure hunt') || (isRandomTargetThemeObj && name.includes('ocean'))) return 'ocean-treasure-hunt';
     const m3Match = resolveMatch3CanonicalAssetThemeId(name);
     if (m3Match) return m3Match;
     if (name.includes('christmas')) return 'christmas';
@@ -297,6 +322,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const id = String(theme.id || '').toLowerCase().trim();
   if (id && !isUUID(id)) {
     if (THEME_ASSET_ALIASES[id]) return THEME_ASSET_ALIASES[id];
+    if (id.includes('quick-draw') || id.includes('desert')) return 'desert-quick-draw';
+    if (id.includes('treasure-hunt') || (isRandomTargetThemeObj && id.includes('ocean'))) return 'ocean-treasure-hunt';
     const m3Match = resolveMatch3CanonicalAssetThemeId(id);
     if (m3Match) return m3Match;
     if (id.includes('christmas')) return 'christmas';
@@ -310,6 +337,8 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
   const baseId = String(theme.base_theme_id || theme.baseThemeId || '').toLowerCase().trim();
   if (baseId && !isUUID(baseId)) {
     if (THEME_ASSET_ALIASES[baseId]) return THEME_ASSET_ALIASES[baseId];
+    if (baseId.includes('quick-draw') || baseId.includes('desert')) return 'desert-quick-draw';
+    if (baseId.includes('treasure-hunt') || (isRandomTargetThemeObj && baseId.includes('ocean'))) return 'ocean-treasure-hunt';
     const m3Match = resolveMatch3CanonicalAssetThemeId(baseId);
     if (m3Match) return m3Match;
     if (baseId.includes('christmas')) return 'christmas';
@@ -317,6 +346,31 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     if (baseId.includes('carnival')) return 'carnival';
     if (baseId.includes('halloween')) return 'halloween';
     if (baseId.includes('mango')) return 'mango';
+  }
+
+  // 6. Game type fallback for random-target
+  if (isRandomTargetThemeObj) {
+    const gc = theme.game_config || {};
+    const themeType = String(gc.themeType || theme.themeType || '').toLowerCase();
+    const bgUrl = String(theme.background_url || theme.background || '').toLowerCase();
+    const toolType = String(gc.interactionTool?.type || '').toLowerCase();
+    const toolId = String(gc.interactionTool?.id || '').toLowerCase();
+    const toolImg = String(gc.interactionTool?.imageUrl || '').toLowerCase();
+    const posId = String(gc.positiveTarget?.id || '').toLowerCase();
+    const posImg = String(gc.positiveTarget?.imageUrl || '').toLowerCase();
+    if (
+      themeType === 'ocean-treasure-hunt' ||
+      bgUrl.includes('/ocean-treasure-hunt/') ||
+      toolType === 'fishing-rod' ||
+      toolType === 'net' ||
+      toolId === 'ocean-fishing-rod' ||
+      toolImg.includes('/ocean-treasure-hunt/') ||
+      posId === 'ocean-treasure' ||
+      posImg.includes('/ocean-treasure-hunt/')
+    ) {
+      return 'ocean-treasure-hunt';
+    }
+    return 'desert-quick-draw';
   }
 
   return 'default';
@@ -456,6 +510,21 @@ export interface ResolveGameAssetParams {
   assetType: GameAssetType;
 }
 
+const RANDOM_TARGET_THEME_ASSET_MAP: Record<string, Partial<Record<GameAssetType, string>>> = {
+  'desert-quick-draw': {
+    background: 'background.png',
+    catcher: 'pistol.png',
+    goodItem: 'bandit.png',
+    hazardItem: 'merchant.png',
+  },
+  'ocean-treasure-hunt': {
+    background: 'background.png',
+    catcher: 'fishing_rod.png',
+    goodItem: 'treasure.png',
+    hazardItem: 'shark.png',
+  },
+};
+
 /**
  * Resolves a game-scoped asset path according to the canonical hierarchy:
  * /assets/games/{gameType}/themes/{themeId}/{filename}
@@ -472,12 +541,16 @@ export function resolveGameAsset({
   const manifest = GAME_ASSET_MANIFEST[normGame];
   if (!manifest) return null;
 
-  const filename = manifest[assetType];
-  if (!filename) return null;
-
   const canonicalTheme = getCanonicalAssetThemeId(themeId);
   const knownThemes = KNOWN_THEME_FOLDERS[normGame];
-  const effectiveThemeId = knownThemes && knownThemes.has(canonicalTheme) ? canonicalTheme : 'default';
+  const fallbackFolder = normGame === 'random-target' ? 'desert-quick-draw' : 'default';
+  const effectiveThemeId = knownThemes && knownThemes.has(canonicalTheme) ? canonicalTheme : fallbackFolder;
+
+  const filename =
+    normGame === 'random-target'
+      ? RANDOM_TARGET_THEME_ASSET_MAP[effectiveThemeId]?.[assetType] || manifest[assetType]
+      : manifest[assetType];
+  if (!filename) return null;
 
   return `/assets/games/${normGame}/themes/${effectiveThemeId}/${filename}`;
 }
@@ -535,8 +608,9 @@ export function resolveThemeDefaultBgImage(theme?: Partial<GameTheme> | any, fal
     }
   }
 
+  const fallbackFolder = gameType === 'random-target' ? 'desert-quick-draw' : 'default';
   return resolveGameAsset({ gameType, themeId, assetType: 'background' }) ||
-    `/assets/games/${gameType}/themes/default/background.png`;
+    `/assets/games/${gameType}/themes/${fallbackFolder}/background.png`;
 }
 
 /**

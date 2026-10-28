@@ -80,6 +80,7 @@ import {
   createPlatformGame,
   updatePlatformGame,
   deletePlatformGame,
+  recordUserAndOrganizationLogin,
   getAllOrganizationsForDeveloper,
   getOrganizationDetailForDeveloper,
   getAllSystemThemes,
@@ -1393,6 +1394,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
           const authCookie = buildAuthCookie(token, getWorkerCookieOptions(request, env));
 
+          // Record successful login activity for user and affiliated organizations
+          try {
+            await recordUserAndOrganizationLogin(user.id, undefined, env);
+          } catch (loginActErr: any) {
+            console.warn(`[Google Auth Worker][${correlationId}] Non-blocking warning recording login activity:`, loginActErr?.message);
+          }
+
           return jsonResponse(
             {
               token,
@@ -1628,6 +1636,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
           const authCookie = buildAuthCookie(token, getWorkerCookieOptions(request, env));
 
+          // Record successful login activity for user and affiliated organizations
+          try {
+            await recordUserAndOrganizationLogin(user.id, undefined, env);
+          } catch (loginActErr: any) {
+            console.warn(`[AUTH Worker] Non-blocking warning recording login activity for user ${user.id}:`, loginActErr?.message);
+          }
+
           return jsonResponse(
             {
               token,
@@ -1707,6 +1722,13 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
           const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any, undefined, env);
           const authCookie = buildAuthCookie(sessionToken, getWorkerCookieOptions(request, env));
+
+          // Record successful login activity for user and affiliated organizations
+          try {
+            await recordUserAndOrganizationLogin(verifiedUser.id, undefined, env);
+          } catch (loginActErr: any) {
+            console.warn(`[AUTH Worker] Non-blocking warning recording login activity on verification:`, loginActErr?.message);
+          }
 
           return jsonResponse(
             {

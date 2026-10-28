@@ -34,10 +34,19 @@ export interface OrgDetailData {
     slug: string;
     owner_id: string;
     logo_url: string | null;
+    last_login_at?: string | null;
+    last_login_user_id?: string | null;
     created_at: string;
     updated_at: string;
   };
   owner: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  last_login_at?: string | null;
+  last_login_user?: {
     id: string;
     name: string;
     email: string;
@@ -355,6 +364,34 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
                           day: 'numeric',
                         })
                       : '-'}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <Clock className={`w-3.5 h-3.5 ${(data?.last_login_at || organization.last_login_at) ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  <span>
+                    Last Login:{' '}
+                    {(data?.last_login_at || organization.last_login_at) ? (
+                      <>
+                        <strong className="text-slate-200">
+                          {new Date(data?.last_login_at || organization.last_login_at!).toLocaleString('en-MY', {
+                            timeZone: 'Asia/Singapore',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false,
+                          })}
+                        </strong>
+                        {data?.last_login_user && (
+                          <span className="text-slate-400 ml-1">
+                            (by {data.last_login_user.name || data.last_login_user.email})
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-500 italic">Never logged in</span>
+                    )}
                   </span>
                 </div>
               </div>

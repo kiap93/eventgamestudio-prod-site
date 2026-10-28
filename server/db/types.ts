@@ -12,6 +12,7 @@ export interface UserRecord {
   verification_token_expires_at?: string | null;
   password_reset_token_hash?: string | null;
   password_reset_expires_at?: string | null;
+  last_login_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +26,8 @@ export interface OrganizationRecord {
   owner_id: string;
   logo_url: string | null;
   country_code: string | null;
+  last_login_at?: string | null;
+  last_login_user_id?: string | null;
   created_at: string;
   updated_at: string;
 }

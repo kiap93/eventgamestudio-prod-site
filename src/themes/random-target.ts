@@ -33,7 +33,7 @@ export const desertQuickDrawTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: '/assets/images/desert_arcade_bg_1792994317277.jpg',
+  background_url: '/assets/games/random-target/themes/desert-quick-draw/background.png',
   basket_config: null,
   items_config: [],
   game_config: DEFAULT_DESERT_CONFIG as unknown as Record<string, any>,
@@ -103,7 +103,7 @@ export const oceanTreasureHuntTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: '/assets/images/ocean_arcade_bg_1792994317724.jpg',
+  background_url: '/assets/games/random-target/themes/ocean-treasure-hunt/background.png',
   basket_config: null,
   items_config: [],
   game_config: DEFAULT_OCEAN_CONFIG as unknown as Record<string, any>,
@@ -149,4 +149,6 @@ export const oceanTreasureHuntTheme: GameTheme = {
   },
 };
 
+export const DEFAULT_RANDOM_TARGET_DESERT_THEME = desertQuickDrawTheme;
+export const DEFAULT_RANDOM_TARGET_OCEAN_THEME = oceanTreasureHuntTheme;
 export const DEFAULT_RANDOM_TARGET_THEME = desertQuickDrawTheme;

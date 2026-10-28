@@ -1060,12 +1060,12 @@ export const DEFAULT_MATCH3_PRINCESS_FAIRYTALE_THEME: Omit<GameThemeRecord, 'id'
 export const DEFAULT_RANDOM_TARGET_DESERT_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
   name: 'Desert Quick Draw',
   slug: 'desert-quick-draw',
-  description: 'Aim and shoot gold bullseye targets in the canyon before they vanish — avoid TNT barrels!',
+  description: 'Step into the wild west! Shoot bandit outlaws to earn points and avoid innocent town merchants in a fast-paced quick draw showdown.',
   status: 'active',
   game_type: 'random-target',
   branding: {
     gameTitle: 'DESERT QUICK DRAW',
-    subtitle: 'Tap bullseyes for points — dodge TNT barrels!',
+    subtitle: 'Tap bandit outlaws to score! Avoid peaceful merchants!',
     logoUrl: null,
     clientLogoUrl: null,
   },
@@ -1099,61 +1099,64 @@ export const DEFAULT_RANDOM_TARGET_DESERT_THEME: Omit<GameThemeRecord, 'id' | 'o
     gameDurationSeconds: 30,
     startingScore: 0,
     allowNegativeScore: false,
-    initialSpawnIntervalMs: 1000,
-    minSpawnIntervalMs: 550,
-    targetLifetimeMs: 2000,
-    minTargetLifetimeMs: 1100,
+    initialSpawnIntervalMs: 1100,
+    minSpawnIntervalMs: 500,
+    targetLifetimeMs: 1750,
+    minTargetLifetimeMs: 1050,
     maxSimultaneousTargets: 4,
     difficultyProgression: 'linear',
     playArea: {
-      topPercent: 18,
+      topPercent: 14,
       bottomPercent: 78,
-      leftPercent: 12,
-      rightPercent: 85,
+      leftPercent: 8,
+      rightPercent: 78,
     },
     positiveTarget: {
-      id: 'positive_target',
-      name: 'Gold Bullseye Target',
-      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/target_positive.png',
+      id: 'desert-bandit',
+      name: 'Bandit Outlaw',
+      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/bandit.png',
       score: 10,
-      spawnWeight: 72,
-      size: 92,
+      spawnWeight: 70,
+      size: 88,
       isPenalty: false,
-      hitEffectType: 'burst',
+      hitEffectType: 'sparks',
     },
     negativeTarget: {
-      id: 'negative_target',
-      name: 'Red TNT Barrel',
-      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/target_negative.png',
+      id: 'desert-merchant',
+      name: 'Town Merchant',
+      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/merchant.png',
       score: -10,
-      spawnWeight: 28,
+      spawnWeight: 30,
       size: 88,
       isPenalty: true,
-      hitEffectType: 'explosion',
+      hitEffectType: 'dust',
     },
     interactionTool: {
-      type: 'gun',
+      id: 'desert-pistol',
+      type: 'pistol',
       name: 'Sheriff Revolver',
-      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/tool_gun.png',
-      projectileEffect: 'bullet_spark',
-      muzzleFlashEnabled: true,
-      recoilStrength: 12,
-      rotationOffsetDeg: 0,
+      imageUrl: '/assets/games/random-target/themes/desert-quick-draw/pistol.png',
+      position: 'bottom-right',
+      size: 160,
+      projectileEffect: 'bullet-trail',
+      recoilAngleDeg: -22,
+      projectileSpeedMs: 160,
     },
+    soundEnabled: true,
+    soundVolume: 0.8,
     bgmEnabled: true,
-    sfxEnabled: true,
   } as any,
 };
 
 export const DEFAULT_RANDOM_TARGET_OCEAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
   name: 'Ocean Treasure Hunt',
   slug: 'ocean-treasure-hunt',
-  description: 'Cast your golden fishing net to catch pearl shells while avoiding spiky sea mines!',
+  description: 'Dive deep into tropical coral reefs! Hook glowing sunken treasure chests while dodging hungry predator sharks.',
   status: 'active',
   game_type: 'random-target',
   branding: {
     gameTitle: 'OCEAN TREASURE HUNT',
-    subtitle: 'Tap golden pearl shells — watch out for sea mines!',
+    subtitle: 'Cast your line for sunken treasure! Watch out for sharks!',
     logoUrl: null,
     clientLogoUrl: null,
   },
@@ -1188,48 +1191,51 @@ export const DEFAULT_RANDOM_TARGET_OCEAN_THEME: Omit<GameThemeRecord, 'id' | 'or
     startingScore: 0,
     allowNegativeScore: false,
     initialSpawnIntervalMs: 1100,
-    minSpawnIntervalMs: 600,
-    targetLifetimeMs: 2100,
-    minTargetLifetimeMs: 1200,
+    minSpawnIntervalMs: 500,
+    targetLifetimeMs: 1750,
+    minTargetLifetimeMs: 1050,
     maxSimultaneousTargets: 4,
     difficultyProgression: 'linear',
     playArea: {
-      topPercent: 18,
+      topPercent: 14,
       bottomPercent: 78,
-      leftPercent: 12,
-      rightPercent: 85,
+      leftPercent: 8,
+      rightPercent: 78,
     },
     positiveTarget: {
-      id: 'positive_target',
-      name: 'Golden Pearl Shell',
-      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/target_positive.png',
+      id: 'ocean-treasure',
+      name: 'Sunken Treasure',
+      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/treasure.png',
       score: 10,
-      spawnWeight: 72,
-      size: 92,
+      spawnWeight: 70,
+      size: 90,
       isPenalty: false,
-      hitEffectType: 'splash',
+      hitEffectType: 'sparkle',
     },
     negativeTarget: {
-      id: 'negative_target',
-      name: 'Spiky Sea Mine',
-      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/target_negative.png',
+      id: 'ocean-shark',
+      name: 'Hungry Shark',
+      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/shark.png',
       score: -10,
-      spawnWeight: 28,
-      size: 88,
+      spawnWeight: 30,
+      size: 92,
       isPenalty: true,
-      hitEffectType: 'explosion',
+      hitEffectType: 'splash',
     },
     interactionTool: {
-      type: 'net',
-      name: 'Golden Fishing Net',
-      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/tool_net.png',
-      projectileEffect: 'net_cast',
-      muzzleFlashEnabled: false,
-      recoilStrength: 10,
-      rotationOffsetDeg: 0,
+      id: 'ocean-fishing-rod',
+      type: 'fishing-rod',
+      name: 'Angler Fishing Rod',
+      imageUrl: '/assets/games/random-target/themes/ocean-treasure-hunt/fishing_rod.png',
+      position: 'bottom-right',
+      size: 170,
+      projectileEffect: 'fishing-line',
+      recoilAngleDeg: -18,
+      projectileSpeedMs: 200,
     },
+    soundEnabled: true,
+    soundVolume: 0.8,
     bgmEnabled: true,
-    sfxEnabled: true,
   } as any,
 };
 
@@ -2217,6 +2223,202 @@ export function normalizeServerThemeAssets(theme: any): any {
     }
     updated.game_type = 'match-3';
     updated.game_slug = 'match-3';
+  }
+
+  // Ocean Treasure Hunt system or custom theme legacy & cross-theme asset migration
+  const baseThemeIdStr = String(theme.base_theme_id || theme.baseThemeId || theme.asset_theme_id || '').toLowerCase();
+  const rawThemeType = String(theme.game_config?.themeType || theme.themeType || '').toLowerCase();
+  const isOceanTheme =
+    slug === 'ocean-treasure-hunt' ||
+    slug.includes('treasure-hunt') ||
+    baseThemeIdStr.includes('ocean') ||
+    baseThemeIdStr.includes('treasure-hunt') ||
+    rawThemeType === 'ocean-treasure-hunt' ||
+    name.toLowerCase().includes('ocean treasure hunt') ||
+    name.toLowerCase().includes('treasure hunt') ||
+    (theme.game_type === 'random-target' &&
+      (slug.includes('ocean') ||
+        name.toLowerCase().includes('ocean') ||
+        String(theme.background_url || '').toLowerCase().includes('/ocean-treasure-hunt/') ||
+        theme.game_config?.positiveTarget?.id === 'ocean-treasure' ||
+        theme.game_config?.negativeTarget?.id === 'ocean-shark' ||
+        theme.game_config?.interactionTool?.id === 'ocean-fishing-rod' ||
+        theme.game_config?.interactionTool?.type === 'fishing-rod' ||
+        theme.game_config?.interactionTool?.type === 'net'));
+
+  if (isOceanTheme) {
+    const isStaleOrCrossOceanUrl = (u?: string | null) => {
+      if (!u || typeof u !== 'string') return true;
+      const c = u.trim().toLowerCase();
+      return (
+        !c ||
+        c.includes('treasure_target_1792994339565') ||
+        c.includes('shark_target_1792994339948') ||
+        c.includes('fishing_rod_1792994341884') ||
+        c.includes('ocean_arcade_bg_1792994317724') ||
+        c.includes('bandit_target_1792994318514') ||
+        c.includes('merchant_target_1792994318429') ||
+        c.includes('western_pistol_1792994340847') ||
+        c.includes('desert_arcade_bg_1792994317277') ||
+        c.includes('/themes/desert-quick-draw/bandit.png') ||
+        c.includes('/themes/desert-quick-draw/merchant.png') ||
+        c.includes('/themes/desert-quick-draw/pistol.png') ||
+        c.includes('/themes/desert-quick-draw/background.png') ||
+        c.endsWith('/ocean-treasure-hunt/target_positive.png') ||
+        c.endsWith('/ocean-treasure-hunt/target_negative.png') ||
+        c.endsWith('/ocean-treasure-hunt/tool_net.png') ||
+        c.includes('/games/random-target/themes/default/')
+      );
+    };
+
+    const updated = { ...theme };
+    if (isSys || isStaleOrCrossOceanUrl(updated.background_url)) {
+      updated.background_url = '/assets/games/random-target/themes/ocean-treasure-hunt/background.png';
+    }
+    const defaultGc = DEFAULT_RANDOM_TARGET_OCEAN_THEME.game_config as any;
+    const rawGc = (updated.game_config && typeof updated.game_config === 'object') ? updated.game_config : {};
+    const posTarget = { ...defaultGc.positiveTarget, ...(rawGc.positiveTarget || {}) };
+    if (isSys || isStaleOrCrossOceanUrl(posTarget.imageUrl)) {
+      posTarget.imageUrl = defaultGc.positiveTarget.imageUrl;
+    }
+    if (posTarget.name === 'Golden Pearl Shell' || posTarget.name === 'Gold Bullseye Target' || posTarget.name === 'Bandit Outlaw') {
+      posTarget.name = defaultGc.positiveTarget.name;
+    }
+    if (posTarget.id === 'desert-bandit') {
+      posTarget.id = defaultGc.positiveTarget.id;
+    }
+
+    const negTarget = { ...defaultGc.negativeTarget, ...(rawGc.negativeTarget || {}) };
+    if (isSys || isStaleOrCrossOceanUrl(negTarget.imageUrl)) {
+      negTarget.imageUrl = defaultGc.negativeTarget.imageUrl;
+    }
+    if (negTarget.name === 'Spiky Sea Mine' || negTarget.name === 'Red TNT Barrel' || negTarget.name === 'Town Merchant') {
+      negTarget.name = defaultGc.negativeTarget.name;
+    }
+    if (negTarget.id === 'desert-merchant') {
+      negTarget.id = defaultGc.negativeTarget.id;
+    }
+    if (negTarget.hitEffectType === 'explosion') {
+      negTarget.hitEffectType = defaultGc.negativeTarget.hitEffectType;
+    }
+
+    const tool = { ...defaultGc.interactionTool, ...(rawGc.interactionTool || {}) };
+    if (isSys || isStaleOrCrossOceanUrl(tool.imageUrl)) {
+      tool.imageUrl = defaultGc.interactionTool.imageUrl;
+    }
+    if (tool.name === 'Golden Fishing Net' || tool.name === 'Sheriff Revolver') {
+      tool.name = defaultGc.interactionTool.name;
+    }
+    if (tool.id === 'desert-pistol') {
+      tool.id = defaultGc.interactionTool.id;
+    }
+    if (tool.type === 'net' || (tool.type === 'pistol' && String(tool.imageUrl).includes('fishing_rod.png'))) {
+      tool.type = 'fishing-rod';
+    }
+    if (tool.projectileEffect === 'net_cast' || (tool.projectileEffect === 'bullet-trail' && tool.type === 'fishing-rod')) {
+      tool.projectileEffect = 'fishing-line';
+    }
+
+    updated.game_config = {
+      ...defaultGc,
+      ...rawGc,
+      themeType: 'ocean-treasure-hunt',
+      positiveTarget: posTarget,
+      negativeTarget: negTarget,
+      interactionTool: tool,
+    };
+    updated.game_type = 'random-target';
+    updated.game_slug = 'random-target';
+    return updated;
+  }
+
+  // Desert Quick Draw system or custom theme legacy & cross-theme asset migration
+  const isDesertTheme =
+    slug === 'desert-quick-draw' ||
+    name.toLowerCase().includes('desert quick draw') ||
+    (theme.game_type === 'random-target' && !isOceanTheme);
+
+  if (isDesertTheme) {
+    const isStaleOrCrossDesertUrl = (u?: string | null) => {
+      if (!u || typeof u !== 'string') return true;
+      const c = u.trim().toLowerCase();
+      return (
+        !c ||
+        c.includes('bandit_target_1792994318514') ||
+        c.includes('merchant_target_1792994318429') ||
+        c.includes('western_pistol_1792994340847') ||
+        c.includes('desert_arcade_bg_1792994317277') ||
+        c.includes('treasure_target_1792994339565') ||
+        c.includes('shark_target_1792994339948') ||
+        c.includes('fishing_rod_1792994341884') ||
+        c.includes('ocean_arcade_bg_1792994317724') ||
+        c.includes('/themes/ocean-treasure-hunt/treasure.png') ||
+        c.includes('/themes/ocean-treasure-hunt/shark.png') ||
+        c.includes('/themes/ocean-treasure-hunt/fishing_rod.png') ||
+        c.includes('/themes/ocean-treasure-hunt/background.png') ||
+        c.endsWith('/desert-quick-draw/target_positive.png') ||
+        c.endsWith('/desert-quick-draw/target_negative.png') ||
+        c.endsWith('/desert-quick-draw/tool_gun.png') ||
+        c.includes('/games/random-target/themes/default/')
+      );
+    };
+
+    const updated = { ...theme };
+    if (isSys || isStaleOrCrossDesertUrl(updated.background_url)) {
+      updated.background_url = '/assets/games/random-target/themes/desert-quick-draw/background.png';
+    }
+    const defaultGc = DEFAULT_RANDOM_TARGET_DESERT_THEME.game_config as any;
+    const rawGc = (updated.game_config && typeof updated.game_config === 'object') ? updated.game_config : {};
+    const posTarget = { ...defaultGc.positiveTarget, ...(rawGc.positiveTarget || {}) };
+    if (isSys || isStaleOrCrossDesertUrl(posTarget.imageUrl)) {
+      posTarget.imageUrl = defaultGc.positiveTarget.imageUrl;
+    }
+    if (posTarget.name === 'Gold Bullseye Target' || posTarget.name === 'Golden Pearl Shell' || posTarget.name === 'Sunken Treasure') {
+      posTarget.name = defaultGc.positiveTarget.name;
+    }
+    if (posTarget.id === 'ocean-treasure') {
+      posTarget.id = defaultGc.positiveTarget.id;
+    }
+
+    const negTarget = { ...defaultGc.negativeTarget, ...(rawGc.negativeTarget || {}) };
+    if (isSys || isStaleOrCrossDesertUrl(negTarget.imageUrl)) {
+      negTarget.imageUrl = defaultGc.negativeTarget.imageUrl;
+    }
+    if (negTarget.name === 'Red TNT Barrel' || negTarget.name === 'Spiky Sea Mine' || negTarget.name === 'Hungry Shark') {
+      negTarget.name = defaultGc.negativeTarget.name;
+    }
+    if (negTarget.id === 'ocean-shark') {
+      negTarget.id = defaultGc.negativeTarget.id;
+    }
+
+    const tool = { ...defaultGc.interactionTool, ...(rawGc.interactionTool || {}) };
+    if (isSys || isStaleOrCrossDesertUrl(tool.imageUrl)) {
+      tool.imageUrl = defaultGc.interactionTool.imageUrl;
+    }
+    if (tool.name === 'Golden Fishing Net' || tool.name === 'Angler Fishing Rod') {
+      tool.name = defaultGc.interactionTool.name;
+    }
+    if (tool.id === 'ocean-fishing-rod') {
+      tool.id = defaultGc.interactionTool.id;
+    }
+    if (tool.type === 'gun' || (tool.type === 'fishing-rod' && String(tool.imageUrl).includes('pistol.png'))) {
+      tool.type = 'pistol';
+    }
+    if (tool.projectileEffect === 'bullet_spark' || (tool.projectileEffect === 'fishing-line' && tool.type === 'pistol')) {
+      tool.projectileEffect = 'bullet-trail';
+    }
+
+    updated.game_config = {
+      ...defaultGc,
+      ...rawGc,
+      themeType: 'desert-quick-draw',
+      positiveTarget: posTarget,
+      negativeTarget: negTarget,
+      interactionTool: tool,
+    };
+    updated.game_type = 'random-target';
+    updated.game_slug = 'random-target';
+    return updated;
   }
 
   // Universal legacy Carnival asset migration across any theme
@@ -3296,34 +3498,34 @@ export async function getSystemThemesByGameId(
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
       const targetGame = candidateGames.find((c) => c.id === targetSystemGameId) || candidateGames[0] || game;
       const gameType = targetGame?.game_type || resolvedSystemGameType || 'catch-brand';
-      const defaultTheme = getDefaultThemeForGameType(gameType);
-      return [
-        {
-          id: `system-theme-${gameType}`,
-          organization_id: null as any,
-          game_id: isUUID(targetSystemGameId) ? targetSystemGameId : null,
-          name: defaultTheme.name,
-          slug: defaultTheme.slug,
-          description: defaultTheme.description,
-          status: 'active',
-          is_system: true,
-          is_default: true,
-          branding: defaultTheme.branding,
-          background_url: defaultTheme.background_url,
-          basket_config: defaultTheme.basket_config,
-          items_config: defaultTheme.items_config,
-          physics_config: defaultTheme.physics_config,
-          visuals_config: defaultTheme.visuals_config,
-          sounds_config: defaultTheme.sounds_config,
-          game_config: (defaultTheme as any).game_config,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          game: targetGame as any,
-          game_type: gameType,
-          game_slug: targetGame?.slug || gameType,
-          game_name: targetGame?.name || defaultTheme.name,
-        } as unknown as GameThemeRecord,
-      ];
+      const defaultThemes = gameType === 'random-target'
+        ? [DEFAULT_RANDOM_TARGET_DESERT_THEME, DEFAULT_RANDOM_TARGET_OCEAN_THEME]
+        : [getDefaultThemeForGameType(gameType)];
+      return defaultThemes.map((dt) => ({
+        id: dt.slug === 'ocean-treasure-hunt' ? 'ocean-treasure-hunt' : dt.slug === 'desert-quick-draw' ? 'desert-quick-draw' : `system-theme-${gameType}`,
+        organization_id: null as any,
+        game_id: isUUID(targetSystemGameId) ? targetSystemGameId : null,
+        name: dt.name,
+        slug: dt.slug,
+        description: dt.description,
+        status: 'active',
+        is_system: true,
+        is_default: dt.is_default,
+        branding: dt.branding,
+        background_url: dt.background_url,
+        basket_config: dt.basket_config,
+        items_config: dt.items_config,
+        physics_config: dt.physics_config,
+        visuals_config: dt.visuals_config,
+        sounds_config: dt.sounds_config,
+        game_config: (dt as any).game_config,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        game: targetGame as any,
+        game_type: gameType,
+        game_slug: targetGame?.slug || gameType,
+        game_name: targetGame?.name || dt.name,
+      })) as unknown as GameThemeRecord[];
     }
     console.error('Error in getSystemThemesByGameId:', error);
     throw new Error(`Failed to list system themes: ${error.message}`);
@@ -3374,34 +3576,34 @@ export async function getSystemThemesByGameId(
     console.log('[System Themes] No system themes found in DB, using canonical default theme');
     const targetGame = candidateGames.find((c) => c.id === targetSystemGameId) || candidateGames[0] || game;
     const gameType = targetGame?.game_type || resolvedSystemGameType || 'catch-brand';
-    const defaultTheme = getDefaultThemeForGameType(gameType);
-    list = [
-      {
-        id: `system-theme-${gameType}`,
-        organization_id: null as any,
-        game_id: isUUID(targetSystemGameId) ? targetSystemGameId : null,
-        name: defaultTheme.name,
-        slug: defaultTheme.slug,
-        description: defaultTheme.description,
-        status: 'active',
-        is_system: true,
-        is_default: true,
-        branding: defaultTheme.branding,
-        background_url: defaultTheme.background_url,
-        basket_config: defaultTheme.basket_config,
-        items_config: defaultTheme.items_config,
-        physics_config: defaultTheme.physics_config,
-        visuals_config: defaultTheme.visuals_config,
-        sounds_config: defaultTheme.sounds_config,
-        game_config: (defaultTheme as any).game_config,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        game: targetGame as any,
-        game_type: gameType,
-        game_slug: targetGame?.slug || gameType,
-        game_name: targetGame?.name || defaultTheme.name,
-      },
-    ];
+    const defaultThemes = gameType === 'random-target'
+      ? [DEFAULT_RANDOM_TARGET_DESERT_THEME, DEFAULT_RANDOM_TARGET_OCEAN_THEME]
+      : [getDefaultThemeForGameType(gameType)];
+    list = defaultThemes.map((dt) => ({
+      id: dt.slug === 'ocean-treasure-hunt' ? 'ocean-treasure-hunt' : dt.slug === 'desert-quick-draw' ? 'desert-quick-draw' : `system-theme-${gameType}`,
+      organization_id: null as any,
+      game_id: isUUID(targetSystemGameId) ? targetSystemGameId : null,
+      name: dt.name,
+      slug: dt.slug,
+      description: dt.description,
+      status: 'active',
+      is_system: true,
+      is_default: dt.is_default,
+      branding: dt.branding,
+      background_url: dt.background_url,
+      basket_config: dt.basket_config,
+      items_config: dt.items_config,
+      physics_config: dt.physics_config,
+      visuals_config: dt.visuals_config,
+      sounds_config: dt.sounds_config,
+      game_config: (dt as any).game_config,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      game: targetGame as any,
+      game_type: gameType,
+      game_slug: targetGame?.slug || gameType,
+      game_name: targetGame?.name || dt.name,
+    }));
   }
 
   const enriched = await enrichThemesWithGameData(list, env, {
@@ -3903,7 +4105,16 @@ export async function cloneSystemThemeToOrg(
   const now = new Date().toISOString();
 
   const resolvedThemeGameType = resolvedSystemGameType;
-  const fallbackDefaultTheme = getDefaultThemeForGameType(resolvedThemeGameType);
+  const isCloningOceanTheme =
+    systemTheme.slug === 'ocean-treasure-hunt' ||
+    String(systemTheme.slug || '').includes('ocean') ||
+    String(systemTheme.name || '').toLowerCase().includes('ocean') ||
+    systemTheme.game_config?.themeType === 'ocean-treasure-hunt' ||
+    systemTheme.game_config?.interactionTool?.type === 'fishing-rod';
+  const fallbackDefaultTheme =
+    resolvedThemeGameType === 'random-target' && isCloningOceanTheme
+      ? DEFAULT_RANDOM_TARGET_OCEAN_THEME
+      : getDefaultThemeForGameType(resolvedThemeGameType);
 
   const { data, error } = await safeInsertTheme(supabase, {
     id,
@@ -4074,7 +4285,11 @@ export async function ensureSystemDefaultThemesForGame(
         const needsRepair =
           existing.game_id !== gameId ||
           existing.background_url !== preset.background_url ||
-          existing.basket_config?.imageUrl !== preset.basket_config?.imageUrl;
+          existing.basket_config?.imageUrl !== preset.basket_config?.imageUrl ||
+          ((preset.slug === 'desert-quick-draw' || preset.slug === 'ocean-treasure-hunt') &&
+            (existing.game_config?.positiveTarget?.imageUrl !== (preset.game_config as any)?.positiveTarget?.imageUrl ||
+              existing.game_config?.negativeTarget?.imageUrl !== (preset.game_config as any)?.negativeTarget?.imageUrl ||
+              existing.game_config?.interactionTool?.imageUrl !== (preset.game_config as any)?.interactionTool?.imageUrl));
 
         if (needsRepair) {
           const { data: updatedTheme } = await supabase
@@ -4084,6 +4299,7 @@ export async function ensureSystemDefaultThemesForGame(
               background_url: preset.background_url,
               basket_config: preset.basket_config,
               items_config: preset.items_config,
+              ...((preset.slug === 'desert-quick-draw' || preset.slug === 'ocean-treasure-hunt') ? { game_config: preset.game_config } : {}),
               updated_at: new Date().toISOString(),
             })
             .eq('id', existing.id)

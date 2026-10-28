@@ -7,6 +7,7 @@ import {
   ToolDefinition,
   DEFAULT_DESERT_CONFIG,
   DEFAULT_OCEAN_CONFIG,
+  isOceanTreasureHuntTheme,
   normalizeRandomTargetConfig,
 } from '../../../games/random-target/types';
 import { randomTargetSounds } from '../../../games/random-target/randomTargetSounds';
@@ -59,7 +60,7 @@ export const RandomTargetGameplayCustomizer: React.FC<RandomTargetCustomizerProp
   onChange,
 }) => {
   const { t } = useLocalization();
-  const isOceanTheme = (theme.id || '').includes('ocean') || (theme.slug || '').includes('ocean');
+  const isOceanTheme = isOceanTreasureHuntTheme(theme);
   const baseDefault = isOceanTheme ? DEFAULT_OCEAN_CONFIG : DEFAULT_DESERT_CONFIG;
 
   const currentConfig: RandomTargetGameConfig = useMemo(() => {
@@ -515,7 +516,7 @@ export const RandomTargetTargetsCustomizer: React.FC<RandomTargetCustomizerProps
   uploadingAsset,
 }) => {
   const { t } = useLocalization();
-  const isOceanTheme = (theme.id || '').includes('ocean') || (theme.slug || '').includes('ocean');
+  const isOceanTheme = isOceanTreasureHuntTheme(theme);
   const baseDefault = isOceanTheme ? DEFAULT_OCEAN_CONFIG : DEFAULT_DESERT_CONFIG;
 
   const currentConfig: RandomTargetGameConfig = useMemo(() => {

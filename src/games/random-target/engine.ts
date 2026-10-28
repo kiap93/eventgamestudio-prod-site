@@ -256,8 +256,14 @@ export function handleTargetExpirations(
   };
 }
 
+export const NEUTRAL_TOOL_AIM_DEG = 0;
+export const TOOL_MUZZLE_FLASH_DURATION_MS = 90;
+export const TOOL_RECOIL_DURATION_MS = 140;
+export const TOOL_RETURN_TO_NEUTRAL_MS = 260;
+
 /**
- * Computes angle in degrees from tool position to target position
+ * Computes angle in degrees from tool position to target position,
+ * normalized to [-180, 180] relative to baseAngleDeg.
  */
 export function calculateAimAngleDeg(
   toolX: number,
@@ -270,5 +276,48 @@ export function calculateAimAngleDeg(
   const dy = targetY - toolY;
   const rad = Math.atan2(dy, dx);
   const deg = (rad * 180) / Math.PI;
-  return deg - baseAngleDeg;
+  let delta = deg - baseAngleDeg;
+  while (delta > 180) delta -= 360;
+  while (delta < -180) delta += 360;
+  return delta;
 }
+
+/**
+ * Computes the natural diagonal angle (in screen degrees) from the bottom-right tool anchor
+ * toward the center of the game scene. Since the pistol artwork is already drawn diagonally
+ * pointing toward the center of the scene, this defines the 0deg neutral reference vector.
+ */
+export function calculateNeutralToolBarrelAngleDeg(
+  toolX: number,
+  toolY: number,
+  sceneWidth: number = 1024,
+  sceneHeight: number = 576
+): number {
+  return calculateAimAngleDeg(toolX, toolY, sceneWidth / 2, sceneHeight / 2, 0);
+}
+
+/**
+ * Computes the relative aiming rotation offset (in degrees) from the tool's neutral
+ * diagonal orientation toward a target at (targetX, targetY).
+ * - Returns 0 when aiming at the center of the scene (preserving the artwork's natural diagonal pose).
+ * - Returns negative degrees (counter-clockwise) when aiming to the left of center.
+ * - Returns positive degrees (clockwise) when aiming to the right/upper-right of center.
+ */
+export function calculateToolShotAngleDeg(
+  toolX: number,
+  toolY: number,
+  targetX: number,
+  targetY: number,
+  sceneWidth: number = 1024,
+  sceneHeight: number = 576
+): number {
+  const neutralBarrelAngleDeg = calculateNeutralToolBarrelAngleDeg(
+    toolX,
+    toolY,
+    sceneWidth,
+    sceneHeight
+  );
+  const rawDelta = calculateAimAngleDeg(toolX, toolY, targetX, targetY, neutralBarrelAngleDeg);
+  return Math.max(-45, Math.min(65, rawDelta));
+}
+

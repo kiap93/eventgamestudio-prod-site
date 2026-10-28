@@ -273,8 +273,33 @@ export function resolveThemeBaseId(raw: any): string {
   // 6. Game type fallback
   const gameSlug = String(raw.game_slug || (raw.games?.slug) || '').toLowerCase();
   const gameType = String(raw.game_type || raw.game_id || '').toLowerCase();
+  const gc = raw.game_config && typeof raw.game_config === 'object' ? raw.game_config : {};
+  const explicitThemeType = String(gc.themeType || raw.themeType || '').toLowerCase();
+  const rawBgUrl = String(raw.background_url || raw.background || '').toLowerCase();
+  const toolType = String(gc.interactionTool?.type || '').toLowerCase();
+  const posId = String(gc.positiveTarget?.id || '').toLowerCase();
+  const posImg = String(gc.positiveTarget?.imageUrl || '').toLowerCase();
 
-  if (gameSlug.includes('random-target') || gameType.includes('random-target') || gameSlug.includes('quick-draw') || gameType.includes('quick-draw') || gameSlug.includes('treasure-hunt') || gameType.includes('treasure-hunt')) {
+  if (
+    explicitThemeType === 'ocean-treasure-hunt' ||
+    rawBgUrl.includes('/ocean-treasure-hunt/') ||
+    toolType === 'fishing-rod' ||
+    toolType === 'net' ||
+    posId === 'ocean-treasure' ||
+    posImg.includes('/ocean-treasure-hunt/') ||
+    gameSlug.includes('treasure-hunt') ||
+    gameType.includes('treasure-hunt')
+  ) {
+    return 'ocean-treasure-hunt';
+  }
+
+  if (
+    explicitThemeType === 'desert-quick-draw' ||
+    gameSlug.includes('random-target') ||
+    gameType.includes('random-target') ||
+    gameSlug.includes('quick-draw') ||
+    gameType.includes('quick-draw')
+  ) {
     return 'desert-quick-draw';
   }
   if (gameSlug.includes('match-3') || gameType.includes('match-3') || gameSlug.includes('match3') || gameType.includes('match3')) {
@@ -407,7 +432,16 @@ export function normalizeGameTheme(raw: any): GameTheme {
   if (isMatch3 && (!background_url || background_url.includes('/catch-brand/') || background_url.includes('/memory-match/') || background_url.includes('/reaction-tap/'))) {
     background_url = '/assets/games/match-3/themes/default/background.png';
   }
-  if (isRandomTarget && (!background_url || background_url.includes('/catch-brand/') || background_url.includes('/memory-match/') || background_url.includes('/reaction-tap/') || background_url.includes('/match-3/'))) {
+  if (
+    isRandomTarget &&
+    (!background_url ||
+      background_url.includes('/catch-brand/') ||
+      background_url.includes('/memory-match/') ||
+      background_url.includes('/reaction-tap/') ||
+      background_url.includes('/match-3/') ||
+      (canonicalBaseId === 'ocean-treasure-hunt' && background_url.includes('/desert-quick-draw/background.png')) ||
+      (canonicalBaseId === 'desert-quick-draw' && background_url.includes('/ocean-treasure-hunt/background.png')))
+  ) {
     background_url = basePreset.background_url || '/assets/games/random-target/themes/desert-quick-draw/background.png';
   }
 
