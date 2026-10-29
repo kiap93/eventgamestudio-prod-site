@@ -37,7 +37,7 @@ jobs:
         run: bun run build
 
       - name: Deploy Staging API Worker (eventgamestudio-api)
-        run: bunx wrangler deploy --name eventgamestudio-prod-api --config wrangler.api.toml
+        run: bunx wrangler deploy --name eventgamestudio-api --config wrangler.api.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
