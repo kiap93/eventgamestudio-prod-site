@@ -32,7 +32,7 @@ import { LanguageSelector } from '../common/LanguageSelector';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations' | 'sales-partners' | 'sales-attributions' | 'sales-commissions' | 'invoices';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'rewards' | 'organizations' | 'email' | 'errors' | 'contact' | 'customer-invitations' | 'sales-partners' | 'sales-attributions' | 'sales-commissions' | 'invoices';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -75,6 +75,14 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
       label: t('developer.eventPricingControl'),
       activeColor: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
       iconColor: 'text-cyan-400',
+    },
+    {
+      id: 'rewards',
+      path: '/developer/rewards',
+      icon: Sparkles,
+      label: t('developer.walletRewardsSettings', undefined, 'Wallet & Rewards'),
+      activeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+      iconColor: 'text-amber-400',
     },
     {
       id: 'email',

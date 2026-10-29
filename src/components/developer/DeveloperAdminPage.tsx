@@ -19,6 +19,7 @@ import { DeveloperSalesPartners } from './DeveloperSalesPartners';
 import { DeveloperSalesAttributions } from './DeveloperSalesAttributions';
 import { DeveloperSalesCommissions } from './DeveloperSalesCommissions';
 import { DeveloperInvoicesManager } from './DeveloperInvoicesManager';
+import { DeveloperWalletRewardsSettings } from './DeveloperWalletRewardsSettings';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
@@ -166,6 +167,15 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="invoices">
         <DeveloperInvoicesManager />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1j. If viewing Wallet & Rewards Settings: /developer/rewards
+  if (route.developerSection === 'rewards') {
+    return (
+      <DeveloperAdminLayout activeSection="rewards">
+        <DeveloperWalletRewardsSettings />
       </DeveloperAdminLayout>
     );
   }

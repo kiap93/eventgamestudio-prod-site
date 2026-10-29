@@ -508,6 +508,15 @@ export async function createShowcaseRewardSubmission(params: {
     }
 
     // 4. Create Submission Record
+    let configuredRewardAmount = 300.0;
+    try {
+      const { getRewardSettingsForOrganization } = await import('./rewardSettings.js');
+      const settings = await getRewardSettingsForOrganization(event.organization_id, env);
+      if (settings?.showcase_credit_amount !== undefined) {
+        configuredRewardAmount = Number(settings.showcase_credit_amount);
+      }
+    } catch {}
+
     const now = new Date().toISOString();
     const submissionRecord: ShowcaseRewardSubmissionRecord = {
       id: crypto.randomUUID(),
@@ -515,7 +524,7 @@ export async function createShowcaseRewardSubmission(params: {
       event_id: event.id,
       user_id: userId,
       status: 'PENDING',
-      reward_amount: 300.0,
+      reward_amount: configuredRewardAmount,
       submitted_at: now,
       reviewed_at: null,
       reviewed_by: null,

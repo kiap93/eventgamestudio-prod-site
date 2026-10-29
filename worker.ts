@@ -117,6 +117,10 @@ import {
   STANDARD_EVENT_PRICE,
   getPlatformPricingSettings,
   updatePlatformPricingSettings,
+  getAllRewardSettings,
+  getRewardSettingsByCountry,
+  saveRewardSettings,
+  getRewardSettingsHistory,
   getPlatformContactSettings,
   updatePlatformContactSettings,
   DEFAULT_CONTACT_SETTINGS,
@@ -7638,6 +7642,150 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin update pricing settings error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // ----------------------------------------------------
+      // WALLET REWARD SETTINGS (DEVELOPER ADMIN)
+      // ----------------------------------------------------
+
+      // GET /api/developer/reward-settings & /api/admin/reward-settings & /api/developer/rewards/settings
+      if (
+        (pathname === '/api/developer/reward-settings' ||
+          pathname === '/api/admin/reward-settings' ||
+          pathname === '/api/developer/rewards/settings' ||
+          pathname === '/api/admin/rewards/settings') &&
+        method === 'GET'
+      ) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const settings = await getAllRewardSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get reward settings error in worker:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/reward-settings/:countryCode/history & /api/admin/reward-settings/:countryCode/history & /api/developer/rewards/settings/:countryCode/history
+      const devRewardSettingsHistoryRoute =
+        parseRoute('/api/developer/rewards/settings/:countryCode/history', pathname) ||
+        parseRoute('/api/admin/rewards/settings/:countryCode/history', pathname) ||
+        parseRoute('/api/developer/reward-settings/:countryCode/history', pathname) ||
+        parseRoute('/api/admin/reward-settings/:countryCode/history', pathname);
+      if (devRewardSettingsHistoryRoute && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const countryCode = devRewardSettingsHistoryRoute.countryCode?.toUpperCase();
+          const history = await getRewardSettingsHistory(countryCode, env);
+          return jsonResponse({ success: true, history }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get reward settings history error in worker:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/reward-settings-history & /api/admin/reward-settings-history
+      if (
+        (pathname === '/api/developer/reward-settings-history' ||
+          pathname === '/api/admin/reward-settings-history' ||
+          pathname === '/api/developer/rewards/settings-history') &&
+        method === 'GET'
+      ) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const history = await getRewardSettingsHistory(undefined, env);
+          return jsonResponse({ success: true, history }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get all reward settings history error in worker:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/reward-settings/:countryCode & /api/developer/rewards/settings/:countryCode
+      const devGetRewardSettingsCountryRoute =
+        parseRoute('/api/developer/rewards/settings/:countryCode', pathname) ||
+        parseRoute('/api/admin/rewards/settings/:countryCode', pathname) ||
+        parseRoute('/api/developer/reward-settings/:countryCode', pathname) ||
+        parseRoute('/api/admin/reward-settings/:countryCode', pathname);
+      if (devGetRewardSettingsCountryRoute && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const countryCode = devGetRewardSettingsCountryRoute.countryCode?.toUpperCase();
+          const settings = await getRewardSettingsByCountry(countryCode, undefined, env);
+          if (!settings) {
+            return errorResponse(`Reward settings not found for country "${countryCode}"`, 404, cors);
+          }
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get reward settings by country error in worker:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // PUT/POST /api/developer/reward-settings/:countryCode & /api/developer/rewards/settings/:countryCode
+      const devUpdateRewardSettingsCountryRoute =
+        parseRoute('/api/developer/rewards/settings/:countryCode', pathname) ||
+        parseRoute('/api/admin/rewards/settings/:countryCode', pathname) ||
+        parseRoute('/api/developer/reward-settings/:countryCode', pathname) ||
+        parseRoute('/api/admin/reward-settings/:countryCode', pathname);
+      if (devUpdateRewardSettingsCountryRoute && (method === 'PUT' || method === 'POST')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const countryCode = String(devUpdateRewardSettingsCountryRoute.countryCode || '').trim().toUpperCase();
+        if (!countryCode || countryCode.length !== 2) {
+          return errorResponse('Valid 2-letter country code is required', 422, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const input = {
+          country_code: countryCode,
+          currency: body.currency,
+          welcome_credit_amount: body.welcome_credit_amount !== undefined ? Number(body.welcome_credit_amount) : undefined,
+          welcome_credit_enabled: body.welcome_credit_enabled !== undefined ? Boolean(body.welcome_credit_enabled) : undefined,
+          showcase_credit_amount: body.showcase_credit_amount !== undefined ? Number(body.showcase_credit_amount) : undefined,
+          showcase_credit_enabled: body.showcase_credit_enabled !== undefined ? Boolean(body.showcase_credit_enabled) : undefined,
+          topup_bonus_enabled: body.topup_bonus_enabled !== undefined ? Boolean(body.topup_bonus_enabled) : undefined,
+          max_topup_credit_per_event_percent: body.max_topup_credit_per_event_percent !== undefined ? Number(body.max_topup_credit_per_event_percent) : undefined,
+          is_active: body.is_active !== undefined ? Boolean(body.is_active) : undefined,
+          change_reason: body.change_reason ? String(body.change_reason) : undefined,
+          tiers: Array.isArray(body.tiers) ? body.tiers : undefined,
+        };
+
+        try {
+          const updated = await saveRewardSettings(input, auth.user?.id, env);
+          return jsonResponse({
+            success: true,
+            settings: updated,
+            message: `Wallet reward settings for ${countryCode} updated successfully`,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin update reward settings error in worker:', err);
           return handleWorkerApiError(err, request, cors, env);
         }
       }

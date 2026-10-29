@@ -1406,4 +1406,85 @@ export interface SalesDashboardSummaryRecord {
   recent_commissions: SalesCommissionWithDetails[];
 }
 
+// ----------------------------------------------------
+// CENTRALIZED WALLET REWARD SETTINGS TYPES
+// ----------------------------------------------------
+
+export interface WalletRewardSettingsRecord {
+  id: string;
+  country_code: string;
+  currency: string;
+  welcome_credit_amount: number;
+  welcome_credit_enabled: boolean;
+  showcase_credit_amount: number;
+  showcase_credit_enabled: boolean;
+  topup_bonus_enabled: boolean;
+  max_topup_credit_per_event_percent: number;
+  is_active: boolean;
+  version: number;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletTopupTierRecord {
+  id: string;
+  reward_settings_id: string;
+  country_code: string;
+  currency: string;
+  tier_name: string;
+  min_deposit: number;
+  max_deposit: number | null;
+  calculation_type: 'PERCENTAGE' | 'FIXED';
+  bonus_rate: number;
+  bonus_fixed_amount: number;
+  max_bonus_amount: number | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletRewardSettingsWithTiers extends WalletRewardSettingsRecord {
+  tiers: WalletTopupTierRecord[];
+}
+
+export interface WalletRewardSettingsHistoryRecord {
+  id: string;
+  settings_id: string;
+  country_code: string;
+  currency: string;
+  version: number;
+  snapshot: any;
+  changed_by: string | null;
+  change_reason: string | null;
+  created_at: string;
+}
+
+export interface UpdateWalletRewardSettingsInput {
+  country_code: string;
+  currency?: string;
+  welcome_credit_amount?: number;
+  welcome_credit_enabled?: boolean;
+  showcase_credit_amount?: number;
+  showcase_credit_enabled?: boolean;
+  topup_bonus_enabled?: boolean;
+  max_topup_credit_per_event_percent?: number;
+  is_active?: boolean;
+  change_reason?: string;
+  tiers?: Array<{
+    id?: string;
+    tier_name: string;
+    min_deposit: number;
+    max_deposit?: number | null;
+    calculation_type: 'PERCENTAGE' | 'FIXED';
+    bonus_rate?: number;
+    bonus_fixed_amount?: number;
+    max_bonus_amount?: number | null;
+    is_active?: boolean;
+    sort_order?: number;
+  }>;
+}
+
+
 

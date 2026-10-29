@@ -173,6 +173,10 @@ import {
   STANDARD_EVENT_PRICE,
   getPlatformPricingSettings,
   updatePlatformPricingSettings,
+  getAllRewardSettings,
+  getRewardSettingsByCountry,
+  saveRewardSettings,
+  getRewardSettingsHistory,
   getPlatformContactSettings,
   updatePlatformContactSettings,
   DEFAULT_CONTACT_SETTINGS,
@@ -7101,6 +7105,118 @@ const handleUpdateAdminPricingSettings = async (req: AuthenticatedRequest, res: 
 app.put('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
 app.put('/api/admin/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
 app.post('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
+
+// ----------------------------------------------------
+// WALLET REWARD SETTINGS (DEVELOPER ADMIN)
+// ----------------------------------------------------
+
+/**
+ * GET /api/developer/reward-settings (and /api/admin/reward-settings)
+ * List all country reward configurations with active bonus tiers
+ */
+const handleGetAllAdminRewardSettings = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const settings = await getAllRewardSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/reward-settings', authenticateDeveloperAdmin, handleGetAllAdminRewardSettings);
+app.get('/api/admin/reward-settings', authenticateDeveloperAdmin, handleGetAllAdminRewardSettings);
+app.get('/api/developer/rewards/settings', authenticateDeveloperAdmin, handleGetAllAdminRewardSettings);
+app.get('/api/admin/rewards/settings', authenticateDeveloperAdmin, handleGetAllAdminRewardSettings);
+
+/**
+ * GET /api/developer/reward-settings/:countryCode (and /api/admin/reward-settings/:countryCode)
+ * Retrieve reward settings for a specific country
+ */
+const handleGetAdminRewardSettingsByCountry = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const countryCode = String(req.params.countryCode || '').trim().toUpperCase();
+    const settings = await getRewardSettingsByCountry(countryCode);
+    if (!settings) {
+      res.status(404).json({ success: false, error: `Reward settings not found for country "${countryCode}"` });
+      return;
+    }
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/reward-settings/:countryCode', authenticateDeveloperAdmin, handleGetAdminRewardSettingsByCountry);
+app.get('/api/admin/reward-settings/:countryCode', authenticateDeveloperAdmin, handleGetAdminRewardSettingsByCountry);
+app.get('/api/developer/rewards/settings/:countryCode', authenticateDeveloperAdmin, handleGetAdminRewardSettingsByCountry);
+app.get('/api/admin/rewards/settings/:countryCode', authenticateDeveloperAdmin, handleGetAdminRewardSettingsByCountry);
+
+/**
+ * GET /api/developer/reward-settings/:countryCode/history (and /api/admin/reward-settings/:countryCode/history)
+ * Retrieve audit history for a country
+ */
+const handleGetAdminRewardSettingsHistory = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const countryCode = req.params.countryCode ? String(req.params.countryCode).trim().toUpperCase() : undefined;
+    const history = await getRewardSettingsHistory(countryCode);
+    res.json({ success: true, history });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/reward-settings/:countryCode/history', authenticateDeveloperAdmin, handleGetAdminRewardSettingsHistory);
+app.get('/api/admin/reward-settings/:countryCode/history', authenticateDeveloperAdmin, handleGetAdminRewardSettingsHistory);
+app.get('/api/developer/rewards/settings/:countryCode/history', authenticateDeveloperAdmin, handleGetAdminRewardSettingsHistory);
+app.get('/api/admin/rewards/settings/:countryCode/history', authenticateDeveloperAdmin, handleGetAdminRewardSettingsHistory);
+app.get('/api/developer/reward-settings-history', authenticateDeveloperAdmin, handleGetAdminRewardSettingsHistory);
+app.get('/api/admin/reward-settings-history', authenticateDeveloperAdmin, handleGetAdminRewardSettingsHistory);
+
+/**
+ * PUT /api/developer/reward-settings/:countryCode (and /api/admin/reward-settings/:countryCode)
+ * Update reward settings and bonus tiers for a specific country
+ */
+const handleUpdateAdminRewardSettings = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const countryCode = String(req.params.countryCode || req.body?.country_code || '').trim().toUpperCase();
+    if (!countryCode || countryCode.length !== 2) {
+      res.status(422).json({ success: false, error: 'Valid 2-letter country code is required', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    const input = {
+      country_code: countryCode,
+      currency: req.body?.currency,
+      welcome_credit_amount: req.body?.welcome_credit_amount !== undefined ? Number(req.body.welcome_credit_amount) : undefined,
+      welcome_credit_enabled: req.body?.welcome_credit_enabled !== undefined ? Boolean(req.body.welcome_credit_enabled) : undefined,
+      showcase_credit_amount: req.body?.showcase_credit_amount !== undefined ? Number(req.body.showcase_credit_amount) : undefined,
+      showcase_credit_enabled: req.body?.showcase_credit_enabled !== undefined ? Boolean(req.body.showcase_credit_enabled) : undefined,
+      topup_bonus_enabled: req.body?.topup_bonus_enabled !== undefined ? Boolean(req.body.topup_bonus_enabled) : undefined,
+      max_topup_credit_per_event_percent: req.body?.max_topup_credit_per_event_percent !== undefined ? Number(req.body.max_topup_credit_per_event_percent) : undefined,
+      is_active: req.body?.is_active !== undefined ? Boolean(req.body.is_active) : undefined,
+      change_reason: req.body?.change_reason ? String(req.body.change_reason) : undefined,
+      tiers: Array.isArray(req.body?.tiers) ? req.body.tiers : undefined,
+    };
+
+    const updated = await saveRewardSettings(input, req.user?.id);
+    res.json({
+      success: true,
+      settings: updated,
+      message: `Wallet reward settings for ${countryCode} updated successfully`,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.put('/api/developer/reward-settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.put('/api/admin/reward-settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.put('/api/developer/rewards/settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.put('/api/admin/rewards/settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.post('/api/developer/reward-settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.post('/api/admin/reward-settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.post('/api/developer/rewards/settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
+app.post('/api/admin/rewards/settings/:countryCode', authenticateDeveloperAdmin, handleUpdateAdminRewardSettings);
 
 // ----------------------------------------------------
 // PLATFORM CONTACT SETTINGS (WHATSAPP, ENQUIRY EMAIL)

@@ -41,8 +41,8 @@ describe('Phase 5: End-to-End Comprehensive Invoicing Test Suite', () => {
       id: eventId,
       name: 'Ongoing Event',
       organization_id: 'org_test',
-      start_date: '2026-10-10',
-      end_date: '2026-10-25',
+      start_date: '2099-10-10',
+      end_date: '2099-10-25',
       status: 'live',
       event_status: 'LIVE',
       payment_status: 'PAID',
@@ -50,10 +50,11 @@ describe('Phase 5: End-to-End Comprehensive Invoicing Test Suite', () => {
       event_currency: 'MYR',
     } as any);
 
-    const check = isEventEligibleForInvoicing(localEventsCache.get(eventId)!, new Date('2026-10-15T00:00:00Z'));
+    const check = isEventEligibleForInvoicing(localEventsCache.get(eventId)!, new Date('2099-10-15T00:00:00Z'));
     expect(check.eligible).toBe(false);
     expect(check.reason).toContain('has not ended yet');
     await expect(generateEventInvoice(eventId)).rejects.toThrow('has not ended yet');
+    await expect(generateEventInvoice(eventId, undefined, { now: new Date('2099-10-15T00:00:00Z') })).rejects.toThrow('has not ended yet');
   });
 
   // 2. Event unpaid

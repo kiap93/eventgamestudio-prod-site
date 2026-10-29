@@ -25,7 +25,13 @@ import {
   WalletAuditEventType,
   OwnerShowcaseRewardRecord,
   UserRewardRecord,
+  WalletTopupTierRecord,
+  WalletRewardSettingsWithTiers,
 } from './types.js';
+import {
+  getRewardSettingsForOrganization,
+  calculateDynamicTopupCredit,
+} from './rewardSettings.js';
 import { isUserOrganizationOwner, hasUserClaimedReward } from './rewards.js';
 import { getUserById } from './users.js';
 import fs from 'node:fs';
@@ -467,8 +473,18 @@ export async function getWalletAuditTrail(
  *
  * Calculations are performed with integer cents arithmetic to avoid floating-point errors.
  */
-export function calculateTopupCredit(topupAmount: number): number {
+export function calculateTopupCredit(
+  topupAmount: number,
+  tiers?: WalletTopupTierRecord[],
+  isEnabled: boolean = true
+): number {
   if (typeof topupAmount !== 'number' || isNaN(topupAmount) || topupAmount <= 0) {
+    return 0.00;
+  }
+  if (tiers && tiers.length > 0) {
+    return calculateDynamicTopupCredit(topupAmount, tiers, isEnabled).promoCredit;
+  }
+  if (!isEnabled) {
     return 0.00;
   }
   const amountCents = toCents(topupAmount);
@@ -1562,11 +1578,37 @@ export async function createTopup(
   );
 
   // 2. Calculate promotional Top-up Credit for this individual top-up
-  const promoCreditAmount = calculateTopupCredit(sanitizedAmount);
+  let promoCreditAmount = 0;
+  let tierRate = `${sanitizedAmount >= TOPUP_TIER_2_MIN ? '7%' : '5%'}`;
+
+  if (params.metadata?.expected_credit_amount !== undefined && !isNaN(Number(params.metadata.expected_credit_amount))) {
+    promoCreditAmount = Number(params.metadata.expected_credit_amount);
+    if (params.metadata?.applied_tier?.tier_name) {
+      tierRate = params.metadata.applied_tier.tier_name;
+    }
+  } else {
+    try {
+      const settings = await getRewardSettingsForOrganization(organizationId, env);
+      const activeTiers = settings?.tiers?.filter((t) => t.is_active) || [];
+      const isBonusEnabled = settings ? settings.topup_bonus_enabled : true;
+      if (activeTiers.length > 0) {
+        const dynamic = calculateDynamicTopupCredit(sanitizedAmount, activeTiers, isBonusEnabled);
+        promoCreditAmount = dynamic.promoCredit;
+        if (dynamic.matchedTier?.tier_name) {
+          tierRate = dynamic.matchedTier.tier_name;
+        } else if (dynamic.matchedTier?.bonus_rate) {
+          tierRate = `${Math.round(dynamic.matchedTier.bonus_rate * 100)}%`;
+        }
+      } else {
+        promoCreditAmount = calculateTopupCredit(sanitizedAmount);
+      }
+    } catch {
+      promoCreditAmount = calculateTopupCredit(sanitizedAmount);
+    }
+  }
   let promoCreditTransaction: WalletTransactionRecord | null = null;
 
   if (promoCreditAmount > 0) {
-    const tierRate = sanitizedAmount >= TOPUP_TIER_2_MIN ? '7%' : '5%';
     const promoRef = referenceId ? `${referenceId}_promo` : `${topupTransaction.id}_promo`;
     promoCreditTransaction = await appendLedgerTransaction(
       {
@@ -1578,7 +1620,7 @@ export async function createTopup(
         currency,
         status: 'COMPLETED',
         reference_id: promoRef,
-        description: `Promotional ${tierRate} Top-up Credit on RM${sanitizedAmount.toFixed(2)} deposit`,
+        description: `Promotional ${tierRate} Top-up Credit on ${currency === 'MYR' ? 'RM' : currency} ${sanitizedAmount.toFixed(2)} deposit`,
         metadata: {
           parent_topup_id: topupTransaction.id,
           qualifying_amount: sanitizedAmount,
@@ -1894,6 +1936,21 @@ export async function grantWelcomeCredit(
         };
       }
 
+      // Check centralized reward settings
+      const rewardSettings = await getRewardSettingsForOrganization(organizationId, env).catch(() => null);
+      if (rewardSettings && rewardSettings.welcome_credit_enabled === false) {
+        const currentWallet = await getWalletBalance(organizationId, env);
+        return {
+          transaction: null,
+          wallet: currentWallet,
+          alreadyGranted: false,
+          notEligible: true,
+          message: 'Welcome Credit is currently disabled in platform settings.',
+        };
+      }
+      const welcomeAmount = rewardSettings ? Number(rewardSettings.welcome_credit_amount) : WELCOME_CREDIT_AMOUNT;
+      const welcomeCurrency = rewardSettings?.currency || 'MYR';
+
       // 3. Atomically reserve in user_rewards
       const now = new Date().toISOString();
       let userRewardRecord: UserRewardRecord | null = null;
@@ -1907,7 +1964,7 @@ export async function grantWelcomeCredit(
               user_id: targetUserId,
               reward_type: 'WELCOME_CREDIT',
               organization_id: organizationId,
-              amount: WELCOME_CREDIT_AMOUNT,
+              amount: welcomeAmount,
               created_at: now,
             })
             .select()
@@ -1958,7 +2015,7 @@ export async function grantWelcomeCredit(
           reward_type: 'WELCOME_CREDIT',
           organization_id: organizationId,
           transaction_id: null,
-          amount: WELCOME_CREDIT_AMOUNT,
+          amount: welcomeAmount,
           created_at: now,
         };
         localUserRewardsCache.set(`${targetUserId}:WELCOME_CREDIT`, userRewardRecord);
@@ -1972,7 +2029,7 @@ export async function grantWelcomeCredit(
           reward_type: 'WELCOME_CREDIT',
           organization_id: organizationId,
           transaction_id: null,
-          amount: WELCOME_CREDIT_AMOUNT,
+          amount: welcomeAmount,
           created_at: now,
         };
         localUserRewardsCache.set(`${targetUserId}:WELCOME_CREDIT`, userRewardRecord);
@@ -1992,6 +2049,7 @@ export async function grantWelcomeCredit(
       // 4. Append welcome credit transaction to the immutable ledger
       let transaction: WalletTransactionRecord | null = null;
       try {
+        const currPrefix = welcomeCurrency === 'MYR' ? 'RM' : welcomeCurrency;
         transaction = await appendLedgerTransaction(
           {
             organization_id: organizationId,
@@ -1999,11 +2057,11 @@ export async function grantWelcomeCredit(
             event_id: null,
             transaction_type: 'WELCOME_CREDIT',
             balance_type: 'WELCOME_CREDIT',
-            amount: WELCOME_CREDIT_AMOUNT,
-            currency: 'MYR',
+            amount: welcomeAmount,
+            currency: welcomeCurrency,
             status: 'COMPLETED',
             reference_id: referenceId || `welcome_${organizationId}`,
-            description: `One-time Welcome Credit grant of RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}`,
+            description: `One-time Welcome Credit grant of ${currPrefix}${welcomeAmount.toFixed(2)}`,
             metadata: {
               ...(metadata || {}),
               owner_user_id: targetUserId,
@@ -2073,17 +2131,18 @@ export async function grantWelcomeCredit(
           eventType: 'WELCOME_CREDIT_ADDED',
           organizationId,
           recipientUserId: targetUserId || undefined,
-          amount: WELCOME_CREDIT_AMOUNT,
-          currency: 'MYR',
+          amount: welcomeAmount,
+          currency: welcomeCurrency,
         },
         env
       ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch WELCOME_CREDIT_ADDED:', err));
 
+      const currPrefix = welcomeCurrency === 'MYR' ? 'RM' : welcomeCurrency;
       return {
         transaction,
         wallet,
         alreadyGranted: false,
-        message: `Successfully granted RM${WELCOME_CREDIT_AMOUNT.toFixed(2)} Welcome Credit!`,
+        message: `Successfully granted ${currPrefix}${welcomeAmount.toFixed(2)} Welcome Credit!`,
       };
     });
   });
@@ -2277,12 +2336,16 @@ export async function canUseWelcomeCredit(
   }
 
   const wallet = await getWalletBalance(organizationId, env);
-  const creditAvailable = wallet.welcome_credit;
-  const creditAmount = Math.min(creditAvailable, WELCOME_CREDIT_AMOUNT);
-  const paidBalanceAvailable = wallet.paid_balance;
-  const paidBalanceRequired = Math.max(0, fromCents(toCents(eventPrice) - toCents(WELCOME_CREDIT_AMOUNT)));
+  const rewardSettings = await getRewardSettingsForOrganization(organizationId, env);
+  const configuredWelcomeAmount = rewardSettings ? Number(rewardSettings.welcome_credit_amount) : WELCOME_CREDIT_AMOUNT;
 
-  if (creditAvailable < WELCOME_CREDIT_AMOUNT) {
+  const creditAvailable = wallet.welcome_credit;
+  const creditAmount = Math.min(creditAvailable, configuredWelcomeAmount);
+  const paidBalanceAvailable = wallet.paid_balance;
+  const paidBalanceRequired = Math.max(0, fromCents(toCents(eventPrice) - toCents(configuredWelcomeAmount)));
+  const curr = wallet.currency || 'MYR';
+
+  if (creditAvailable < configuredWelcomeAmount) {
     return {
       eligible: false,
       credit_type: 'WELCOME_CREDIT',
@@ -2291,7 +2354,9 @@ export async function canUseWelcomeCredit(
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
       event_price: eventPrice,
-      reason: 'No Welcome Credit is available in your organization wallet.',
+      reason: creditAvailable <= 0
+        ? 'No Welcome Credit is available in your organization wallet.'
+        : `Insufficient Welcome Credit. Required: ${curr} ${configuredWelcomeAmount.toFixed(2)}, Available: ${curr} ${creditAvailable.toFixed(2)}.`,
     };
   }
 
@@ -2304,7 +2369,7 @@ export async function canUseWelcomeCredit(
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
       event_price: eventPrice,
-      reason: `Insufficient Paid Balance. Event price is RM${eventPrice.toFixed(2)}. Welcome Credit covers RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}, requiring at least RM${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is RM${paidBalanceAvailable.toFixed(2)}.`,
+      reason: `Insufficient Paid Balance. Event price is ${curr} ${eventPrice.toFixed(2)}. Welcome Credit covers ${curr} ${configuredWelcomeAmount.toFixed(2)}, requiring at least ${curr} ${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is ${curr} ${paidBalanceAvailable.toFixed(2)}.`,
     };
   }
 
@@ -2552,6 +2617,22 @@ export async function grantShowcaseCredit(
         };
       }
 
+      // Check centralized reward settings
+      const rewardSettings = await getRewardSettingsForOrganization(organizationId, env).catch(() => null);
+      if (rewardSettings && rewardSettings.showcase_credit_enabled === false) {
+        const currentWallet = await getWalletBalance(organizationId, env);
+        return {
+          transaction: null as any,
+          wallet: currentWallet,
+          alreadyGranted: false,
+          notEligible: true,
+          message: 'Showcase Credit is currently disabled in platform settings.',
+        };
+      }
+      const showcaseAmount = rewardSettings ? Number(rewardSettings.showcase_credit_amount) : SHOWCASE_CREDIT_AMOUNT;
+      const showcaseCurrency = rewardSettings?.currency || 'MYR';
+      const currPrefix = showcaseCurrency === 'MYR' ? 'RM' : showcaseCurrency;
+
       const now = new Date().toISOString();
 
       if (isSupabaseConfigured(env)) {
@@ -2566,7 +2647,7 @@ export async function grantShowcaseCredit(
               user_id: targetOwnerId,
               reward_type: 'SHOWCASE_CREDIT',
               organization_id: organizationId,
-              amount: SHOWCASE_CREDIT_AMOUNT,
+              amount: showcaseAmount,
               created_at: now,
             })
             .select()
@@ -2622,11 +2703,11 @@ export async function grantShowcaseCredit(
               event_id: eventId || null,
               transaction_type: 'SHOWCASE_CREDIT',
               balance_type: 'SHOWCASE_CREDIT',
-              amount: SHOWCASE_CREDIT_AMOUNT,
-              currency: 'MYR',
+              amount: showcaseAmount,
+              currency: showcaseCurrency,
               status: 'COMPLETED',
               reference_id: referenceId || `showcase_${organizationId}`,
-              description: `One-time Event Showcase completion reward credit of RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}`,
+              description: `One-time Event Showcase completion reward credit of ${currPrefix}${showcaseAmount.toFixed(2)}`,
               metadata: {
                 ...(metadata || {}),
                 program: 'EVENT_SHOWCASE_APPROVED_REWARD',
@@ -2680,7 +2761,7 @@ export async function grantShowcaseCredit(
               event_id: eventId || null,
               showcase_id: metadata?.showcase_id || null,
               transaction_id: transaction.id,
-              amount: SHOWCASE_CREDIT_AMOUNT,
+              amount: showcaseAmount,
               rewarded_at: now,
               created_at: now,
             });
@@ -2694,7 +2775,7 @@ export async function grantShowcaseCredit(
           transaction,
           wallet,
           alreadyGranted: false,
-          message: `Successfully granted RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Reward Credit!`,
+          message: `Successfully granted ${currPrefix}${showcaseAmount.toFixed(2)} Showcase Reward Credit!`,
         };
       } else {
         assertProductionSafe('grantShowcaseCredit', env);
@@ -2706,7 +2787,7 @@ export async function grantShowcaseCredit(
           reward_type: 'SHOWCASE_CREDIT',
           organization_id: organizationId,
           transaction_id: null,
-          amount: SHOWCASE_CREDIT_AMOUNT,
+          amount: showcaseAmount,
           created_at: now,
         };
         localUserRewardsCache.set(`${targetOwnerId}:SHOWCASE_CREDIT`, userRewardRecord);
@@ -2720,11 +2801,11 @@ export async function grantShowcaseCredit(
             event_id: eventId || null,
             transaction_type: 'SHOWCASE_CREDIT',
             balance_type: 'SHOWCASE_CREDIT',
-            amount: SHOWCASE_CREDIT_AMOUNT,
-            currency: 'MYR',
+            amount: showcaseAmount,
+            currency: showcaseCurrency,
             status: 'COMPLETED',
             reference_id: referenceId || `showcase_${organizationId}`,
-            description: `One-time Event Showcase completion reward credit of RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}`,
+            description: `One-time Event Showcase completion reward credit of ${currPrefix}${showcaseAmount.toFixed(2)}`,
             metadata: {
               ...(metadata || {}),
               program: 'EVENT_SHOWCASE_APPROVED_REWARD',
@@ -2745,7 +2826,7 @@ export async function grantShowcaseCredit(
           event_id: eventId || '',
           showcase_id: metadata?.showcase_id || '',
           transaction_id: transaction.id,
-          amount: SHOWCASE_CREDIT_AMOUNT,
+          amount: showcaseAmount,
           rewarded_at: now,
           created_at: now,
         });
@@ -2758,7 +2839,7 @@ export async function grantShowcaseCredit(
           transaction,
           wallet,
           alreadyGranted: false,
-          message: `Successfully granted RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Reward Credit!`,
+          message: `Successfully granted ${currPrefix}${showcaseAmount.toFixed(2)} Showcase Reward Credit!`,
         };
       }
     });
@@ -2834,12 +2915,16 @@ export async function canUseShowcaseCredit(
   }
 
   const wallet = await getWalletBalance(organizationId, env);
-  const creditAvailable = wallet.showcase_credit;
-  const creditAmount = Math.min(creditAvailable, SHOWCASE_CREDIT_AMOUNT);
-  const paidBalanceAvailable = wallet.paid_balance;
-  const paidBalanceRequired = Math.max(0, fromCents(toCents(eventPrice) - toCents(SHOWCASE_CREDIT_AMOUNT)));
+  const rewardSettings = await getRewardSettingsForOrganization(organizationId, env);
+  const configuredShowcaseAmount = rewardSettings ? Number(rewardSettings.showcase_credit_amount) : SHOWCASE_CREDIT_AMOUNT;
 
-  if (creditAvailable < SHOWCASE_CREDIT_AMOUNT) {
+  const creditAvailable = wallet.showcase_credit;
+  const creditAmount = Math.min(creditAvailable, configuredShowcaseAmount);
+  const paidBalanceAvailable = wallet.paid_balance;
+  const paidBalanceRequired = Math.max(0, fromCents(toCents(eventPrice) - toCents(configuredShowcaseAmount)));
+  const curr = wallet.currency || 'MYR';
+
+  if (creditAvailable < configuredShowcaseAmount) {
     return {
       eligible: false,
       credit_type: 'SHOWCASE_CREDIT',
@@ -2848,7 +2933,9 @@ export async function canUseShowcaseCredit(
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
       event_price: eventPrice,
-      reason: 'No Showcase Credit is available in your organization wallet.',
+      reason: creditAvailable <= 0
+        ? 'No Showcase Credit is available in your organization wallet.'
+        : `Insufficient Showcase Credit. Required: ${curr} ${configuredShowcaseAmount.toFixed(2)}, Available: ${curr} ${creditAvailable.toFixed(2)}.`,
     };
   }
 
@@ -2861,7 +2948,7 @@ export async function canUseShowcaseCredit(
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
       event_price: eventPrice,
-      reason: `Insufficient Paid Balance. Event price is RM${eventPrice.toFixed(2)}. Showcase Credit covers RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}, requiring at least RM${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is RM${paidBalanceAvailable.toFixed(2)}.`,
+      reason: `Insufficient Paid Balance. Event price is ${curr} ${eventPrice.toFixed(2)}. Showcase Credit covers ${curr} ${configuredShowcaseAmount.toFixed(2)}, requiring at least ${curr} ${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is ${curr} ${paidBalanceAvailable.toFixed(2)}.`,
     };
   }
 
@@ -2995,6 +3082,11 @@ export async function calculateEventPayment(
   }
   const normalizedPrice = Math.max(0, fromCents(toCents(resolvedPrice)));
   const wallet = options?.wallet || (await getWalletBalance(organizationId, env));
+  const rewardSettings = await getRewardSettingsForOrganization(organizationId, env);
+  const maxTopupPercent = rewardSettings?.max_topup_credit_per_event_percent ?? MAX_TOPUP_CREDIT_PER_EVENT_PERCENT;
+  const welcomeLimit = rewardSettings ? Number(rewardSettings.welcome_credit_amount) : WELCOME_CREDIT_AMOUNT;
+  const showcaseLimit = rewardSettings ? Number(rewardSettings.showcase_credit_amount) : SHOWCASE_CREDIT_AMOUNT;
+  const curr = wallet.currency || options?.currency || 'MYR';
 
   let paidAmount = 0;
   let welcomeCreditUsed = 0;
@@ -3048,7 +3140,7 @@ export async function calculateEventPayment(
     }
 
     const remainingPriceAfterShowcase = Math.max(0, fromCents(toCents(remainingPriceAfterWelcome) - toCents(showcaseCreditUsed)));
-    const maxAllowedEventCredit = fromCents(Math.round(toCents(normalizedPrice) * MAX_TOPUP_CREDIT_PER_EVENT_PERCENT));
+    const maxAllowedEventCredit = fromCents(Math.round(toCents(normalizedPrice) * maxTopupPercent));
 
     if (useEvent && wallet.topup_credit > 0) {
       const requested = options?.topupCreditRequested !== undefined ? Math.max(0, options.topupCreditRequested) : maxAllowedEventCredit;
@@ -3066,7 +3158,7 @@ export async function calculateEventPayment(
 
     if (wallet.paid_balance < paidAmount) {
       reasons.push(
-        `Insufficient Paid Balance. Required: RM${paidAmount.toFixed(2)}, Available: RM${wallet.paid_balance.toFixed(2)}.`
+        `Insufficient Paid Balance. Required: ${curr} ${paidAmount.toFixed(2)}, Available: ${curr} ${wallet.paid_balance.toFixed(2)}.`
       );
     }
   } else if (paymentMode === 'FULL_PAID') {
@@ -3079,61 +3171,61 @@ export async function calculateEventPayment(
 
     if (wallet.paid_balance < paidAmount) {
       reasons.push(
-        `Insufficient Paid Balance. Required: RM${paidAmount.toFixed(2)}, Available: RM${wallet.paid_balance.toFixed(2)}.`
+        `Insufficient Paid Balance. Required: ${curr} ${paidAmount.toFixed(2)}, Available: ${curr} ${wallet.paid_balance.toFixed(2)}.`
       );
     }
   } else if (paymentMode === 'WELCOME_CREDIT') {
-    // Welcome mode: Welcome Credit up to RM800.00 (no 20% cap) + Paid Balance
+    // Welcome mode: Welcome Credit up to welcomeLimit + Paid Balance
     showcaseCreditUsed = 0;
     topupCreditUsed = 0;
 
     if (wallet.welcome_credit <= 0) {
       reasons.push('No Welcome Credit is available in your wallet.');
-    } else if (wallet.welcome_credit < WELCOME_CREDIT_AMOUNT) {
+    } else if (wallet.welcome_credit < welcomeLimit) {
       reasons.push(
-        `Insufficient Welcome Credit. Required: RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}, Available: RM${wallet.welcome_credit.toFixed(2)}.`
+        `Insufficient Welcome Credit. Required: ${curr} ${welcomeLimit.toFixed(2)}, Available: ${curr} ${wallet.welcome_credit.toFixed(2)}.`
       );
     }
 
-    welcomeCreditUsed = Math.min(wallet.welcome_credit, WELCOME_CREDIT_AMOUNT, normalizedPrice);
+    welcomeCreditUsed = Math.min(wallet.welcome_credit, welcomeLimit, normalizedPrice);
     totalDiscount = welcomeCreditUsed;
     paidAmount = fromCents(Math.max(0, toCents(normalizedPrice) - toCents(welcomeCreditUsed)));
     remainingCreditBalance = fromCents(Math.max(0, toCents(wallet.welcome_credit) - toCents(welcomeCreditUsed)));
 
     if (wallet.paid_balance < paidAmount) {
       reasons.push(
-        `Insufficient Paid Balance. Required: RM${paidAmount.toFixed(2)}, Available: RM${wallet.paid_balance.toFixed(2)}.`
+        `Insufficient Paid Balance. Required: ${curr} ${paidAmount.toFixed(2)}, Available: ${curr} ${wallet.paid_balance.toFixed(2)}.`
       );
     }
   } else if (paymentMode === 'SHOWCASE_CREDIT') {
-    // Showcase mode: Showcase Credit up to RM300.00 (no 20% cap) + Paid Balance
+    // Showcase mode: Showcase Credit up to showcaseLimit + Paid Balance
     welcomeCreditUsed = 0;
     topupCreditUsed = 0;
 
     if (wallet.showcase_credit <= 0) {
       reasons.push('No Showcase Credit is available in your wallet.');
-    } else if (wallet.showcase_credit < SHOWCASE_CREDIT_AMOUNT) {
+    } else if (wallet.showcase_credit < showcaseLimit) {
       reasons.push(
-        `Insufficient Showcase Credit. Required: RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}, Available: RM${wallet.showcase_credit.toFixed(2)}.`
+        `Insufficient Showcase Credit. Required: ${curr} ${showcaseLimit.toFixed(2)}, Available: ${curr} ${wallet.showcase_credit.toFixed(2)}.`
       );
     }
 
-    showcaseCreditUsed = Math.min(wallet.showcase_credit, SHOWCASE_CREDIT_AMOUNT, normalizedPrice);
+    showcaseCreditUsed = Math.min(wallet.showcase_credit, showcaseLimit, normalizedPrice);
     totalDiscount = showcaseCreditUsed;
     paidAmount = fromCents(Math.max(0, toCents(normalizedPrice) - toCents(showcaseCreditUsed)));
     remainingCreditBalance = fromCents(Math.max(0, toCents(wallet.showcase_credit) - toCents(showcaseCreditUsed)));
 
     if (wallet.paid_balance < paidAmount) {
       reasons.push(
-        `Insufficient Paid Balance. Required: RM${paidAmount.toFixed(2)}, Available: RM${wallet.paid_balance.toFixed(2)}.`
+        `Insufficient Paid Balance. Required: ${curr} ${paidAmount.toFixed(2)}, Available: ${curr} ${wallet.paid_balance.toFixed(2)}.`
       );
     }
   } else if (paymentMode === 'TOPUP_CREDIT') {
-    // Top-up credit mode: Max 20% of event price (RM280 for RM1400)
+    // Top-up credit mode: Max configured percent of event price
     welcomeCreditUsed = 0;
     showcaseCreditUsed = 0;
 
-    const maxAllowedCredit = fromCents(Math.round(toCents(normalizedPrice) * MAX_TOPUP_CREDIT_PER_EVENT_PERCENT));
+    const maxAllowedCredit = fromCents(Math.round(toCents(normalizedPrice) * maxTopupPercent));
 
     if (wallet.topup_credit <= 0) {
       reasons.push('No Top-up Credit is available in your wallet.');
@@ -3141,8 +3233,9 @@ export async function calculateEventPayment(
 
     // Customer can choose amount to use, default to max eligible
     const requested = options?.topupCreditRequested !== undefined ? Math.max(0, options.topupCreditRequested) : maxAllowedCredit;
+    const maxPercentDisplay = Math.round(maxTopupPercent * 100);
     if (options?.topupCreditRequested !== undefined && options.topupCreditRequested > maxAllowedCredit) {
-      reasons.push(`Top-up Credit cannot exceed 20% of the Event price (Max RM${maxAllowedCredit.toFixed(2)}).`);
+      reasons.push(`Top-up Credit cannot exceed ${maxPercentDisplay}% of the Event price (Max ${curr} ${maxAllowedCredit.toFixed(2)}).`);
     }
 
     topupCreditUsed = Math.min(wallet.topup_credit, maxAllowedCredit, requested);
@@ -4520,11 +4613,26 @@ export async function getTopupQuote(
   },
   env?: Record<string, any>
 ): Promise<TopupQuoteResponse> {
-  const { organizationId, amount, currency = 'MYR' } = params;
+  const { organizationId, amount } = params;
   const sanitizedAmount = Math.max(0, Number(amount) || 0);
   const currentWallet = await getWalletBalance(organizationId, env);
 
-  const promoCredit = calculateTopupCredit(sanitizedAmount);
+  let settings: WalletRewardSettingsWithTiers | null = null;
+  try {
+    settings = await getRewardSettingsForOrganization(organizationId, env);
+  } catch (err) {
+    console.warn('Notice resolving reward settings for topup quote:', err);
+  }
+
+  const currency = settings?.currency || params.currency || currentWallet.currency || 'MYR';
+  const activeTiers = settings?.tiers?.filter((t) => t.is_active) || [];
+  const isBonusEnabled = settings ? settings.topup_bonus_enabled : true;
+
+  const dynamicResult = activeTiers.length > 0
+    ? calculateDynamicTopupCredit(sanitizedAmount, activeTiers, isBonusEnabled)
+    : { promoCredit: calculateTopupCredit(sanitizedAmount), bonusPercentage: 0, matchedTier: null, tierRateDescription: '' };
+
+  const promoCredit = dynamicResult.promoCredit;
   const bonusPercentage = sanitizedAmount > 0 ? (promoCredit / sanitizedAmount) * 100 : 0;
   const totalWalletValue = fromCents(toCents(sanitizedAmount) + toCents(promoCredit));
 
@@ -4533,6 +4641,20 @@ export async function getTopupQuote(
   const newTotalBalance = fromCents(
     toCents(currentWallet.total_balance) + toCents(sanitizedAmount) + toCents(promoCredit)
   );
+
+  const presetAmounts = activeTiers.length >= 2
+    ? [
+        Math.round(activeTiers[0].min_deposit * 0.2),
+        Math.round(activeTiers[0].min_deposit * 0.5),
+        activeTiers[0].min_deposit,
+        activeTiers[1].min_deposit,
+      ].filter((p) => p > 0)
+    : (currency === 'SGD' || currency === 'USD' ? [500, 1000, 2000, 3500] : [1000, 3000, 6000, 10000]);
+
+  const tier1Min = activeTiers[0]?.min_deposit ?? TOPUP_TIER_1_MIN;
+  const tier1Rate = activeTiers[0]?.bonus_rate ?? TOPUP_TIER_1_RATE;
+  const tier2Min = activeTiers[1]?.min_deposit ?? TOPUP_TIER_2_MIN;
+  const tier2Rate = activeTiers[1]?.bonus_rate ?? TOPUP_TIER_2_RATE;
 
   return {
     amount: sanitizedAmount,
@@ -4550,11 +4672,11 @@ export async function getTopupQuote(
       total_balance: newTotalBalance,
     },
     tiers: {
-      tier1_min: TOPUP_TIER_1_MIN,
-      tier1_rate: TOPUP_TIER_1_RATE,
-      tier2_min: TOPUP_TIER_2_MIN,
-      tier2_rate: TOPUP_TIER_2_RATE,
-      preset_amounts: [1000, 3000, 6000, 10000],
+      tier1_min: tier1Min,
+      tier1_rate: tier1Rate,
+      tier2_min: tier2Min,
+      tier2_rate: tier2Rate,
+      preset_amounts: presetAmounts,
     },
   };
 }
@@ -4568,7 +4690,7 @@ const localPendingOrdersCache = new Map<string, PendingTopupOrder>();
  * CRITICAL FINANCIAL LIFECYCLE RULES (PHASE 3):
  * 1. An order is ALWAYS created in PENDING status.
  * 2. Creating an order MUST NEVER modify wallet balances or create ledger records.
- * 3. Exact promotional bonus is computed from the central Wallet Engine (calculateTopupCredit).
+ * 3. Exact promotional bonus is computed from the central Wallet Engine (calculateTopupCredit) and country settings.
  */
 export async function createTopupOrder(
   params: {
@@ -4586,7 +4708,7 @@ export async function createTopupOrder(
   const organizationId = params.organizationId || (params as any).organization_id;
   const userId = params.userId || (params as any).user_id;
   const amount = params.amount !== undefined ? params.amount : (params as any).top_up_amount;
-  const { currency = 'MYR', paymentReference, paymentMethod, notes, metadata } = params;
+  const { paymentReference, paymentMethod, notes, metadata } = params;
 
   if (!organizationId) {
     throw new Error('Organization ID is required to create a top-up order');
@@ -4605,14 +4727,28 @@ export async function createTopupOrder(
     throw new Error('Top-up amount must be greater than or equal to zero');
   }
 
-  const sanitizedCurrency = (currency || 'MYR').trim().toUpperCase();
+  let settings: WalletRewardSettingsWithTiers | null = null;
+  try {
+    settings = await getRewardSettingsForOrganization(organizationId, env);
+  } catch (err) {
+    console.warn('Notice resolving reward settings for topup order:', err);
+  }
+
+  const resolvedCurrency = settings?.currency || params.currency || 'MYR';
+  const sanitizedCurrency = resolvedCurrency.trim().toUpperCase();
   const wallet = await getWalletBalance(organizationId, env);
   if (wallet.currency && wallet.currency.toUpperCase() !== sanitizedCurrency) {
     throw new Error(`Currency mismatch: Top-up order currency (${sanitizedCurrency}) does not match organization wallet currency (${wallet.currency})`);
   }
 
-  // Calculate promotional credit using the central Wallet Engine
-  const expectedCreditAmount = calculateTopupCredit(sanitizedAmount);
+  const activeTiers = settings?.tiers?.filter((t) => t.is_active) || [];
+  const isBonusEnabled = settings ? settings.topup_bonus_enabled : true;
+
+  const dynamicResult = activeTiers.length > 0
+    ? calculateDynamicTopupCredit(sanitizedAmount, activeTiers, isBonusEnabled)
+    : { promoCredit: calculateTopupCredit(sanitizedAmount), bonusPercentage: 0, matchedTier: null, tierRateDescription: '' };
+
+  const expectedCreditAmount = dynamicResult.promoCredit;
   const bonusPercentage = sanitizedAmount > 0 ? (expectedCreditAmount / sanitizedAmount) * 100 : 0;
   const totalWalletValue = fromCents(toCents(sanitizedAmount) + toCents(expectedCreditAmount));
 
@@ -4624,7 +4760,7 @@ export async function createTopupOrder(
     id,
     organization_id: organizationId,
     user_id: userId,
-    currency,
+    currency: sanitizedCurrency,
     top_up_amount: sanitizedAmount,
     expected_credit_amount: expectedCreditAmount,
     bonus_percentage: Math.round(bonusPercentage * 100) / 100,
@@ -4633,7 +4769,13 @@ export async function createTopupOrder(
     payment_reference: paymentReference || null,
     payment_method: paymentMethod || null,
     notes: notes || null,
-    metadata: metadata || {},
+    metadata: {
+      ...(metadata || {}),
+      settings_version: settings?.version || 1,
+      country_code: settings?.country_code || 'MY',
+      applied_tier: dynamicResult.matchedTier,
+      topup_bonus_enabled: isBonusEnabled,
+    },
     created_at: now,
     updated_at: now,
     expired_at: expiresAt,
@@ -4672,7 +4814,7 @@ export async function createTopupOrder(
         orderId: saved.id,
         paymentReference: paymentReference || null,
         amount: sanitizedAmount,
-        currency,
+        currency: sanitizedCurrency,
         actorId: userId,
         metadata: {
           expected_credit_amount: expectedCreditAmount,
@@ -4690,7 +4832,7 @@ export async function createTopupOrder(
         recipientUserId: userId,
         referenceId: saved.payment_reference || saved.id,
         amount: sanitizedAmount,
-        currency,
+        currency: sanitizedCurrency,
         subject: `Wallet Top-Up (${saved.id.slice(0, 8).toUpperCase()})`,
         checkoutUrl: (saved.metadata as any)?.payment_url || `/wallet/top-up?orderId=${saved.id}`,
         metadata: {
@@ -4717,7 +4859,7 @@ export async function createTopupOrder(
       orderId: orderRecord.id,
       paymentReference: paymentReference || null,
       amount: sanitizedAmount,
-      currency,
+      currency: sanitizedCurrency,
       actorId: userId,
       metadata: {
         expected_credit_amount: expectedCreditAmount,
@@ -4735,7 +4877,7 @@ export async function createTopupOrder(
       recipientUserId: userId,
       referenceId: orderRecord.payment_reference || orderRecord.id,
       amount: sanitizedAmount,
-      currency,
+      currency: sanitizedCurrency,
       subject: `Wallet Top-Up (${orderRecord.id.slice(0, 8).toUpperCase()})`,
       checkoutUrl: (orderRecord.metadata as any)?.payment_url || `/wallet/top-up?orderId=${orderRecord.id}`,
       metadata: {
